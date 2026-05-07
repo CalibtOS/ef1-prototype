@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>efactory1 · Operations Console</title>
+<link rel="stylesheet" href="styles.css">
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+</head>
+<body>
+<div id="root"></div>
+
+<script type="text/babel" src="data.js"></script>
+<script type="text/babel" src="utils.jsx"></script>
+<script type="text/babel" src="shell.jsx"></script>
+<script type="text/babel" src="admin-dashboard.jsx"></script>
+<script type="text/babel" src="orders.jsx"></script>
+<script type="text/babel" src="screens-2.jsx"></script>
+<script type="text/babel" src="screens-3.jsx"></script>
+
+<script type="text/babel" data-presets="env,react">
+const { useState, useEffect, useMemo, useCallback } = React;
+// Pull components published to window by IIFE-wrapped script files
+const {
+  Sidebar, Topbar, ToastStack, TweaksPanel,
+  AdminDashboard, OrdersTable, OrderDetail,
+  FridayBatch, QAQueue, Inbox, AIBIDashboard,
+  GhostwritersList, PipelineKanban,
+  CustomersPage, DisputesPage, ReportsPage, SettingsPage,
+  GWJobBoard, GWActiveJobs, GWSubmit, CustomerView,
+  GWDashboard, GWPayments, GWTemplates, GWMessages, GWProfile, GWSubmissionsList, GWAssignmentDetail,
+  GWReportDelay, GWExtensionRequest, GWFirstContact, GWOnboarding,
+  QAPlagiarismReports, QAAIDetection, QAHistory, QAOrderDetail,
+  OrderNewWizard, OffersPage, CustomerDetail, GhostwriterDetail,
+  AdminGlobalBanners,
+} = window;
+
+const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
+  "theme": "light",
+  "density": "compact",
+  "locale": "both",
+  "accent": "#1F62F0",
+  "debug": false,
+  "animateCounters": false
+}/*EDITMODE-END*/;
+
+// Lightweight hash router — survives reload, supports back/forward, deep links.
+// Format: #role/route?key=value (e.g. #admin/order-detail?id=3499)
+function parseHash() {
+  const raw = (window.location.hash || '').replace(/^#\/?/, '');
+  if (!raw) return { role: 'admin', name: 'admin-dashboard', params: {} };
+  const [path, query] = raw.split('?');
+  const segments = path.split('/').filter(Boolean);
+  const role = ['admin','gw','qa','customer'].includes(segments[0]) ? segments[0] : 'admin';
+  const name = segments[1] || (role === 'admin' ? 'admin-dashboard' : role === 'gw' ? 'gw-dashboard' : role === 'qa' ? 'qa-queue' : 'cust-orders');
+  const params = {};
+  if (query) {
+    new URLSearchParams(query).forEach((v, k) => { params[k] = /^\d+$/.test(v) ? Number(v) : v; });
+  }
+  return { role, name, params };
+}
+function buildHash(role, name, params) {
+  const qs = params && Object.keys(params).length
+    ? '?' + new URLSearchParams(Object.entries(params).filter(([,v]) => v != null && v !== '').map(([k,v]) => [k, String(v)])).toString()
+    : '';
+  return `#/${role}/${name}${qs}`;
+}
+
+function App() {
+  const init = parseHash();
+  const [route, setRoute] = useState({ name: init.name, params: init.params });
+  const [role, setRole] = useState(init.role);
+  const [tweaks, setTweaksState] = useState(TWEAK_DEFAULTS);
+  const [tweakOpen, setTweakOpen] = useState(false);
+  const [toasts, setToasts] = useState([]);
+  const [fixState, setFixState] = useState({}); // mutations to orders
+
+  // Sync URL <- state
+  useEffect(() => {
+    const expected = buildHash(role, route.name, route.params);
+    if (window.location.hash !== expected) {
+      window.history.replaceState(null, '', expected);
+    }
+  }, [role, route.name, route.params]);
+
+  // Sync state <- URL (back/forward, manual edits, reload)
+  useEffect(() => {
+    const onHash = () => {
+      const next = parseHash();
+      setRole(next.role);
+      setRoute({ name: next.name, params: next.params });
+    };
+    window.addEventListener('hashchange', onHash);
+    return () => window.removeEventListener('hashchange', onHash);
+  }, []);
+
+  // tweaks integration
+  const setTweak = useCallback((k, v) => {
+    setTweaksState(prev => {
+      const next = { ...prev, [k]: v };
+      try { window.parent.postMessage({ type: '__edit_mode_set_keys', edits: { [k]: v } }, '*'); } catch(e){}
+      return next;
+    });
+  }, []);
+
+  useEffect(() => {
+    const onMsg = (e) => {
+      if (!e.data) return;
+      if (e.data.type === '__activate_edit_mode') setTweakOpen(true);
+      if (e.data.type === '__deactivate_edit_mode') setTweakOpen(false);
+    };
+    window.addEventListener('message', onMsg);
+    try { window.parent.postMessage({ type: '__edit_mode_available' }, '*'); } catch(e){}
+    return () => window.removeEventListener('message', onMsg);
+  }, []);
+
+  // apply theme/accent
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', tweaks.theme);
+    document.documentElement.setAttribute('data-density', tweaks.density);
+    document.documentElement.setAttribute('data-locale', tweaks.locale);
+    document.documentElement.style.setProperty('--blue', tweaks.accent);
+  }, [tweaks.theme, tweaks.density, tweaks.locale, tweaks.accent]);
+
+  const navigate = useCallback((name, params = {}) => {
+    setRoute({ name, params });
+    window.scrollTo(0, 0);
+  }, []);
+
+  const toast = useCallback(({ text, tone = 'info' }) => {
+    const id = Math.random().toString(36).slice(2);
+    setToasts(t => [...t, { id, text, tone }]);
+    setTimeout(() => setToasts(t => t.filter(x => x.id !== id)), 5000);
+  }, []);
+
+  const dismiss = (id) => setToasts(t => t.filter(x => x.id !== id));
+
+  // role-aware route resolution
+  let body = null;
+  if (role === 'customer') {
+    switch (route.name) {
+      case 'cust-orders':
+      case 'admin-dashboard': body = <CustomerView navigate={navigate} section="orders"/>; break;
+      case 'cust-messages': body = <CustomerView navigate={navigate} section="messages"/>; break;
+      case 'cust-invoices': body = <CustomerView navigate={navigate} section="invoices"/>; break;
+      case 'cust-downloads': body = <CustomerView navigate={navigate} section="downloads"/>; break;
+      case 'cust-profile': body = <CustomerView navigate={navigate} section="profile"/>; break;
+      default: body = <CustomerView navigate={navigate} section="orders"/>;
+    }
+  } else if (role === 'qa') {
+    switch (route.name) {
+      case 'qa-queue':
+      case 'qa':
+      case 'admin-dashboard': body = <QAQueue navigate={navigate} toast={toast} fixState={fixState} setFixState={setFixState}/>; break;
+      case 'qa-plagiarism': body = <QAPlagiarismReports navigate={navigate}/>; break;
+      case 'qa-ai': body = <QAAIDetection navigate={navigate}/>; break;
+      case 'qa-history': body = <QAHistory navigate={navigate}/>; break;
+      case 'order-detail': body = <QAOrderDetail orderId={route.params.id} navigate={navigate} toast={toast} fixState={fixState} setFixState={setFixState}/>; break;
+      default: body = <QAQueue navigate={navigate} toast={toast} fixState={fixState} setFixState={setFixState}/>;
+    }
+  } else if (role === 'gw') {
+    switch (route.name) {
+      case 'gw-dashboard':
+      case 'admin-dashboard': body = <GWDashboard navigate={navigate}/>; break;
+      case 'gw-active':
+      case 'orders': body = <GWActiveJobs navigate={navigate} fixState={fixState}/>; break;
+      case 'gw-job-board': body = <GWJobBoard navigate={navigate} fixState={fixState} setFixState={setFixState} toast={toast}/>; break;
+      case 'gw-submit': body = <GWSubmit orderId={route.params.id} kind={route.params.kind} navigate={navigate} toast={toast} setFixState={setFixState}/>; break;
+      case 'gw-report-delay': body = <GWReportDelay orderId={route.params.id} navigate={navigate} toast={toast} setFixState={setFixState}/>; break;
+      case 'gw-extension': body = <GWExtensionRequest orderId={route.params.id} navigate={navigate} toast={toast} setFixState={setFixState}/>; break;
+      case 'gw-first-contact': body = <GWFirstContact orderId={route.params.id} navigate={navigate} toast={toast}/>; break;
+      case 'gw-onboarding': body = <GWOnboarding navigate={navigate} toast={toast}/>; break;
+      case 'gw-submissions-list': body = <GWSubmissionsList navigate={navigate}/>; break;
+      case 'gw-templates': body = <GWTemplates/>; break;
+      case 'gw-payments': body = <GWPayments navigate={navigate}/>; break;
+      case 'gw-messages': body = <GWMessages navigate={navigate}/>; break;
+      case 'gw-profile': body = <GWProfile/>; break;
+      case 'gw-assignment-detail':
+      case 'order-detail': body = <GWAssignmentDetail orderId={route.params.id} navigate={navigate} toast={toast}/>; break;
+      default: body = <GWDashboard navigate={navigate}/>;
+    }
+  } else {
+    // admin
+    switch (route.name) {
+      case 'admin-dashboard': body = <AdminDashboard navigate={navigate} openFridayBatch={() => navigate('friday-batch')}/>; break;
+      case 'orders': body = <OrdersTable navigate={navigate} fixState={fixState} route={route}/>; break;
+      case 'order-detail': body = <OrderDetail orderId={route.params.id} navigate={navigate} toast={toast} fixState={fixState} setFixState={setFixState}/>; break;
+      case 'friday-batch': body = <FridayBatch navigate={navigate} fixState={fixState} setFixState={setFixState} toast={toast}/>; break;
+      case 'qa': body = <QAQueue navigate={navigate} toast={toast} fixState={fixState} setFixState={setFixState}/>; break;
+      case 'inbox': body = <Inbox toast={toast}/>; break;
+      case 'ai-bi': body = <AIBIDashboard/>; break;
+      case 'gw-job-board': body = <GWJobBoard navigate={navigate} fixState={fixState} setFixState={setFixState} toast={toast} role="admin"/>; break;
+      case 'ghostwriters': body = <GhostwritersList navigate={navigate}/>; break;
+      case 'ghostwriter-detail': body = <GhostwriterDetail gwId={route.params.id} navigate={navigate} fixState={fixState} setFixState={setFixState} toast={toast}/>; break;
+      case 'pipeline': body = <PipelineKanban navigate={navigate}/>; break;
+      case 'customers': body = <CustomersPage navigate={navigate}/>; break;
+      case 'customer-detail': body = <CustomerDetail customerId={route.params.id} navigate={navigate} fixState={fixState}/>; break;
+      case 'disputes': body = <DisputesPage navigate={navigate} fixState={fixState}/>; break;
+      case 'reports': body = <ReportsPage navigate={navigate}/>; break;
+      case 'settings': body = <SettingsPage navigate={navigate} toast={toast}/>; break;
+      case 'order-new': body = <OrderNewWizard navigate={navigate} toast={toast} setFixState={setFixState}/>; break;
+      case 'offers': body = <OffersPage navigate={navigate} toast={toast} fixState={fixState} setFixState={setFixState}/>; break;
+      default: body = <AdminDashboard navigate={navigate} openFridayBatch={() => navigate('friday-batch')}/>;
+    }
+  }
+
+  return (
+    <div className="app-root">
+      <Sidebar route={route} navigate={navigate} role={role} fixState={fixState}/>
+      <div className="app-main">
+        <Topbar role={role} setRole={setRole} navigate={navigate} toast={toast}/>
+        {role === 'admin' && <AdminGlobalBanners navigate={navigate}/>}
+        <div className="content-area">
+          {body}
+        </div>
+      </div>
+      {tweakOpen && <TweaksPanel tweaks={tweaks} setTweak={setTweak} onClose={() => { setTweakOpen(false); try { window.parent.postMessage({ type: '__edit_mode_dismissed' }, '*'); } catch(e){} }}/>}
+      <ToastStack toasts={toasts} onDismiss={dismiss}/>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+</script>
+</body>
+</html>
