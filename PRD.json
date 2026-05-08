@@ -1,0 +1,899 @@
+{
+  "product": {
+    "name": "eFactory One",
+    "tagline": "The operating system for academic ghostwriting agencies",
+    "client": "Berat Özdemir — Bery Ventures GmbH",
+    "vendor": "CalibtOS",
+    "domain": "Academic ghostwriting marketplace (DACH region, Germany-first, English-localized UI)",
+    "elevator_pitch": "eFactory replaces Berat's 100% manual workflow (Google Sheets + Notion + WordPress forms + WhatsApp + Outlook) with a unified SaaS platform that orchestrates the entire order lifecycle — from customer inquiry through ghostwriter assignment, interim and final delivery, QA review, dispute handling, and Friday-batch payment release — while preserving the financial and communication firewall that protects the business model.",
+    "north_star": "Reduce Berat's operational load to zero. Every recurring manual action (sheet edits, copy-paste, deadline tracking, GW emails, payment math) becomes one click in the platform.",
+    "phase": "Requirements Engineering — high-fidelity prototype to validate scope before build",
+    "hard_deadline": "2026-07-31 — Zapier deprecation forces platform go-live",
+    "legal_entity": "Bery Ventures GmbH, c/o WeWork Friesenplatz 4, 50672 Köln",
+    "support_email": "kundenservice@efactory1.de",
+    "primary_languages": ["English (UI default)", "German (content-bound: emails, AGBs, legal)"],
+    "currency_default": "EUR",
+    "vat_default": "7% (educational services, Germany)"
+  },
+
+  "design_principles": {
+    "look_and_feel": "Modern operational SaaS, dense information design, calm neutrals with two accent colors. Inspired by Linear, Pipedrive, and Notion. Information density over whitespace — Berat is a power user.",
+    "primary_color": "#2D5BFF (Calibtos blue)",
+    "secondary_color": "#10B981 (success/release green)",
+    "warning_color": "#F59E0B",
+    "danger_color": "#EF4444",
+    "neutral_palette": ["#0F172A", "#475569", "#94A3B8", "#E2E8F0", "#F8FAFC"],
+    "typography": "Inter for UI, JetBrains Mono for IDs and amounts",
+    "iconography": "Lucide / Phosphor — line icons, 1.5px stroke",
+    "layout_pattern": "Persistent left sidebar (collapsible) + top breadcrumb bar + main content. Detail screens use right-side drawer for related entities.",
+    "data_density": "Tables default to 50 rows/page, sticky header, inline status pills, hover row actions, multi-select with bulk actions.",
+    "tone_of_microcopy": "Direct, operational, German-bilingual where rule names matter (e.g. 'Teillieferung — Interim delivery')."
+  },
+
+  "users": {
+    "roles": [
+      {
+        "id": "admin",
+        "label": "Admin (Berat)",
+        "description": "Owner-operator. Full visibility into every order, payment, GW, and message. Approves GW claims, releases payments every Friday, mediates disputes, and self-assigns orders he wants to write himself.",
+        "permissions": "all",
+        "demo_user": { "name": "Berat Özdemir", "email": "berat@efactory1.de", "avatar_initials": "BÖ" }
+      },
+      {
+        "id": "qa",
+        "label": "QA Reviewer",
+        "description": "Dedicated efactory1 quality assurance team. Reviews submitted interim and final work for plagiarism, AI use, formatting, and academic standard before forwarding to customer.",
+        "permissions": ["qa.review", "qa.approve", "qa.reject", "qa.run_plagiarism_check", "orders.read"],
+        "demo_user": { "name": "Lina Hoffmann", "email": "qa@efactory1.de", "avatar_initials": "LH" }
+      },
+      {
+        "id": "service_worker",
+        "label": "Service Worker (Employee)",
+        "description": "Trusted operator who handles repetitive tasks (offer drafting, customer replies, follow-ups). Restricted permissions; sensitive actions (payment release, GW assignment) gated to admin.",
+        "permissions": ["orders.read", "orders.update_notes", "messages.send", "offers.draft", "customers.read"],
+        "demo_user": { "name": "Marwan Shakib", "email": "marwan@efactory1.de", "avatar_initials": "MS" }
+      },
+      {
+        "id": "ghostwriter",
+        "label": "Ghostwriter (GW)",
+        "description": "External freelance academic writer. Sees only their own assignments, the public job board, their payments, and the document templates library.",
+        "permissions": ["jobs.browse", "jobs.claim", "assignments.own", "submissions.upload", "messages.own", "profile.edit"],
+        "demo_user": { "name": "Isabel Walter", "email": "isabel.walter@gw.efactory1.de", "avatar_initials": "IW" }
+      },
+      {
+        "id": "customer",
+        "label": "Customer (Student)",
+        "description": "Buyer. Submits inquiry via public form, receives offer, pays, communicates with assigned GW (always with efactory1 in CC), receives interim and final work via the platform.",
+        "permissions": ["orders.own", "messages.own", "downloads.own", "payments.own"],
+        "demo_user": { "name": "Adrian Kurt", "email": "adrian.kurt@example.com", "avatar_initials": "AK" }
+      }
+    ],
+    "auth": {
+      "modes": ["email + password", "magic link (customers, guest-friendly)", "OAuth (Google) for staff"],
+      "guest_flow": "WhatsApp customers can place an order without an account; account auto-created on first offer acceptance",
+      "session_duration_minutes": 720,
+      "mfa": "Optional TOTP for admin and QA roles"
+    }
+  },
+
+  "global_navigation": {
+    "admin": [
+      { "label": "Dashboard", "icon": "layout-dashboard", "route": "/admin" },
+      { "label": "Orders", "icon": "package", "route": "/admin/orders", "badge": "open_orders_count" },
+      { "label": "Customers", "icon": "users", "route": "/admin/customers" },
+      { "label": "Ghostwriters", "icon": "feather", "route": "/admin/ghostwriters" },
+      { "label": "Job Board", "icon": "clipboard-list", "route": "/admin/jobs" },
+      { "label": "QA Queue", "icon": "shield-check", "route": "/admin/qa", "badge": "qa_pending_count" },
+      { "label": "Payments", "icon": "wallet", "route": "/admin/payments", "badge": "friday_releasable_count" },
+      { "label": "Disputes", "icon": "alert-triangle", "route": "/admin/disputes" },
+      { "label": "Inbox", "icon": "inbox", "route": "/admin/inbox", "description": "Unified email + WhatsApp + voice + chat" },
+      { "label": "Offers / Sevdesk", "icon": "file-text", "route": "/admin/offers" },
+      { "label": "Pipedrive Pipeline", "icon": "git-branch", "route": "/admin/pipeline" },
+      { "label": "AI BI Dashboard", "icon": "sparkles", "route": "/admin/bi", "tag": "Beta" },
+      { "label": "Reports", "icon": "bar-chart-3", "route": "/admin/reports" },
+      { "label": "Settings", "icon": "settings", "route": "/admin/settings", "submenu": ["Team", "Templates", "Email Routing", "Integrations", "AGBs", "Localization"] }
+    ],
+    "ghostwriter": [
+      { "label": "My Dashboard", "icon": "layout-dashboard", "route": "/gw" },
+      { "label": "Job Board", "icon": "clipboard-list", "route": "/gw/jobs", "badge": "available_jobs_count" },
+      { "label": "My Assignments", "icon": "briefcase", "route": "/gw/assignments" },
+      { "label": "Submissions", "icon": "upload-cloud", "route": "/gw/submissions" },
+      { "label": "Templates", "icon": "folder", "route": "/gw/templates" },
+      { "label": "Payments", "icon": "wallet", "route": "/gw/payments" },
+      { "label": "Messages", "icon": "message-square", "route": "/gw/messages" },
+      { "label": "Profile", "icon": "user", "route": "/gw/profile" }
+    ],
+    "customer": [
+      { "label": "My Orders", "icon": "package", "route": "/customer" },
+      { "label": "Messages", "icon": "message-square", "route": "/customer/messages" },
+      { "label": "Invoices", "icon": "file-text", "route": "/customer/invoices" },
+      { "label": "Downloads", "icon": "download", "route": "/customer/downloads" },
+      { "label": "Profile", "icon": "user", "route": "/customer/profile" }
+    ],
+    "qa": [
+      { "label": "Review Queue", "icon": "shield-check", "route": "/qa" },
+      { "label": "Plagiarism Reports", "icon": "search", "route": "/qa/plagiarism" },
+      { "label": "AI Detection", "icon": "bot", "route": "/qa/ai" },
+      { "label": "QA History", "icon": "history", "route": "/qa/history" }
+    ]
+  },
+
+  "entities": {
+    "Customer": {
+      "fields": [
+        { "name": "id", "type": "uuid" },
+        { "name": "pipedrive_contact_id", "type": "integer" },
+        { "name": "pipedrive_deal_id", "type": "integer" },
+        { "name": "name", "type": "string" },
+        { "name": "email", "type": "email" },
+        { "name": "phone", "type": "phone" },
+        { "name": "country", "type": "iso2", "default": "DE" },
+        { "name": "language", "type": "string", "default": "de" },
+        { "name": "lead_source", "type": "enum", "values": ["ef1", "ig", "ws1", "b1", "ebay", "ac", "av", "sp1", "referral"] },
+        { "name": "tags", "type": "string[]" },
+        { "name": "lifetime_value_eur", "type": "currency" },
+        { "name": "orders_count", "type": "integer" },
+        { "name": "created_at", "type": "datetime" }
+      ]
+    },
+    "Order": {
+      "fields": [
+        { "name": "id", "type": "integer", "display": "#3522" },
+        { "name": "status", "type": "enum", "values": ["lead", "qualified", "offer_sent", "invoice_sent", "paid", "available", "pending_approval", "active", "interim_submitted", "under_customer_review", "revision_required", "final_submitted", "qa_review", "delivered", "payment_pending", "completed", "on_hold", "cancelled", "bye"] },
+        { "name": "customer_id", "type": "ref:Customer" },
+        { "name": "work_type", "type": "enum", "values": ["hausarbeit", "bachelorarbeit", "masterarbeit", "doktorarbeit", "diplomarbeit", "seminararbeit", "facharbeit", "projektarbeit", "expose", "praesentation", "lektorat", "workbook", "formatierung", "coaching", "sonstiges"] },
+        { "name": "paper_title", "type": "string", "nullable": true, "placeholder": "folgt (TBD)" },
+        { "name": "field_of_study", "type": "string" },
+        { "name": "page_count", "type": "integer" },
+        { "name": "accepted_at", "type": "date" },
+        { "name": "final_deadline", "type": "datetime", "note": "Always 18:00 cutoff" },
+        { "name": "intermediate_deadlines", "type": "datetime[]", "rule": "1 entry if pages ≤ 20, else 2 entries" },
+        { "name": "gross_price_eur", "type": "currency" },
+        { "name": "net_price_eur", "type": "currency", "computed": "gross / 1.07" },
+        { "name": "deadline_factor", "type": "decimal", "default": 1.0, "rule": ">1 when deadline < 72h" },
+        { "name": "vat_rate", "type": "decimal", "default": 0.07 },
+        { "name": "lead_source", "type": "enum" },
+        { "name": "internal_notes", "type": "richtext" },
+        { "name": "efactory_note_to_gw", "type": "string", "label": "Weitere Notiz von efactory1.de" },
+        { "name": "outline_attachment", "type": "file" },
+        { "name": "expose_attachment", "type": "file" },
+        { "name": "sevdesk_invoice_id", "type": "string" },
+        { "name": "stripe_payment_intent_id", "type": "string" },
+        { "name": "pipedrive_stage", "type": "enum", "values": ["Anfrage", "Qualifiziert für Ghostwriting", "Rückmeldung (Verhandlung)", "Rechnung angefordert", "Won"] },
+        { "name": "ai_violation_flag", "type": "boolean" },
+        { "name": "dispute_open", "type": "boolean" }
+      ]
+    },
+    "Payment": {
+      "fields": [
+        { "name": "id", "type": "uuid" },
+        { "name": "order_id", "type": "ref:Order" },
+        { "name": "installment_number", "type": "integer", "range": [1, 5] },
+        { "name": "amount_eur", "type": "currency" },
+        { "name": "due_date", "type": "date" },
+        { "name": "method", "type": "enum", "values": ["stripe_card", "stripe_klarna", "stripe_paypal", "bank_transfer_sepa", "cash"] },
+        { "name": "status", "type": "enum", "values": ["scheduled", "pending", "paid", "overdue", "failed", "refunded"] },
+        { "name": "paid_at", "type": "datetime" },
+        { "name": "stripe_payment_id", "type": "string" }
+      ]
+    },
+    "Ghostwriter": {
+      "fields": [
+        { "name": "id", "type": "uuid" },
+        { "name": "first_name", "type": "string" },
+        { "name": "last_name", "type": "string" },
+        { "name": "email", "type": "email" },
+        { "name": "phone", "type": "phone" },
+        { "name": "expertise_tags", "type": "string[]" },
+        { "name": "languages", "type": "string[]" },
+        { "name": "default_rate", "type": "decimal", "range": [0.33, 0.62] },
+        { "name": "active_assignments_count", "type": "integer" },
+        { "name": "lifetime_assignments", "type": "integer" },
+        { "name": "on_time_rate", "type": "percent" },
+        { "name": "avg_revision_rounds", "type": "decimal" },
+        { "name": "avg_customer_rating", "type": "decimal" },
+        { "name": "shadow_banned", "type": "boolean" },
+        { "name": "shadow_ban_reason", "type": "string", "nullable": true },
+        { "name": "iban", "type": "string" },
+        { "name": "tax_id", "type": "string" },
+        { "name": "agbs_signed_version", "type": "string" },
+        { "name": "agbs_signed_at", "type": "datetime" },
+        { "name": "availability_hours", "type": "string" },
+        { "name": "active", "type": "boolean" }
+      ]
+    },
+    "Assignment": {
+      "fields": [
+        { "name": "id", "type": "uuid" },
+        { "name": "order_id", "type": "ref:Order" },
+        { "name": "ghostwriter_id", "type": "ref:Ghostwriter" },
+        { "name": "assignment_status", "type": "enum", "values": ["not_assigned", "claimed_pending_approval", "approved_active", "interim_submitted", "final_submitted", "in_revision", "completed", "reassigned", "cancelled"] },
+        { "name": "net_honorarium_eur", "type": "currency" },
+        { "name": "rate", "type": "decimal" },
+        { "name": "claimed_at", "type": "datetime" },
+        { "name": "approved_at", "type": "datetime" },
+        { "name": "agbs_acknowledged", "type": "boolean" },
+        { "name": "no_ai_acknowledged", "type": "boolean" },
+        { "name": "gdpr_acknowledged", "type": "boolean" },
+        { "name": "deadline_acknowledged", "type": "boolean" },
+        { "name": "fee_acknowledged", "type": "boolean" },
+        { "name": "gw_payment_status", "type": "enum", "values": ["work_in_progress", "invoice_missing", "invoice_received", "partial_paid", "paid", "credited", "no_payment_self_assigned", "cancelled"] },
+        { "name": "revision_rounds", "type": "integer" }
+      ]
+    },
+    "Submission": {
+      "fields": [
+        { "name": "id", "type": "uuid" },
+        { "name": "assignment_id", "type": "ref:Assignment" },
+        { "name": "kind", "type": "enum", "values": ["interim_1", "interim_2", "final_work", "final_invoice", "extension_invoice", "revision"] },
+        { "name": "round", "type": "integer", "default": 1 },
+        { "name": "file_name", "type": "string" },
+        { "name": "file_size_bytes", "type": "integer", "max": 5242880 },
+        { "name": "file_type", "type": "enum", "values": ["doc", "docx", "pdf", "xls", "xlsx"] },
+        { "name": "file_hash_sha256", "type": "string" },
+        { "name": "self_check_no_ai", "type": "boolean" },
+        { "name": "self_check_ready_to_send", "type": "boolean" },
+        { "name": "self_check_individually_created", "type": "boolean" },
+        { "name": "self_check_spelling", "type": "boolean" },
+        { "name": "self_check_plagiarism", "type": "boolean" },
+        { "name": "qa_status", "type": "enum", "values": ["pending", "passed", "failed_revision_required", "ai_violation", "plagiarism_violation"] },
+        { "name": "qa_reviewer_id", "type": "ref:User" },
+        { "name": "plagiarism_score", "type": "percent" },
+        { "name": "ai_score", "type": "percent" },
+        { "name": "submitted_at", "type": "datetime" },
+        { "name": "forwarded_to_customer_at", "type": "datetime" }
+      ]
+    },
+    "Dispute": {
+      "fields": [
+        { "name": "id", "type": "uuid" },
+        { "name": "order_id", "type": "ref:Order" },
+        { "name": "raised_by", "type": "enum", "values": ["customer", "gw", "admin"] },
+        { "name": "category", "type": "enum", "values": ["quality", "deadline", "scope", "ai_use", "plagiarism", "communication", "other"] },
+        { "name": "status", "type": "enum", "values": ["open", "investigating", "revision_in_progress", "resolved_satisfied", "resolved_reassigned", "resolved_no_payment"] },
+        { "name": "blocks_payment", "type": "boolean" },
+        { "name": "messages_count", "type": "integer" }
+      ]
+    },
+    "Message": {
+      "fields": [
+        { "name": "id", "type": "uuid" },
+        { "name": "thread_id", "type": "uuid" },
+        { "name": "order_id", "type": "ref:Order" },
+        { "name": "channel", "type": "enum", "values": ["platform_chat", "email_proxy", "whatsapp_proxy", "voice_metadata"] },
+        { "name": "from_user_id", "type": "ref:User" },
+        { "name": "to_user_id", "type": "ref:User" },
+        { "name": "cc_efactory1", "type": "boolean", "default": true },
+        { "name": "body", "type": "richtext" },
+        { "name": "attachments", "type": "file[]" },
+        { "name": "ai_sentiment", "type": "enum", "values": ["positive", "neutral", "tense", "frustrated", "angry"] },
+        { "name": "ai_flagged_topic", "type": "enum", "values": ["financial_question", "deadline_complaint", "ai_accusation", "compliment", "none"] },
+        { "name": "intercepted", "type": "boolean" },
+        { "name": "sent_at", "type": "datetime" }
+      ]
+    },
+    "Notification": {
+      "fields": [
+        { "name": "id", "type": "uuid" },
+        { "name": "user_id", "type": "ref:User" },
+        { "name": "kind", "type": "enum", "values": ["assignment_offered", "claim_pending_your_approval", "interim_due_d1", "interim_due_d2", "final_due_d1", "final_uploaded", "qa_passed", "revision_required", "payment_released", "delay_reported", "ai_violation", "dispute_opened", "extension_requested"] },
+        { "name": "title", "type": "string" },
+        { "name": "body", "type": "string" },
+        { "name": "read", "type": "boolean" },
+        { "name": "deeplink", "type": "url" }
+      ]
+    }
+  },
+
+  "screens": {
+    "public": {
+      "/": {
+        "name": "Marketing landing (links into platform)",
+        "purpose": "Public site — out of scope for prototype, but link CTA goes to /customer/inquiry"
+      },
+      "/customer/inquiry": {
+        "name": "Customer Inquiry Form (replaces WP CF7 forms 6378, 41156, 42844, 7308)",
+        "components": [
+          "Hero with trust badges (4159 students helped, ⌀ 4.8/5, GDPR-compliant)",
+          "Multi-step form: (1) Work type + pages + deadline, (2) Topic + field of study + outline upload, (3) Contact details, (4) Pricing preview computed live",
+          "Live price calculator (gross = pages × rate × deadline factor)",
+          "Sidebar: 'What happens next' timeline (Offer in 24h → GW assigned → Interim → Final → Done)"
+        ]
+      }
+    },
+    "admin": {
+      "/admin": {
+        "name": "Admin Dashboard",
+        "purpose": "Berat's morning command center",
+        "kpi_cards": [
+          { "label": "Open Receivables", "value": "€87,210", "delta": "+€4,120 this week", "icon": "euro" },
+          { "label": "Active Orders", "value": "645", "icon": "package" },
+          { "label": "Friday Releasable", "value": "12 GW payments · €8,420", "icon": "wallet", "cta": "Open Friday Batch" },
+          { "label": "QA Queue", "value": "7 awaiting review", "icon": "shield-check", "tone": "warning" },
+          { "label": "Overdue Interim", "value": "3", "tone": "danger" },
+          { "label": "Subscriber Limit", "value": "4,159 / 5,000", "tone": "warning", "tooltip": "Pipedrive cap — clean up before next campaign" }
+        ],
+        "panels": [
+          {
+            "title": "Today's deadlines",
+            "type": "timeline",
+            "items": "List of orders with interim or final deadlines today/tomorrow, color-coded D-2/D-1/today"
+          },
+          {
+            "title": "Needs your decision",
+            "type": "action_queue",
+            "items": ["GW claim awaiting approval", "Disputes open", "Delay reports filed", "AI violations flagged", "Customer asked GW about pricing (auto-redirected, FYI)"]
+          },
+          {
+            "title": "Pipeline funnel",
+            "type": "funnel_chart",
+            "stages": ["Anfrage", "Qualifiziert", "Rückmeldung", "Rechnung angefordert", "Won"]
+          },
+          {
+            "title": "Revenue this month",
+            "type": "line_chart",
+            "series": ["Gross", "Net (after VAT)", "GW honorarium paid", "Margin"]
+          },
+          {
+            "title": "GW workload heatmap",
+            "type": "heatmap",
+            "description": "Rows = GWs, columns = next 14 days, cell = active assignments"
+          }
+        ]
+      },
+      "/admin/orders": {
+        "name": "Orders Table",
+        "purpose": "The Bestellungen sheet, modernized",
+        "table": {
+          "columns": ["ID", "Status pill", "Customer", "Work type", "Pages", "Title", "Final deadline (D-x countdown)", "Interim deadline", "Gross €", "Paid €", "Outstanding €", "GW", "GW payment status", "Lead source", "Notes (✏️ inline)"],
+          "row_density": "compact",
+          "row_actions": ["Open", "Mark as paid", "Self-assign", "Reassign GW", "Hold", "Cancel", "Open chat"],
+          "bulk_actions": ["Export CSV", "Bulk reassign", "Bulk status change"],
+          "row_color_rules": [
+            "green tint when status = done",
+            "red text on deadline column when D-1 or overdue",
+            "yellow tint on installment cells when paid"
+          ]
+        },
+        "filters": ["Status (multi)", "Work type", "GW", "Lead source", "Date range (accepted_at)", "Has outstanding balance", "Has open dispute", "Deadline window (today/this week/overdue)"],
+        "saved_views": ["My active", "Friday payment batch", "Overdue interim", "AI flagged", "Self-assigned (Berat)", "Without GW"],
+        "search": "Free text across customer name, paper title, ID, internal notes",
+        "empty_state": "No orders match — try clearing filters"
+      },
+      "/admin/orders/:id": {
+        "name": "Order Detail",
+        "layout": "Three-column: left = order spine, center = activity timeline, right = related entities drawer",
+        "header": {
+          "shows": ["Order #3522", "Status pill (Active)", "Days to final deadline (D-12)", "Outstanding balance pill (€220 of €660)"],
+          "actions": ["Edit", "Self-assign", "Reassign GW", "Mark as paid", "Generate offer (Sevdesk)", "Send invoice", "Hold", "Cancel", "Open dispute"]
+        },
+        "tabs": [
+          {
+            "name": "Overview",
+            "sections": ["Customer card", "Work spec (type, pages, title, field, outline)", "Pricing breakdown (gross, VAT, net, deadline factor, GW honorarium, Berat margin)", "Deadlines (final + computed interim dates)", "Pipedrive stage card (with stage-changer)", "Sevdesk invoice card", "Stripe / Bank payments list"]
+          },
+          { "name": "Assignment", "sections": ["Selected GW with expertise match score", "GW workload context", "Self-assign button", "Assignment notification preview (both emails side by side)"] },
+          { "name": "Submissions", "sections": ["Interim 1", "Interim 2 (if >20 pages)", "Final work", "Final invoice", "Extension invoices"], "shows": ["File preview", "QA status", "Plagiarism % bar", "AI score bar", "Download / forward to customer button"] },
+          { "name": "Communications", "sections": ["Unified chat thread (email + WhatsApp + voice metadata, Kleinanzeigen-style merged feed)", "AI sentiment timeline", "Flagged messages (financial questions, AI accusations)"] },
+          { "name": "Payments", "sections": ["Customer installment plan (up to 5)", "Payment timeline", "Mark-as-paid button (bank transfer)", "Stripe payment intent log", "GW payment status + release gate checklist"] },
+          { "name": "Disputes", "sections": ["Open disputes list", "Revision rounds counter", "Reassignment history"] },
+          { "name": "Audit log", "type": "activity_feed" }
+        ],
+        "release_gate_widget": {
+          "title": "GW Payment Releasability",
+          "checks": [
+            { "label": "Customer satisfied", "state": "pass" },
+            { "label": "Quality approved (no plagiarism, no AI)", "state": "pass" },
+            { "label": "Revision rounds complete", "state": "pass" },
+            { "label": "All customer installments paid", "state": "fail", "detail": "1 of 3 installments outstanding" },
+            { "label": "GW invoice received", "state": "pass" }
+          ],
+          "result": "Blocked — release after final installment clears",
+          "cta_disabled": "Release Payment"
+        }
+      },
+      "/admin/orders/new": {
+        "name": "Create Order (manual entry for off-form / WhatsApp customers)",
+        "form_steps": ["Customer (search Pipedrive or create)", "Work spec", "Pricing", "Deadlines", "Notes & attachments", "Confirm"]
+      },
+      "/admin/customers": {
+        "name": "Customers (Pipedrive mirror)",
+        "table_columns": ["Name", "Email", "Phone", "Country", "Lead source", "Orders", "Lifetime value €", "Open balance €", "Last interaction", "Pipedrive stage"]
+      },
+      "/admin/customers/:id": {
+        "name": "Customer 360",
+        "panels": ["Profile + Pipedrive sync indicator", "Order history table", "Communication timeline (all channels)", "Invoices and payments", "Notes / tags"]
+      },
+      "/admin/ghostwriters": {
+        "name": "GW Registry (deduped from 258 sheet strings → ~80–120 real GWs)",
+        "table_columns": ["Name", "Avatar", "Expertise tags", "Active jobs", "Lifetime jobs", "On-time %", "Avg rating", "Default rate %", "Shadow-banned", "Last submission"],
+        "filters": ["Expertise", "Capacity (free / busy / overloaded)", "Shadow-banned", "Active"],
+        "row_actions": ["Open profile", "Assign to order", "Toggle shadow-ban", "Send WhatsApp"]
+      },
+      "/admin/ghostwriters/:id": {
+        "name": "GW Profile",
+        "tabs": ["Overview (expertise, languages, banking)", "Active assignments", "History", "Quality stats", "AGBs version signed", "Notes (private)"],
+        "shadow_ban_widget": {
+          "title": "Shadow-ban",
+          "fields": ["Toggle on/off", "Reason (admin-only)", "Effect: GW stops receiving job emails; can still see board if visited"]
+        }
+      },
+      "/admin/jobs": {
+        "name": "Job Board (admin view)",
+        "purpose": "What GWs see, plus the ability to feature/hide/assign",
+        "shows": "Same columns as GW board + admin-only column 'Visible to (all / specific GWs)'"
+      },
+      "/admin/qa": {
+        "name": "QA Review Queue",
+        "table_columns": ["Order ID", "Submission kind", "GW", "Submitted", "Auto plagiarism %", "Auto AI %", "Status", "Reviewer"],
+        "row_action_drawer": {
+          "tabs": ["Document preview (PDF inline)", "Plagiarism report", "AI detection report", "Self-check declarations", "Comparison vs interim"],
+          "actions": ["Approve & forward to customer", "Reject — request revision", "Flag AI violation (blocks payment + excludes GW)", "Flag plagiarism violation"]
+        }
+      },
+      "/admin/payments": {
+        "name": "Payments — Friday Batch + Receivables",
+        "tabs": [
+          {
+            "name": "Friday GW Payouts",
+            "shows": "Releasable assignments grouped by GW; one-click 'Release all' with confirmation",
+            "summary_cards": ["Total releasable", "GWs paid this week", "Avg payout", "Next Friday countdown"]
+          },
+          { "name": "Customer receivables", "shows": "Outstanding installments, overdue dunning, mark-as-paid for SEPA" },
+          { "name": "Stripe webhook log", "shows": "payment_intent.succeeded events with linked orders" },
+          { "name": "Sevdesk invoices", "shows": "All invoices with status sync" }
+        ]
+      },
+      "/admin/disputes": {
+        "name": "Disputes",
+        "table_columns": ["Order", "Customer", "GW", "Category", "Opened", "Revision rounds", "Status", "Blocks payment"],
+        "detail_drawer": ["Customer feedback log", "GW responses", "Revision submissions", "Reassign action", "Resolve action"]
+      },
+      "/admin/inbox": {
+        "name": "Unified Communications Inbox (Layer 2 unified chat)",
+        "layout": "Three-pane: thread list left, message stream center, AI assist right",
+        "thread_list_filters": ["Channel (email / WhatsApp / voice / platform)", "Sentiment", "Flagged", "Unread", "Order tag"],
+        "message_stream_features": ["Inline order context card", "Customer ↔ GW visible side-by-side", "efactory1 auto-CC indicator", "Translate German↔English toggle"],
+        "ai_assist_panel": ["Sentiment trend", "Suggested reply (GPT-style, with 'Send', 'Edit', 'Discard')", "Miscommunication detector", "Financial-question redirect button (auto-message: 'Please contact kundenservice@efactory1.de')", "Escalate to admin"]
+      },
+      "/admin/offers": {
+        "name": "Offers (Sevdesk)",
+        "shows": "Drafts, sent offers, accepted, rejected. 'Generate offer' wizard pulls pricing from order."
+      },
+      "/admin/pipeline": {
+        "name": "Pipedrive Pipeline (kanban mirror)",
+        "columns": ["Anfrage", "Qualifiziert", "Rückmeldung", "Rechnung angefordert", "Won", "Lost"],
+        "card_actions": ["Move stage", "Open order", "Open in Pipedrive"]
+      },
+      "/admin/bi": {
+        "name": "AI BI Dashboard (E-11)",
+        "input": "Natural language prompt: 'Show me revenue by work type for the last 6 months, split by lead source'",
+        "output": "Auto-generated chart + SQL preview + saveable view",
+        "examples": ["Top 10 GWs by margin", "Average deadline factor by month", "Disputes per GW", "Cash flow forecast"],
+        "tag": "Beta — prompt → SQL → UI view"
+      },
+      "/admin/reports": {
+        "name": "Reports",
+        "report_cards": ["Monthly P&L", "GW honorarium ledger", "VAT report (7%)", "Lead source ROI", "On-time delivery rate", "Customer LTV"]
+      },
+      "/admin/settings/templates": {
+        "name": "Templates Library",
+        "shows": ["Email templates (assignment to GW, intro to customer, dunning, delay confirmation)", "Document templates (Deckblatt, Expose, Thesis, 200 Formulierungen)", "AGBs versions"]
+      },
+      "/admin/settings/integrations": {
+        "shows": ["Pipedrive (status, last sync, subscriber count 4,159/5,000 ⚠️)", "Sevdesk", "Stripe (webhook health)", "Cloudflare Email Routing", "WhatsApp proxy provider", "Voice provider"]
+      },
+      "/admin/settings/email_routing": {
+        "name": "Cloudflare Email Routing",
+        "shows": "Per-order proxy address mapping, catch-all rules, Worker logs"
+      }
+    },
+    "ghostwriter": {
+      "/gw": {
+        "name": "GW Dashboard",
+        "kpi_cards": [
+          { "label": "Active jobs", "value": "3" },
+          { "label": "Earnings this month", "value": "€2,430" },
+          { "label": "On-time rate", "value": "96%" },
+          { "label": "Next payday", "value": "Friday — €820" }
+        ],
+        "panels": ["Available jobs preview (3)", "My deadlines next 7 days", "Inbox unread (2)", "Pending self-checks", "Templates download shortcut"]
+      },
+      "/gw/jobs": {
+        "name": "Job Board (matches Notion exactly)",
+        "table_columns": ["Auftrags ID / Order ID", "Art der Arbeit / Type", "Titel der Arbeit / Title", "Fachbereich / Field", "Seitenanzahl / Pages", "Verbindliches Finales Lieferdatum (bis 18 Uhr) / Final deadline", "Verbindlicher 1. Zwischenstand (bis 18 Uhr) / Interim", "Gesamthonorar (Netto) / Fee net", "Weitere Notiz von efactory1.de / Note"],
+        "primary_action": "Auftrag annehmen / Claim Job",
+        "claim_modal": {
+          "title": "Claim Job #3522",
+          "summary_panel": "All job details",
+          "checkboxes_required": [
+            "I agree to the delivery deadline (final + interim)",
+            "I agree to the offered fee (€169.44 net)",
+            "I will NOT use AI tools",
+            "Work will be plagiarism-free, individually created",
+            "I will delete all customer PII after job completion (GDPR)",
+            "I have read and agree to the AGBs and freelance contract (v3.2)"
+          ],
+          "submit_label": "Submit claim — wait for efactory1 approval",
+          "post_submit_state": "Claim submitted — Order moves to 'Pending Approval'. You will receive a confirmation email when Berat approves."
+        }
+      },
+      "/gw/assignments": {
+        "name": "My Assignments",
+        "table_columns": ["Order", "Status", "Stage (interim/final)", "Final deadline countdown", "Net fee", "Actions"]
+      },
+      "/gw/assignments/:id": {
+        "name": "Assignment Detail (GW view)",
+        "shows": [
+          "Job spec card",
+          "Customer contact (visible only after approval)",
+          "Stepper: Pending Approval → Active → Interim → Final → Customer Review → Paid",
+          "First contact wizard (auto-pre-filled email: confirms topic/scope/dates, CC efactory1@…)",
+          "Submission tiles: Upload Interim Draft / Upload Final + Invoice / Request Extension / Report Delay",
+          "Messages thread with customer",
+          "Document templates download links"
+        ]
+      },
+      "/gw/submit/interim/:assignment_id": {
+        "name": "Submit Interim Draft",
+        "form": [
+          "File upload (.doc/.pdf/.xls — max 5 MB) with drag-drop",
+          "Order ID auto-filled (read-only)",
+          "Mandatory checkboxes: 'No AI tools used' / 'Ready to send to customer as-is' / 'I have read and comply with efactory1 guidelines'",
+          "Self-check declaration: spelling ✓ / grammar ✓ / plagiarism ✓ / customer requirements ✓"
+        ],
+        "post_submit": "Auto-forwarded to customer. Status → 'Interim Submitted — awaiting customer feedback'."
+      },
+      "/gw/submit/final/:assignment_id": {
+        "name": "Submit Final Work + Invoice",
+        "form": [
+          "File 1: Final work (.doc/.pdf — ≤5 MB)",
+          "File 2: Invoice (Honorarrechnung) — addressed to: Bery Ventures GmbH, c/o WeWork Friesenplatz 4, 50672 Köln",
+          "Mandatory checkboxes: 'No AI / no automated tools' / 'Can be sent to customer as-is' / 'Individually created — not a copy'",
+          "Self-check declaration (spelling, grammar, plagiarism, requirements)"
+        ],
+        "info_panel": "After submission, efactory1 QA team reviews before forwarding to customer. Payment is released after customer satisfaction confirmed + revision rounds complete + all customer installments paid."
+      },
+      "/gw/report-delay/:assignment_id": {
+        "name": "Report Delay (SOP B)",
+        "form": ["Reason (illness / emergency / other)", "Proposed new delivery date", "Has customer been informed? (Y/N)"],
+        "info": "Delay notification will be sent simultaneously to customer AND kundenservice@efactory1.de."
+      },
+      "/gw/extension/:assignment_id": {
+        "name": "Request Extension (SOP 6)",
+        "form": ["Description of additional work", "Estimated extra pages / hours", "Estimated extra fee"],
+        "info": "Berat reviews → asks customer for approval → you'll be notified to proceed. Extension fee paid by customer FIRST before you are paid."
+      },
+      "/gw/templates": {
+        "name": "Templates Library",
+        "files": [
+          { "name": "Vorlage_Deckblatt_efactory1.de.docx", "label": "Cover page template" },
+          { "name": "Expose_Vorlage_efactory1.docx", "label": "Exposé template" },
+          { "name": "Thesis_Vorlage_efactory1.docx", "label": "Thesis template" },
+          { "name": "200_Formulierungen_efactory1.docx", "label": "200 academic phrases" }
+        ]
+      },
+      "/gw/payments": {
+        "name": "My Payments",
+        "shows": ["Releasable (next Friday)", "Paid history", "Pending (waiting for customer installments / revisions)", "Per-assignment payment status"]
+      },
+      "/gw/messages": {
+        "name": "Messages (with auto-CC enforcement)",
+        "info_banner": "All messages to customers automatically include efactory1 in CC. Financial questions are auto-redirected to kundenservice@efactory1.de."
+      },
+      "/gw/profile": {
+        "name": "Profile / Onboarding wizard",
+        "tabs": ["Personal info", "Expertise tags", "Languages", "Banking (IBAN, tax ID)", "AGBs + freelance contract", "Availability hours"]
+      }
+    },
+    "customer": {
+      "/customer": {
+        "name": "My Orders",
+        "shows": "Cards per order with status timeline (Submitted → Offer → Paid → Assigned → Interim → Final → Done), download buttons appear when QA-approved work is forwarded"
+      },
+      "/customer/orders/:id": {
+        "tabs": ["Status & timeline", "Communication with my GW (efactory1 always in CC — visible)", "Files (interim, final, invoice)", "Payments & installments"]
+      },
+      "/customer/messages": { "name": "Messages — single thread per order, all channels merged" },
+      "/customer/invoices": { "name": "Invoices (Sevdesk PDFs)" }
+    },
+    "qa": {
+      "/qa": {
+        "name": "Review Queue",
+        "table_columns": ["Order", "Kind", "GW", "Submitted at", "Auto plagiarism %", "Auto AI %", "Round", "Assigned to"],
+        "row_drawer": [
+          "Inline document preview",
+          "Plagiarism report (highlighted matches)",
+          "AI detection report (per-paragraph score)",
+          "GW self-check declarations",
+          "Compare vs interim version",
+          "Decision: Approve & forward / Request revision / Flag AI violation / Flag plagiarism"
+        ]
+      }
+    }
+  },
+
+  "workflows": {
+    "order_lifecycle": {
+      "name": "Full order lifecycle (canonical)",
+      "states": ["lead", "qualified", "offer_sent", "invoice_sent", "paid_assignment_started", "available_on_board", "claimed_pending_approval", "active", "interim_submitted", "under_customer_review", "revision_required", "final_submitted", "qa_review", "delivered", "payment_pending", "completed"],
+      "transitions": [
+        { "from": "lead", "to": "qualified", "trigger": "Customer submits public form OR admin manually creates" },
+        { "from": "qualified", "to": "offer_sent", "trigger": "Admin generates Sevdesk offer" },
+        { "from": "offer_sent", "to": "invoice_sent", "trigger": "Customer accepts offer (Sevdesk invoice + Stripe link)" },
+        { "from": "invoice_sent", "to": "paid_assignment_started", "trigger": "Stripe webhook payment_intent.succeeded OR admin Mark-as-paid (SEPA). Both call confirmPayment()" },
+        { "from": "paid_assignment_started", "to": "available_on_board", "trigger": "Berat lists job for GW pool (skipped if Berat self-assigns)" },
+        { "from": "available_on_board", "to": "claimed_pending_approval", "trigger": "GW submits claim form with all 6 checkboxes" },
+        { "from": "claimed_pending_approval", "to": "active", "trigger": "Berat approves; both GW and customer receive simultaneous emails" },
+        { "from": "active", "to": "interim_submitted", "trigger": "GW uploads interim. Auto-forwarded to customer." },
+        { "from": "interim_submitted", "to": "under_customer_review", "trigger": "Customer opens / receives interim" },
+        { "from": "under_customer_review", "to": "revision_required", "trigger": "Customer gives negative feedback" },
+        { "from": "revision_required", "to": "under_customer_review", "trigger": "GW resubmits revision (round counter increments)" },
+        { "from": "active", "to": "final_submitted", "trigger": "GW uploads final work + invoice" },
+        { "from": "final_submitted", "to": "qa_review", "trigger": "QA team picks up work" },
+        { "from": "qa_review", "to": "delivered", "trigger": "QA approves; platform forwards to customer with 'quality check passed' message" },
+        { "from": "qa_review", "to": "revision_required", "trigger": "QA rejects (plagiarism, AI, formatting, content)" },
+        { "from": "delivered", "to": "payment_pending", "trigger": "Customer satisfied + all installments paid + revisions complete" },
+        { "from": "payment_pending", "to": "completed", "trigger": "Friday batch — Berat clicks Release Payment" }
+      ]
+    },
+    "gw_assignment": {
+      "name": "GW Selection & Assignment",
+      "options": ["Berat browses GW registry, filters by expertise tag, sees workload, clicks Assign", "Berat self-assigns (job never posted to board)", "GW self-claims from board (subject to Berat approval)"],
+      "criteria_priority": ["Field expertise (most important)", "Current workload (avoid overloading)"],
+      "sla": "≤ 24h from order paid → GW assigned. Before noon → same evening; after noon → next morning.",
+      "notification": "Two emails sent simultaneously: GW briefing (NICHT WEITERLEITEN) + customer GW intro"
+    },
+    "friday_payment_batch": {
+      "name": "Friday Honorarauszahlung",
+      "frequency": "Every Friday",
+      "release_gates": [
+        "customer_satisfied == true",
+        "quality_approved == true (no plagiarism, no AI)",
+        "revision_rounds_complete == true",
+        "all_customer_installments_paid == true",
+        "gw_invoice_received == true"
+      ],
+      "ui": "/admin/payments (Friday GW Payouts tab) — list of releasable assignments grouped by GW, single 'Release all' or per-row Release"
+    },
+    "delay_notification": {
+      "name": "GW reports delay",
+      "trigger": "GW clicks 'Report Delay' on assignment",
+      "outcome": "Email sent simultaneously to customer + kundenservice@efactory1.de containing reason + new proposed date",
+      "order_status": "Delayed — new deadline [date]"
+    },
+    "extension_workflow": {
+      "name": "Order extension + Zusatzrechnung",
+      "steps": ["GW flags need on portal", "Berat reviews", "Berat asks customer", "Customer approves extension fee", "GW does extra work", "GW uploads Zusatzrechnung via final upload form (flagged extension)", "Customer pays extension first", "Berat releases extension payment to GW"]
+    },
+    "ai_violation": {
+      "name": "AI Use = Fraud",
+      "trigger": "QA flags AI use OR sources cannot be verified",
+      "consequences": ["GW excluded from platform (active = false, shadow_banned = true with reason)", "Fraud report logged", "All pending GW payments blocked", "Order reassigned to another GW"]
+    },
+    "dispute_resolution": {
+      "name": "Negative feedback / dispute",
+      "steps": ["Customer feedback received via inbox", "Berat forwards to GW via platform", "Order status → revision_required", "GW makes corrections + resubmits", "Customer + Berat review", "If satisfied: payment unblocked. If repeated failure: reassign to new GW; original GW forfeits payment"]
+    },
+    "first_contact": {
+      "name": "GW first contact with customer (SOP D)",
+      "wizard_steps": ["Reply to efactory1 confirming receipt", "Compose intro email (template pre-fills: topic / scope / deadlines / efactory1 in CC / 'never send work directly' / 'financial questions to kundenservice')"]
+    }
+  },
+
+  "business_rules": {
+    "pricing": {
+      "price_per_page_eur_gross": { "Hausarbeit": 49, "Bachelorarbeit": 59, "Masterarbeit": 69, "Doktorarbeit": 79 },
+      "vat_rate": 0.07,
+      "formula": "gross = pages * price_per_page * deadline_factor",
+      "deadline_factor": "1.0 for ≥72h; >1.0 for <72h (exact multiplier TBD)",
+      "discount_full_upfront": 0.10,
+      "max_installments": 5
+    },
+    "delivery": {
+      "small_order_pages": "≤20 → 1 interim (Today + (Deadline−Today)/2) + final",
+      "large_order_pages": ">20 → 2 interims (Today + ΔT × 0.3) and (Today + ΔT × 0.6) + final",
+      "upload_cutoff": "By 18:00 the day BEFORE the due date",
+      "file_constraints": ".doc, .docx, .pdf, .xls, .xlsx — max 5 MB"
+    },
+    "gw_payment_split": {
+      "formula": "honorarium = (gross / 1.07) * rate",
+      "rate_range": [0.33, 0.62],
+      "rate_mode": 0.40,
+      "rate_locked_at": "Assignment time — does not change mid-order"
+    },
+    "communication_rules": [
+      "efactory1 must be in CC on every GW→customer email (auto-enforced)",
+      "GWs never discuss money with customers — auto-redirect financial questions to kundenservice@efactory1.de",
+      "Interim and final work never sent directly — only via platform",
+      "Response SLA: 24h to customer inquiries"
+    ],
+    "qa_rules": [
+      "Mandatory GW self-check before every submission",
+      "Dedicated efactory1 QA team reviews before customer forwarding",
+      "Specialized plagiarism software used",
+      "Customer receives 'quality check passed' confirmation when work forwarded"
+    ],
+    "payment_release_gates": [
+      "Customer satisfied",
+      "Quality approved",
+      "Revision rounds complete",
+      "All customer installments received",
+      "GW invoice received"
+    ],
+    "shadow_ban": "Admin can silently reduce GW visibility on board; shadow-banned GWs lose email alerts but can still see board if they visit",
+    "ai_use_policy": "Any AI use → exclusion + fraud report + payment refused",
+    "copyright": "Created works may not be reused without express client consent"
+  },
+
+  "integrations": {
+    "pipedrive": {
+      "purpose": "CRM source of truth for customers + deals",
+      "stages": ["Anfrage", "Qualifiziert für Ghostwriting", "Rückmeldung (Verhandlung)", "Rechnung angefordert", "Won"],
+      "subscriber_limit": "5000 (currently 4159 used — UI must show this warning)"
+    },
+    "sevdesk": {
+      "purpose": "Invoicing (legal Rechnung, not proforma)",
+      "endpoints": ["POST /Order/Factory/saveOrder (offer)", "POST /Order/:id/sendViaEmail", "POST /Invoice/Factory/createInvoiceFromOrder", "POST /Invoice/:id/sendViaEmail"]
+    },
+    "stripe": {
+      "purpose": "Card / Klarna / PayPal / installments",
+      "webhook": "payment_intent.succeeded → confirmPayment()"
+    },
+    "cloudflare_email": {
+      "purpose": "Email proxy routing — per-order disposable addresses + catch-all → Worker → backend"
+    },
+    "whatsapp": "Proxy mechanism — under exploration (groups vs virtual numbers)",
+    "voice": "Metadata-only (no recordings) — provider TBD (Twilio / SIPGATE / Telnyx)",
+    "plagiarism": "Turnitin or PlagScan API integration at QA submission gate",
+    "ai_detection": "GPTZero or similar — score per paragraph"
+  },
+
+  "notifications_catalog": [
+    { "kind": "claim_pending_your_approval", "to": "admin", "title": "GW {gw_name} claimed Order #{id}", "channel": ["in_app", "email"] },
+    { "kind": "assignment_approved", "to": "ghostwriter", "title": "Order #{id} approved — you may begin", "channel": ["in_app", "email"] },
+    { "kind": "interim_due_d1", "to": "ghostwriter", "title": "Interim deadline tomorrow 18:00 — Order #{id}", "channel": ["in_app", "email", "whatsapp"] },
+    { "kind": "interim_received", "to": "customer", "title": "Your interim draft is ready", "channel": ["email"] },
+    { "kind": "final_uploaded", "to": "admin", "title": "Final submission for Order #{id} — pending QA", "channel": ["in_app"] },
+    { "kind": "qa_passed", "to": "customer", "title": "Your work has passed our quality check", "channel": ["email"] },
+    { "kind": "revision_required", "to": "ghostwriter", "title": "Revision requested on Order #{id}", "channel": ["in_app", "email"] },
+    { "kind": "payment_released", "to": "ghostwriter", "title": "€{amount} released — see your bank in 1–3 business days", "channel": ["email"] },
+    { "kind": "ai_violation", "to": "admin", "title": "🚨 AI violation flagged on Order #{id} by GW {gw_name}", "channel": ["in_app", "email"] },
+    { "kind": "delay_reported", "to": ["admin", "customer"], "title": "Delay on Order #{id} — new date {date}", "channel": ["email"] },
+    { "kind": "subscriber_limit_warning", "to": "admin", "title": "Pipedrive 4,159 / 5,000 subscribers used", "channel": ["in_app"] }
+  ],
+
+  "mock_data": {
+    "orders_seed_count": 80,
+    "ghostwriters_seed_count": 24,
+    "customers_seed_count": 60,
+    "sample_orders": [
+      { "id": 3522, "status": "active", "customer": "Adrian Kurt", "work_type": "hausarbeit", "title": "DLMWIWPBA02 – Betriebliche Anwendungssysteme", "field": "Wirtschaftsinformatik", "pages": 10, "final_deadline": "2026-05-27T18:00:00", "interim_deadline": "2026-05-15T18:00:00", "gross_eur": 490, "net_honorarium_eur": 169.44, "rate": 0.37, "gw": "Isabel Walter", "lead_source": "ef1", "note": "IU Fallstudie" },
+      { "id": 3524, "status": "available", "customer": "Antigona Berisha", "work_type": "bachelorarbeit", "title": "Konzept zur strukturierten Umsetzung von Arbeitssicherheitsmaßnahmen auf Baustellen", "field": "Bauingenieurwesen", "pages": 50, "final_deadline": "2026-07-01T18:00:00", "interim_deadline": "2026-05-15T18:00:00", "gross_eur": 2950, "net_honorarium_eur": 660.86, "rate": 0.24, "gw": null, "lead_source": "ig" },
+      { "id": 3525, "status": "active", "customer": "Marie Lehmann", "work_type": "sonstiges", "title": "folgt (TBD)", "field": "Wirtschaftspsychologie", "pages": 15, "final_deadline": "2026-05-30T18:00:00", "interim_deadline": "2026-05-24T18:00:00", "gross_eur": 735, "net_honorarium_eur": 171.56, "rate": 0.25, "gw": "Berat Özdemir (self)", "lead_source": "ef1" },
+      { "id": 3499, "status": "payment_pending", "customer": "Kurt Müller", "work_type": "masterarbeit", "title": "Skalierbare ML-Pipelines für Predictive Maintenance", "field": "Wirtschaftsinformatik", "pages": 65, "final_deadline": "2026-04-28T18:00:00", "gross_eur": 4485, "net_honorarium_eur": 1675.93, "rate": 0.40, "gw": "Lukas Bauer", "lead_source": "ef1", "release_blocked_reason": "1 of 3 installments outstanding" },
+      { "id": 3492, "status": "completed", "customer": "Antigona Berisha", "work_type": "hausarbeit", "title": "Personalentwicklung in mittelständischen Unternehmen", "field": "BWL", "pages": 14, "final_deadline": "2026-04-10T18:00:00", "gross_eur": 686, "net_honorarium_eur": 256.45, "rate": 0.40, "gw": "Sarah Klein", "lead_source": "ef1" },
+      { "id": 3496, "status": "active", "customer": "Tobias Reinhardt", "work_type": "coaching", "title": "Bachelorarbeit Coaching — Methodenberatung", "field": "Soziologie", "pages": 0, "final_deadline": "2026-06-15T18:00:00", "gross_eur": 1200, "net_honorarium_eur": 420, "rate": 0.375, "gw": "Dr. Henrik Vogel", "lead_source": "referral" },
+      { "id": 3508, "status": "revision_required", "customer": "Lea Schmidt", "work_type": "bachelorarbeit", "title": "Nachhaltigkeit in der Modeindustrie", "field": "Marketing", "pages": 40, "final_deadline": "2026-05-20T18:00:00", "gross_eur": 2360, "net_honorarium_eur": 793.46, "rate": 0.36, "gw": "Maja Petrović", "revision_rounds": 2, "dispute_open": true },
+      { "id": 3514, "status": "qa_review", "customer": "Daniel Weber", "work_type": "doktorarbeit", "title": "Quantum-resistente Kryptographie in IoT-Netzwerken", "field": "Informatik", "pages": 120, "final_deadline": "2026-06-30T18:00:00", "gross_eur": 9480, "net_honorarium_eur": 4426.17, "rate": 0.50, "gw": "Dr. Henrik Vogel", "lead_source": "b1" },
+      { "id": 3517, "status": "ai_violation_review", "customer": "Sven Hartmann", "work_type": "masterarbeit", "title": "Verhaltensökonomie und Konsumentscheidungen", "field": "VWL", "pages": 70, "gross_eur": 4830, "net_honorarium_eur": 1804.67, "rate": 0.40, "gw": "Anna König", "ai_score": 87, "flagged": true }
+    ],
+    "sample_ghostwriters": [
+      { "name": "Isabel Walter", "expertise": ["Wirtschaftsinformatik", "BWL", "IU"], "languages": ["DE", "EN"], "active_jobs": 4, "lifetime": 87, "on_time": 0.96, "rating": 4.7, "rate": 0.40, "shadow_banned": false },
+      { "name": "Lukas Bauer", "expertise": ["Informatik", "Data Science", "ML"], "languages": ["DE", "EN"], "active_jobs": 2, "lifetime": 54, "on_time": 0.92, "rating": 4.8, "rate": 0.42, "shadow_banned": false },
+      { "name": "Dr. Henrik Vogel", "expertise": ["Soziologie", "Pädagogik", "Doktorarbeiten"], "languages": ["DE"], "active_jobs": 3, "lifetime": 142, "on_time": 0.98, "rating": 4.9, "rate": 0.50, "shadow_banned": false },
+      { "name": "Sarah Klein", "expertise": ["BWL", "Marketing", "Personal"], "languages": ["DE", "EN"], "active_jobs": 5, "lifetime": 203, "on_time": 0.94, "rating": 4.6, "rate": 0.38, "shadow_banned": false },
+      { "name": "Maja Petrović", "expertise": ["Marketing", "Mode", "Nachhaltigkeit"], "languages": ["DE", "EN", "SR"], "active_jobs": 3, "lifetime": 31, "on_time": 0.81, "rating": 4.0, "rate": 0.36, "shadow_banned": false },
+      { "name": "Anna König", "expertise": ["VWL", "Statistik"], "languages": ["DE"], "active_jobs": 1, "lifetime": 12, "on_time": 0.67, "rating": 3.4, "rate": 0.40, "shadow_banned": true, "shadow_ban_reason": "AI use suspected on Order #3517" },
+      { "name": "Berat Özdemir (self)", "expertise": ["any"], "languages": ["DE", "EN", "TR"], "active_jobs": 6, "lifetime": 311, "on_time": 1.00, "rating": 5.0, "rate": null, "shadow_banned": false }
+    ],
+    "kpi_dashboard_seed": {
+      "open_receivables_eur": 87210.03,
+      "active_orders": 645,
+      "completed_lifetime": 3359,
+      "total_orders_lifetime": 3522,
+      "friday_releasable_count": 12,
+      "friday_releasable_eur": 8420,
+      "qa_pending": 7,
+      "overdue_interim": 3,
+      "ai_flagged_open": 1,
+      "disputes_open": 4,
+      "pipedrive_subscribers": "4159 / 5000"
+    }
+  },
+
+  "states_and_transitions": {
+    "order_status_pills": {
+      "lead": { "color": "slate", "label": "Lead" },
+      "qualified": { "color": "blue", "label": "Qualifiziert" },
+      "offer_sent": { "color": "indigo", "label": "Offer Sent" },
+      "invoice_sent": { "color": "amber", "label": "Awaiting Payment" },
+      "available": { "color": "cyan", "label": "On Job Board" },
+      "claimed_pending_approval": { "color": "violet", "label": "GW Claimed — Approve" },
+      "active": { "color": "emerald", "label": "Active" },
+      "interim_submitted": { "color": "teal", "label": "Interim Submitted" },
+      "under_customer_review": { "color": "blue", "label": "Customer Review" },
+      "revision_required": { "color": "orange", "label": "Revision Required" },
+      "final_submitted": { "color": "purple", "label": "Final Submitted" },
+      "qa_review": { "color": "pink", "label": "QA Review" },
+      "delivered": { "color": "lime", "label": "Delivered" },
+      "payment_pending": { "color": "yellow", "label": "Payment Pending" },
+      "completed": { "color": "green", "label": "Done" },
+      "on_hold": { "color": "gray", "label": "On Hold" },
+      "cancelled": { "color": "red", "label": "Storno" },
+      "bye": { "color": "red-outline", "label": "Bye" },
+      "ai_violation_review": { "color": "red", "label": "🚨 AI Violation" }
+    },
+    "deadline_indicators": {
+      "rules": [
+        { "when": "due > 2 days", "color": "neutral" },
+        { "when": "due == 2 days (D-2)", "color": "amber", "label": "D-2" },
+        { "when": "due == 1 day (D-1)", "color": "orange", "label": "D-1 — upload by 18:00 today" },
+        { "when": "overdue", "color": "red", "label": "Overdue" }
+      ]
+    }
+  },
+
+  "edge_cases_and_micro_interactions": [
+    "Customer multi-orders: customers with >1 active order show a small badge in the customers list and a 'related orders' panel on each order detail",
+    "'folgt' (TBD) paper title: orders can be saved without a title; UI shows 'folgt — awaiting customer' placeholder",
+    "Coaching orders show different micro-copy (advisory work, not ghostwriting)",
+    "Self-assigned orders never appear on the GW job board — admin sees a banner 'Self-assigned: this job is hidden from the board'",
+    "Shadow-banned GWs see the board normally if they visit, but receive no email alerts — admin sees a small ghost icon next to their name",
+    "Financial-question auto-redirect: if a customer types 'price', 'cost', 'pay', 'invoice' in chat to GW, the message is held and an auto-reply suggests contacting kundenservice@efactory1.de",
+    "Auto-CC enforcement: GW chat composer always shows efactory1 in CC chip (non-removable)",
+    "Pipedrive subscriber limit warning banner persists across admin pages until cleaned up",
+    "Friday countdown: a small badge in the topbar shows 'Friday batch in 2 days · 12 releasable'",
+    "When QA approves work: customer email auto-includes 'Your work has passed our quality check' line",
+    "When QA flags AI: GW account shadow-banned automatically with reason 'AI use suspected on Order #X' — admin must manually reverse",
+    "Plagiarism / AI score color rules: <15% green, 15–30% amber, >30% red",
+    "Empty states everywhere are illustrated with a one-line tip pointing to the next action"
+  ],
+
+  "automation_assumptions": {
+    "interim_auto_forward": "When GW uploads interim, platform sends file to customer email automatically (no admin action)",
+    "final_manual_forward": "Final work is held for admin review (QA) before being sent to customer",
+    "assignment_dual_email": "Approving a GW claim sends two simultaneous emails: GW briefing + customer intro",
+    "stripe_webhook": "payment_intent.succeeded triggers confirmPayment() which fires Pipedrive 'Won' + Sevdesk mark-paid + GW assignment kickoff",
+    "bank_transfer_button": "Mark-as-paid button calls the same confirmPayment()",
+    "deadline_alerts": "Cron runs daily at 09:00 — sends D-2 and D-1 alerts to GW + admin",
+    "friday_batch_reminder": "Cron runs Friday 09:00 — admin receives 'Friday batch ready: N releasable, €X total'"
+  },
+
+  "frontend_prototype_directives": {
+    "must_render": [
+      "Three role-switcher in the topbar so demo audience can hop between Admin / GW / Customer / QA personas",
+      "Realistic seeded data (use sample_orders + sample_ghostwriters + 60 generated customers)",
+      "All status pills with consistent color system",
+      "Inline German→English bilingual labels for German rule names (Teillieferung / Honorar / Mustervorlage / Zwischenstand)",
+      "Friday batch countdown widget on admin top bar",
+      "AI BI dashboard demo with 3 example prompts that resolve to charts",
+      "Submission upload screens with fully working drag-and-drop, file validation messages, and self-check checklist",
+      "GW claim modal with all 6 mandatory checkboxes — submit button stays disabled until all checked",
+      "Release-payment gate widget showing all 5 checks, disabled CTA when any fails",
+      "Unified inbox showing 3 channels merged with channel-icon badges per message"
+    ],
+    "must_simulate": [
+      "Clicking 'Claim Job' → modal → submit → order moves to Pending Approval and admin gets notification",
+      "Admin clicks 'Approve' → status flips to Active and timeline updates",
+      "GW uploads interim → status flips, customer receives 'Your interim draft is ready' email preview",
+      "Customer clicks 'Not satisfied' → revision flow opens, round counter increments",
+      "QA flags AI → GW row becomes shadow-banned, order moves to AI violation review",
+      "Friday batch click → list of 12 releasable, click 'Release all' → success toast + GWs see 'Paid' status"
+    ],
+    "must_avoid": [
+      "Any hardcoded English-only labels for German legal/business terms — always show DE / EN pair",
+      "Generic Lorem ipsum — use realistic German academic titles",
+      "Loading spinners that never resolve",
+      "Empty tables with no seed data"
+    ]
+  },
+
+  "open_decisions_to_surface_in_prototype": [
+    "Exact deadline factor multiplier when <72h (show as configurable in Settings)",
+    "GW rate logic — Berat manually selects rate at assignment time (slider 33%–62%, default 40%)",
+    "Cash payments — show toggle in Settings → Payment Methods (off by default)",
+    "Internationalization — language switcher in topbar (DE/EN active, others ghosted as 'coming soon')",
+    "Voice channel — show as 'Phone metadata only — no recordings (D-16)'"
+  ]
+}

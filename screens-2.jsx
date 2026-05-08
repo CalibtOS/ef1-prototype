@@ -1,7 +1,7 @@
 // GW Job Board, Friday batch, QA Queue, GW Submission, Inbox
 ;(function(){
 const { useState: useStateA, useEffect: useEffectA } = React;
-const { Icon, StatusPill, Avatar, Money, Bi, ScoreBar, CrumbBar } = window;
+const { Icon, StatusPill, Avatar, Money, Bi, ScoreBar, CrumbBar, NotReady, PlannedTag } = window;
 const SS = window.EFU;
 const SD = window.EF;
 
@@ -54,7 +54,7 @@ function GWJobBoard({ navigate, fixState, setFixState, toast, role = 'gw' }) {
         <div className="page-actions">
           {isAdmin
             ? <button type="button" className="btn btn-primary" onClick={() => navigate('orders')}><Icon name="plus" size={14}/> Publish job</button>
-            : <button type="button" className="btn" disabled title="Coming soon"><Icon name="bell" size={14}/> Alerts</button>}
+            : <NotReady className="btn" feature="alerts"><Icon name="bell" size={14}/> Alerts</NotReady>}
         </div>
       </div>
 

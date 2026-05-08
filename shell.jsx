@@ -369,7 +369,19 @@ function ToastStack({ toasts, onDismiss }) {
           {t.tone === 'danger' && <Icon name="alert-triangle" size={16}/>}
           {t.tone === 'info' && <Icon name="zap" size={16}/>}
           {!t.tone && <Icon name="zap" size={16}/>}
-          <span style={{ flex: 1 }}>{t.text}</span>
+          {t.transition ? (
+            <div className="toast-transition" style={{ flex: 1 }}>
+              {t.transition.entity && <span className="tt-entity">{t.transition.entity}</span>}
+              <span className="tt-row">
+                <span className="tt-from">{t.transition.from}</span>
+                <span className="tt-arrow"><Icon name="arrow-right" size={12}/></span>
+                <span className="tt-to">{t.transition.to}</span>
+              </span>
+              {t.text && <span className="tt-entity">{t.text}</span>}
+            </div>
+          ) : (
+            <span style={{ flex: 1 }}>{t.text}</span>
+          )}
           <Icon name="x" size={12} className="text-faint"/>
         </div>
       ))}

@@ -1,7 +1,7 @@
 // AI BI Dashboard, Customer view, Tweaks panel
 ;(function(){
 const { useState: useStateA, useEffect: useEffectA } = React;
-const { Icon, StatusPill, Avatar, Money, Bi, ScoreBar, CrumbBar } = window;
+const { Icon, StatusPill, Avatar, Money, Bi, ScoreBar, CrumbBar, NotReady, PlannedTag } = window;
 const TS = window.EFU;
 const TD = window.EF;
 
@@ -1104,8 +1104,8 @@ function CustInvoices() {
                     <td className="mono fs-13" style={{ textAlign: 'right', fontWeight: 500 }}>{TS.EUR(r.amount)}</td>
                     <td><span className={`pill pill-${sp.c}`} style={{ fontSize: 11 }}>{sp.l}</span></td>
                     <td>
-                      {r.status === 'paid' ? <button type="button" className="btn btn-sm" disabled title="Coming soon"><Icon name="download" size={11}/> PDF</button> :
-                       r.status === 'overdue' ? <button type="button" className="btn btn-sm btn-danger" disabled title="Coming soon"><Icon name="alert-triangle" size={11}/> Zahlen</button> :
+                      {r.status === 'paid' ? <NotReady className="btn btn-sm" feature="invoice-pdf"><Icon name="download" size={11}/> PDF</NotReady> :
+                       r.status === 'overdue' ? <NotReady className="btn btn-sm btn-danger" feature="invoice-pay"><Icon name="alert-triangle" size={11}/> Zahlen</NotReady> :
                        <span className="text-faint fs-11">—</span>}
                     </td>
                   </tr>
@@ -1212,7 +1212,7 @@ function CustProfile({ toast }) {
       <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 12 }}>
         <div className="flex-col gap-3">
           <div className="card">
-            <div className="card-head"><div className="card-title">Persönliche Daten</div><button type="button" className="btn btn-sm" disabled title="Coming soon"><Icon name="edit" size={12}/> Bearbeiten</button></div>
+            <div className="card-head"><div className="card-title">Persönliche Daten</div><NotReady className="btn btn-sm" feature="profile-edit"><Icon name="edit" size={12}/> Bearbeiten</NotReady></div>
             <div className="card-pad flex items-center gap-3 mb-3">
               <Avatar initials={me?.initials || CUST_PERSONA.initials} size={56} tone="blue"/>
               <div className="flex-col" style={{ lineHeight: 1.3 }}>
@@ -1365,8 +1365,8 @@ function GhostwritersList({ navigate }) {
           <div className="page-subtitle">{all.length} active GWs · deduped from 258 sheet strings · last sync {TS.relTime('2026-05-07T13:18:00')}</div>
         </div>
         <div className="page-actions">
-          <button type="button" className="btn" disabled title="Coming soon"><Icon name="download" size={14}/> Export CSV</button>
-          <button type="button" className="btn" disabled title="Coming soon"><Icon name="plus" size={14}/> Invite GW</button>
+          <NotReady className="btn" feature="export-csv"><Icon name="download" size={14}/> Export CSV</NotReady>
+          <NotReady className="btn" feature="invite-gw"><Icon name="plus" size={14}/> Invite GW</NotReady>
         </div>
       </div>
 
@@ -1515,9 +1515,9 @@ function PipelineKanban({ navigate }) {
           <div className="page-subtitle">{cards.length} deals · open pipeline value <span className="mono strong" style={{ color: 'var(--text)' }}>{TS.EUR(totalPipeline)}</span> · sync {TS.relTime('2026-05-07T14:18:00')}</div>
         </div>
         <div className="page-actions">
-          <button type="button" className="btn" disabled title="Coming soon"><Icon name="filter" size={14}/> Filters</button>
-          <button type="button" className="btn" disabled title="Coming soon"><Icon name="external-link" size={14}/> Open in Pipedrive</button>
-          <button type="button" className="btn btn-primary" disabled title="Coming soon"><Icon name="plus" size={14}/> New deal</button>
+          <NotReady className="btn" feature="filters-advanced"><Icon name="filter" size={14}/> Filters</NotReady>
+          <NotReady className="btn" feature="pipedrive-open"><Icon name="external-link" size={14}/> Open in Pipedrive</NotReady>
+          <NotReady className="btn btn-primary" feature="pipedrive-new-deal"><Icon name="plus" size={14}/> New deal</NotReady>
         </div>
       </div>
 
@@ -1869,7 +1869,7 @@ function ReportsPage({ navigate }) {
           <select value={period} onChange={e => setPeriod(e.target.value)} className="btn" style={{ paddingRight: 24 }}>
             {periods.map(p => <option key={p.id} value={p.id}>{p.label}</option>)}
           </select>
-          <button type="button" className="btn" disabled title="Coming soon"><Icon name="download" size={14}/> Export bundle</button>
+          <NotReady className="btn" feature="export-bundle"><Icon name="download" size={14}/> Export bundle</NotReady>
         </div>
       </div>
 
@@ -1959,7 +1959,7 @@ function ReportsPage({ navigate }) {
               <Icon name="zap" size={12}/>
               <span>Auto-export to Sevdesk on the 1st of each month. ELSTER filing handled by Steuerberater.</span>
             </div>
-            <button type="button" className="btn" disabled title="Coming soon"><Icon name="download" size={14}/> Download UStVA preview</button>
+            <NotReady className="btn" feature="ustva-preview"><Icon name="download" size={14}/> Download UStVA preview</NotReady>
           </div>
         </div>
       </div>
@@ -2055,7 +2055,7 @@ function SettingsPage({ navigate, toast }) {
 
           {section === 'templates' && (
             <div className="card">
-              <div className="card-head"><div className="card-title">Document & email templates</div><button type="button" className="btn btn-sm" disabled title="Coming soon"><Icon name="plus" size={12}/> New</button></div>
+              <div className="card-head"><div className="card-title">Document & email templates</div><NotReady className="btn btn-sm" feature="template-new"><Icon name="plus" size={12}/> New</NotReady></div>
               <div className="card-pad flex-col gap-2">
                 {[
                   { name: 'Vorlage_Deckblatt_efactory1.de.docx', sub: 'Cover page · DE/EN', size: '184 KB', updated: '12.04.2026' },
@@ -2072,8 +2072,8 @@ function SettingsPage({ navigate, toast }) {
                       <span className="strong fs-12 mono">{t.name}</span>
                       <span className="text-faint fs-11">{t.sub} · {t.size} · updated {t.updated}</span>
                     </div>
-                    <button type="button" className="btn btn-sm" aria-label="Edit template" disabled title="Coming soon"><Icon name="edit" size={12}/></button>
-                    <button type="button" className="btn btn-sm" aria-label="Download template" disabled title="Coming soon"><Icon name="download" size={12}/></button>
+                    <NotReady className="btn btn-sm" ariaLabel="Edit template" feature="template-edit"><Icon name="edit" size={12}/></NotReady>
+                    <NotReady className="btn btn-sm" ariaLabel="Download template" feature="template-download"><Icon name="download" size={12}/></NotReady>
                   </div>
                 ))}
               </div>
@@ -2103,7 +2103,7 @@ function SettingsPage({ navigate, toast }) {
                     {i.status === 'ok' && <span className="pill pill-green">Connected</span>}
                     {i.status === 'warn' && <span className="pill pill-amber">Warning</span>}
                     {i.status === 'pending' && <span className="pill pill-slate">Not configured</span>}
-                    <button type="button" className="btn btn-sm" disabled title="Coming soon">Configure</button>
+                    <NotReady className="btn btn-sm" feature="integration-config" label="Configure integration">Configure</NotReady>
                   </div>
                 ))}
               </div>
@@ -2168,7 +2168,7 @@ function SettingsPage({ navigate, toast }) {
           {section === 'agbs' && (
             <div className="flex-col gap-3">
               <div className="card">
-                <div className="card-head"><div className="card-title">AGB versions</div><button type="button" className="btn btn-sm btn-primary" disabled title="Coming soon"><Icon name="plus" size={12}/> Publish new version</button></div>
+                <div className="card-head"><div className="card-title">AGB versions</div><NotReady className="btn btn-sm btn-primary" feature="agb-publish"><Icon name="plus" size={12}/> Publish new version</NotReady></div>
                 <table className="tbl" style={{ fontSize: 12 }}>
                   <thead><tr><th>Version</th><th>Effective</th><th>Status</th><th className="num">Signed by GWs</th><th></th></tr></thead>
                   <tbody>
@@ -2224,9 +2224,9 @@ function SettingsPage({ navigate, toast }) {
                   <div className="flex gap-2" style={{ flexWrap: 'wrap' }}>
                     <span className="pill pill-green">de-DE · German (default for content)</span>
                     <span className="pill pill-green">en-US · English (UI default)</span>
-                    <span className="pill pill-slate">de-AT · Coming soon</span>
-                    <span className="pill pill-slate">de-CH · Coming soon</span>
-                    <span className="pill pill-slate">tr-TR · Coming soon</span>
+                    <span className="pill pill-slate">de-AT <PlannedTag/></span>
+                    <span className="pill pill-slate">de-CH <PlannedTag/></span>
+                    <span className="pill pill-slate">tr-TR <PlannedTag/></span>
                   </div>
                 </div>
                 <div>
@@ -2505,7 +2505,7 @@ function GWPayments({ navigate }) {
           <div className="page-subtitle">Honoraria are released every Friday after customer satisfaction + revisions complete + all installments paid + invoice received</div>
         </div>
         <div className="page-actions">
-          <button type="button" className="btn" disabled title="Coming soon"><Icon name="download" size={14}/> Export ledger</button>
+          <NotReady className="btn" feature="export-ledger"><Icon name="download" size={14}/> Export ledger</NotReady>
         </div>
       </div>
 
@@ -2692,7 +2692,7 @@ function GWProfile() {
           <div className="page-subtitle">Account, banking and freelance contract</div>
         </div>
         <div className="page-actions">
-          <button type="button" className="btn" disabled title="Coming soon"><Icon name="edit" size={14}/> Edit</button>
+          <NotReady className="btn" feature="edit-record" label="Edit ghostwriter"><Icon name="edit" size={14}/> Edit</NotReady>
         </div>
       </div>
 
@@ -2716,7 +2716,7 @@ function GWProfile() {
         </div>
 
         <div className="card">
-          <div className="card-head"><div className="card-title">Expertise</div><button type="button" className="btn btn-sm" disabled title="Coming soon"><Icon name="plus" size={12}/> Tag</button></div>
+          <div className="card-head"><div className="card-title">Expertise</div><NotReady className="btn btn-sm" feature="expertise-tag"><Icon name="plus" size={12}/> Tag</NotReady></div>
           <div className="card-pad">
             <div className="flex gap-2 mb-3" style={{ flexWrap: 'wrap' }}>
               {(me.expertise||[]).map(e => <span key={e} className="pill pill-blue">{e}</span>)}
@@ -3199,7 +3199,7 @@ function QAPlagiarismReports({ navigate }) {
           <div className="page-subtitle">Turnitin scan results · per submission · {`<15%`} green · 15–30% amber · {`>30%`} red</div>
         </div>
         <div className="page-actions">
-          <button type="button" className="btn" disabled title="Coming soon"><Icon name="download" size={14}/> Export CSV</button>
+          <NotReady className="btn" feature="export-csv" label="Plagiarism CSV export"><Icon name="download" size={14}/> Export CSV</NotReady>
         </div>
       </div>
 
@@ -3345,7 +3345,7 @@ function QAAIDetection({ navigate }) {
           <div className="page-subtitle">GPTZero per-paragraph score · AI use is a fraud violation per AGB v3.2 §5</div>
         </div>
         <div className="page-actions">
-          <button type="button" className="btn" disabled title="Coming soon"><Icon name="download" size={14}/> Export</button>
+          <NotReady className="btn" feature="export-csv" label="AI detection export"><Icon name="download" size={14}/> Export</NotReady>
         </div>
       </div>
 
@@ -3517,8 +3517,8 @@ function QAHistory({ navigate }) {
           <div className="page-subtitle">Last {history.length} reviewed submissions · audit trail for accountability</div>
         </div>
         <div className="page-actions">
-          <button type="button" className="btn" disabled title="Coming soon"><Icon name="filter" size={14}/> Filter</button>
-          <button type="button" className="btn" disabled title="Coming soon"><Icon name="download" size={14}/> Export</button>
+          <NotReady className="btn" feature="filters-advanced" label="QA history filters"><Icon name="filter" size={14}/> Filter</NotReady>
+          <NotReady className="btn" feature="export-csv" label="QA history export"><Icon name="download" size={14}/> Export</NotReady>
         </div>
       </div>
 
@@ -4271,7 +4271,7 @@ function CustomerDetail({ customerId, navigate, fixState }) {
             <div className="card-pad flex-col gap-2">
               <button type="button" className="btn btn-sm" onClick={() => navigate('inbox')}><Icon name="message-square" size={12}/> Open inbox thread</button>
               <button type="button" className="btn btn-sm" onClick={() => navigate('order-new')}><Icon name="plus" size={12}/> Create new order</button>
-              <button type="button" className="btn btn-sm" disabled title="Coming soon"><Icon name="mail" size={12}/> Send dunning</button>
+              <NotReady className="btn btn-sm" label="Send dunning email"><Icon name="mail" size={12}/> Send dunning</NotReady>
             </div>
           </div>
         </div>

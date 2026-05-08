@@ -154,6 +154,61 @@ const Money = ({ amount, muted, strong }) => (
 // Bilingual label
 const Bi = ({ de, en }) => <span><span>{de}</span><span className="bi-en"> / {en}</span></span>;
 
+// "Planned" inline tag — for use next to feature labels, card heads, nav items.
+const PlannedTag = ({ status = 'planned' }) => {
+  const map = {
+    planned: { label: 'Planned', cls: 'tag-planned' },
+    beta:    { label: 'Beta',    cls: 'tag-beta' },
+  };
+  const m = map[status] || map.planned;
+  return <span className={m.cls}><Icon name="lock" size={9}/>{m.label}</span>;
+};
+
+// NotReady — drop-in replacement for the prior `disabled title="Coming soon"` pattern.
+// Renders an aria-disabled button styled like a normal `.btn` plus an `is-not-ready` modifier
+// (dashed border, lock dot, cursor: not-allowed). Click fires a toast instead of navigating.
+// Props mirror a normal button; pass children just like the original.
+//   <NotReady className="btn btn-sm" feature="export-csv">
+//     <Icon name="download" size={12}/> Export CSV
+//   </NotReady>
+const NotReady = ({ children, className = 'btn', feature, label, tooltip, ariaLabel, style }) => {
+  const flag = feature ? (window.EF?.featureStatus?.(feature)) : null;
+  const effectiveLabel = label || flag?.label || (typeof children === 'string' ? children : 'This feature');
+  const status = flag?.status === 'beta' ? 'beta' : 'planned';
+  const title = tooltip || (status === 'beta'
+    ? `Beta · ${effectiveLabel}`
+    : `Planned · ${effectiveLabel}${flag?.note ? ' — ' + flag.note : ''}`);
+  const onClick = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const fn = window.efToast;
+    if (fn) fn({
+      tone: 'info',
+      text: status === 'beta'
+        ? `${effectiveLabel} is in beta — not yet wired in this prototype.`
+        : `${effectiveLabel} — planned for a future release.`,
+    });
+  };
+  return (
+    <button
+      type="button"
+      aria-disabled="true"
+      aria-label={ariaLabel}
+      data-feature={feature || undefined}
+      data-feature-status={status}
+      className={`${className} is-not-ready`}
+      title={title}
+      style={style}
+      onClick={onClick}
+    >
+      {children}
+      <span className="not-ready-dot" aria-hidden="true">
+        <Icon name="lock" size={9}/>
+      </span>
+    </button>
+  );
+};
+
 // Score bar (plagiarism / AI)
 const ScoreBar = ({ value, label }) => {
   const tone = value < 15 ? 'green' : value < 30 ? 'amber' : 'red';
@@ -170,7 +225,7 @@ const ScoreBar = ({ value, label }) => {
   );
 };
 
-window.EFU = { EUR, fmtDate, fmtDateTime, fmtTime, relTime, daysTo, deadlineMeta, Icon, StatusPill, Avatar, Money, Bi, ScoreBar };
+window.EFU = { EUR, fmtDate, fmtDateTime, fmtTime, relTime, daysTo, deadlineMeta, Icon, StatusPill, Avatar, Money, Bi, ScoreBar, NotReady, PlannedTag };
 // Also expose at top-level for cross-script use
-Object.assign(window, { Icon, StatusPill, Avatar, Money, Bi, ScoreBar });
+Object.assign(window, { Icon, StatusPill, Avatar, Money, Bi, ScoreBar, NotReady, PlannedTag });
 })();

@@ -1,7 +1,7 @@
 // Orders table + Order detail (with release gate)
 ;(function(){
 const { useState: useStateA, useEffect: useEffectA } = React;
-const { Icon, StatusPill, Avatar, Money, Bi, ScoreBar, CrumbBar } = window;
+const { Icon, StatusPill, Avatar, Money, Bi, ScoreBar, CrumbBar, NotReady, PlannedTag } = window;
 const OS = window.EFU;
 const OD = window.EF;
 
@@ -41,8 +41,8 @@ function OrdersTable({ navigate, fixState, route }) {
           <div className="page-subtitle">{filtered.length} of {orders.length} orders · 645 active lifetime · 3,359 completed</div>
         </div>
         <div className="page-actions">
-          <button type="button" className="btn" disabled title="Coming soon"><Icon name="filter" size={14}/> Filters</button>
-          <button type="button" className="btn" disabled title="Coming soon"><Icon name="download" size={14}/> Export CSV</button>
+          <NotReady className="btn" feature="filters-advanced"><Icon name="filter" size={14}/> Filters</NotReady>
+          <NotReady className="btn" feature="export-csv"><Icon name="download" size={14}/> Export CSV</NotReady>
           <button type="button" className="btn" onClick={() => navigate('offers')}><Icon name="file-text" size={14}/> Offers / Sevdesk</button>
           <button type="button" className="btn btn-primary" onClick={() => navigate('order-new')}><Icon name="plus" size={14}/> New order</button>
         </div>
@@ -210,9 +210,9 @@ function OrderDetail({ orderId, navigate, toast, fixState, setFixState }) {
             </>
           ) : (
             <>
-              <button type="button" className="btn" disabled title="Coming soon"><Icon name="edit" size={14}/> Edit</button>
+              <NotReady className="btn" feature="edit-record" label="Edit order"><Icon name="edit" size={14}/> Edit</NotReady>
               <button type="button" className="btn" onClick={() => navigate('inbox')}><Icon name="message-square" size={14}/> Open chat</button>
-              <button type="button" className="btn" aria-label="More actions" disabled title="Coming soon"><Icon name="more-horizontal" size={14}/></button>
+              <NotReady className="btn" ariaLabel="More actions" feature="row-more-actions"><Icon name="more-horizontal" size={14}/></NotReady>
             </>
           )}
         </div>

@@ -203,10 +203,46 @@ const KPI = {
   pipedriveSubs: '4,159 / 5,000',
 };
 
+// Feature flags — single source of truth for "what is real vs. planned" in the prototype.
+// Status: 'live' (wired through), 'beta' (partial), 'planned' (UI present but inert).
+// Used by <NotReady> in utils.jsx so flipping a feature live is a one-line change here.
+const FEATURE_FLAGS = {
+  // Common cross-page actions
+  'export-csv':         { status: 'planned', label: 'CSV export', note: 'Wired to a download endpoint in v1.3.' },
+  'export-bundle':      { status: 'planned', label: 'Bundle export' },
+  'export-ledger':      { status: 'planned', label: 'Ledger export' },
+  'export-datev':       { status: 'live',    label: 'DATEV export' },
+  'filters-advanced':   { status: 'planned', label: 'Advanced filters' },
+  'edit-record':        { status: 'planned', label: 'Inline edit' },
+  'row-more-actions':   { status: 'planned', label: 'Row actions menu' },
+  // Admin
+  'invite-gw':          { status: 'planned', label: 'Invite ghostwriter' },
+  'expertise-tag':      { status: 'planned', label: 'Tag expertise' },
+  'pipedrive-open':     { status: 'planned', label: 'Open in Pipedrive' },
+  'pipedrive-new-deal': { status: 'planned', label: 'New Pipedrive deal' },
+  'agb-publish':        { status: 'planned', label: 'Publish AGB version' },
+  'integration-config': { status: 'planned', label: 'Integration setup' },
+  'ustva-preview':      { status: 'planned', label: 'UStVA preview' },
+  // Templates
+  'template-new':       { status: 'planned', label: 'New template' },
+  'template-edit':      { status: 'planned', label: 'Edit template' },
+  'template-download':  { status: 'planned', label: 'Download template' },
+  // Customer
+  'invoice-pdf':        { status: 'planned', label: 'Invoice PDF download' },
+  'invoice-pay':        { status: 'planned', label: 'Pay invoice' },
+  'profile-edit':       { status: 'planned', label: 'Edit personal data' },
+  // Misc
+  'alerts':             { status: 'planned', label: 'Alerts' },
+};
+
+const featureStatus = (key) => FEATURE_FLAGS[key] || null;
+const isFeatureLive = (key) => (FEATURE_FLAGS[key]?.status === 'live');
+
 window.EF = {
   NOW, DEMO_NOW,
   GHOSTWRITERS, CUSTOMERS, ORDERS, SUBMISSIONS, FRIDAY_BATCH, INBOX_THREADS, NOTIFICATIONS,
-  WORK_TYPE_LABELS, STATUS_PILLS, KPI,
+  WORK_TYPE_LABELS, STATUS_PILLS, KPI, FEATURE_FLAGS,
+  featureStatus, isFeatureLive,
   gw: (id) => GHOSTWRITERS.find(g => g.id === id),
   customer: (id) => CUSTOMERS.find(c => c.id === id),
   order: (id) => ORDERS.find(o => o.id === id),
