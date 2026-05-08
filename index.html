@@ -12,13 +12,57 @@
 <body>
 <div id="root"></div>
 
+<!-- Foundation: data, utilities, shell -->
 <script type="text/babel" src="data.js"></script>
 <script type="text/babel" src="utils.jsx"></script>
 <script type="text/babel" src="shell.jsx"></script>
-<script type="text/babel" src="admin-dashboard.jsx"></script>
-<script type="text/babel" src="orders.jsx"></script>
-<script type="text/babel" src="screens-2.jsx"></script>
-<script type="text/babel" src="screens-3.jsx"></script>
+
+<!-- Admin role -->
+<script type="text/babel" src="src/admin/dashboard.jsx"></script>
+<script type="text/babel" src="src/admin/orders-list.jsx"></script>
+<script type="text/babel" src="src/admin/order-detail.jsx"></script>
+<script type="text/babel" src="src/admin/order-new-wizard.jsx"></script>
+<script type="text/babel" src="src/admin/customers.jsx"></script>
+<script type="text/babel" src="src/admin/customer-detail.jsx"></script>
+<script type="text/babel" src="src/admin/ghostwriters.jsx"></script>
+<script type="text/babel" src="src/admin/ghostwriter-detail.jsx"></script>
+<script type="text/babel" src="src/admin/pipeline.jsx"></script>
+<script type="text/babel" src="src/admin/disputes.jsx"></script>
+<script type="text/babel" src="src/admin/offers.jsx"></script>
+<script type="text/babel" src="src/admin/reports.jsx"></script>
+<script type="text/babel" src="src/admin/settings.jsx"></script>
+<script type="text/babel" src="src/admin/bi.jsx"></script>
+<script type="text/babel" src="src/admin/inbox.jsx"></script>
+<script type="text/babel" src="src/admin/friday-batch.jsx"></script>
+
+<!-- Ghostwriter role -->
+<script type="text/babel" src="src/gw/dashboard.jsx"></script>
+<script type="text/babel" src="src/gw/job-board.jsx"></script>
+<script type="text/babel" src="src/gw/active-jobs.jsx"></script>
+<script type="text/babel" src="src/gw/submit.jsx"></script>
+<script type="text/babel" src="src/gw/assignment-detail.jsx"></script>
+<script type="text/babel" src="src/gw/submissions-list.jsx"></script>
+<script type="text/babel" src="src/gw/payments.jsx"></script>
+<script type="text/babel" src="src/gw/messages.jsx"></script>
+<script type="text/babel" src="src/gw/templates.jsx"></script>
+<script type="text/babel" src="src/gw/profile.jsx"></script>
+<script type="text/babel" src="src/gw/onboarding.jsx"></script>
+<script type="text/babel" src="src/gw/first-contact.jsx"></script>
+<script type="text/babel" src="src/gw/report-delay.jsx"></script>
+<script type="text/babel" src="src/gw/extension-request.jsx"></script>
+
+<!-- QA role (queue must load before order-detail because qa/order-detail uses SubmissionsTab from admin/order-detail) -->
+<script type="text/babel" src="src/qa/queue.jsx"></script>
+<script type="text/babel" src="src/qa/order-detail.jsx"></script>
+<script type="text/babel" src="src/qa/plagiarism.jsx"></script>
+<script type="text/babel" src="src/qa/ai-detection.jsx"></script>
+<script type="text/babel" src="src/qa/history.jsx"></script>
+
+<!-- Customer role -->
+<script type="text/babel" src="src/customer/view.jsx"></script>
+
+<!-- Dev tools -->
+<script type="text/babel" src="src/dev/tweaks-panel.jsx"></script>
 
 <script type="text/babel" data-presets="env,react">
 const { useState, useEffect, useMemo, useCallback } = React;

@@ -1,161 +1,19 @@
-// Orders table + Order detail (with release gate)
+// Admin · Order detail — overview, payments, submissions, comms, assignment, audit tabs.
 ;(function(){
-const { useState: useStateA, useEffect: useEffectA } = React;
+const { useState: useStateA, useEffect: useEffectA, useMemo: useMemoA } = React;
 const { Icon, StatusPill, Avatar, Money, Bi, ScoreBar, CrumbBar, NotReady, PlannedTag, EmptyState, Skeleton } = window;
-const OS = window.EFU;
-const OD = window.EF;
+const U = window.EFU;
+const D = window.EF;
 
-function OrdersTable({ navigate, fixState, route }) {
-  const [search, setSearch] = useStateA('');
-  const [statusFilter, setStatusFilter] = useStateA('all');
-  const [view, setView] = useStateA('all');
-
-  // Deep link: if navigated with { id }, open the detail view directly.
-  useEffectA(() => {
-    const id = route?.params?.id;
-    if (id) navigate('order-detail', { id });
-  }, [route?.params?.id]);
-
-  const orders = OD.ORDERS.map(o => ({ ...o, ...(fixState[o.id] || {}) }));
-
-  let filtered = orders;
-  if (view === 'friday') filtered = filtered.filter(o => o.status === 'payment_pending');
-  if (view === 'overdue') filtered = filtered.filter(o => o.interimDeadline && OS.daysTo(o.interimDeadline) < 0 && !['completed','cancelled','payment_pending'].includes(o.status));
-  if (view === 'ai') filtered = filtered.filter(o => o.status === 'ai_violation_review');
-  if (view === 'self') filtered = filtered.filter(o => o.selfAssigned);
-  if (view === 'nogw') filtered = filtered.filter(o => !o.gwId && !['cancelled','completed','qualified'].includes(o.status));
-  if (statusFilter !== 'all') filtered = filtered.filter(o => o.status === statusFilter);
-  if (search) {
-    const s = search.toLowerCase();
-    filtered = filtered.filter(o => {
-      const cust = OD.customer(o.customerId);
-      return String(o.id).includes(s) || (o.title||'').toLowerCase().includes(s) || (cust?.name||'').toLowerCase().includes(s);
-    });
-  }
-
-  return (
-    <div className="page">
-      <div className="page-header">
-        <div>
-          <h1 className="page-title">Orders <span className="text-faint" style={{ fontWeight: 400, fontSize: 14 }}>· Bestellungen</span></h1>
-          <div className="page-subtitle">{filtered.length} of {orders.length} orders · 645 active lifetime · 3,359 completed</div>
-        </div>
-        <div className="page-actions">
-          <NotReady className="btn" feature="filters-advanced"><Icon name="filter" size={14}/> Filters</NotReady>
-          <NotReady className="btn" feature="export-csv"><Icon name="download" size={14}/> Export CSV</NotReady>
-          <button type="button" className="btn" onClick={() => navigate('offers')}><Icon name="file-text" size={14}/> Offers / Sevdesk</button>
-          <button type="button" className="btn btn-primary" onClick={() => navigate('order-new')}><Icon name="plus" size={14}/> New order</button>
-        </div>
-      </div>
-
-      <div className="card mb-3">
-        <div className="tbl-toolbar">
-          <input type="text" placeholder="Search ID, customer, paper title…" value={search} onChange={e => setSearch(e.target.value)} />
-          <div className="saved-views">
-            {[['all','All'],['friday','Friday batch'],['overdue','Overdue interim'],['ai','AI flagged'],['self','Self-assigned'],['nogw','Without GW']].map(([k,l]) => (
-              <span key={k} className={`chip ${view===k?'active':''}`} onClick={() => setView(k)}>{l}</span>
-            ))}
-          </div>
-          <div style={{ flex: 1 }}/>
-          <select className="chip" value={statusFilter} onChange={e => setStatusFilter(e.target.value)} style={{ padding: '4px 8px' }}>
-            <option value="all">All statuses</option>
-            {Object.entries(OD.STATUS_PILLS).map(([k,v]) => <option key={k} value={k}>{v.label}</option>)}
-          </select>
-        </div>
-        <div className="table-wrap" style={{ borderRadius: 0, border: 'none', overflow: 'auto' }}>
-          <table className="tbl">
-            <thead>
-              <tr>
-                <th>ID</th>
-                <th>Status</th>
-                <th>Customer</th>
-                <th>Type</th>
-                <th>Title</th>
-                <th style={{ width: 50 }}>Pages</th>
-                <th>Final deadline</th>
-                <th className="num">Gross</th>
-                <th className="num">Outstanding</th>
-                <th>GW</th>
-                <th>Lead</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filtered.map(o => {
-                const cust = OD.customer(o.customerId);
-                const gw = OD.gw(o.gwId);
-                const dm = OS.deadlineMeta(o.finalDeadline);
-                return (
-                  <tr key={o.id} onClick={() => navigate('order-detail', { id: o.id })} className={
-                    o.status==='ai_violation_review' ? 'row-danger'
-                    : o.status==='completed' || o.status==='delivered' ? 'row-success'
-                    : (OS.daysTo(o.finalDeadline) < 0 && !['completed','cancelled'].includes(o.status)) ? 'row-overdue'
-                    : ['qa_review','final_submitted','revision_required','under_customer_review','payment_pending','claimed_pending_approval'].includes(o.status) ? 'row-warn'
-                    : o.status==='active' || o.status==='interim_submitted' ? 'row-active'
-                    : ''
-                  }>
-                    <td className="mono"><strong>#{o.id}</strong></td>
-                    <td><StatusPill status={o.status}/></td>
-                    <td>
-                      <div className="flex items-center gap-2">
-                        <Avatar initials={cust?.initials||'??'} size={22} tone="blue"/>
-                        <div className="flex-col" style={{ lineHeight: 1.2 }}>
-                          <span className="fs-12">{cust?.name||'—'}</span>
-                          <span className="fs-11 text-faint">{cust?.country||''}{cust?.tags?.length ? ' · ' + cust.tags.join(', ') : ''}</span>
-                        </div>
-                      </div>
-                    </td>
-                    <td className="text-muted">{OD.WORK_TYPE_LABELS[o.workType]}</td>
-                    <td style={{ maxWidth: 320, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={o.title}>
-                      {o.titleTBD ? <span className="text-faint"><span style={{ fontStyle: 'italic' }}>folgt</span> — awaiting customer</span> : o.title}
-                    </td>
-                    <td className="mono">{o.pages || '—'}</td>
-                    <td>
-                      <div className="deadline">
-                        <span className="deadline-date mono">{OS.fmtDate(o.finalDeadline)}</span>
-                        <span className={`deadline-when tone-${dm.tone}`}>{dm.label}</span>
-                      </div>
-                    </td>
-                    <td className="num"><Money amount={o.grossEur} /></td>
-                    <td className="num">{o.outstandingEur > 0 ? <span className="mono" style={{ color: 'var(--red)', fontWeight: 600 }}>{OS.EUR(o.outstandingEur)}</span> : <span className="text-faint mono">€0,00</span>}</td>
-                    <td>
-                      {gw ? (
-                        <div className="flex items-center gap-2">
-                          <Avatar initials={gw.initials} size={20}/>
-                          <span className="fs-12">{gw.name}{gw.banned && <Icon name="eye" size={11} className="text-faint" style={{ marginLeft: 4 }}/>}</span>
-                        </div>
-                      ) : <span className="pill pill-gray">unassigned</span>}
-                    </td>
-                    <td className="text-faint fs-11">{o.leadSource}</td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-          {filtered.length === 0 && (
-            <EmptyState
-              icon="search"
-              title={search ? `No orders match "${search}"` : 'No orders in this view'}
-              body={search ? 'Try a different ID, customer name, or paper title.' : 'Create one to get started.'}
-              actionLabel={search ? null : 'New order'}
-              onAction={search ? null : () => navigate('order-new')}
-            />
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ============ ORDER DETAIL ============
 function OrderDetail({ orderId, navigate, toast, fixState, setFixState }) {
   const [tab, setTab] = useStateA('overview');
   const [showRateSlider, setShowRateSlider] = useStateA(false);
-  const orderBase = OD.order(orderId);
+  const orderBase = D.order(orderId);
   if (!orderBase) return <div className="page">Order not found.</div>;
   const order = { ...orderBase, ...(fixState[orderId] || {}) };
-  const cust = OD.customer(order.customerId);
-  const gw = OD.gw(order.gwId);
-  const dm = OS.deadlineMeta(order.finalDeadline);
+  const cust = D.customer(order.customerId);
+  const gw = D.gw(order.gwId);
+  const dm = U.deadlineMeta(order.finalDeadline);
   const isClaim = order.status === 'claimed_pending_approval';
 
   // Release gate
@@ -163,7 +21,7 @@ function OrderDetail({ orderId, navigate, toast, fixState, setFixState }) {
     { label: 'Customer satisfied', state: order.customerSatisfied ? 'pass' : (order.disputeOpen ? 'fail' : (order.status==='payment_pending' ? 'pass':'pending')), detail: order.disputeOpen ? 'Dispute open' : null },
     { label: 'Quality approved (no plagiarism, no AI)', state: order.qaPassed ? 'pass' : 'pending' },
     { label: 'Revision rounds complete', state: (order.revisionRounds <= 1 && !order.disputeOpen) ? 'pass' : 'pending' },
-    { label: 'All customer installments paid', state: order.outstandingEur === 0 ? 'pass' : 'fail', detail: order.outstandingEur > 0 ? `${order.installments?.filter(i=>i.status!=='paid').length||1} installment(s) outstanding — ${OS.EUR(order.outstandingEur)}` : null },
+    { label: 'All customer installments paid', state: order.outstandingEur === 0 ? 'pass' : 'fail', detail: order.outstandingEur > 0 ? `${order.installments?.filter(i=>i.status!=='paid').length||1} installment(s) outstanding — ${U.EUR(order.outstandingEur)}` : null },
     { label: 'GW invoice received', state: order.gwPaymentStatus === 'invoice_received' ? 'pass' : (order.gwPaymentStatus === 'paid' ? 'pass' : 'pending') },
   ];
   const gateBlocked = gateChecks.some(c => c.state === 'fail');
@@ -202,11 +60,11 @@ function OrderDetail({ orderId, navigate, toast, fixState, setFixState }) {
     const paid = installments.filter(i => i.status==='paid').reduce((s,i)=>s+i.amt,0);
     const out = order.grossEur - paid;
     setFixState(prev => ({ ...prev, [orderId]: { ...(prev[orderId]||{}), installments, paidEur: paid, outstandingEur: out }}));
-    toast({ text: `Installment ${n} marked as paid · ${OS.EUR(installments.find(i=>i.n===n).amt)} via SEPA`, tone: 'success' });
+    toast({ text: `Installment ${n} marked as paid · ${U.EUR(installments.find(i=>i.n===n).amt)} via SEPA`, tone: 'success' });
   };
   const releasePayment = () => {
     setFixState(prev => ({ ...prev, [orderId]: { ...(prev[orderId]||{}), status: 'completed', gwPaymentStatus: 'paid' }}));
-    toast({ text: `Payment released to ${gw?.name} · ${OS.EUR(order.netHonorarium)} · arrives in 1–3 business days`, tone: 'success' });
+    toast({ text: `Payment released to ${gw?.name} · ${U.EUR(order.netHonorarium)} · arrives in 1–3 business days`, tone: 'success' });
   };
 
   return (
@@ -220,9 +78,9 @@ function OrderDetail({ orderId, navigate, toast, fixState, setFixState }) {
             <span style={{ fontWeight: 400, color: 'var(--text-2)', fontSize: 16 }}>· {order.titleTBD ? <em>folgt — awaiting customer</em> : order.title}</span>
           </h1>
           <div className="page-subtitle flex gap-3 items-center" style={{ marginTop: 6 }}>
-            <span><Icon name="calendar" size={12} style={{ verticalAlign: 'text-bottom' }}/> Final deadline <span className="mono">{OS.fmtDate(order.finalDeadline)}, 18:00</span></span>
+            <span><Icon name="calendar" size={12} style={{ verticalAlign: 'text-bottom' }}/> Final deadline <span className="mono">{U.fmtDate(order.finalDeadline)}, 18:00</span></span>
             <span className={`pill pill-${dm.tone === 'danger' ? 'red' : dm.tone === 'warn' ? 'amber' : 'slate'}`}>{dm.label}</span>
-            {order.outstandingEur > 0 && <span className="pill pill-amber">Outstanding {OS.EUR(order.outstandingEur)} of {OS.EUR(order.grossEur)}</span>}
+            {order.outstandingEur > 0 && <span className="pill pill-amber">Outstanding {U.EUR(order.outstandingEur)} of {U.EUR(order.grossEur)}</span>}
             {order.disputeOpen && <span className="pill pill-orange">Dispute open</span>}
           </div>
         </div>
@@ -340,13 +198,13 @@ function OrderDetail({ orderId, navigate, toast, fixState, setFixState }) {
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 360px', gap: 16 }}>
           <div className="flex-col gap-3">
             <div className="card">
-              <div className="card-head"><div className="card-title">Customer</div><span className="text-faint fs-11">Pipedrive synced · {OS.relTime('2026-05-07T13:42:00')}</span></div>
+              <div className="card-head"><div className="card-title">Customer</div><span className="text-faint fs-11">Pipedrive synced · {U.relTime('2026-05-07T13:42:00')}</span></div>
               <div className="card-pad flex items-center gap-3">
                 <Avatar initials={cust.initials} size={44} tone="blue"/>
                 <div className="flex-col" style={{ flex: 1 }}>
                   <strong>{cust.name}</strong>
                   <span className="fs-11 text-faint mono">{cust.email} · {cust.phone}</span>
-                  <span className="fs-11 text-faint">Lifetime {OS.EUR(cust.ltv)} · {cust.orders} order(s) · {cust.country} · lead via {cust.leadSource}</span>
+                  <span className="fs-11 text-faint">Lifetime {U.EUR(cust.ltv)} · {cust.orders} order(s) · {cust.country} · lead via {cust.leadSource}</span>
                 </div>
                 {cust.tags?.includes('VIP') && <span className="pill pill-yellow">VIP</span>}
               </div>
@@ -356,7 +214,7 @@ function OrderDetail({ orderId, navigate, toast, fixState, setFixState }) {
               <div className="card-head"><div className="card-title">Work specification</div></div>
               <div className="card-pad">
                 <div className="kv">
-                  <div className="kv-row"><dt>Type</dt><dd>{OD.WORK_TYPE_LABELS[order.workType]}</dd></div>
+                  <div className="kv-row"><dt>Type</dt><dd>{D.WORK_TYPE_LABELS[order.workType]}</dd></div>
                   <div className="kv-row"><dt>Field of study</dt><dd>{order.field}</dd></div>
                   <div className="kv-row"><dt>Pages</dt><dd className="mono">{order.pages || '—'}</dd></div>
                   <div className="kv-row"><dt>Paper title</dt><dd style={{ maxWidth: 340, textAlign: 'right' }}>{order.titleTBD ? <em className="text-faint">folgt — awaiting customer</em> : order.title}</dd></div>
@@ -370,12 +228,12 @@ function OrderDetail({ orderId, navigate, toast, fixState, setFixState }) {
               <div className="card-head"><div className="card-title">Pricing breakdown</div></div>
               <div className="card-pad">
                 <div className="kv">
-                  <div className="kv-row"><dt>Gross (Brutto)</dt><dd className="mono">{OS.EUR(order.grossEur)}</dd></div>
-                  <div className="kv-row"><dt>VAT 7%</dt><dd className="mono text-muted">−{OS.EUR(order.grossEur * 0.07 / 1.07)}</dd></div>
-                  <div className="kv-row"><dt>Net (after VAT)</dt><dd className="mono">{OS.EUR(order.grossEur / 1.07)}</dd></div>
+                  <div className="kv-row"><dt>Gross (Brutto)</dt><dd className="mono">{U.EUR(order.grossEur)}</dd></div>
+                  <div className="kv-row"><dt>VAT 7%</dt><dd className="mono text-muted">−{U.EUR(order.grossEur * 0.07 / 1.07)}</dd></div>
+                  <div className="kv-row"><dt>Net (after VAT)</dt><dd className="mono">{U.EUR(order.grossEur / 1.07)}</dd></div>
                   <div className="kv-row" style={{ borderTop: '1px dashed var(--border)', paddingTop: 8 }}><dt>Deadline factor</dt><dd className="mono">{order.deadlineFactor || '1.0'}× <span className="text-faint">(≥72h)</span></dd></div>
-                  <div className="kv-row"><dt><Bi de="Honorar" en="GW honorarium"/> <span className="text-faint" style={{ marginLeft: 4 }}>· rate {((order.rate||0)*100).toFixed(0)}%</span></dt><dd className="mono" style={{ color: 'var(--green)' }}>{OS.EUR(order.netHonorarium)}</dd></div>
-                  <div className="kv-row"><dt>Berat margin</dt><dd className="mono strong">{OS.EUR((order.grossEur/1.07) - order.netHonorarium)}</dd></div>
+                  <div className="kv-row"><dt><Bi de="Honorar" en="GW honorarium"/> <span className="text-faint" style={{ marginLeft: 4 }}>· rate {((order.rate||0)*100).toFixed(0)}%</span></dt><dd className="mono" style={{ color: 'var(--green)' }}>{U.EUR(order.netHonorarium)}</dd></div>
+                  <div className="kv-row"><dt>Berat margin</dt><dd className="mono strong">{U.EUR((order.grossEur/1.07) - order.netHonorarium)}</dd></div>
                 </div>
                 {showRateSlider && (
                   <div style={{ marginTop: 12, padding: 12, border: '1px dashed var(--border)', borderRadius: 8 }}>
@@ -402,9 +260,9 @@ function OrderDetail({ orderId, navigate, toast, fixState, setFixState }) {
                     <div className="action-icon" style={{ background: 'var(--blue-soft)', color: 'var(--blue)' }}><Icon name="file-text" size={14}/></div>
                     <div style={{ flex: 1 }}>
                       <div className="fs-12 strong"><Bi de="Zwischenstand 1" en="Interim 1"/></div>
-                      <div className="fs-11 text-muted mono">{OS.fmtDate(order.interimDeadline)}, 18:00 · in {OS.daysTo(order.interimDeadline)} days</div>
+                      <div className="fs-11 text-muted mono">{U.fmtDate(order.interimDeadline)}, 18:00 · in {U.daysTo(order.interimDeadline)} days</div>
                     </div>
-                    <span className={`pill pill-${OS.deadlineMeta(order.interimDeadline).tone === 'danger' ? 'red' : 'slate'}`}>{OS.deadlineMeta(order.interimDeadline).label}</span>
+                    <span className={`pill pill-${U.deadlineMeta(order.interimDeadline).tone === 'danger' ? 'red' : 'slate'}`}>{U.deadlineMeta(order.interimDeadline).label}</span>
                   </div>
                 )}
                 {order.interim2Deadline && (
@@ -412,7 +270,7 @@ function OrderDetail({ orderId, navigate, toast, fixState, setFixState }) {
                     <div className="action-icon" style={{ background: 'var(--blue-soft)', color: 'var(--blue)' }}><Icon name="file-text" size={14}/></div>
                     <div style={{ flex: 1 }}>
                       <div className="fs-12 strong"><Bi de="Zwischenstand 2" en="Interim 2"/></div>
-                      <div className="fs-11 text-muted mono">{OS.fmtDate(order.interim2Deadline)}, 18:00</div>
+                      <div className="fs-11 text-muted mono">{U.fmtDate(order.interim2Deadline)}, 18:00</div>
                     </div>
                   </div>
                 )}
@@ -420,7 +278,7 @@ function OrderDetail({ orderId, navigate, toast, fixState, setFixState }) {
                   <div className="action-icon" style={{ background: 'var(--green-soft)', color: 'var(--green)' }}><Icon name="check-circle" size={14}/></div>
                   <div style={{ flex: 1 }}>
                     <div className="fs-12 strong"><Bi de="Verbindliches finales Lieferdatum" en="Final delivery"/></div>
-                    <div className="fs-11 text-muted mono">{OS.fmtDate(order.finalDeadline)}, 18:00</div>
+                    <div className="fs-11 text-muted mono">{U.fmtDate(order.finalDeadline)}, 18:00</div>
                   </div>
                   <span className={`pill pill-${dm.tone === 'danger' ? 'red' : dm.tone === 'warn' ? 'amber' : 'slate'}`}>{dm.label}</span>
                 </div>
@@ -433,7 +291,7 @@ function OrderDetail({ orderId, navigate, toast, fixState, setFixState }) {
             <div className="card" style={{ border: gateBlocked ? '1px solid color-mix(in oklab, var(--red) 35%, var(--border))' : (gateAllPass ? '1px solid color-mix(in oklab, var(--green) 35%, var(--border))' : undefined) }}>
               <div className="card-head">
                 <div className="card-title flex items-center gap-2"><Icon name="shield-check" size={14}/> GW Payment Releasability</div>
-                <span className="text-faint fs-11 mono">{OS.EUR(order.netHonorarium)}</span>
+                <span className="text-faint fs-11 mono">{U.EUR(order.netHonorarium)}</span>
               </div>
               <div className="release-gate">
                 {gateChecks.map((c, i) => (
@@ -460,7 +318,7 @@ function OrderDetail({ orderId, navigate, toast, fixState, setFixState }) {
                   </div>
                 </div>
                 <button className="btn w-full mt-3" disabled={!gateAllPass} onClick={releasePayment} style={ gateAllPass ? { background: 'var(--green)', color: 'white', borderColor: 'var(--green)', justifyContent: 'center' } : { justifyContent: 'center' } }>
-                  <Icon name="wallet" size={14}/> Release payment {gateAllPass ? '· '+OS.EUR(order.netHonorarium) : ''}
+                  <Icon name="wallet" size={14}/> Release payment {gateAllPass ? '· '+U.EUR(order.netHonorarium) : ''}
                 </button>
               </div>
             </div>
@@ -503,7 +361,7 @@ function OrderDetail({ orderId, navigate, toast, fixState, setFixState }) {
                 <div className="action-icon" style={{ background: 'var(--blue-soft)', color: 'var(--blue)' }}><Icon name="file-text" size={16}/></div>
                 <div style={{ flex: 1 }}>
                   <div className="fs-12 strong">RG-2026-{String(order.id).padStart(4,'0')}</div>
-                  <div className="fs-11 text-faint">Issued {OS.fmtDate(order.acceptedAt)} · {OS.EUR(order.grossEur)}</div>
+                  <div className="fs-11 text-faint">Issued {U.fmtDate(order.acceptedAt)} · {U.EUR(order.grossEur)}</div>
                 </div>
                 <NotReady className="btn btn-sm" feature="invoice-pdf"><Icon name="download" size={12}/> PDF</NotReady>
               </div>
@@ -525,12 +383,12 @@ function OrderDetail({ orderId, navigate, toast, fixState, setFixState }) {
                   {(order.installments || []).map(inst => (
                     <tr key={inst.n} style={{ cursor: 'default' }}>
                       <td className="mono">{inst.n} of {order.installments.length}</td>
-                      <td className="mono">{OS.fmtDate(inst.date)}</td>
-                      <td className="num mono">{OS.EUR(inst.amt)}</td>
+                      <td className="mono">{U.fmtDate(inst.date)}</td>
+                      <td className="num mono">{U.EUR(inst.amt)}</td>
                       <td className="text-muted fs-11">{(inst.method||'—').replace('stripe_','Stripe ').replace('bank_transfer_sepa','SEPA').replace('_',' ')}</td>
                       <td>
-                        {inst.status === 'paid' && <span className="pill pill-green"><Icon name="check" size={10}/> Paid {OS.fmtDate(inst.date)}</span>}
-                        {inst.status === 'overdue' && <span className="pill pill-red">Overdue {Math.abs(OS.daysTo(inst.date))}d</span>}
+                        {inst.status === 'paid' && <span className="pill pill-green"><Icon name="check" size={10}/> Paid {U.fmtDate(inst.date)}</span>}
+                        {inst.status === 'overdue' && <span className="pill pill-red">Overdue {Math.abs(U.daysTo(inst.date))}d</span>}
                         {inst.status === 'scheduled' && <span className="pill pill-slate">Scheduled</span>}
                         {inst.status === 'pending' && <span className="pill pill-amber">Awaiting</span>}
                       </td>
@@ -545,15 +403,15 @@ function OrderDetail({ orderId, navigate, toast, fixState, setFixState }) {
               </table>
               <div className="flex justify-between mt-3" style={{ padding: '8px 12px', background: 'var(--surface-2)', borderRadius: 6 }}>
                 <span className="text-muted fs-12">Total billed</span>
-                <span className="mono strong">{OS.EUR(order.grossEur)}</span>
+                <span className="mono strong">{U.EUR(order.grossEur)}</span>
               </div>
               <div className="flex justify-between" style={{ padding: '4px 12px' }}>
                 <span className="text-muted fs-12">Paid to date</span>
-                <span className="mono" style={{ color: 'var(--green)' }}>{OS.EUR(order.paidEur)}</span>
+                <span className="mono" style={{ color: 'var(--green)' }}>{U.EUR(order.paidEur)}</span>
               </div>
               <div className="flex justify-between" style={{ padding: '4px 12px' }}>
                 <span className="text-muted fs-12">Outstanding</span>
-                <span className="mono" style={{ color: order.outstandingEur > 0 ? 'var(--red)' : 'var(--text-3)' }}>{OS.EUR(order.outstandingEur)}</span>
+                <span className="mono" style={{ color: order.outstandingEur > 0 ? 'var(--red)' : 'var(--text-3)' }}>{U.EUR(order.outstandingEur)}</span>
               </div>
             </div>
           </div>
@@ -568,7 +426,7 @@ function OrderDetail({ orderId, navigate, toast, fixState, setFixState }) {
                     <div className="timeline-dot green" style={{ width: 16, height: 16 }}><Icon name="check" size={9}/></div>
                     <div style={{ flex: 1 }}>
                       <div className="mono">payment_intent.succeeded</div>
-                      <div className="text-faint">pi_3Q{seed} · {OS.fmtDate(i.date)} · {OS.EUR(i.amt)}</div>
+                      <div className="text-faint">pi_3Q{seed} · {U.fmtDate(i.date)} · {U.EUR(i.amt)}</div>
                     </div>
                   </div>
                 );
@@ -599,7 +457,7 @@ function OrderDetail({ orderId, navigate, toast, fixState, setFixState }) {
 }
 
 function SubmissionsTab({ order }) {
-  const subs = OD.SUBMISSIONS.filter(s => s.orderId === order.id);
+  const subs = D.SUBMISSIONS.filter(s => s.orderId === order.id);
   return (
     <div className="card">
       <div className="card-head"><div className="card-title">Submissions</div><span className="text-faint fs-11">interim · final · invoices</span></div>
@@ -611,7 +469,7 @@ function SubmissionsTab({ order }) {
               <div className="action-icon" style={{ background: 'var(--blue-soft)', color: 'var(--blue)' }}><Icon name="file-text" size={16}/></div>
               <div style={{ flex: 1 }}>
                 <div className="strong fs-12">{s.fileName}</div>
-                <div className="fs-11 text-faint">{(s.size/1024/1024).toFixed(2)} MB · {s.kind.replace('_',' ')} · round {s.round} · submitted {OS.relTime(s.submittedAt)}</div>
+                <div className="fs-11 text-faint">{(s.size/1024/1024).toFixed(2)} MB · {s.kind.replace('_',' ')} · round {s.round} · submitted {U.relTime(s.submittedAt)}</div>
               </div>
               {s.qaStatus === 'passed' && <span className="pill pill-green"><Icon name="check" size={10}/> QA passed · forwarded</span>}
               {s.qaStatus === 'pending' && <span className="pill pill-pink">QA pending</span>}
@@ -648,7 +506,7 @@ function CommsTab({ order }) {
                 <strong className="fs-12">{m.from}</strong>
                 <Icon name="arrow-right" size={11} className="text-faint"/>
                 <span className="fs-12 text-muted">{m.to || 'efactory1'}</span>
-                <span className="text-faint fs-11" style={{ marginLeft: 'auto' }}>{OS.relTime(m.at)}</span>
+                <span className="text-faint fs-11" style={{ marginLeft: 'auto' }}>{U.relTime(m.at)}</span>
               </div>
               <div className="fs-12">{m.text}</div>
             </div>
@@ -660,7 +518,7 @@ function CommsTab({ order }) {
 }
 
 function AssignmentTab({ order, navigate, setFixState, toast }) {
-  const gw = OD.gw(order.gwId);
+  const gw = D.gw(order.gwId);
   const onAssign = (g) => {
     if (setFixState) {
       setFixState(prev => ({ ...prev, [order.id]: { ...(prev[order.id] || {}), gwId: g.id, status: 'active' } }));
@@ -672,7 +530,7 @@ function AssignmentTab({ order, navigate, setFixState, toast }) {
       <div className="card">
         <div className="card-head"><div className="card-title">GW selection</div></div>
         <div className="card-pad flex-col gap-2">
-          {OD.GHOSTWRITERS.filter(g => !g.banned && !g.isOwner).slice(0, 6).map(g => {
+          {D.GHOSTWRITERS.filter(g => !g.banned && !g.isOwner).slice(0, 6).map(g => {
             // Deterministic match score — stable across renders, derived from gw + order ids
             const exact = (g.expertise || []).some(e => e.toLowerCase().includes((order.field || '').toLowerCase().slice(0, 4)));
             const seed = ((g.id.charCodeAt(3) * 17) + Number(order.id)) % 41; // 0..40
@@ -725,15 +583,15 @@ function AuditTab({ order }) {
           {[
             { t: 'Order created from public form', at: order.acceptedAt || '2026-05-06T10:00:00', dot: 'blue', icon: 'plus' },
             { t: 'Sevdesk invoice RG-2026-' + String(order.id).padStart(4,'0') + ' generated', at: order.acceptedAt, dot: '', icon: 'file-text' },
-            { t: 'Stripe payment_intent.succeeded · ' + OS.EUR(order.installments?.[0]?.amt || order.grossEur), at: order.installments?.[0]?.date, dot: 'green', icon: 'check' },
+            { t: 'Stripe payment_intent.succeeded · ' + U.EUR(order.installments?.[0]?.amt || order.grossEur), at: order.installments?.[0]?.date, dot: 'green', icon: 'check' },
             { t: 'Pipedrive deal moved to Won', at: order.installments?.[0]?.date, dot: '', icon: 'git-branch' },
-            order.gwId && { t: 'GW '+OD.gw(order.gwId)?.name+' assigned', at: order.acceptedAt, dot: 'blue', icon: 'feather' },
+            order.gwId && { t: 'GW '+D.gw(order.gwId)?.name+' assigned', at: order.acceptedAt, dot: 'blue', icon: 'feather' },
           ].filter(Boolean).map((e, i) => (
             <div key={i} className="timeline-item">
               <div className={`timeline-dot ${e.dot}`}><Icon name={e.icon} size={10}/></div>
               <div className="timeline-content">
                 <div className="timeline-title">{e.t}</div>
-                <div className="timeline-meta mono">{OS.fmtDateTime(e.at)}</div>
+                <div className="timeline-meta mono">{U.fmtDateTime(e.at)}</div>
               </div>
             </div>
           ))}
@@ -747,215 +605,10 @@ function AuditTab({ order }) {
 // Q-01: QA reviewers must NOT see release gate, gross/honorarium, margin, payments, Stripe webhooks,
 // invoice numbers, lifetime value, or rate sliders. PRD `qa.permissions` = review/approve/reject + orders.read.
 // This component renders only QA-relevant fields and submission scores.
-function QAOrderDetail({ orderId, navigate, toast, fixState, setFixState }) {
-  const [tab, setTab] = useStateA('overview');
-  const orderBase = OD.order(orderId);
-  if (!orderBase) return <div className="page">Order not found.</div>;
-  const order = { ...orderBase, ...(fixState[orderId] || {}) };
-  const cust = OD.customer(order.customerId);
-  const gw = OD.gw(order.gwId);
-  const dm = OS.deadlineMeta(order.finalDeadline);
-  const subs = OD.SUBMISSIONS.filter(s => s.orderId === order.id);
-  const latest = subs.sort((a,b) => new Date(b.submittedAt) - new Date(a.submittedAt))[0];
 
-  const goToQueue = () => navigate('qa-queue');
-  const requestRevision = () => {
-    setFixState(prev => ({ ...prev, [orderId]: { ...(prev[orderId]||{}), status: 'revision_required', revisionRounds: ((prev[orderId]?.revisionRounds) ?? order.revisionRounds ?? 0) + 1 }}));
-    toast({
-      tone: 'info',
-      transition: { entity: `Order #${orderId}`, from: 'QA Review', to: 'Revision Required' },
-      text: 'GW notified · awaiting fix',
-    });
-  };
-  const passToCustomer = () => {
-    const isFinal = latest?.kind === 'final_work';
-    setFixState(prev => ({ ...prev, [orderId]: { ...(prev[orderId]||{}), status: isFinal ? 'delivered' : 'under_customer_review', qaPassed: true }}));
-    toast({
-      tone: 'success',
-      transition: { entity: `Order #${orderId}`, from: 'QA Review', to: isFinal ? 'Delivered' : 'Customer Review' },
-      text: `Forwarded to ${cust?.name}`,
-    });
-  };
-
-  return (
-    <div className="page">
-      <div className="page-header">
-        <div>
-          <CrumbBar trail={['QA','Review Queue', `#${order.id}`]} />
-          <h1 className="page-title" style={{ marginTop: 6, display: 'flex', gap: 12, alignItems: 'center' }}>
-            <span className="mono">#{order.id}</span>
-            <StatusPill status={order.status}/>
-            <span style={{ fontWeight: 400, color: 'var(--text-2)', fontSize: 16 }}>· {order.titleTBD ? <em>folgt — awaiting customer</em> : order.title}</span>
-          </h1>
-          <div className="page-subtitle flex gap-3 items-center" style={{ marginTop: 6 }}>
-            <span><Icon name="calendar" size={12} style={{ verticalAlign: 'text-bottom' }}/> Final deadline <span className="mono">{OS.fmtDate(order.finalDeadline)}, 18:00</span></span>
-            <span className={`pill pill-${dm.tone === 'danger' ? 'red' : dm.tone === 'warn' ? 'amber' : 'slate'}`}>{dm.label}</span>
-            {order.disputeOpen && <span className="pill pill-orange">Dispute open</span>}
-            {(order.revisionRounds || 0) > 0 && <span className="pill pill-amber">Revision round {order.revisionRounds}</span>}
-          </div>
-        </div>
-        <div className="page-actions">
-          <button type="button" className="btn" onClick={goToQueue}><Icon name="arrow-left" size={14}/> Back to queue</button>
-        </div>
-      </div>
-
-      <div className="banner info mb-3">
-        <Icon name="lock" size={14}/>
-        <span><strong>QA view.</strong> Financial data (price, honorarium, margin, payments) is hidden by role. You see work spec, submissions, and quality scores only.</span>
-      </div>
-
-      <div className="tabs">
-        {['overview','submissions','communications'].map(t => (
-          <div key={t} className={`tab ${tab===t?'active':''}`} onClick={() => setTab(t)} style={{ textTransform: 'capitalize' }}>
-            {t}
-            {t === 'submissions' && subs.length > 0 && <span className="pill pill-pink">{subs.length}</span>}
-          </div>
-        ))}
-      </div>
-
-      {tab === 'overview' && (
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 320px', gap: 16 }}>
-          <div className="flex-col gap-3">
-            <div className="card">
-              <div className="card-head"><div className="card-title">Customer (non-financial)</div></div>
-              <div className="card-pad flex items-center gap-3">
-                <Avatar initials={cust?.initials} size={40} tone="blue"/>
-                <div className="flex-col" style={{ flex: 1 }}>
-                  <strong>{cust?.name}</strong>
-                  <span className="fs-11 text-faint">{cust?.country} · {cust?.orders} order(s) on file</span>
-                </div>
-              </div>
-            </div>
-
-            <div className="card">
-              <div className="card-head"><div className="card-title">Work specification</div></div>
-              <div className="card-pad">
-                <div className="kv">
-                  <div className="kv-row"><dt>Type</dt><dd>{OD.WORK_TYPE_LABELS[order.workType]}</dd></div>
-                  <div className="kv-row"><dt>Field of study</dt><dd>{order.field}</dd></div>
-                  <div className="kv-row"><dt>Pages</dt><dd className="mono">{order.pages || '—'}</dd></div>
-                  <div className="kv-row"><dt>Paper title</dt><dd style={{ maxWidth: 360, textAlign: 'right' }}>{order.titleTBD ? <em className="text-faint">folgt — awaiting customer</em> : order.title}</dd></div>
-                  <div className="kv-row"><dt>Outline</dt><dd><a className="flex items-center gap-1" style={{ color: 'var(--blue)' }}><Icon name="paperclip" size={12}/>Outline_v2.pdf · 412 KB</a></dd></div>
-                  <div className="kv-row"><dt><Bi de="Weitere Notiz" en="Note to GW"/></dt><dd>{order.note || '—'}</dd></div>
-                </div>
-              </div>
-            </div>
-
-            <div className="card">
-              <div className="card-head"><div className="card-title">Deadlines</div><span className="text-faint fs-11">cutoff 18:00 the day BEFORE due</span></div>
-              <div className="card-pad flex-col gap-2">
-                {order.interimDeadline && (
-                  <div className="flex items-center gap-3">
-                    <div className="action-icon" style={{ background: 'var(--blue-soft)', color: 'var(--blue)' }}><Icon name="file-text" size={14}/></div>
-                    <div style={{ flex: 1 }}>
-                      <div className="fs-12 strong"><Bi de="Zwischenstand 1" en="Interim 1"/></div>
-                      <div className="fs-11 text-muted mono">{OS.fmtDate(order.interimDeadline)}, 18:00 · in {OS.daysTo(order.interimDeadline)} days</div>
-                    </div>
-                    <span className={`pill pill-${OS.deadlineMeta(order.interimDeadline).tone === 'danger' ? 'red' : 'slate'}`}>{OS.deadlineMeta(order.interimDeadline).label}</span>
-                  </div>
-                )}
-                {order.interim2Deadline && (
-                  <div className="flex items-center gap-3">
-                    <div className="action-icon" style={{ background: 'var(--blue-soft)', color: 'var(--blue)' }}><Icon name="file-text" size={14}/></div>
-                    <div style={{ flex: 1 }}>
-                      <div className="fs-12 strong"><Bi de="Zwischenstand 2" en="Interim 2"/></div>
-                      <div className="fs-11 text-muted mono">{OS.fmtDate(order.interim2Deadline)}, 18:00</div>
-                    </div>
-                  </div>
-                )}
-                <div className="flex items-center gap-3">
-                  <div className="action-icon" style={{ background: 'var(--green-soft)', color: 'var(--green)' }}><Icon name="check-circle" size={14}/></div>
-                  <div style={{ flex: 1 }}>
-                    <div className="fs-12 strong"><Bi de="Verbindliches finales Lieferdatum" en="Final delivery"/></div>
-                    <div className="fs-11 text-muted mono">{OS.fmtDate(order.finalDeadline)}, 18:00</div>
-                  </div>
-                  <span className={`pill pill-${dm.tone === 'danger' ? 'red' : dm.tone === 'warn' ? 'amber' : 'slate'}`}>{dm.label}</span>
-                </div>
-              </div>
-            </div>
-
-            {order.disputeOpen && (
-              <div className="card" style={{ borderColor: 'color-mix(in oklab, var(--amber) 35%, var(--border))' }}>
-                <div className="card-head"><div className="card-title">Customer feedback (round {order.revisionRounds || 1})</div></div>
-                <div className="card-pad fs-12 text-muted">Customer requested revisions on §3 (methodology) and §5 (conclusion). GW notified · awaiting resubmission.</div>
-              </div>
-            )}
-          </div>
-
-          <div className="flex-col gap-3">
-            {gw && (
-              <div className="card">
-                <div className="card-head"><div className="card-title">Assigned GW</div>{gw.banned && <span className="pill pill-red">Shadow-banned</span>}</div>
-                <div className="card-pad flex items-center gap-3">
-                  <Avatar initials={gw.initials} size={40}/>
-                  <div className="flex-col" style={{ flex: 1 }}>
-                    <strong>{gw.name}</strong>
-                    <span className="fs-11 text-faint">{gw.expertise?.slice(0,3).join(', ')}</span>
-                    <span className="fs-11 text-faint mono">★ {gw.rating} · {(gw.onTime*100).toFixed(0)}% on-time · {gw.lifetime} jobs</span>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {latest && (
-              <div className="card">
-                <div className="card-head"><div className="card-title">Latest submission scores</div></div>
-                <div className="card-pad flex-col gap-3">
-                  <ScoreBar value={latest.plagiarismScore} label="Plagiarism (PlagScan)"/>
-                  <ScoreBar value={latest.aiScore} label="AI detection (GPTZero)"/>
-                  <div className="fs-11 text-muted">{latest.kind.replace('_',' ')} · round {latest.round} · {OS.relTime(latest.submittedAt)}</div>
-                </div>
-              </div>
-            )}
-
-            <div className="card">
-              <div className="card-head"><div className="card-title">QA actions</div></div>
-              <div className="card-pad flex-col gap-2">
-                <button type="button" className="btn btn-success w-full" disabled={!latest || latest.qaStatus !== 'pending'} onClick={passToCustomer} style={{ justifyContent: 'center' }}>
-                  <Icon name="check-circle" size={14}/> Pass · forward to customer
-                </button>
-                <button type="button" className="btn w-full" disabled={!latest} onClick={requestRevision} style={{ justifyContent: 'center' }}>
-                  <Icon name="alert-triangle" size={14}/> Request revision
-                </button>
-                <button type="button" className="btn w-full" onClick={goToQueue} style={{ justifyContent: 'center' }}>
-                  <Icon name="shield-check" size={14}/> Open in queue (full verdict)
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {tab === 'submissions' && (
-        <SubmissionsTab order={order} />
-      )}
-      {tab === 'communications' && (
-        <div className="card">
-          <div className="card-head"><div className="card-title">Customer-facing communications</div><span className="text-faint fs-11">QA-relevant excerpts only — financial threads hidden</span></div>
-          <div className="card-pad flex-col gap-2">
-            <div className="banner info"><Icon name="lock" size={14}/><span>Threads containing pricing/payment keywords are auto-redirected to <code>kundenservice@efactory1.de</code> and not visible to QA.</span></div>
-            {[
-              { from: 'GW', to: 'Customer', text: 'Anbei der Zwischenstand für Kapitel 3. Bitte um Rückmeldung.', at: '2026-05-06T16:42:00' },
-              { from: 'Customer', to: 'efactory1', text: 'Inhaltlich gut, aber §3 fehlt die Methodendiskussion.', at: '2026-05-07T09:14:00' },
-            ].map((m, i) => (
-              <div key={i} className="card-pad" style={{ border: '1px solid var(--border)', borderRadius: 8 }}>
-                <div className="flex items-center gap-2 mb-2">
-                  <strong className="fs-12">{m.from}</strong>
-                  <Icon name="arrow-right" size={11} className="text-faint"/>
-                  <span className="fs-12 text-muted">{m.to}</span>
-                  <span className="text-faint fs-11" style={{ marginLeft: 'auto' }}>{OS.relTime(m.at)}</span>
-                </div>
-                <div className="fs-12">{m.text}</div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
-window.OrdersTable = OrdersTable;
 window.OrderDetail = OrderDetail;
-window.QAOrderDetail = QAOrderDetail;
+window.SubmissionsTab = SubmissionsTab;
+window.CommsTab = CommsTab;
+window.AssignmentTab = AssignmentTab;
+window.AuditTab = AuditTab;
 })();

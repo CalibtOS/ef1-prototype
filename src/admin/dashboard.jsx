@@ -3,7 +3,7 @@
 const { useState: useStateA, useEffect: useEffectA, useMemo: useMemoA } = React;
 const { Icon, StatusPill, Avatar, Money, Bi, ScoreBar } = window;
 const { CrumbBar } = window;
-const A = window.EFU; // utils
+const U = window.EFU; // utils
 const D = window.EF; // data
 
 // ----- Sparkline -----
@@ -50,7 +50,7 @@ function AdminDashboard({ navigate, openFridayBatch }) {
       <div className="page-header">
         <div>
           <h1 className="page-title">Good afternoon, Berat.</h1>
-          <div className="page-subtitle">Donnerstag, 07.05.2026 · Friday batch tomorrow · {k.fridayCount} releasable · {A.EUR(k.fridayEur)}</div>
+          <div className="page-subtitle">Donnerstag, 07.05.2026 · Friday batch tomorrow · {k.fridayCount} releasable · {U.EUR(k.fridayEur)}</div>
         </div>
         <div className="page-actions">
           <button type="button" className="btn" onClick={() => navigate('order-new')}><Icon name="plus" size={14}/> New order <span className="kbd">⌘N</span></button>
@@ -61,8 +61,8 @@ function AdminDashboard({ navigate, openFridayBatch }) {
       <div className="kpi-grid mb-4">
         <div className="kpi">
           <div className="kpi-label"><Icon name="euro" size={13}/> Open Receivables</div>
-          <div className="kpi-value">{A.EUR(k.openReceivables)}</div>
-          <div className="kpi-delta"><Icon name="arrow-up-right" size={12}/> +{A.EUR(4120)} this week</div>
+          <div className="kpi-value">{U.EUR(k.openReceivables)}</div>
+          <div className="kpi-delta"><Icon name="arrow-up-right" size={12}/> +{U.EUR(4120)} this week</div>
           <div className="kpi-icon-bg"><Icon name="euro" size={14}/></div>
         </div>
         <div className="kpi">
@@ -73,7 +73,7 @@ function AdminDashboard({ navigate, openFridayBatch }) {
         </div>
         <div className="kpi" style={{ borderColor: 'color-mix(in oklab, var(--green) 30%, var(--border))' }}>
           <div className="kpi-label"><Icon name="wallet" size={13}/> Friday Releasable</div>
-          <div className="kpi-value">{k.fridayCount} · {A.EUR(k.fridayEur)}</div>
+          <div className="kpi-value">{k.fridayCount} · {U.EUR(k.fridayEur)}</div>
           <div className="kpi-cta" onClick={openFridayBatch}>Open Friday batch →</div>
           <div className="kpi-icon-bg"><Icon name="wallet" size={14}/></div>
         </div>
@@ -108,7 +108,7 @@ function AdminDashboard({ navigate, openFridayBatch }) {
               <div className="action-icon" style={{ background: 'var(--red-soft)', color: 'var(--red)' }}><Icon name="alert-triangle" size={16}/></div>
               <div style={{ flex: 1, textAlign: 'left' }}>
                 <div className="text-strong fs-12"><span className="pill pill-red" style={{ marginRight: 6 }}>🚨 AI Violation</span>Order #3517 — Verhaltensökonomie und Konsumentscheidungen</div>
-                <div className="text-muted fs-11">GW Anna König — AI score 87% · plagiarism 12% · {A.relTime('2026-05-07T09:02:00')}</div>
+                <div className="text-muted fs-11">GW Anna König — AI score 87% · plagiarism 12% · {U.relTime('2026-05-07T09:02:00')}</div>
               </div>
               <Icon name="chevron-right" size={16} className="text-faint" />
             </button>
@@ -116,7 +116,7 @@ function AdminDashboard({ navigate, openFridayBatch }) {
               <div className="action-icon" style={{ background: 'color-mix(in oklab, #8b5cf6 14%, transparent)', color: '#7c3aed' }}><Icon name="feather" size={16}/></div>
               <div style={{ flex: 1, textAlign: 'left' }}>
                 <div className="text-strong fs-12">GW Maja Petrović claimed Order #3526 — approve to start</div>
-                <div className="text-muted fs-11">Hausarbeit · Agile Transformation im Mittelstand · 12 pages · {A.EUR(219.78)} {A.relTime('2026-05-07T11:14:00')}</div>
+                <div className="text-muted fs-11">Hausarbeit · Agile Transformation im Mittelstand · 12 pages · {U.EUR(219.78)} {U.relTime('2026-05-07T11:14:00')}</div>
               </div>
               <span className="btn btn-blue btn-sm">Review</span>
             </button>
@@ -132,7 +132,7 @@ function AdminDashboard({ navigate, openFridayBatch }) {
               <div className="action-icon" style={{ background: 'var(--amber-soft)', color: '#B45309' }}><Icon name="wallet" size={16}/></div>
               <div style={{ flex: 1, textAlign: 'left' }}>
                 <div className="text-strong fs-12">Order #3499 ready for payment release — gate blocked</div>
-                <div className="text-muted fs-11">Customer: Kurt Müller · GW: Lukas Bauer · 1 of 3 installments outstanding ({A.EUR(1495)})</div>
+                <div className="text-muted fs-11">Customer: Kurt Müller · GW: Lukas Bauer · 1 of 3 installments outstanding ({U.EUR(1495)})</div>
               </div>
               <span className="btn btn-sm">Open</span>
             </button>
@@ -140,7 +140,7 @@ function AdminDashboard({ navigate, openFridayBatch }) {
               <div className="action-icon" style={{ background: 'color-mix(in oklab, var(--blue) 14%, transparent)', color: 'var(--blue)' }}><Icon name="message-square" size={16}/></div>
               <div style={{ flex: 1, textAlign: 'left' }}>
                 <div className="text-strong fs-12">Customer #3499 asked GW about pricing — auto-redirected (FYI)</div>
-                <div className="text-muted fs-11">Detected keyword: "Rate" → suggested kundenservice@efactory1.de · {A.relTime('2026-05-07T09:55:00')}</div>
+                <div className="text-muted fs-11">Detected keyword: "Rate" → suggested kundenservice@efactory1.de · {U.relTime('2026-05-07T09:55:00')}</div>
               </div>
               <Icon name="chevron-right" size={16} className="text-faint" />
             </button>
@@ -446,7 +446,7 @@ function FunnelChart() {
       ))}
       <div className="flex justify-between fs-11 text-faint mt-2">
         <span>Conversion: 21.8%</span>
-        <span>Avg deal size: {A.EUR(2240)}</span>
+        <span>Avg deal size: {U.EUR(2240)}</span>
       </div>
     </div>
   );

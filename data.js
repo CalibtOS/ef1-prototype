@@ -285,12 +285,20 @@ const liveOrder = (id) => {
   return fix[id] ? { ...base, ...fix[id] } : base;
 };
 
+// Persona helpers — the demo always views the GW role through "Isabel Walter".
+// Surfaced on EF so role-scoped views in src/gw/* don't each duplicate the lookup.
+const GW_ME = GHOSTWRITERS.find(g => g.id === 'gw-iw') || {
+  name: 'Isabel Walter', initials: 'IW', email: 'isabel.walter@gw.efactory1.de'
+};
+const myAssignments = () => liveOrders().filter(o => o.gwId === GW_ME.id);
+
 window.EF = {
   NOW, DEMO_NOW,
   GHOSTWRITERS, CUSTOMERS, ORDERS, SUBMISSIONS, FRIDAY_BATCH, INBOX_THREADS, NOTIFICATIONS,
   WORK_TYPE_LABELS, STATUS_PILLS, KPI, FEATURE_FLAGS,
   featureStatus, isFeatureLive,
   liveOrders, liveOrder,
+  GW_ME, myAssignments,
   gw: (id) => GHOSTWRITERS.find(g => g.id === id),
   customer: (id) => CUSTOMERS.find(c => c.id === id),
   order: (id) => ORDERS.find(o => o.id === id),
