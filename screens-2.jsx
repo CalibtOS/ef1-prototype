@@ -1,7 +1,7 @@
 // GW Job Board, Friday batch, QA Queue, GW Submission, Inbox
 ;(function(){
 const { useState: useStateA, useEffect: useEffectA } = React;
-const { Icon, StatusPill, Avatar, Money, Bi, ScoreBar, CrumbBar, NotReady, PlannedTag } = window;
+const { Icon, StatusPill, Avatar, Money, Bi, ScoreBar, CrumbBar, NotReady, PlannedTag, EmptyState, Skeleton } = window;
 const SS = window.EFU;
 const SD = window.EF;
 
@@ -37,7 +37,11 @@ function GWJobBoard({ navigate, fixState, setFixState, toast, role = 'gw' }) {
       ...prev,
       [id]: { ...(prev[id] || {}), status: 'on_hold', holdReason: 'Unpublished by admin' },
     }));
-    toast && toast({ text: `#${id} removed from job board · status set to On Hold`, tone: 'info' });
+    toast && toast({
+      tone: 'info',
+      transition: { entity: `Order #${id}`, from: 'On Job Board', to: 'On Hold' },
+      text: 'Removed by admin',
+    });
   };
 
   return (
@@ -159,7 +163,11 @@ function ClaimModal({ job, onClose, toast, navigate, setFixState }) {
       }));
     }
     onClose();
-    toast({ text: `Claim #${job.id} submitted · awaiting admin approval · 6 acknowledgements signed`, tone: 'info' });
+    toast({
+      tone: 'info',
+      transition: { entity: `Order #${job.id}`, from: 'On Job Board', to: 'GW Claimed — Approve' },
+      text: '6 acknowledgements signed · awaiting admin approval',
+    });
     if (window.efNotify) window.efNotify({ to: 'admin', title: `Claim awaiting approval · #${job.id}`, body: `Isabel Walter claimed this job · 6 acknowledgements signed` });
     setTimeout(() => navigate('gw-active'), 400);
   };
@@ -964,11 +972,19 @@ function QAQueue({ navigate, toast, fixState, setFixState }) {
     setVerdict(kind);
     if (kind === 'reject_ai') {
       setFixState(prev => ({ ...prev, [order.id]: { ...(prev[order.id]||{}), status: 'ai_violation_review' }}));
-      toast({ text: `Order #${order.id}: AI violation confirmed · ${gw.name} flagged · contract review queued · customer reassignment in 2h`, tone: 'danger' });
+      toast({
+        tone: 'danger',
+        transition: { entity: `Order #${order.id}`, from: 'QA Review', to: '🚨 AI Violation' },
+        text: `${gw.name} flagged · payments held · reassignment in 2h`,
+      });
       if (window.efNotify) window.efNotify({ to: 'admin', title: `🚨 AI violation confirmed · #${order.id}`, body: `${gw.name} flagged · payments held · reassignment queued`, urgent: true });
     } else if (kind === 'flag_plagiarism') {
       setFixState(prev => ({ ...prev, [order.id]: { ...(prev[order.id]||{}), status: 'plagiarism_violation_review', flagged: true }}));
-      toast({ text: `Order #${order.id}: plagiarism violation flagged · ${gw.name} payments held · re-audit of last 90d queued`, tone: 'danger' });
+      toast({
+        tone: 'danger',
+        transition: { entity: `Order #${order.id}`, from: 'QA Review', to: 'Plagiarism Violation' },
+        text: `${gw.name} payments held · 90d audit queued`,
+      });
     } else if (kind === 'pass') {
       // Stateful: forward to customer review, mark QA passed
       setFixState(prev => ({
@@ -979,7 +995,11 @@ function QAQueue({ navigate, toast, fixState, setFixState }) {
           qaPassed: true,
         },
       }));
-      toast({ text: `Submission passed QA · forwarded to ${cust.name} · 14-day review timer started`, tone: 'success' });
+      toast({
+        tone: 'success',
+        transition: { entity: `Order #${order.id}`, from: 'QA Review', to: active.kind === 'final_work' ? 'Delivered' : 'Customer Review' },
+        text: `Forwarded to ${cust.name} · 14-day review timer started`,
+      });
       if (window.efNotify) {
         window.efNotify({ to: 'customer', title: 'Ihre Arbeit hat die Qualitätsprüfung bestanden', body: `Auftrag #${order.id} · ${active.kind === 'final_work' ? 'Endabgabe' : 'Zwischenstand'} freigegeben` });
         window.efNotify({ to: 'gw', title: `QA passed · #${order.id}`, body: 'Forwarded to customer · payment release gate progressing' });
@@ -993,7 +1013,11 @@ function QAQueue({ navigate, toast, fixState, setFixState }) {
           revisionRounds: ((prev[order.id]?.revisionRounds) ?? order.revisionRounds ?? 0) + 1,
         },
       }));
-      toast({ text: `Revision requested for #${order.id} · GW notified`, tone: 'info' });
+      toast({
+        tone: 'info',
+        transition: { entity: `Order #${order.id}`, from: 'QA Review', to: 'Revision Required' },
+        text: 'GW notified',
+      });
     }
   };
 
@@ -1257,7 +1281,15 @@ function GWSubmit({ orderId, kind, navigate, toast, setFixState }) {
           },
         }));
       }
-      toast({ text: `Submission accepted · Plag 4% · AI 8% · forwarded to QA queue`, tone: 'success' });
+      toast({
+        tone: 'success',
+        transition: {
+          entity: `Order #${order.id}`,
+          from: isFinal ? 'Active' : isRevision ? 'Revision Required' : 'Active',
+          to: 'QA Review',
+        },
+        text: 'Plag 4% · AI 8% · forwarded to QA queue',
+      });
       if (window.efNotify) {
         window.efNotify({ to: 'admin', title: `${isFinal ? 'Final' : isRevision ? 'Revision' : 'Interim'} submission · #${order.id}`, body: `${SD.gw(order.gwId)?.name || 'GW'} uploaded · pending QA` });
         window.efNotify({ to: 'qa', title: `New submission · #${order.id}`, body: `${kindLabel} · waiting for QA verdict` });
@@ -1544,7 +1576,7 @@ function GWSubmit({ orderId, kind, navigate, toast, setFixState }) {
 
 // Sub-component: when GW navigates to /gw/gw-submit without an id, list active assignments.
 function GWSubmitPicker({ navigate }) {
-  const myActive = SD.ORDERS.filter(o => o.gwId === 'gw-iw' && !['available','qualified','offer_sent','invoice_sent','completed','cancelled','lead'].includes(o.status));
+  const myActive = SD.liveOrders().filter(o => o.gwId === 'gw-iw' && !['available','qualified','offer_sent','invoice_sent','completed','cancelled','lead'].includes(o.status));
   return (
     <div className="page" style={{ maxWidth: 720, margin: '0 auto' }}>
       <div className="page-header">
@@ -1770,7 +1802,7 @@ function Inbox({ toast }) {
             />
             <div className="flex justify-between mt-2">
               <div className="flex gap-1">
-                <button type="button" className="btn btn-sm" aria-label="Attach file"><Icon name="paperclip" size={12}/></button>
+                <NotReady className="btn btn-sm" ariaLabel="Attach file" feature="attach-file"><Icon name="paperclip" size={12}/></NotReady>
                 <span className="chip">Auto-translate DE → EN: ON</span>
                 <span className="chip">CC: kundenservice@efactory1.de</span>
               </div>
@@ -1856,7 +1888,11 @@ function GWReportDelay({ orderId, navigate, toast, setFixState }) {
       if (setFixState) {
         setFixState(prev => ({ ...prev, [orderId]: { ...(prev[orderId] || {}), status: 'on_hold', holdReason: 'Delay reported by GW · ' + reasonKind, proposedNewDeadline: newDate + 'T18:00:00' } }));
       }
-      toast({ text: `Delay reported · customer + kundenservice@efactory1.de notified · order on hold`, tone: 'info' });
+      toast({
+        tone: 'info',
+        transition: { entity: `Order #${orderId}`, from: 'Active', to: 'On Hold' },
+        text: 'Delay reported · customer + kundenservice notified',
+      });
       if (window.efNotify) {
         window.efNotify({ to: 'admin', title: `Delay reported · #${orderId}`, body: `New proposed date ${newDate} · reason: ${reasonKind}`, urgent: true });
         window.efNotify({ to: 'customer', title: 'Lieferdatum-Anpassung gemeldet', body: `Neuer Termin: ${newDate}. Wir kümmern uns.` });

@@ -1,7 +1,7 @@
 // Orders table + Order detail (with release gate)
 ;(function(){
 const { useState: useStateA, useEffect: useEffectA } = React;
-const { Icon, StatusPill, Avatar, Money, Bi, ScoreBar, CrumbBar, NotReady, PlannedTag } = window;
+const { Icon, StatusPill, Avatar, Money, Bi, ScoreBar, CrumbBar, NotReady, PlannedTag, EmptyState, Skeleton } = window;
 const OS = window.EFU;
 const OD = window.EF;
 
@@ -85,7 +85,14 @@ function OrdersTable({ navigate, fixState, route }) {
                 const gw = OD.gw(o.gwId);
                 const dm = OS.deadlineMeta(o.finalDeadline);
                 return (
-                  <tr key={o.id} onClick={() => navigate('order-detail', { id: o.id })} className={o.status==='completed'?'row-success': (o.status==='ai_violation_review' || (o.outstandingEur>0 && OS.daysTo(o.finalDeadline)<0)) ?'row-danger':''}>
+                  <tr key={o.id} onClick={() => navigate('order-detail', { id: o.id })} className={
+                    o.status==='ai_violation_review' ? 'row-danger'
+                    : o.status==='completed' || o.status==='delivered' ? 'row-success'
+                    : (OS.daysTo(o.finalDeadline) < 0 && !['completed','cancelled'].includes(o.status)) ? 'row-overdue'
+                    : ['qa_review','final_submitted','revision_required','under_customer_review','payment_pending','claimed_pending_approval'].includes(o.status) ? 'row-warn'
+                    : o.status==='active' || o.status==='interim_submitted' ? 'row-active'
+                    : ''
+                  }>
                     <td className="mono"><strong>#{o.id}</strong></td>
                     <td><StatusPill status={o.status}/></td>
                     <td>
@@ -124,6 +131,15 @@ function OrdersTable({ navigate, fixState, route }) {
               })}
             </tbody>
           </table>
+          {filtered.length === 0 && (
+            <EmptyState
+              icon="search"
+              title={search ? `No orders match "${search}"` : 'No orders in this view'}
+              body={search ? 'Try a different ID, customer name, or paper title.' : 'Create one to get started.'}
+              actionLabel={search ? null : 'New order'}
+              onAction={search ? null : () => navigate('order-new')}
+            />
+          )}
         </div>
       </div>
     </div>
@@ -161,7 +177,11 @@ function OrderDetail({ orderId, navigate, toast, fixState, setFixState }) {
     setTimeout(() => setApproving({ phase: 'done' }), 1400);
     setTimeout(() => {
       setFixState(prev => ({ ...prev, [orderId]: { ...(prev[orderId]||{}), status: 'active' }}));
-      toast({ text: `Order #${orderId} approved → both intro emails sent · GW briefed, customer introduced`, tone: 'success' });
+      toast({
+        tone: 'success',
+        transition: { entity: `Order #${orderId}`, from: 'GW Claimed — Approve', to: 'Active' },
+        text: 'Briefing email sent · customer introduced',
+      });
       if (window.efNotify) {
         window.efNotify({ to: 'gw', title: `Order #${orderId} approved — you may begin`, body: 'Briefing email sent · customer was introduced' });
         window.efNotify({ to: 'customer', title: 'Ihr Ghostwriter wurde zugewiesen', body: `${gw?.name || 'Ihr Ghostwriter'} meldet sich heute bei Ihnen.` });
@@ -171,7 +191,11 @@ function OrderDetail({ orderId, navigate, toast, fixState, setFixState }) {
   };
   const rejectClaim = () => {
     setFixState(prev => ({ ...prev, [orderId]: { ...(prev[orderId]||{}), status: 'available', gwId: null, claimedAt: null }}));
-    toast({ text: `Claim on #${orderId} rejected · job returned to board`, tone: 'info' });
+    toast({
+      tone: 'info',
+      transition: { entity: `Order #${orderId}`, from: 'GW Claimed — Approve', to: 'On Job Board' },
+      text: 'Claim rejected · job returned to board',
+    });
   };
   const markInstallmentPaid = (n) => {
     const installments = order.installments.map(i => i.n === n ? { ...i, status: 'paid', date: '2026-05-07' } : i);
@@ -481,7 +505,7 @@ function OrderDetail({ orderId, navigate, toast, fixState, setFixState }) {
                   <div className="fs-12 strong">RG-2026-{String(order.id).padStart(4,'0')}</div>
                   <div className="fs-11 text-faint">Issued {OS.fmtDate(order.acceptedAt)} · {OS.EUR(order.grossEur)}</div>
                 </div>
-                <button className="btn btn-sm"><Icon name="download" size={12}/> PDF</button>
+                <NotReady className="btn btn-sm" feature="invoice-pdf"><Icon name="download" size={12}/> PDF</NotReady>
               </div>
             </div>
           </div>
@@ -591,8 +615,8 @@ function SubmissionsTab({ order }) {
               </div>
               {s.qaStatus === 'passed' && <span className="pill pill-green"><Icon name="check" size={10}/> QA passed · forwarded</span>}
               {s.qaStatus === 'pending' && <span className="pill pill-pink">QA pending</span>}
-              <button className="btn btn-sm"><Icon name="download" size={12}/></button>
-              <button className="btn btn-sm"><Icon name="eye" size={12}/></button>
+              <NotReady className="btn btn-sm" feature="submission-download" ariaLabel="Download submission"><Icon name="download" size={12}/></NotReady>
+              <NotReady className="btn btn-sm" feature="submission-preview" ariaLabel="Preview submission"><Icon name="eye" size={12}/></NotReady>
             </div>
             <div className="flex gap-3 mt-3" style={{ flexWrap: 'wrap' }}>
               <ScoreBar value={s.plagiarismScore} label="Plagiarism" />
@@ -737,11 +761,20 @@ function QAOrderDetail({ orderId, navigate, toast, fixState, setFixState }) {
   const goToQueue = () => navigate('qa-queue');
   const requestRevision = () => {
     setFixState(prev => ({ ...prev, [orderId]: { ...(prev[orderId]||{}), status: 'revision_required', revisionRounds: ((prev[orderId]?.revisionRounds) ?? order.revisionRounds ?? 0) + 1 }}));
-    toast({ text: `Revision requested for #${orderId} · GW notified`, tone: 'info' });
+    toast({
+      tone: 'info',
+      transition: { entity: `Order #${orderId}`, from: 'QA Review', to: 'Revision Required' },
+      text: 'GW notified · awaiting fix',
+    });
   };
   const passToCustomer = () => {
-    setFixState(prev => ({ ...prev, [orderId]: { ...(prev[orderId]||{}), status: latest?.kind === 'final_work' ? 'delivered' : 'under_customer_review', qaPassed: true }}));
-    toast({ text: `Submission passed QA · forwarded to ${cust?.name}`, tone: 'success' });
+    const isFinal = latest?.kind === 'final_work';
+    setFixState(prev => ({ ...prev, [orderId]: { ...(prev[orderId]||{}), status: isFinal ? 'delivered' : 'under_customer_review', qaPassed: true }}));
+    toast({
+      tone: 'success',
+      transition: { entity: `Order #${orderId}`, from: 'QA Review', to: isFinal ? 'Delivered' : 'Customer Review' },
+      text: `Forwarded to ${cust?.name}`,
+    });
   };
 
   return (

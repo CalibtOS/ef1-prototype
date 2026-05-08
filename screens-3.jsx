@@ -1,7 +1,7 @@
 // AI BI Dashboard, Customer view, Tweaks panel
 ;(function(){
 const { useState: useStateA, useEffect: useEffectA } = React;
-const { Icon, StatusPill, Avatar, Money, Bi, ScoreBar, CrumbBar, NotReady, PlannedTag } = window;
+const { Icon, StatusPill, Avatar, Money, Bi, ScoreBar, CrumbBar, NotReady, PlannedTag, EmptyState, Skeleton } = window;
 const TS = window.EFU;
 const TD = window.EF;
 
@@ -148,8 +148,8 @@ function AIBIDashboard() {
                   <span className="text-muted fs-11">Sources:</span>
                   {activePrompt.sources.map(s => <span key={s} className="chip" style={{ fontSize: 11 }}><Icon name="file-text" size={10}/> {s}</span>)}
                   <span style={{ flex: 1 }}/>
-                  <button className="btn btn-sm"><Icon name="bookmark" size={12}/> Save</button>
-                  <button className="btn btn-sm"><Icon name="download" size={12}/> Export</button>
+                  <NotReady className="btn btn-sm" feature="bi-save"><Icon name="bookmark" size={12}/> Save</NotReady>
+                  <NotReady className="btn btn-sm" feature="bi-export"><Icon name="download" size={12}/> Export</NotReady>
                 </div>
               </div>
 
@@ -242,7 +242,7 @@ const CUST_SYNTH_ORDERS = [{
 }];
 
 function custOrders() {
-  const real = TD.ORDERS.filter(o => o.customerId === CUST_ME.id);
+  const real = TD.liveOrders().filter(o => o.customerId === CUST_ME.id);
   return [...CUST_SYNTH_ORDERS, ...real].sort((a, b) => {
     const ra = a.status === 'completed' ? 1 : 0;
     const rb = b.status === 'completed' ? 1 : 0;
@@ -688,7 +688,7 @@ function CustOrderChat({ o, toast }) {
                 onChange={(e)=>onChange(e.target.value)}
               />
               <div className="flex-col gap-1">
-                <button type="button" className="btn btn-sm" title="Datei anhängen"><Icon name="paperclip" size={12}/></button>
+                <NotReady className="btn btn-sm" ariaLabel="Datei anhängen" feature="attach-file"><Icon name="paperclip" size={12}/></NotReady>
                 <button type="button" className="btn btn-sm btn-primary" onClick={onSend} disabled={!text.trim()}>
                   <Icon name="send" size={12}/> Senden
                 </button>
@@ -715,9 +715,9 @@ function CustOrderChat({ o, toast }) {
         <div className="card">
           <div className="card-head"><div className="card-title">Schnellzugriff</div></div>
           <div className="card-pad flex-col gap-2">
-            <button type="button" className="btn btn-sm" style={{ justifyContent: 'flex-start' }}><Icon name="alert-triangle" size={12}/> Streitfall melden</button>
-            <button type="button" className="btn btn-sm" style={{ justifyContent: 'flex-start' }}><Icon name="phone" size={12}/> Rückruf anfordern</button>
-            <button type="button" className="btn btn-sm" style={{ justifyContent: 'flex-start' }}><Icon name="mail" size={12}/> kundenservice@efactory1.de</button>
+            <NotReady className="btn btn-sm" feature="report-dispute" style={{ justifyContent: 'flex-start' }}><Icon name="alert-triangle" size={12}/> Streitfall melden</NotReady>
+            <NotReady className="btn btn-sm" feature="request-callback" style={{ justifyContent: 'flex-start' }}><Icon name="phone" size={12}/> Rückruf anfordern</NotReady>
+            <a className="btn btn-sm" href="mailto:kundenservice@efactory1.de" style={{ justifyContent: 'flex-start', textDecoration: 'none' }}><Icon name="mail" size={12}/> kundenservice@efactory1.de</a>
           </div>
         </div>
       </div>
@@ -778,7 +778,7 @@ function CustOrderFiles({ o, toast }) {
                   {' '}{formatSize(f.size)} · {TS.fmtDateTime(f.at)}
                 </span>
               </div>
-              <button type="button" className="btn btn-sm" title="Vorschau"><Icon name="eye" size={12}/></button>
+              <NotReady className="btn btn-sm" ariaLabel="Vorschau" feature="file-preview"><Icon name="eye" size={12}/></NotReady>
               <button type="button" className="btn btn-sm btn-primary" title="Herunterladen" onClick={()=>toast&&toast({tone:'success',text:`${f.name} wird heruntergeladen.`})}>
                 <Icon name="download" size={12}/>
               </button>
@@ -868,9 +868,9 @@ function CustOrderPayments({ o }) {
                     <td><span className={`pill pill-${sp.c}`} style={{ fontSize: 11 }}>{sp.l}</span></td>
                     <td>
                       {inst.status === 'paid' ? (
-                        <button type="button" className="btn btn-sm" style={{ width: '100%' }}><Icon name="download" size={11}/> PDF</button>
+                        <NotReady className="btn btn-sm" feature="invoice-pdf" style={{ width: '100%' }}><Icon name="download" size={11}/> PDF</NotReady>
                       ) : inst.status === 'overdue' ? (
-                        <button type="button" className="btn btn-sm btn-danger" style={{ width: '100%' }}><Icon name="alert-triangle" size={11}/> Jetzt zahlen</button>
+                        <NotReady className="btn btn-sm btn-danger" feature="invoice-pay" style={{ width: '100%' }}><Icon name="alert-triangle" size={11}/> Jetzt zahlen</NotReady>
                       ) : <span className="text-faint fs-11">—</span>}
                     </td>
                   </tr>
@@ -1493,7 +1493,7 @@ function PipelineKanban({ navigate }) {
     { id: 9039, customerName: 'Yusuf Demir', customerInitials: 'YD', workType: 'expose', field: 'VWL', pages: 8, grossEur: 480, ageHours: 70, lastTouch: '2026-05-04T17:20:00', stage: 'rueckmeldung', leadSource: 'referral' },
     { id: 9042, customerName: 'Greta Lindner', customerInitials: 'GL', workType: 'bachelorarbeit', field: 'Pädagogik', pages: 35, grossEur: 2065, ageHours: 92, lastTouch: '2026-05-03T19:00:00', stage: 'rechnung', leadSource: 'ef1' },
   ];
-  const realOrders = TD.ORDERS.map(o => ({
+  const realOrders = TD.liveOrders().map(o => ({
     id: o.id,
     customerName: TD.customer(o.customerId)?.name,
     customerInitials: TD.customer(o.customerId)?.initials || '··',
@@ -1558,7 +1558,7 @@ function PipelineKanban({ navigate }) {
                 </div>
               ))}
               {byStage[s.id].length > 12 && (
-                <button className="btn btn-ghost btn-sm" style={{ justifyContent: 'center' }}>+{byStage[s.id].length - 12} more</button>
+                <NotReady className="btn btn-ghost btn-sm" feature="pipeline-load-more" style={{ justifyContent: 'center' }}>+{byStage[s.id].length - 12} more</NotReady>
               )}
               {byStage[s.id].length === 0 && (
                 <div className="text-faint fs-11" style={{ padding: 12, textAlign: 'center' }}>No deals</div>
@@ -1600,8 +1600,9 @@ function CustomersPage({ navigate }) {
   const [search, setSearch] = useStateA('');
   const [filter, setFilter] = useStateA('all');
 
+  const liveOrders = TD.liveOrders();
   const customersWithStats = TD.CUSTOMERS.map(c => {
-    const orders = TD.ORDERS.filter(o => o.customerId === c.id);
+    const orders = liveOrders.filter(o => o.customerId === c.id);
     const openBalance = orders.reduce((s, o) => s + (o.outstandingEur || 0), 0);
     const hasDispute = orders.some(o => o.disputeOpen);
     const lastOrder = orders.sort((a,b) => (b.acceptedAt||'').localeCompare(a.acceptedAt||''))[0];
@@ -1827,7 +1828,7 @@ function ReportsPage({ navigate }) {
     { id: 'ytd', label: 'YTD 2026' },
   ];
 
-  const orders = TD.ORDERS;
+  const orders = TD.liveOrders();
   const completed = orders.filter(o => o.status === 'completed');
   const grossSum = orders.reduce((s, o) => s + (o.grossEur || 0), 0);
   const honorSum = orders.reduce((s, o) => s + (o.netHonorarium || 0), 0);
@@ -1902,7 +1903,7 @@ function ReportsPage({ navigate }) {
         <div className="card">
           <div className="card-head">
             <div className="card-title">GW Honorarium ledger</div>
-            <button className="btn btn-sm"><Icon name="download" size={12}/> CSV</button>
+            <NotReady className="btn btn-sm" feature="export-csv" label="GW Honorarium CSV"><Icon name="download" size={12}/> CSV</NotReady>
           </div>
           <div style={{ overflowX: 'auto' }}>
             <table className="tbl">
@@ -2023,7 +2024,7 @@ function SettingsPage({ navigate, toast }) {
           {section === 'team' && (
             <>
               <div className="card">
-                <div className="card-head"><div className="card-title">Team members</div><button className="btn btn-sm btn-primary"><Icon name="plus" size={12}/> Invite</button></div>
+                <div className="card-head"><div className="card-title">Team members</div><NotReady className="btn btn-sm btn-primary" feature="team-invite"><Icon name="plus" size={12}/> Invite</NotReady></div>
                 <table className="tbl">
                   <thead><tr><th>Name</th><th>Email</th><th>Role</th><th>MFA</th><th>Last seen</th><th></th></tr></thead>
                   <tbody>
@@ -2038,7 +2039,7 @@ function SettingsPage({ navigate, toast }) {
                         <td>{m.role === 'Admin (owner)' ? <span className="pill pill-blue">{m.role}</span> : <span className="pill pill-slate">{m.role}</span>}</td>
                         <td>{m.mfa ? <span className="pill pill-green"><Icon name="check" size={10}/> TOTP</span> : <span className="pill pill-amber">Off</span>}</td>
                         <td className="text-faint fs-11">{m.last}</td>
-                        <td className="num"><button className="btn btn-sm"><Icon name="more-horizontal" size={12}/></button></td>
+                        <td className="num"><NotReady className="btn btn-sm" feature="row-more-actions" ariaLabel="Team member actions"><Icon name="more-horizontal" size={12}/></NotReady></td>
                       </tr>
                     ))}
                   </tbody>
@@ -2362,7 +2363,7 @@ window.TweaksPanel = TweaksPanel;
 // "Isabel Walter" is the demo GW
 const GW_ME = TD.gw('gw-iw') || { name: 'Isabel Walter', initials: 'IW', email: 'isabel.walter@gw.efactory1.de' };
 // My assignments derived from data
-const myAssignments = () => TD.ORDERS.filter(o => o.gwId === 'gw-iw');
+const myAssignments = () => TD.liveOrders().filter(o => o.gwId === 'gw-iw');
 
 // ============ GW DASHBOARD ============
 function GWDashboard({ navigate }) {
@@ -2599,8 +2600,8 @@ function GWTemplates() {
               <span className="text-faint fs-11">{t.size}</span>
             </div>
             <div className="flex gap-2 mt-3">
-              <button className="btn btn-sm" style={{ flex: 1, justifyContent: 'center' }}><Icon name="download" size={12}/> Download .docx</button>
-              <button className="btn btn-sm"><Icon name="eye" size={12}/></button>
+              <NotReady className="btn btn-sm" feature="template-download" style={{ flex: 1, justifyContent: 'center' }}><Icon name="download" size={12}/> Download .docx</NotReady>
+              <NotReady className="btn btn-sm" feature="file-preview" ariaLabel="Preview template"><Icon name="eye" size={12}/></NotReady>
             </div>
           </div>
         ))}
@@ -2748,7 +2749,7 @@ function GWProfile() {
               <div className="kv-row"><dt>Signed at</dt><dd className="mono">{TS.fmtDate(me.agbsAt || '2025-09-12')}</dd></div>
               <div className="kv-row"><dt>Werkvertrag</dt><dd>Individual-Werk · not employment</dd></div>
             </div>
-            <button className="btn btn-sm mt-3"><Icon name="download" size={12}/> Download signed PDF</button>
+            <NotReady className="btn btn-sm mt-3" feature="agb-download"><Icon name="download" size={12}/> Download signed PDF</NotReady>
           </div>
         </div>
       </div>
@@ -2770,7 +2771,7 @@ function GWSubmissionsList({ navigate }) {
     submittedAt: s.submittedAt,
   }));
   // Then synthesize one or two submissions per real assignment so the page is never empty.
-  const myAssignments = TD.ORDERS.filter(o => o.gwId === 'gw-iw');
+  const myAssignments = TD.liveOrders().filter(o => o.gwId === 'gw-iw');
   const seedHash = (n) => Math.abs(((n * 2654435761) | 0));
   const derived = [];
   myAssignments.forEach(o => {
@@ -4187,7 +4188,7 @@ function CustomerDetail({ customerId, navigate, fixState }) {
         </div>
         <div className="page-actions">
           <button type="button" className="btn" onClick={() => navigate('customers')}><Icon name="chevron-left" size={14}/> Back</button>
-          <button type="button" className="btn"><Icon name="external-link" size={14}/> Open in Pipedrive</button>
+          <NotReady className="btn" feature="pipedrive-open"><Icon name="external-link" size={14}/> Open in Pipedrive</NotReady>
           <button type="button" className="btn btn-primary" onClick={() => navigate('order-new')}><Icon name="plus" size={14}/> New order for this customer</button>
         </div>
       </div>
@@ -4316,7 +4317,7 @@ function GhostwriterDetail({ gwId, navigate, fixState, setFixState, toast }) {
         </div>
         <div className="page-actions">
           <button type="button" className="btn" onClick={() => navigate('ghostwriters')}><Icon name="chevron-left" size={14}/> Back</button>
-          <button type="button" className="btn"><Icon name="message-square" size={14}/> WhatsApp</button>
+          <NotReady className="btn" feature="whatsapp"><Icon name="message-square" size={14}/> WhatsApp</NotReady>
         </div>
       </div>
 

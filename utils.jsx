@@ -1,4 +1,12 @@
-// Shared utilities — dates, money, icons, primitives
+// Shared utilities + design system primitives.
+//
+// DESIGN SYSTEM (window.EFDS):
+//   Colors live as CSS variables in styles.css (`:root` and `[data-theme="dark"]`).
+//   Status semantics:  blue=in-progress · yellow=pending · green=done · red=violation/error · orange=overdue · gray=on-hold
+//   Components published to window: Icon, StatusPill, Avatar, Money, Bi, ScoreBar,
+//                                   NotReady, PlannedTag, EmptyState, Skeleton.
+//   Helpers: window.efToast({text, tone, transition}), window.efNotify({to, title, body, urgent}).
+//   Feature flags: window.EF.FEATURE_FLAGS — single source of truth for "what's planned vs. live".
 ;(function(){
 const EUR = (n) => {
   if (n == null || isNaN(n)) return '—';
@@ -209,6 +217,25 @@ const NotReady = ({ children, className = 'btn', feature, label, tooltip, ariaLa
   );
 };
 
+// EmptyState — for tables/lists with no data, search-no-match, or feature-empty cases.
+const EmptyState = ({ icon = 'inbox', title = 'Nothing here yet', body, actionLabel, onAction, compact }) => (
+  <div className={`empty-state ${compact ? 'empty-state-compact' : ''}`}>
+    <div className="empty-state-icon"><Icon name={icon} size={compact ? 18 : 24}/></div>
+    <div className="empty-state-title">{title}</div>
+    {body && <div className="empty-state-body">{body}</div>}
+    {actionLabel && onAction && (
+      <button type="button" className="btn btn-sm" onClick={onAction} style={{ marginTop: 8 }}>
+        {actionLabel}
+      </button>
+    )}
+  </div>
+);
+
+// Skeleton — placeholder for loading rows / cards. Shimmer driven by CSS.
+const Skeleton = ({ w = '100%', h = 12, radius = 4, style }) => (
+  <span className="skeleton" style={{ width: w, height: h, borderRadius: radius, ...style }} aria-hidden="true"/>
+);
+
 // Score bar (plagiarism / AI)
 const ScoreBar = ({ value, label }) => {
   const tone = value < 15 ? 'green' : value < 30 ? 'amber' : 'red';
@@ -225,7 +252,54 @@ const ScoreBar = ({ value, label }) => {
   );
 };
 
-window.EFU = { EUR, fmtDate, fmtDateTime, fmtTime, relTime, daysTo, deadlineMeta, Icon, StatusPill, Avatar, Money, Bi, ScoreBar, NotReady, PlannedTag };
+window.EFU = { EUR, fmtDate, fmtDateTime, fmtTime, relTime, daysTo, deadlineMeta, Icon, StatusPill, Avatar, Money, Bi, ScoreBar, NotReady, PlannedTag, EmptyState, Skeleton };
 // Also expose at top-level for cross-script use
-Object.assign(window, { Icon, StatusPill, Avatar, Money, Bi, ScoreBar, NotReady, PlannedTag });
+Object.assign(window, { Icon, StatusPill, Avatar, Money, Bi, ScoreBar, NotReady, PlannedTag, EmptyState, Skeleton });
+
+// EFDS — design system surface: components + tokens reference.
+// Tokens are CSS variables (see :root in styles.css); EFDS.tokens documents the canonical names
+// so future code can read them via getComputedStyle() or simply consult this map.
+window.EFDS = {
+  components: { Icon, StatusPill, Avatar, Money, Bi, ScoreBar, NotReady, PlannedTag, EmptyState, Skeleton },
+  tokens: {
+    color: {
+      // semantics → css var name
+      brand:        '--blue',
+      success:      '--green',
+      danger:       '--red',
+      warning:      '--amber',
+      // surfaces
+      bg:           '--bg',
+      surface:      '--surface',
+      surface2:     '--surface-2',
+      // text
+      text:         '--text',
+      text2:        '--text-2',
+      text3:        '--text-3',
+      // hairlines
+      border:       '--border',
+      borderStrong: '--border-strong',
+    },
+    statusToTone: {
+      blue:   'in-progress',
+      yellow: 'pending',
+      green:  'done',
+      red:    'violation',
+      orange: 'overdue',
+      gray:   'on-hold',
+      slate:  'neutral',
+    },
+    space: { xs: 4, sm: 6, md: 8, lg: 12, xl: 16, xxl: 24 },
+    radius: { sm: 4, md: 6, lg: 8, pill: 999 },
+    text: {
+      micro: 11,    // labels, table th, captions
+      small: 11.5,  // buttons, chips
+      body:  12.5,  // default body text
+      lead:  13.5,  // emphasized rows
+      h3:    16,
+      h2:    20,
+      h1:    24,
+    },
+  },
+};
 })();

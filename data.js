@@ -152,25 +152,39 @@ const WORK_TYPE_LABELS = {
   sonstiges: 'Sonstiges',
 };
 
+// Color scheme (per product feedback):
+//   blue   = active / in-progress
+//   yellow = pending / awaiting-review
+//   green  = completed / delivered
+//   orange = overdue (used by deadlineMeta, NOT a status)
+//   red    = violations / cancelled / errors
+//   gray   = on-hold / inactive
+//   slate  = early/neutral (e.g. fresh lead)
 const STATUS_PILLS = {
-  lead: { color: 'slate', label: 'Lead' },
-  qualified: { color: 'blue', label: 'Qualifiziert' },
-  offer_sent: { color: 'indigo', label: 'Offer Sent' },
-  invoice_sent: { color: 'amber', label: 'Awaiting Payment' },
-  available: { color: 'cyan', label: 'On Job Board' },
-  claimed_pending_approval: { color: 'violet', label: 'GW Claimed — Approve' },
-  active: { color: 'emerald', label: 'Active' },
-  interim_submitted: { color: 'teal', label: 'Interim Submitted' },
-  under_customer_review: { color: 'blue', label: 'Customer Review' },
-  revision_required: { color: 'orange', label: 'Revision Required' },
-  final_submitted: { color: 'purple', label: 'Final Submitted' },
-  qa_review: { color: 'pink', label: 'QA Review' },
-  delivered: { color: 'lime', label: 'Delivered' },
-  payment_pending: { color: 'yellow', label: 'Payment Pending' },
-  completed: { color: 'green', label: 'Done' },
-  on_hold: { color: 'gray', label: 'On Hold' },
-  cancelled: { color: 'red', label: 'Storno' },
-  ai_violation_review: { color: 'red', label: '🚨 AI Violation' },
+  // Sales pipeline (slate → blue progression)
+  lead:                     { color: 'slate',  label: 'Lead' },
+  qualified:                { color: 'blue',   label: 'Qualifiziert' },
+  offer_sent:               { color: 'blue',   label: 'Offer Sent' },
+  invoice_sent:             { color: 'yellow', label: 'Awaiting Payment' },
+  // Job board
+  available:                { color: 'blue',   label: 'On Job Board' },
+  claimed_pending_approval: { color: 'yellow', label: 'GW Claimed — Approve' },
+  // Active work (blue = in-progress)
+  active:                   { color: 'blue',   label: 'Active' },
+  interim_submitted:        { color: 'blue',   label: 'Interim Submitted' },
+  // Pending review (yellow = awaiting human action)
+  under_customer_review:    { color: 'yellow', label: 'Customer Review' },
+  revision_required:        { color: 'yellow', label: 'Revision Required' },
+  final_submitted:          { color: 'yellow', label: 'Final Submitted' },
+  qa_review:                { color: 'yellow', label: 'QA Review' },
+  payment_pending:          { color: 'yellow', label: 'Payment Pending' },
+  // Completed (green)
+  delivered:                { color: 'green',  label: 'Delivered' },
+  completed:                { color: 'green',  label: 'Done' },
+  // Halt / fail
+  on_hold:                  { color: 'gray',   label: 'On Hold' },
+  cancelled:                { color: 'red',    label: 'Storno' },
+  ai_violation_review:      { color: 'red',    label: '🚨 AI Violation' },
 };
 
 // KPI: derived from ORDERS so dashboard counts always match list views.
@@ -231,6 +245,23 @@ const FEATURE_FLAGS = {
   'invoice-pdf':        { status: 'planned', label: 'Invoice PDF download' },
   'invoice-pay':        { status: 'planned', label: 'Pay invoice' },
   'profile-edit':       { status: 'planned', label: 'Edit personal data' },
+  // Files / submissions / messages
+  'submission-download':{ status: 'planned', label: 'Download submission' },
+  'submission-preview': { status: 'planned', label: 'Preview submission' },
+  'file-preview':       { status: 'planned', label: 'File preview' },
+  'attach-file':        { status: 'planned', label: 'Attach file' },
+  // BI
+  'bi-save':            { status: 'planned', label: 'Save BI prompt' },
+  'bi-export':          { status: 'planned', label: 'Export BI result' },
+  // Pipeline
+  'pipeline-load-more': { status: 'planned', label: 'Load more pipeline deals' },
+  // Settings / team / AGB
+  'team-invite':        { status: 'planned', label: 'Invite team member' },
+  'agb-download':       { status: 'planned', label: 'Download signed AGB PDF' },
+  // GW
+  'whatsapp':           { status: 'planned', label: 'WhatsApp' },
+  'report-dispute':     { status: 'planned', label: 'Report dispute' },
+  'request-callback':   { status: 'planned', label: 'Request callback' },
   // Misc
   'alerts':             { status: 'planned', label: 'Alerts' },
 };
@@ -238,11 +269,28 @@ const FEATURE_FLAGS = {
 const featureStatus = (key) => FEATURE_FLAGS[key] || null;
 const isFeatureLive = (key) => (FEATURE_FLAGS[key]?.status === 'live');
 
+// Shared-state accessor — merges live admin mutations (window.__fixState) on top of the
+// seed ORDERS so role-switched views (customer, GW, pipeline) see the same truth as admin.
+// App keeps window.__fixState in sync; pages that previously read EF.ORDERS directly should
+// call EF.liveOrders() (or EF.liveOrder(id)) when they want the latest state.
+const liveOrders = () => {
+  const fix = (typeof window !== 'undefined' && window.__fixState) || {};
+  if (!fix || Object.keys(fix).length === 0) return ORDERS;
+  return ORDERS.map(o => fix[o.id] ? { ...o, ...fix[o.id] } : o);
+};
+const liveOrder = (id) => {
+  const fix = (typeof window !== 'undefined' && window.__fixState) || {};
+  const base = ORDERS.find(o => o.id === id);
+  if (!base) return null;
+  return fix[id] ? { ...base, ...fix[id] } : base;
+};
+
 window.EF = {
   NOW, DEMO_NOW,
   GHOSTWRITERS, CUSTOMERS, ORDERS, SUBMISSIONS, FRIDAY_BATCH, INBOX_THREADS, NOTIFICATIONS,
   WORK_TYPE_LABELS, STATUS_PILLS, KPI, FEATURE_FLAGS,
   featureStatus, isFeatureLive,
+  liveOrders, liveOrder,
   gw: (id) => GHOSTWRITERS.find(g => g.id === id),
   customer: (id) => CUSTOMERS.find(c => c.id === id),
   order: (id) => ORDERS.find(o => o.id === id),

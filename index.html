@@ -138,6 +138,10 @@ function App() {
   // Expose toast globally so non-prop-threaded helpers (e.g. <NotReady>) can summon one.
   useEffect(() => { window.efToast = toast; return () => { if (window.efToast === toast) delete window.efToast; }; }, [toast]);
 
+  // Mirror fixState to window so role-switched views (which don't all receive the prop)
+  // can use EF.liveOrders() / EF.liveOrder(id) and see admin mutations.
+  useEffect(() => { window.__fixState = fixState; }, [fixState]);
+
   const dismiss = (id) => setToasts(t => t.filter(x => x.id !== id));
 
   // role-aware route resolution
