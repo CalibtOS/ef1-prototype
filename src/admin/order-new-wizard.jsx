@@ -236,14 +236,32 @@ function OrderNewWizard({ navigate, toast, setFixState }) {
               </select>
             </div>
             <div className="field"><label>Discount (full upfront)</label>
-              <select value={draft.discount} onChange={e => setField('discount', +e.target.value)}>
+              {/* Per business_rules §2: 10% discount applies ONLY to a single full-upfront payment.
+                  When installments > 1 the discount option is locked out. */}
+              <select
+                value={draft.discount}
+                onChange={e => {
+                  const v = +e.target.value;
+                  setField('discount', v);
+                  if (v > 0 && draft.installments !== 1) setField('installments', 1);
+                }}
+                disabled={draft.installments > 1}
+                title={draft.installments > 1 ? 'Discount applies only to single-payment orders. Switch to 1 installment to enable.' : null}
+              >
                 <option value="0">No discount</option>
-                <option value="0.10">10% (full upfront — D-business_rules §2)</option>
+                <option value="0.10">10% (full upfront only — §2)</option>
               </select>
             </div>
             <div className="field"><label>Installments</label>
-              <select value={draft.installments} onChange={e => setField('installments', +e.target.value)}>
-                {[1,2,3,4,5].map(n => <option key={n} value={n}>{n} × {U.EUR(grossEur / n)}</option>)}
+              <select
+                value={draft.installments}
+                onChange={e => {
+                  const n = +e.target.value;
+                  setField('installments', n);
+                  if (n > 1 && draft.discount > 0) setField('discount', 0);
+                }}
+              >
+                {[1,2,3,4,5].map(n => <option key={n} value={n}>{n} × {U.EUR(grossEur / n)}{n > 1 && draft.discount > 0 ? ' · disables discount' : ''}</option>)}
               </select>
             </div>
             <div className="field" style={{ gridColumn: '1 / -1' }}>

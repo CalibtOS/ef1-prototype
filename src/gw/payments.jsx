@@ -8,7 +8,14 @@ const D = window.EF;
 // ============ GW PAYMENTS ============
 function GWPayments({ navigate }) {
   const mine = D.myAssignments();
-  const releasable = mine.filter(o => o.gwPaymentStatus === 'invoice_received');
+  // Per business_rules §5: a GW payment is "releasable" only when ALL five gates pass —
+  // not merely when the GW invoice is received. Splitting `invoice_received` into truly
+  // releasable vs awaiting-gates makes it honest for the GW.
+  const withGates = mine.map(o => ({ o, gates: D.releaseGates(o) }));
+  const releasable = withGates.filter(({ gates }) => gates.releasable).map(({ o }) => o);
+  const awaitingGates = withGates
+    .filter(({ o, gates }) => o.gwPaymentStatus === 'invoice_received' && !gates.releasable)
+    .map(({ o, gates }) => ({ ...o, _blockerReason: gates.reasons[0] }));
   const pending = mine.filter(o => o.gwPaymentStatus === 'work_in_progress');
   const paid = mine.filter(o => o.gwPaymentStatus === 'paid');
   const sumOf = (xs) => xs.reduce((s,o) => s + (o.netHonorarium||0), 0);
@@ -54,16 +61,26 @@ function GWPayments({ navigate }) {
       </div>
 
       <div className="card mb-3" style={{ border: '1px solid color-mix(in oklab, var(--green) 35%, var(--border))' }}>
-        <div className="card-head"><div className="card-title flex items-center gap-2"><Icon name="wallet" size={14}/> Releasing this Friday · {U.fmtDate('2026-05-08')}</div><span className="pill pill-green">Ready</span></div>
+        <div className="card-head"><div className="card-title flex items-center gap-2"><Icon name="wallet" size={14}/> Releasing this Friday · {U.fmtDate('2026-05-08')}</div><span className="pill pill-green">All gates clear</span></div>
         {releasable.length === 0 ? (
-          <div className="card-pad text-faint fs-12">No releases this week.</div>
+          <div className="card-pad text-faint fs-12">No releases this week — invoices below are awaiting one or more release gates.</div>
         ) : (
           <table className="tbl">
             <thead><tr><th>Order</th><th>Title</th><th className="num">Rate</th><th className="num">Honorar (net)</th><th>Note</th></tr></thead>
-            <tbody>{releasable.map(o => <Row key={o.id} o={o} blocker="invoice received · awaiting Friday batch"/>)}</tbody>
+            <tbody>{releasable.map(o => <Row key={o.id} o={o} blocker="all gates clear · scheduled for Friday batch"/>)}</tbody>
           </table>
         )}
       </div>
+
+      {awaitingGates.length > 0 && (
+        <div className="card mb-3" style={{ border: '1px solid color-mix(in oklab, var(--amber) 35%, var(--border))' }}>
+          <div className="card-head"><div className="card-title flex items-center gap-2"><Icon name="lock" size={14}/> Invoice received · awaiting release gates</div><span className="pill pill-amber">{awaitingGates.length}</span></div>
+          <table className="tbl">
+            <thead><tr><th>Order</th><th>Title</th><th className="num">Rate</th><th className="num">Honorar (net)</th><th>Blocker</th></tr></thead>
+            <tbody>{awaitingGates.map(o => <Row key={o.id} o={o} blocker={o._blockerReason}/>)}</tbody>
+          </table>
+        </div>
+      )}
 
       <div className="card">
         <div className="card-head"><div className="card-title">Pending — work in progress</div></div>

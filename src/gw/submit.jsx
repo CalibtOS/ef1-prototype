@@ -103,9 +103,13 @@ function GWSubmit({ orderId, kind, navigate, toast, setFixState }) {
     setTimeout(() => {
       setStep(5);
       if (setFixState) {
-        // Interim → qa_review (per workflow). Final → qa_review until QA passes.
-        // Revision → qa_review (round bump).
-        const newStatus = isFinal ? 'qa_review' : isRevision ? 'qa_review' : 'qa_review';
+        // Per business_rules.md §11 / SOP-2 / SOP-3 / PRD lifecycle:
+        //   - Interim is auto-forwarded to the customer (no QA gate).
+        //   - Final is held for QA review before customer forwarding.
+        //   - Revision keeps the existing GW path (re-enters QA only if the original was a final).
+        // Status mapping reflects this:
+        //   interim → under_customer_review · final → qa_review · revision (final-stage) → qa_review
+        const newStatus = isFinal ? 'qa_review' : isRevision ? 'qa_review' : 'under_customer_review';
         setFixState(prev => ({
           ...prev,
           [order.id]: {
@@ -119,31 +123,46 @@ function GWSubmit({ orderId, kind, navigate, toast, setFixState }) {
           },
         }));
       }
+      const isInterimAutoForward = !isFinal && !isRevision;
       toast({
         tone: 'success',
         transition: {
           entity: `Order #${order.id}`,
           from: isFinal ? 'Active' : isRevision ? 'Revision Required' : 'Active',
-          to: 'QA Review',
+          to: isInterimAutoForward ? 'Customer Review' : 'QA Review',
         },
-        text: 'Plag 4% · AI 8% · forwarded to QA queue',
+        text: isInterimAutoForward
+          ? 'Auto-forwarded to customer · awaiting feedback'
+          : 'Plag 4% · AI 8% · forwarded to QA queue',
       });
       if (window.efNotify) {
-        window.efNotify({ to: 'admin', title: `${isFinal ? 'Final' : isRevision ? 'Revision' : 'Interim'} submission · #${order.id}`, body: `${D.gw(order.gwId)?.name || 'GW'} uploaded · pending QA` });
-        window.efNotify({ to: 'qa', title: `New submission · #${order.id}`, body: `${kindLabel} · waiting for QA verdict` });
-        if (!isFinal) {
-          window.efNotify({ to: 'customer', title: 'Zwischenstand verfügbar', body: `Ihr Ghostwriter hat einen Zwischenstand für #${order.id} hochgeladen` });
+        if (isInterimAutoForward) {
+          // Interim path — customer receives draft directly; admin gets an FYI.
+          window.efNotify({ to: 'customer', title: 'Ihr Zwischenstand ist verfügbar', body: `Auftrag #${order.id} · Bitte prüfen und Feedback geben` });
+          window.efNotify({ to: 'admin', title: `Interim forwarded · #${order.id}`, body: `${D.gw(order.gwId)?.name || 'GW'} uploaded interim · auto-sent to customer` });
+        } else {
+          // Final / revision path — held for QA before customer forwarding.
+          window.efNotify({ to: 'admin', title: `${isFinal ? 'Final' : 'Revision'} submission · #${order.id}`, body: `${D.gw(order.gwId)?.name || 'GW'} uploaded · pending QA` });
+          window.efNotify({ to: 'qa', title: `New submission · #${order.id}`, body: `${kindLabel} · waiting for QA verdict` });
         }
       }
     }, 4600);
   };
 
-  const stages = [
-    { name: 'Upload', icon: 'upload-cloud' },
-    { name: 'Plagiarism', icon: 'shield-check' },
-    { name: 'AI detector', icon: 'zap' },
-    { name: 'QA queue', icon: 'inbox' },
-  ];
+  // Interim is auto-forwarded to the customer; final/revision goes through QA first.
+  const stages = (isFinal || isRevision)
+    ? [
+        { name: 'Upload', icon: 'upload-cloud' },
+        { name: 'Plagiarism', icon: 'shield-check' },
+        { name: 'AI detector', icon: 'zap' },
+        { name: 'QA queue', icon: 'inbox' },
+      ]
+    : [
+        { name: 'Upload', icon: 'upload-cloud' },
+        { name: 'Plagiarism', icon: 'shield-check' },
+        { name: 'AI detector', icon: 'zap' },
+        { name: 'Forwarded to customer', icon: 'send' },
+      ];
 
   const Check = ({ k, label, why }) => (
     <label className="flex items-start gap-2" style={{ padding: '10px 12px', border: '1px solid var(--border)', borderRadius: 8, cursor: 'pointer', background: checks[k] ? 'color-mix(in oklab, var(--green) 5%, var(--surface))' : 'var(--surface)' }}>

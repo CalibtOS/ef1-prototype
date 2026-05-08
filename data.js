@@ -183,8 +183,11 @@ const STATUS_PILLS = {
   completed:                { color: 'green',  label: 'Done' },
   // Halt / fail
   on_hold:                  { color: 'gray',   label: 'On Hold' },
+  delay_reported:           { color: 'orange', label: 'Delay Reported' },
+  extension_requested:      { color: 'yellow', label: 'Extension Requested' },
   cancelled:                { color: 'red',    label: 'Storno' },
   ai_violation_review:      { color: 'red',    label: '🚨 AI Violation' },
+  plagiarism_violation_review: { color: 'red', label: '🚨 Plagiarism Flag' },
 };
 
 // KPI: derived from ORDERS so dashboard counts always match list views.
@@ -273,16 +276,59 @@ const isFeatureLive = (key) => (FEATURE_FLAGS[key]?.status === 'live');
 // seed ORDERS so role-switched views (customer, GW, pipeline) see the same truth as admin.
 // App keeps window.__fixState in sync; pages that previously read EF.ORDERS directly should
 // call EF.liveOrders() (or EF.liveOrder(id)) when they want the latest state.
+// Live-order accessor: merges seed ORDERS with admin mutations from window.__fixState,
+// AND surfaces brand-new orders that exist only in fixState (e.g. created via the wizard
+// at IDs 9100+). Without this second branch, OrderDetail navigation would show "not found".
 const liveOrders = () => {
   const fix = (typeof window !== 'undefined' && window.__fixState) || {};
   if (!fix || Object.keys(fix).length === 0) return ORDERS;
-  return ORDERS.map(o => fix[o.id] ? { ...o, ...fix[o.id] } : o);
+  const merged = ORDERS.map(o => fix[o.id] ? { ...o, ...fix[o.id] } : o);
+  const seedIds = new Set(ORDERS.map(o => o.id));
+  // Pick up any fix-state entry that has a `customerId` AND isn't in the seed — those are
+  // newly-created orders (the wizard sets customerId; partial mutations on existing orders don't).
+  Object.keys(fix).forEach(k => {
+    const id = isNaN(Number(k)) ? k : Number(k);
+    if (!seedIds.has(id) && fix[k] && fix[k].customerId) {
+      merged.push({ id, ...fix[k] });
+    }
+  });
+  return merged;
 };
 const liveOrder = (id) => {
   const fix = (typeof window !== 'undefined' && window.__fixState) || {};
   const base = ORDERS.find(o => o.id === id);
-  if (!base) return null;
-  return fix[id] ? { ...base, ...fix[id] } : base;
+  if (base) return fix[id] ? { ...base, ...fix[id] } : base;
+  // Newly-created order living only in fixState.
+  if (fix[id] && fix[id].customerId) return { id, ...fix[id] };
+  return null;
+};
+
+// Friday-batch release gates (PRD `friday_payment_batch.release_gates`).
+// All five must be true for the GW honorarium to be releasable.
+// Returns { releasable, blocked, reasons[], gates{} } so UI can render checklist + reason.
+const releaseGates = (order) => {
+  if (!order) return { releasable: false, blocked: true, reasons: ['Order not found'], gates: {} };
+  const installmentsAllPaid = (order.installments || []).every(i => i.status === 'paid')
+    && (order.outstandingEur || 0) === 0;
+  const gates = {
+    customer_satisfied:      order.customerSatisfied === true,
+    quality_approved:        order.qaPassed === true && !order.flagged && order.status !== 'ai_violation_review' && order.status !== 'plagiarism_violation_review',
+    revisions_complete:      !order.disputeOpen && order.status !== 'revision_required',
+    all_installments_paid:   installmentsAllPaid,
+    gw_invoice_received:     order.gwPaymentStatus === 'invoice_received' || order.gwPaymentStatus === 'paid',
+  };
+  const reasons = [];
+  if (!gates.customer_satisfied)      reasons.push('Customer satisfaction not confirmed');
+  if (!gates.quality_approved)        reasons.push('Quality not approved (QA pending or flagged)');
+  if (!gates.revisions_complete)      reasons.push('Revision rounds open');
+  if (!gates.all_installments_paid)   reasons.push(`Installments outstanding (€${(order.outstandingEur||0).toFixed(2)})`);
+  if (!gates.gw_invoice_received)     reasons.push('GW invoice not received');
+  return {
+    releasable: reasons.length === 0,
+    blocked:    reasons.length > 0,
+    reasons,
+    gates,
+  };
 };
 
 // Persona helpers — the demo always views the GW role through "Isabel Walter".
@@ -297,7 +343,7 @@ window.EF = {
   GHOSTWRITERS, CUSTOMERS, ORDERS, SUBMISSIONS, FRIDAY_BATCH, INBOX_THREADS, NOTIFICATIONS,
   WORK_TYPE_LABELS, STATUS_PILLS, KPI, FEATURE_FLAGS,
   featureStatus, isFeatureLive,
-  liveOrders, liveOrder,
+  liveOrders, liveOrder, releaseGates,
   GW_ME, myAssignments,
   gw: (id) => GHOSTWRITERS.find(g => g.id === id),
   customer: (id) => CUSTOMERS.find(c => c.id === id),

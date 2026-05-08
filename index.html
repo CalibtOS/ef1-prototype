@@ -185,6 +185,12 @@ function App() {
   // Mirror fixState to window so role-switched views (which don't all receive the prop)
   // can use EF.liveOrders() / EF.liveOrder(id) and see admin mutations.
   useEffect(() => { window.__fixState = fixState; }, [fixState]);
+  // Expose setter so deep-tree views (e.g. customer feedback buttons) can patch order state
+  // without us threading the prop through every container.
+  useEffect(() => {
+    window.__patchOrder = (id, patch) => setFixState(prev => ({ ...prev, [id]: { ...(prev[id] || {}), ...patch } }));
+    return () => { if (window.__patchOrder) delete window.__patchOrder; };
+  }, []);
 
   const dismiss = (id) => setToasts(t => t.filter(x => x.id !== id));
 

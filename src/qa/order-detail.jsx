@@ -7,9 +7,8 @@ const D = window.EF;
 
 function QAOrderDetail({ orderId, navigate, toast, fixState, setFixState }) {
   const [tab, setTab] = useStateA('overview');
-  const orderBase = D.order(orderId);
-  if (!orderBase) return <div className="page">Order not found.</div>;
-  const order = { ...orderBase, ...(fixState[orderId] || {}) };
+  const order = D.liveOrder(orderId);
+  if (!order) return <div className="page">Order not found.</div>;
   const cust = D.customer(order.customerId);
   const gw = D.gw(order.gwId);
   const dm = U.deadlineMeta(order.finalDeadline);

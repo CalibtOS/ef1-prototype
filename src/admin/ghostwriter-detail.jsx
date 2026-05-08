@@ -18,8 +18,14 @@ function GhostwriterDetail({ gwId, navigate, fixState, setFixState, toast }) {
   const [shadowToggle, setShadowToggle] = useStateA(g.banned || false);
   const [reason, setReason] = useStateA(g.banReason || '');
   const applyShadowBan = () => {
-    // Demo-side mutate: store on fixState under a synthetic key
-    if (setFixState) setFixState(prev => ({ ...prev, ['__gw_' + gwId]: { banned: shadowToggle, banReason: reason } }));
+    // Mutate the seed GW record so ban state shows up in the GW list, job-board admin view,
+    // sidebar badges, etc. (Prototype-side; in production this would be a backend call.)
+    const target = D.GHOSTWRITERS.find(x => x.id === gwId);
+    if (target) {
+      target.banned = shadowToggle;
+      target.banReason = shadowToggle ? (reason || target.banReason || 'Quality concerns') : null;
+    }
+    if (setFixState) setFixState(prev => ({ ...prev, ['__gw_' + gwId]: { banned: shadowToggle, banReason: reason, _bumpAt: Date.now() } }));
     toast && toast({ text: shadowToggle ? `${g.name} shadow-banned · email alerts paused` : `${g.name} reinstated · email alerts resumed`, tone: shadowToggle ? 'danger' : 'success' });
   };
 

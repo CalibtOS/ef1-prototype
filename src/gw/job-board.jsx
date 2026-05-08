@@ -204,7 +204,7 @@ function ClaimModal({ job, onClose, toast, navigate, setFixState }) {
             <div className="flex-col gap-2">
               {[
                 { k: 'agb', label: 'I have read and accept the AGB v3.2 (effective 01.04.2026), including kill-fee schedule & confidentiality.' },
-                { k: 'ai', label: 'I will not use AI tools (ChatGPT, Claude, Gemini, etc.) to generate content. AI score on submissions must be ≤25%.' },
+                { k: 'ai', label: 'I will NOT use AI tools (ChatGPT, Claude, Gemini, etc.) to generate any part of the work. Per AGB v3.2 §5, any AI use is fraud — exclusion from the platform and forfeit of payment. The AI score is investigative evidence, not a tolerated threshold.' },
                 { k: 'gdpr', label: 'I will not store or share customer data outside efactory1 platform. GDPR Art. 28 applies.' },
                 { k: 'deadline', label: 'I commit to the final deadline ' + U.fmtDate(job.deadline) + ' 18:00 — late delivery triggers fee reduction.' },
                 { k: 'fee', label: 'I accept the honorarium of ' + U.EUR(job.honorEur) + ' as full and final compensation, paid after release gate clears.' },

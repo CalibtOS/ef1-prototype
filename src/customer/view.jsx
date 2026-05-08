@@ -47,10 +47,17 @@ function custStatusMeta(o) {
   const s = o.status;
   if (s === 'completed' || s === 'delivered' || s === 'payment_pending')
     return { color: 'green', label: 'Abgeschlossen', icon: 'check-circle' };
-  if (s === 'available' || s === 'qualified' || s === 'invoice_sent' || s === 'claimed_pending_approval')
+  // Pre-payment states: customer must understand we're waiting on the offer/invoice/payment.
+  if (s === 'qualified' || s === 'offer_sent')
+    return { color: 'blue', label: 'Angebot wird vorbereitet', icon: 'file-text' };
+  if (s === 'invoice_sent')
+    return { color: 'amber', label: 'Zahlung ausstehend', icon: 'wallet' };
+  // Post-payment, pre-assignment / pre-approval:
+  if (s === 'available' || s === 'claimed_pending_approval')
     return { color: 'cyan', label: 'GW-Suche läuft', icon: 'search' };
   if (s === 'cancelled') return { color: 'red', label: 'Storniert', icon: 'x-circle' };
   if (s === 'on_hold') return { color: 'amber', label: 'Pausiert', icon: 'pause' };
+  if (s === 'delay_reported') return { color: 'orange', label: 'Verzögerung gemeldet', icon: 'alert-triangle' };
   if (s === 'interim_submitted' || s === 'under_customer_review')
     return { color: 'blue', label: 'Zwischenstand prüfen', icon: 'eye' };
   if (s === 'revision_required')
@@ -77,14 +84,22 @@ function custProgress(o) {
   return 30;
 }
 
+// Per business_rules §6 (assignment emails): once Berat approves the claim,
+// customer receives the GW's name, email and phone (and vice versa).
+// Before approval the customer simply doesn't have a GW yet, so we return null.
 function custGwLabel(o) {
   if (!o.gwId) return null;
   const gw = D.gw(o.gwId);
   if (!gw) return null;
-  const parts = (gw.name || '').split(' ');
-  const first = parts[0] || '';
-  const lastInit = parts[1] ? parts[1][0] + '.' : '';
-  return (first + ' ' + lastInit).trim();
+  // The order is in claim-pending until admin approves; only then is the contact disclosed.
+  if (o.status === 'claimed_pending_approval') return null;
+  return gw.name || null;
+}
+function custGwContact(o) {
+  if (!o.gwId) return null;
+  const gw = D.gw(o.gwId);
+  if (!gw || o.status === 'claimed_pending_approval') return null;
+  return { name: gw.name, email: gw.email, phone: gw.phone };
 }
 
 function CustHeader({ tab, setTab, role, setRole }) {
@@ -197,7 +212,7 @@ function CustOrderCard({ o, onOpen }) {
         <div className="strong" style={{ fontSize: 15.5, lineHeight: 1.35 }}>{wt} · {o.title}</div>
         <div className="text-muted fs-12 mt-1">
           {gw ? (
-            <>Ihr Ghostwriter: <strong>{gw}</strong> <span className="text-faint">(anonymisiert · Kontakt nur über die Plattform)</span></>
+            <>Ihr Ghostwriter: <strong>{gw}</strong> <span className="text-faint">· efactory1 immer in CC</span></>
           ) : (
             <span className="text-faint">Wir suchen den passenden Ghostwriter — typischerweise innerhalb von 24h zugewiesen.</span>
           )}
@@ -348,8 +363,12 @@ function CustOrderStatus({ o }) {
           <div className="card-pad">
             <span className={`pill pill-${meta.color}`} style={{ fontSize: 12 }}><Icon name={meta.icon} size={11}/> {meta.label}</span>
             <div className="text-muted fs-12 mt-3" style={{ lineHeight: 1.5 }}>
-              {o.status === 'available' || o.status === 'qualified' || o.status === 'invoice_sent' ?
-                'Ihre Anzahlung ist eingegangen. Wir suchen aktuell den passenden Ghostwriter mit Expertise in Ihrem Fachgebiet — Zuweisung erfolgt typischerweise innerhalb von 24 Stunden.' :
+              {o.status === 'qualified' || o.status === 'offer_sent' ?
+                'Ihre Anfrage ist bei uns eingegangen. Sie erhalten in Kürze ein Angebot per E-Mail.' :
+                o.status === 'invoice_sent' ?
+                'Ihre Rechnung wurde versendet. Sobald Ihre Zahlung eingegangen ist, starten wir die Ghostwriter-Suche.' :
+                o.status === 'available' ?
+                'Ihre Zahlung ist eingegangen. Wir suchen aktuell den passenden Ghostwriter mit Expertise in Ihrem Fachgebiet — Zuweisung erfolgt typischerweise innerhalb von 24 Stunden.' :
                 o.status === 'claimed_pending_approval' ?
                 'Ein Ghostwriter hat Ihren Auftrag angenommen. Berat prüft die Eignung — Sie erhalten in Kürze eine Bestätigung.' :
                 o.status === 'active' ?
@@ -402,9 +421,15 @@ function CustOrderChat({ o, toast }) {
       { from: 'platform', at: '2026-04-12T10:30:00', text: '✓ Endabgabe geliefert · QA bestanden · Auftrag abgeschlossen.' }
     );
   }
-  if (o.status === 'available' || o.status === 'qualified' || o.status === 'invoice_sent') {
+  if (o.status === 'qualified' || o.status === 'offer_sent') {
     baseConv.length = 0;
-    baseConv.push({ from: 'platform', at: o.acceptedAt || '2026-05-05T14:00:00', text: 'Anzahlung erhalten · Ghostwriter-Suche gestartet · Sie werden benachrichtigt sobald ein passender GW zugewiesen ist.' });
+    baseConv.push({ from: 'platform', at: '2026-05-05T14:00:00', text: 'Ihre Anfrage ist eingegangen. Wir bereiten Ihr Angebot vor.' });
+  } else if (o.status === 'invoice_sent') {
+    baseConv.length = 0;
+    baseConv.push({ from: 'platform', at: '2026-05-05T14:00:00', text: 'Rechnung versendet · Sobald Ihre Zahlung eingegangen ist, starten wir die Ghostwriter-Suche.' });
+  } else if (o.status === 'available') {
+    baseConv.length = 0;
+    baseConv.push({ from: 'platform', at: o.acceptedAt || '2026-05-05T14:00:00', text: 'Zahlung erhalten · Ghostwriter-Suche gestartet · Sie werden benachrichtigt sobald ein passender GW zugewiesen ist.' });
   }
 
   const detectFinancial = (txt) => /preis|kosten|rabatt|nachlass|raten|geld|honorar|bezahl|rechnung|euro|€/i.test(txt);
@@ -498,7 +523,7 @@ function CustOrderChat({ o, toast }) {
               <li>Antwortzeit: 24 Stunden</li>
               <li>Keine Preis- oder Honorarverhandlungen mit dem GW</li>
               <li>efactory1 ist immer in CC — auch bei Direktchat</li>
-              <li>Voll-Anonymität: GW-Realnamen werden nie geteilt</li>
+              <li>Direkter Kontakt zum GW per E-Mail/Telefon möglich (Daten in der Auftragsfreigabe)</li>
               <li>Eskalation: <span className="mono">kundenservice@efactory1.de</span></li>
             </ul>
           </div>
@@ -586,13 +611,23 @@ function CustOrderFiles({ o, toast }) {
             <div className="card-pad">
               <div className="text-muted fs-12 mb-3">Der Zwischenstand wartet auf Ihre Rückmeldung. Wählen Sie eine der Optionen:</div>
               <div className="flex-col gap-2">
-                <button type="button" className="btn btn-success btn-sm" onClick={()=>toast&&toast({tone:'success',text:'Zwischenstand freigegeben — Endabgabe wird vorbereitet.'})}>
+                <button type="button" className="btn btn-success btn-sm" onClick={() => {
+                  // Approve interim → order goes back to active (next interim or final to follow).
+                  if (window.__patchOrder) window.__patchOrder(o.id, { status: 'active', customerSatisfied: true });
+                  toast && toast({ tone: 'success', transition: { entity: `Auftrag #${o.id}`, from: 'Customer Review', to: 'Active' }, text: 'Zwischenstand freigegeben · GW arbeitet weiter' });
+                }}>
                   <Icon name="check" size={12}/> Zwischenstand freigeben
                 </button>
-                <button type="button" className="btn btn-sm" onClick={()=>toast&&toast({tone:'info',text:'Überarbeitungsanfrage an GW gesendet.'})}>
+                <button type="button" className="btn btn-sm" onClick={() => {
+                  if (window.__patchOrder) window.__patchOrder(o.id, { status: 'revision_required', revisionRounds: (o.revisionRounds || 0) + 1 });
+                  toast && toast({ tone: 'info', transition: { entity: `Auftrag #${o.id}`, from: 'Customer Review', to: 'Revision Required' }, text: 'Überarbeitungsanfrage an GW gesendet' });
+                }}>
                   <Icon name="rotate-ccw" size={12}/> Überarbeitung anfordern
                 </button>
-                <button type="button" className="btn btn-sm btn-danger" onClick={()=>toast&&toast({tone:'danger',text:'Streitfall gemeldet — Berat prüft.'})}>
+                <button type="button" className="btn btn-sm btn-danger" onClick={() => {
+                  if (window.__patchOrder) window.__patchOrder(o.id, { disputeOpen: true });
+                  toast && toast({ tone: 'danger', text: 'Streitfall gemeldet · Berat prüft und meldet sich.' });
+                }}>
                   <Icon name="alert-triangle" size={12}/> Streitfall melden
                 </button>
               </div>
@@ -737,16 +772,29 @@ function CustOrderDetail({ orderId, initialTab, onBack, toast }) {
       </div>
 
       <div className="tabs" style={{ marginTop: 12 }}>
-        {[
-          { id: 'status',   label: 'Status & Meilensteine', icon: 'clock' },
-          { id: 'messages', label: 'Nachrichten',            icon: 'message-square' },
-          { id: 'files',    label: 'Dokumente',              icon: 'file-text' },
-          { id: 'payments', label: 'Zahlungen',              icon: 'wallet' },
-        ].map(t => (
-          <div key={t.id} className={`tab ${tab === t.id ? 'active' : ''}`} onClick={() => setTab(t.id)}>
-            <Icon name={t.icon} size={12}/> {t.label}
-          </div>
-        ))}
+        {(() => {
+          // Tabs are gated by order state so the customer doesn't see actions that aren't possible yet.
+          // - Messages: only after GW is approved (active onwards)
+          // - Files:    only after a draft has been uploaded (interim/final/delivered/done)
+          const gwAssigned = !!o.gwId && !['available','qualified','offer_sent','invoice_sent','claimed_pending_approval','lead'].includes(o.status);
+          const hasFiles   = ['interim_submitted','under_customer_review','revision_required','final_submitted','qa_review','delivered','payment_pending','completed'].includes(o.status);
+          const tabs = [
+            { id: 'status',   label: 'Status & Meilensteine', icon: 'clock',         disabled: false, hint: null },
+            { id: 'messages', label: 'Nachrichten',            icon: 'message-square', disabled: !gwAssigned, hint: 'Verfügbar, sobald Ihr Ghostwriter zugewiesen ist' },
+            { id: 'files',    label: 'Dokumente',              icon: 'file-text',     disabled: !hasFiles,   hint: 'Verfügbar, sobald der erste Zwischenstand hochgeladen wurde' },
+            { id: 'payments', label: 'Zahlungen',              icon: 'wallet',        disabled: false, hint: null },
+          ];
+          return tabs.map(t => (
+            <div key={t.id}
+              className={`tab ${tab === t.id ? 'active' : ''}`}
+              onClick={() => { if (!t.disabled) setTab(t.id); }}
+              title={t.disabled ? t.hint : null}
+              style={t.disabled ? { opacity: 0.5, cursor: 'not-allowed' } : null}>
+              <Icon name={t.icon} size={12}/> {t.label}
+              {t.disabled && <Icon name="lock" size={10} className="ml-1"/>}
+            </div>
+          ));
+        })()}
       </div>
 
       {tab === 'status'   && <CustOrderStatus o={o}/>}
@@ -1015,7 +1063,6 @@ function CustProfile({ toast }) {
             </div>
             <div className="kv">
               <div className="kv-row"><dt>Land</dt><dd>{me?.country || '—'}</dd></div>
-              <div className="kv-row"><dt>Lead-Quelle</dt><dd className="text-faint" style={{ fontSize: 11 }}>{me?.leadSource || '—'}</dd></div>
               <div className="kv-row"><dt>Mitglied seit</dt><dd className="mono">2025-09-12</dd></div>
             </div>
           </div>
@@ -1065,8 +1112,6 @@ function CustProfile({ toast }) {
               <div className="kv">
                 <div className="kv-row"><dt>Aktive Aufträge</dt><dd className="mono">{activeCount}</dd></div>
                 <div className="kv-row"><dt>Abgeschlossen</dt><dd className="mono">{completedCount}</dd></div>
-                <div className="kv-row"><dt>Gesamt-Wert</dt><dd className="mono">{U.EUR(ltv)}</dd></div>
-                <div className="kv-row"><dt>Status</dt><dd><span className="pill pill-blue" style={{ fontSize: 11 }}>Stammkunde</span></dd></div>
               </div>
             </div>
           </div>
@@ -1088,8 +1133,11 @@ function CustProfile({ toast }) {
   );
 }
 
-function CustomerView({ role, setRole, toast }) {
-  const [tab, setTab] = useStateA('orders');
+// CustomerView is rendered by the shell router. The shell passes a `section` prop
+// (orders | messages | invoices | downloads | profile) — that's the source of truth
+// for the active tab. Clicking an internal tab navigates so the URL/sidebar stay in sync.
+function CustomerView({ role, setRole, toast, section, navigate }) {
+  const tab = section || 'orders';
   const [openOrderId, setOpenOrderId] = useStateA(null);
   const [openOrderTab, setOpenOrderTab] = useStateA('status');
 
@@ -1101,7 +1149,13 @@ function CustomerView({ role, setRole, toast }) {
   };
   const closeOrder = () => { setOpenOrderId(null); window.scrollTo(0, 0); };
 
-  const switchTab = (t) => { setOpenOrderId(null); setTab(t); };
+  // Map internal tab IDs to the shell route names so inner-tab clicks update the URL
+  // and the sidebar highlight at the same time (no more divergent navigation state).
+  const ROUTE_FOR_TAB = { orders: 'cust-orders', messages: 'cust-messages', invoices: 'cust-invoices', downloads: 'cust-downloads', profile: 'cust-profile' };
+  const switchTab = (t) => {
+    setOpenOrderId(null);
+    if (navigate && ROUTE_FOR_TAB[t]) navigate(ROUTE_FOR_TAB[t]);
+  };
 
   let body;
   if (openOrderId != null) {

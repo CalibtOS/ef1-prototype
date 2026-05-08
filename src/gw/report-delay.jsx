@@ -25,12 +25,15 @@ function GWReportDelay({ orderId, navigate, toast, setFixState }) {
     setTimeout(() => {
       setSentSteps({ customer: true, kundenservice: true });
       if (setFixState) {
-        setFixState(prev => ({ ...prev, [orderId]: { ...(prev[orderId] || {}), status: 'on_hold', holdReason: 'Delay reported by GW · ' + reasonKind, proposedNewDeadline: newDate + 'T18:00:00' } }));
+        // Per SOP-B: a GW delay notifies both customer + kundenservice simultaneously,
+        // but the order is NOT unilaterally placed on hold — admin (and ideally customer)
+        // must approve the new deadline. Status `delay_reported` flags it for review.
+        setFixState(prev => ({ ...prev, [orderId]: { ...(prev[orderId] || {}), status: 'delay_reported', delayReason: reasonKind, delayReportedAt: new Date().toISOString(), proposedNewDeadline: newDate + 'T18:00:00' } }));
       }
       toast({
         tone: 'info',
-        transition: { entity: `Order #${orderId}`, from: 'Active', to: 'On Hold' },
-        text: 'Delay reported · customer + kundenservice notified',
+        transition: { entity: `Order #${orderId}`, from: 'Active', to: 'Delay Reported' },
+        text: 'Customer + kundenservice notified · awaiting admin review',
       });
       if (window.efNotify) {
         window.efNotify({ to: 'admin', title: `Delay reported · #${orderId}`, body: `New proposed date ${newDate} · reason: ${reasonKind}`, urgent: true });

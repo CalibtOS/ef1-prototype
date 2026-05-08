@@ -373,21 +373,25 @@ function QAQueue({ navigate, toast, fixState, setFixState }) {
 
   const decide = (kind) => {
     setVerdict(kind);
+    // Per PRD `qa.permissions = review/approve/reject + orders.read`: QA may FLAG quality
+    // problems, but enforcement (shadow-ban, payment blocks, GW exclusion, reassignment,
+    // contract/legal review) is admin-only. QA decisions therefore route to admin.
     if (kind === 'reject_ai') {
-      setFixState(prev => ({ ...prev, [order.id]: { ...(prev[order.id]||{}), status: 'ai_violation_review' }}));
+      setFixState(prev => ({ ...prev, [order.id]: { ...(prev[order.id]||{}), status: 'ai_violation_review', flagged: true, qaFlaggedAt: new Date().toISOString(), qaFlagReason: 'AI use suspected', qaPassed: false }}));
       toast({
         tone: 'danger',
-        transition: { entity: `Order #${order.id}`, from: 'QA Review', to: '🚨 AI Violation' },
-        text: `${gw.name} flagged · payments held · reassignment in 2h`,
+        transition: { entity: `Order #${order.id}`, from: 'QA Review', to: '🚨 AI Violation — flagged for admin' },
+        text: `Flag raised · ${gw.name} · awaiting admin decision`,
       });
-      if (window.efNotify) window.efNotify({ to: 'admin', title: `🚨 AI violation confirmed · #${order.id}`, body: `${gw.name} flagged · payments held · reassignment queued`, urgent: true });
+      if (window.efNotify) window.efNotify({ to: 'admin', title: `🚨 AI violation FLAGGED · #${order.id}`, body: `QA flagged ${gw.name}. Admin must confirm exclusion + reassignment.`, urgent: true });
     } else if (kind === 'flag_plagiarism') {
-      setFixState(prev => ({ ...prev, [order.id]: { ...(prev[order.id]||{}), status: 'plagiarism_violation_review', flagged: true }}));
+      setFixState(prev => ({ ...prev, [order.id]: { ...(prev[order.id]||{}), status: 'plagiarism_violation_review', flagged: true, qaFlaggedAt: new Date().toISOString(), qaFlagReason: 'Plagiarism suspected', qaPassed: false }}));
       toast({
         tone: 'danger',
-        transition: { entity: `Order #${order.id}`, from: 'QA Review', to: 'Plagiarism Violation' },
-        text: `${gw.name} payments held · 90d audit queued`,
+        transition: { entity: `Order #${order.id}`, from: 'QA Review', to: '🚨 Plagiarism — flagged for admin' },
+        text: `Flag raised · admin will review`,
       });
+      if (window.efNotify) window.efNotify({ to: 'admin', title: `🚨 Plagiarism FLAGGED · #${order.id}`, body: `QA flagged ${gw.name}. Admin must confirm payment hold + audit.`, urgent: true });
     } else if (kind === 'pass') {
       // Stateful: forward to customer review, mark QA passed
       setFixState(prev => ({
@@ -477,7 +481,7 @@ function QAQueue({ navigate, toast, fixState, setFixState }) {
                       <div><Icon name="check" size={11} style={{ color: 'var(--green)' }}/> Citations: 47 (APA)</div>
                       <div><Icon name="check" size={11} style={{ color: 'var(--green)' }}/> Word count: matches</div>
                       <div><Icon name="check" size={11} style={{ color: 'var(--green)' }}/> Outline alignment: 92%</div>
-                      <div><Icon name="x" size={11} style={{ color: 'var(--red)' }}/> AI score above 25% threshold</div>
+                      <div><Icon name="x" size={11} style={{ color: 'var(--red)' }}/> AI detector raised flags (any AI use = fraud · §5)</div>
                     </div>
                   </div>
                 </div>
@@ -531,34 +535,30 @@ function QAQueue({ navigate, toast, fixState, setFixState }) {
                   <Icon name="message-square" size={14}/> Send to GW for clarification
                 </button>
                 <button type="button" className={`btn ${verdict==='flag_plagiarism'?'btn-danger':''}`} style={ verdict !== 'flag_plagiarism' ? { background: 'color-mix(in oklab, var(--red) 8%, var(--surface))', borderColor: 'color-mix(in oklab, var(--red) 25%, var(--border))', color: 'var(--red)' } : {}} onClick={() => decide('flag_plagiarism')}>
-                  <Icon name="search" size={14}/> Flag plagiarism violation
+                  <Icon name="search" size={14}/> Flag plagiarism · escalate to admin
                 </button>
                 <button type="button" className={`btn ${verdict==='reject_ai'?'btn-danger':''}`} style={ verdict !== 'reject_ai' ? { background: 'color-mix(in oklab, var(--red) 8%, var(--surface))', borderColor: 'color-mix(in oklab, var(--red) 25%, var(--border))', color: 'var(--red)' } : {}} onClick={() => decide('reject_ai')}>
-                  <Icon name="x" size={14}/> Reject · AI violation confirmed
+                  <Icon name="x" size={14}/> Flag AI use · escalate to admin
                 </button>
               </div>
               {verdict === 'reject_ai' && (
                 <div className="card-pad" style={{ borderTop: '1px solid var(--border)' }}>
-                  <div className="banner danger mb-2"><Icon name="zap" size={14}/><span>The following actions will trigger:</span></div>
+                  <div className="banner warn mb-2"><Icon name="alert-triangle" size={14}/><span>QA flag raised — admin (Berat) decides what happens next:</span></div>
                   <div className="kv" style={{ fontSize: 12 }}>
-                    <div className="kv-row"><dt>1. GW {gw?.name}</dt><dd>shadow-banned from job board</dd></div>
-                    <div className="kv-row"><dt>2. Active jobs ({gw?.active})</dt><dd>frozen, payments held</dd></div>
-                    <div className="kv-row"><dt>3. Past 90d submissions</dt><dd>queued for re-audit</dd></div>
-                    <div className="kv-row"><dt>4. Customer #{order.id}</dt><dd>"submission delayed, replacement assigned" email</dd></div>
-                    <div className="kv-row"><dt>5. New GW assignment</dt><dd>auto-suggested · top 3 matches</dd></div>
-                    <div className="kv-row"><dt>6. Contract review</dt><dd>flagged for legal — kill-fee §7</dd></div>
+                    <div className="kv-row"><dt>1. Order #{order.id}</dt><dd>marked <span className="pill pill-red">AI Violation — pending admin</span></dd></div>
+                    <div className="kv-row"><dt>2. Admin notified</dt><dd>urgent in-app + email · awaiting confirmation</dd></div>
+                    <div className="kv-row"><dt>3. GW {gw?.name}</dt><dd className="text-faint">no automated ban — admin will review evidence</dd></div>
+                    <div className="kv-row"><dt>4. Payments</dt><dd className="text-faint">no automated hold — admin gates Friday batch</dd></div>
                   </div>
                 </div>
               )}
               {verdict === 'flag_plagiarism' && (
                 <div className="card-pad" style={{ borderTop: '1px solid var(--border)' }}>
-                  <div className="banner danger mb-2"><Icon name="zap" size={14}/><span>The following actions will trigger:</span></div>
+                  <div className="banner warn mb-2"><Icon name="alert-triangle" size={14}/><span>QA flag raised — admin (Berat) decides what happens next:</span></div>
                   <div className="kv" style={{ fontSize: 12 }}>
-                    <div className="kv-row"><dt>1. Submission</dt><dd>marked as plagiarism violation · AGB v3.2 §6</dd></div>
-                    <div className="kv-row"><dt>2. GW {gw?.name}</dt><dd>shadow-banned · payments on this order held</dd></div>
-                    <div className="kv-row"><dt>3. Past 90d submissions</dt><dd>queued for plagiarism re-audit (Turnitin batch)</dd></div>
-                    <div className="kv-row"><dt>4. Customer #{order.id}</dt><dd>"replacement assignment" email · ETA 24h</dd></div>
-                    <div className="kv-row"><dt>5. Sevdesk credit-note</dt><dd>drafted (pending Berat review)</dd></div>
+                    <div className="kv-row"><dt>1. Order #{order.id}</dt><dd>marked <span className="pill pill-red">Plagiarism — pending admin</span></dd></div>
+                    <div className="kv-row"><dt>2. Admin notified</dt><dd>urgent in-app + email · awaiting confirmation</dd></div>
+                    <div className="kv-row"><dt>3. Sanctions</dt><dd className="text-faint">re-audit, ban, credit-note all gated to admin</dd></div>
                   </div>
                 </div>
               )}

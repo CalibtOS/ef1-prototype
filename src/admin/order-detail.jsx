@@ -8,24 +8,26 @@ const D = window.EF;
 function OrderDetail({ orderId, navigate, toast, fixState, setFixState }) {
   const [tab, setTab] = useStateA('overview');
   const [showRateSlider, setShowRateSlider] = useStateA(false);
-  const orderBase = D.order(orderId);
-  if (!orderBase) return <div className="page">Order not found.</div>;
-  const order = { ...orderBase, ...(fixState[orderId] || {}) };
+  // Use liveOrder so newly-created orders (admin wizard, IDs 9100+ in fixState) resolve.
+  const order = D.liveOrder(orderId);
+  if (!order) return <div className="page">Order not found.</div>;
   const cust = D.customer(order.customerId);
   const gw = D.gw(order.gwId);
   const dm = U.deadlineMeta(order.finalDeadline);
   const isClaim = order.status === 'claimed_pending_approval';
 
-  // Release gate
+  // Release gate — canonical 5-condition check from D.releaseGates() (PRD friday_payment_batch).
+  // All five must be green AND release happens via the Friday batch screen, not directly here.
+  const _gates = D.releaseGates(order);
   const gateChecks = [
-    { label: 'Customer satisfied', state: order.customerSatisfied ? 'pass' : (order.disputeOpen ? 'fail' : (order.status==='payment_pending' ? 'pass':'pending')), detail: order.disputeOpen ? 'Dispute open' : null },
-    { label: 'Quality approved (no plagiarism, no AI)', state: order.qaPassed ? 'pass' : 'pending' },
-    { label: 'Revision rounds complete', state: (order.revisionRounds <= 1 && !order.disputeOpen) ? 'pass' : 'pending' },
-    { label: 'All customer installments paid', state: order.outstandingEur === 0 ? 'pass' : 'fail', detail: order.outstandingEur > 0 ? `${order.installments?.filter(i=>i.status!=='paid').length||1} installment(s) outstanding — ${U.EUR(order.outstandingEur)}` : null },
-    { label: 'GW invoice received', state: order.gwPaymentStatus === 'invoice_received' ? 'pass' : (order.gwPaymentStatus === 'paid' ? 'pass' : 'pending') },
+    { key: 'customer_satisfied',    label: 'Customer satisfied',                state: _gates.gates.customer_satisfied    ? 'pass' : (order.disputeOpen ? 'fail' : 'pending'), detail: order.disputeOpen ? 'Dispute open' : null },
+    { key: 'quality_approved',      label: 'Quality approved (no plagiarism, no AI)', state: _gates.gates.quality_approved      ? 'pass' : (order.flagged ? 'fail' : 'pending') },
+    { key: 'revisions_complete',    label: 'Revision rounds complete',          state: _gates.gates.revisions_complete    ? 'pass' : (order.status === 'revision_required' ? 'fail' : 'pending') },
+    { key: 'all_installments_paid', label: 'All customer installments paid',    state: _gates.gates.all_installments_paid ? 'pass' : 'fail', detail: (order.outstandingEur || 0) > 0 ? `${order.installments?.filter(i=>i.status!=='paid').length||1} installment(s) outstanding — ${U.EUR(order.outstandingEur)}` : null },
+    { key: 'gw_invoice_received',   label: 'GW invoice received',               state: _gates.gates.gw_invoice_received   ? 'pass' : 'pending' },
   ];
-  const gateBlocked = gateChecks.some(c => c.state === 'fail');
-  const gateAllPass = gateChecks.every(c => c.state === 'pass');
+  const gateBlocked = !_gates.releasable && gateChecks.some(c => c.state === 'fail');
+  const gateAllPass = _gates.releasable;
 
   // Approve claim (golden path) — plays a dual-email cascade animation
   const [approving, setApproving] = useStateA(null);
@@ -62,10 +64,9 @@ function OrderDetail({ orderId, navigate, toast, fixState, setFixState }) {
     setFixState(prev => ({ ...prev, [orderId]: { ...(prev[orderId]||{}), installments, paidEur: paid, outstandingEur: out }}));
     toast({ text: `Installment ${n} marked as paid · ${U.EUR(installments.find(i=>i.n===n).amt)} via SEPA`, tone: 'success' });
   };
-  const releasePayment = () => {
-    setFixState(prev => ({ ...prev, [orderId]: { ...(prev[orderId]||{}), status: 'completed', gwPaymentStatus: 'paid' }}));
-    toast({ text: `Payment released to ${gw?.name} · ${U.EUR(order.netHonorarium)} · arrives in 1–3 business days`, tone: 'success' });
-  };
+  // Direct release is intentionally removed: per business_rules §5 GW payments are released
+  // via the Friday batch — never ad-hoc. The button on this card just navigates there.
+  const goToFridayBatch = () => navigate('friday-batch');
 
   return (
     <div className="page">
@@ -317,8 +318,8 @@ function OrderDetail({ orderId, navigate, toast, fixState, setFixState }) {
                     <div className="fs-11" style={{ marginTop: 2 }}>{gateAllPass ? 'All gates green — release in next Friday batch.' : (order.releaseBlockReason || 'Resolve outstanding installment to unblock.')}</div>
                   </div>
                 </div>
-                <button className="btn w-full mt-3" disabled={!gateAllPass} onClick={releasePayment} style={ gateAllPass ? { background: 'var(--green)', color: 'white', borderColor: 'var(--green)', justifyContent: 'center' } : { justifyContent: 'center' } }>
-                  <Icon name="wallet" size={14}/> Release payment {gateAllPass ? '· '+U.EUR(order.netHonorarium) : ''}
+                <button className="btn w-full mt-3" disabled={!gateAllPass} onClick={goToFridayBatch} style={ gateAllPass ? { background: 'var(--green)', color: 'white', borderColor: 'var(--green)', justifyContent: 'center' } : { justifyContent: 'center' } }>
+                  <Icon name="wallet" size={14}/> {gateAllPass ? `Open Friday batch · ${U.EUR(order.netHonorarium)}` : 'Release happens in Friday batch'}
                 </button>
               </div>
             </div>
@@ -519,14 +520,41 @@ function CommsTab({ order }) {
 
 function AssignmentTab({ order, navigate, setFixState, toast }) {
   const gw = D.gw(order.gwId);
+  // Per PRD order_lifecycle: assignment can happen only after the offer/invoice has been paid
+  // (state ≥ "paid"/"available"). Earlier states must complete the offer→invoice→payment path
+  // first. Self-assign goes straight to active without posting to the board.
+  const isPrePay = ['lead','qualified','offer_sent','invoice_sent'].includes(order.status);
+  const isPostFinal = ['final_submitted','qa_review','delivered','payment_pending','completed','cancelled','ai_violation_review','plagiarism_violation_review'].includes(order.status);
+  const assignBlocked = isPrePay || isPostFinal;
+  const blockReason = isPrePay
+    ? 'Order must be paid before GW assignment. Send invoice and confirm payment first.'
+    : isPostFinal
+      ? 'Order is past the assignment window. Use “Reassign” from Disputes if a switch is needed.'
+      : null;
   const onAssign = (g) => {
-    if (setFixState) {
-      setFixState(prev => ({ ...prev, [order.id]: { ...(prev[order.id] || {}), gwId: g.id, status: 'active' } }));
+    if (assignBlocked) {
+      if (toast) toast({ text: blockReason, tone: 'danger' });
+      return;
     }
-    if (toast) toast({ text: `${g.name} assigned to #${order.id} · briefing email queued`, tone: 'success' });
+    if (setFixState) {
+      // Per business_rules §4: on assignment, both GW + customer get simultaneous emails.
+      // Status becomes "active" only when the GW is assigned (or self-assigned via Berat).
+      setFixState(prev => ({ ...prev, [order.id]: { ...(prev[order.id] || {}), gwId: g.id, status: 'active', assignedAt: new Date().toISOString() } }));
+    }
+    if (toast) toast({
+      tone: 'success',
+      transition: { entity: `Order #${order.id}`, from: order.status === 'available' ? 'On Job Board' : 'Awaiting Assignment', to: 'Active' },
+      text: `${g.name} assigned · briefing + customer intro emails queued`,
+    });
   };
   return (
     <div style={{ display: 'grid', gridTemplateColumns: '1fr 320px', gap: 16 }}>
+      {assignBlocked && (
+        <div className="banner warn" style={{ gridColumn: '1 / -1' }}>
+          <Icon name="lock" size={14}/>
+          <span><strong>Assignment locked.</strong> {blockReason}</span>
+        </div>
+      )}
       <div className="card">
         <div className="card-head"><div className="card-title">GW selection</div></div>
         <div className="card-pad flex-col gap-2">
@@ -550,7 +578,7 @@ function AssignmentTab({ order, navigate, setFixState, toast }) {
                   <div className="fs-11 text-faint">match</div>
                   <div className="mono fs-12 strong" style={{ color: match > 80 ? 'var(--green)' : 'var(--text-2)' }}>{match}%</div>
                 </div>
-                <button type="button" className="btn btn-sm" onClick={() => onAssign(g)} disabled={order.gwId === g.id}>{order.gwId === g.id ? 'Assigned' : 'Assign'}</button>
+                <button type="button" className="btn btn-sm" onClick={() => onAssign(g)} disabled={order.gwId === g.id || assignBlocked} title={assignBlocked ? blockReason : null}>{order.gwId === g.id ? 'Assigned' : 'Assign'}</button>
               </div>
             );
           })}

@@ -11,9 +11,33 @@ const D = window.EF;
 // Per PRD: GW sees only job spec, customer name (after approval), their own
 // honorarium, submission tiles, messages, templates, deadlines.
 function GWAssignmentDetail({ orderId, navigate, toast, fixState, setFixState }) {
-  const baseOrder = D.order(orderId);
-  if (!baseOrder) return <div className="page">Assignment not found.</div>;
-  const order = { ...baseOrder, ...((fixState || {})[baseOrder.id] || {}) };
+  const order = D.liveOrder(orderId);
+  if (!order) return <div className="page">Assignment not found.</div>;
+  // Ownership guard — a GW may only view assignments where they are the assigned writer
+  // OR the order is on the public job board. Otherwise no leakage of customer/order data.
+  // (PRD ghostwriter.permissions: "assignments.own".)
+  const me = D.GW_ME;
+  const isOwn       = order.gwId === me.id;
+  const isOnBoard   = order.status === 'available' && !order.gwId;
+  const isClaimedByMe = order.status === 'claimed_pending_approval' && order.gwId === me.id;
+  if (!isOwn && !isOnBoard && !isClaimedByMe) {
+    return (
+      <div className="page" style={{ maxWidth: 560, margin: '60px auto' }}>
+        <div className="card">
+          <div className="card-pad" style={{ textAlign: 'center', padding: '36px 24px' }}>
+            <div style={{ width: 48, height: 48, borderRadius: '50%', background: 'var(--surface-2)', color: 'var(--text-3)', display: 'grid', placeItems: 'center', margin: '0 auto 12px' }}>
+              <Icon name="lock" size={20}/>
+            </div>
+            <div className="strong fs-13" style={{ marginBottom: 6 }}>This assignment isn't yours</div>
+            <div className="text-muted fs-12" style={{ maxWidth: 380, margin: '0 auto 16px' }}>
+              You can only view jobs you've claimed or that are listed on the public board. Contact <span className="mono">kundenservice@efactory1.de</span> if you think this is a mistake.
+            </div>
+            <button type="button" className="btn btn-primary" onClick={() => navigate('gw-active')}>← Back to my assignments</button>
+          </div>
+        </div>
+      </div>
+    );
+  }
   const cust = D.customer(order.customerId);
   const dm = U.deadlineMeta(order.finalDeadline);
   const isPending = order.status === 'claimed_pending_approval';
@@ -136,7 +160,34 @@ function GWAssignmentDetail({ orderId, navigate, toast, fixState, setFixState })
             </div>
           </div>
 
-          {/* Submission tiles */}
+          {/* Submission tiles — gated by current order state so impossible uploads are disabled. */}
+          {(() => {
+            const s = order.status;
+            // Interim 1 is allowed only while the order is "active" (i.e. before any interim has been sent).
+            const interim1Allowed = isApproved && s === 'active';
+            // Interim 2 is allowed once the customer has reviewed/approved interim 1 and we're back to active.
+            const interim2Allowed = isApproved && s === 'active';
+            // Final is allowed only after both interims (if any) and while still active.
+            const finalAllowed   = isApproved && s === 'active';
+            // Revision upload (re-routed to the GWSubmit kind=final flow with revisionRounds++).
+            const revisionMode   = isApproved && s === 'revision_required';
+            const stateNote = (allow, fallback) => allow ? null : fallback;
+            const reasonFor = {
+              interim_submitted: 'Interim already submitted — awaiting customer feedback',
+              under_customer_review: 'Awaiting customer review of last submission',
+              revision_required: 'Customer requested a revision — use the Revise button',
+              final_submitted: 'Final submitted — awaiting QA',
+              qa_review: 'In QA — no further uploads needed',
+              delivered: 'Order delivered',
+              payment_pending: 'Payment pending — work complete',
+              completed: 'Order complete',
+              on_hold: 'Order on hold',
+              delay_reported: 'Delay reported — awaiting admin decision',
+              ai_violation_review: 'AI violation flagged — admin review',
+              plagiarism_violation_review: 'Plagiarism flagged — admin review',
+            };
+            const stateReason = reasonFor[s] || 'Awaiting approval';
+            return (
           <div className="card">
             <div className="card-head"><div className="card-title">Submissions</div><span className="text-faint fs-11">cutoff 18:00 the day BEFORE due</span></div>
             <div className="card-pad" style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 10 }}>
@@ -147,7 +198,7 @@ function GWAssignmentDetail({ orderId, navigate, toast, fixState, setFixState })
                     <span className={`pill pill-${U.deadlineMeta(order.interimDeadline).tone === 'danger' ? 'red' : 'slate'}`}>{U.deadlineMeta(order.interimDeadline).label}</span>
                   </div>
                   <div className="text-faint fs-11 mono mb-2">due {U.fmtDate(order.interimDeadline)}, 18:00</div>
-                  <button className="btn btn-sm w-full" onClick={() => isApproved && navigate('gw-submit', { id: order.id, kind: 'interim_1' })} disabled={!isApproved} style={{ justifyContent: 'center' }}>
+                  <button className="btn btn-sm w-full" onClick={() => interim1Allowed && navigate('gw-submit', { id: order.id, kind: 'interim_1' })} disabled={!interim1Allowed} title={stateNote(interim1Allowed, stateReason)} style={{ justifyContent: 'center' }}>
                     <Icon name="upload-cloud" size={12}/> Upload interim
                   </button>
                 </div>
@@ -159,19 +210,19 @@ function GWAssignmentDetail({ orderId, navigate, toast, fixState, setFixState })
                     <span className="pill pill-slate">{U.deadlineMeta(order.interim2Deadline).label}</span>
                   </div>
                   <div className="text-faint fs-11 mono mb-2">due {U.fmtDate(order.interim2Deadline)}, 18:00</div>
-                  <button className="btn btn-sm w-full" onClick={() => isApproved && navigate('gw-submit', { id: order.id, kind: 'interim_2' })} disabled={!isApproved} style={{ justifyContent: 'center' }}>
+                  <button className="btn btn-sm w-full" onClick={() => interim2Allowed && navigate('gw-submit', { id: order.id, kind: 'interim_2' })} disabled={!interim2Allowed} title={stateNote(interim2Allowed, stateReason)} style={{ justifyContent: 'center' }}>
                     <Icon name="upload-cloud" size={12}/> Upload interim
                   </button>
                 </div>
               )}
               <div style={{ padding: 14, border: '1px solid var(--border)', borderRadius: 8 }}>
                 <div className="flex items-center justify-between mb-1">
-                  <span className="strong fs-12">Final + Honorarrechnung</span>
+                  <span className="strong fs-12">{revisionMode ? 'Revision (re-submit final)' : 'Final + Honorarrechnung'}</span>
                   <span className={`pill pill-${dm.tone === 'danger' ? 'red' : dm.tone === 'warn' ? 'amber' : 'slate'}`}>{dm.label}</span>
                 </div>
                 <div className="text-faint fs-11 mono mb-2">due {U.fmtDate(order.finalDeadline)}, 18:00</div>
-                <button className="btn btn-sm w-full" onClick={() => isApproved && navigate('gw-submit', { id: order.id, kind: 'final' })} disabled={!isApproved} style={{ justifyContent: 'center' }}>
-                  <Icon name="upload-cloud" size={12}/> Upload final + invoice
+                <button className="btn btn-sm w-full" onClick={() => (finalAllowed || revisionMode) && navigate('gw-submit', { id: order.id, kind: revisionMode ? 'revision' : 'final' })} disabled={!(finalAllowed || revisionMode)} title={stateNote(finalAllowed || revisionMode, stateReason)} style={{ justifyContent: 'center' }}>
+                  <Icon name="upload-cloud" size={12}/> {revisionMode ? 'Upload revision' : 'Upload final + invoice'}
                 </button>
               </div>
               <div style={{ padding: 14, border: '1px dashed var(--border)', borderRadius: 8, background: 'var(--surface-2)' }}>
@@ -184,6 +235,8 @@ function GWAssignmentDetail({ orderId, navigate, toast, fixState, setFixState })
               </div>
             </div>
           </div>
+          );
+          })()}
 
           {/* Messages preview */}
           <div className="card">
@@ -237,12 +290,17 @@ function GWAssignmentDetail({ orderId, navigate, toast, fixState, setFixState })
                   </div>
                 </div>
               ) : (
-                <div className="flex items-center gap-3">
-                  <Avatar initials={cust?.initials || '··'} size={40}/>
-                  <div className="flex-col" style={{ lineHeight: 1.25 }}>
-                    <strong className="fs-12">{cust?.name}</strong>
-                    <span className="text-faint fs-11">Contact only via platform chat</span>
+                <div className="flex-col gap-2">
+                  <div className="flex items-center gap-3">
+                    <Avatar initials={cust?.initials || '··'} size={40}/>
+                    <div className="flex-col" style={{ lineHeight: 1.25 }}>
+                      <strong className="fs-12">{cust?.name}</strong>
+                      <span className="text-faint fs-11">efactory1 always in CC</span>
+                    </div>
                   </div>
+                  {/* Per business_rules §6: after admin approval, GW receives customer email + phone. */}
+                  {cust?.email && <div className="fs-11 mono text-muted">{cust.email}</div>}
+                  {cust?.phone && <div className="fs-11 mono text-muted">{cust.phone}</div>}
                 </div>
               )}
             </div>
@@ -274,7 +332,7 @@ function GWAssignmentDetail({ orderId, navigate, toast, fixState, setFixState })
             <div>
               <strong>AGB v3.2 reminders:</strong>
               <ul style={{ margin: '4px 0 0 16px', padding: 0, listStyle: 'disc' }}>
-                <li>No AI tools (≤25% AI score)</li>
+                <li>No AI tools — any use = fraud (§5)</li>
                 <li>No direct delivery to customer</li>
                 <li>No money discussion — redirect to kundenservice@efactory1.de</li>
                 <li>Delete customer PII after delivery (GDPR)</li>

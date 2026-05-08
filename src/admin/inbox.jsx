@@ -212,8 +212,12 @@ function Inbox({ toast }) {
                 {suggestions?.actions?.includes('redirect') && (
                   <button type="button" className="btn btn-sm" onClick={onRedirect}><Icon name="arrow-right" size={12}/> Redirect to kundenservice</button>
                 )}
+                {/* "Escalate to admin" is hidden for the admin role — admin IS the escalation target.
+                    Replaced with "Mark for follow-up" to flag the thread for the admin's own queue. */}
                 {suggestions?.actions?.includes('escalate') && (
-                  <button type="button" className="btn btn-sm" onClick={onEscalate}><Icon name="alert-triangle" size={12}/> Escalate to admin</button>
+                  <button type="button" className="btn btn-sm" onClick={() => _toast({ text: 'Thread flagged for follow-up', tone: 'info' })}>
+                    <Icon name="flag" size={12}/> Flag for follow-up
+                  </button>
                 )}
                 <button type="button" className="btn btn-sm" onClick={() => _toast({ text: 'Thread snoozed for 4h', tone: 'info' })}>
                   <Icon name="clock" size={12}/> Snooze 4h

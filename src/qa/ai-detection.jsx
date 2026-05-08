@@ -104,9 +104,9 @@ function QAAIDetection({ navigate }) {
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12, marginBottom: 16 }}>
         <div className="card" style={{ padding: 14, border: violations.length > 0 ? '1px solid color-mix(in oklab, var(--red) 35%, var(--border))' : undefined }}>
-          <div className="text-faint fs-11">Violations (≥30%)</div>
+          <div className="text-faint fs-11">High-evidence flags</div>
           <div className="mono strong" style={{ fontSize: 22, color: 'var(--red)', marginTop: 4 }}>{violations.length}</div>
-          <div className="text-faint fs-11 mt-1">Auto-shadow-ban triggered</div>
+          <div className="text-faint fs-11 mt-1">Flagged for admin review · ban gated to admin</div>
         </div>
         <div className="card" style={{ padding: 14 }}>
           <div className="text-faint fs-11">Needs review (15–29%)</div>
@@ -204,8 +204,8 @@ function QAAIDetection({ navigate }) {
                           <div className="banner info mt-3" style={{ fontSize: 11.5 }}>
                             <Icon name="zap" size={12}/>
                             <span>
-                              Paragraphs ≥30% AI score are flagged for human review. ≥70% triggers auto-violation per AGB v3.2 §5.
-                              {d.status === 'violation' && <> · GW <strong>{d.gwName}</strong> already shadow-banned.</>}
+                              Per AGB v3.2 §5, any AI use is fraud. The score is investigative evidence — QA flags suspicious paragraphs and admin (Berat) confirms exclusion + payment hold.
+                              {d.status === 'violation' && <> · GW <strong>{d.gwName}</strong> awaiting admin decision.</>}
                             </span>
                           </div>
                         </div>
