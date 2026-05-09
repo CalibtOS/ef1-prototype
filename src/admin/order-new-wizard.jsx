@@ -6,7 +6,7 @@ const U = window.EFU;
 const D = window.EF;
 
 // ====================================================================
-function OrderNewWizard({ navigate, toast, setFixState }) {
+function OrderNewWizard({ navigate, toast }) {
   const [step, setStep] = useStateA(0);
   const [draft, setDraft] = useStateA({
     customerId: null,
@@ -89,9 +89,7 @@ function OrderNewWizard({ navigate, toast, setFixState }) {
       note: draft.notes,
       _synthetic: true,
     };
-    if (setFixState) {
-      setFixState(prev => ({ ...prev, [newId]: newOrder }));
-    }
+    window.EFActions.orders.create(newOrder);
     toast && toast({
       text: `Order #${newId} created · Pipedrive deal Qualifiziert · Sevdesk contact created`,
       tone: 'success',

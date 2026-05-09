@@ -7,8 +7,10 @@ const D = window.EF;
 
 // ============ GW SUBMISSIONS LIST ============
 function GWSubmissionsList({ navigate }) {
+  const allSubmissions = window.EFHooks.useSubmissions();
+  const myAssignments = window.EFHooks.useOrders({ gwId: D.GW_ME.id });
   // Pull explicit SUBMISSIONS authored by this GW first.
-  const explicit = (D.SUBMISSIONS || []).filter(s => {
+  const explicit = allSubmissions.filter(s => {
     const o = D.order(s.orderId);
     return o && o.gwId === 'gw-iw';
   }).map(s => ({
@@ -18,7 +20,6 @@ function GWSubmissionsList({ navigate }) {
     submittedAt: s.submittedAt,
   }));
   // Then synthesize one or two submissions per real assignment so the page is never empty.
-  const myAssignments = D.liveOrders().filter(o => o.gwId === 'gw-iw');
   const seedHash = (n) => Math.abs(((n * 2654435761) | 0));
   const derived = [];
   myAssignments.forEach(o => {

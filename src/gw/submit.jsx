@@ -23,18 +23,11 @@ const CLOSED_SUBMISSION_REASONS = {
 };
 
 function allowedSubmissionKinds(order) {
-  if (!order || order.gwId !== D.GW_ME.id) return [];
-  if (order.status === 'revision_required') return ['revision'];
-  if (order.status !== 'active') return [];
-  return [
-    order.interimDeadline ? 'interim_1' : null,
-    order.interim2Deadline ? 'interim_2' : null,
-    'final',
-  ].filter(Boolean);
+  return window.EFWorkflow.allowedSubmissionKinds(order, D.GW_ME.id);
 }
 
 function submissionClosedReason(order) {
-  return CLOSED_SUBMISSION_REASONS[order?.status] || 'No submission is currently expected for this assignment';
+  return window.EFWorkflow.submissionClosedReason(order);
 }
 
 // ============ GW SUBMIT ============
@@ -43,7 +36,7 @@ function submissionClosedReason(order) {
 //   #/gw/gw-submit?id=3540&kind=final
 // Per PRD/SOP: final requires TWO files (work + Honorarrechnung) and shows the
 // legal invoice address. All variants gate Submit behind a self-check checklist.
-function GWSubmit({ orderId, kind, navigate, toast, setFixState }) {
+function GWSubmit({ orderId, kind, navigate, toast }) {
   // No orderId → show picker of my active assignments.
   if (!orderId) return <GWSubmitPicker navigate={navigate}/>;
   const order = D.liveOrder(orderId);
@@ -162,27 +155,12 @@ function GWSubmit({ orderId, kind, navigate, toast, setFixState }) {
     setTimeout(() => setStep(4), 3500);
     setTimeout(() => {
       setStep(5);
-      if (setFixState) {
-        // Per business_rules.md §11 / SOP-2 / SOP-3 / PRD lifecycle:
-        //   - Interim is auto-forwarded to the customer (no QA gate).
-        //   - Final is held for QA review before customer forwarding.
-        //   - Revision keeps the existing GW path (re-enters QA only if the original was a final).
-        // Status mapping reflects this:
-        //   interim → under_customer_review · final → qa_review · revision (final-stage) → qa_review
-        const newStatus = isFinal ? 'qa_review' : isRevision ? 'qa_review' : 'under_customer_review';
-        setFixState(prev => ({
-          ...prev,
-          [order.id]: {
-            ...(prev[order.id] || {}),
-            status: newStatus,
-            lastSubmissionAt: new Date().toISOString(),
-            lastSubmissionFile: workFile.name,
-            lastSubmissionKind: resolvedKind,
-            lastInvoiceFile: isFinal ? invoiceFile.name : undefined,
-            revisionRounds: isRevision ? (order.revisionRounds || 0) + 1 : (order.revisionRounds || 0),
-          },
-        }));
-      }
+      window.EFActions.gw.submit(order.id, {
+        kind: resolvedKind,
+        workFile,
+        invoiceFile,
+        selfChecks: checks,
+      });
       const isInterimAutoForward = !isFinal && !isRevision;
       toast({
         tone: 'success',
@@ -195,17 +173,6 @@ function GWSubmit({ orderId, kind, navigate, toast, setFixState }) {
           ? 'Auto-forwarded to customer · awaiting feedback'
           : 'Plag 4% · AI 8% · forwarded to QA queue',
       });
-      if (window.efNotify) {
-        if (isInterimAutoForward) {
-          // Interim path — customer receives draft directly; admin gets an FYI.
-          window.efNotify({ to: 'customer', title: 'Ihr Zwischenstand ist verfügbar', body: `Auftrag #${order.id} · Bitte prüfen und Feedback geben` });
-          window.efNotify({ to: 'admin', title: `Interim forwarded · #${order.id}`, body: `${D.gw(order.gwId)?.name || 'GW'} uploaded interim · auto-sent to customer` });
-        } else {
-          // Final / revision path — held for QA before customer forwarding.
-          window.efNotify({ to: 'admin', title: `${isFinal ? 'Final' : 'Revision'} submission · #${order.id}`, body: `${D.gw(order.gwId)?.name || 'GW'} uploaded · pending QA` });
-          window.efNotify({ to: 'qa', title: `New submission · #${order.id}`, body: `${kindLabel} · waiting for QA verdict` });
-        }
-      }
     }, 4600);
   };
 

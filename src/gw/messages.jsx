@@ -9,6 +9,7 @@ const D = window.EF;
 function GWMessages({ navigate }) {
   const [activeId, setActiveId] = useStateA(null);
   const [reply, setReply] = useStateA('');
+  const myAssignments = window.EFHooks.useOrders({ gwId: D.GW_ME.id });
 
   const snippets = [
     { msg: 'Passt so — bitte mit Kapitel 3 weitermachen. Ich melde mich wieder zum Zwischenstand.', at: '2026-05-07T10:34:00', from: 'customer' },
@@ -18,7 +19,7 @@ function GWMessages({ navigate }) {
     { msg: 'Vielen Dank für die schnelle Rückmeldung — sehr gute Arbeit bisher!', at: '2026-05-05T17:08:00', from: 'customer' },
   ];
 
-  const threads = D.myAssignments().slice(0, 5).map((o, i) => {
+  const threads = myAssignments.slice(0, 5).map((o, i) => {
     const s = snippets[i % snippets.length];
     const customer = D.customer(o.customerId);
     return {

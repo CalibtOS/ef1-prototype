@@ -7,7 +7,7 @@ const D = window.EF;
 
 // ============ GW PAYMENTS ============
 function GWPayments({ navigate }) {
-  const mine = D.myAssignments();
+  const mine = window.EFHooks.useOrders({ gwId: D.GW_ME.id });
   // Per business_rules §5: a GW payment is "releasable" only when ALL five gates pass —
   // not merely when the GW invoice is received. Splitting `invoice_received` into truly
   // releasable vs awaiting-gates makes it honest for the GW.

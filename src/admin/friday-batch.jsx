@@ -6,32 +6,22 @@ const U = window.EFU;
 const D = window.EF;
 
 // ============ FRIDAY BATCH ============
-function FridayBatch({ navigate, fixState, setFixState, toast }) {
-  // Apply fixState BEFORE filtering, then derive the batch from current state.
-  // After release, status becomes 'completed' and the order drops out of the
-  // batch entirely — it does not migrate to "Blocked".
-  const passesGate = (o) => (
-    o.status === 'payment_pending' &&
-    o.outstandingEur === 0 &&
-    o.qaPassed !== false &&
-    !o.disputeOpen &&
-    o.gwPaymentStatus !== 'work_in_progress'
-  );
-  const isInBatch = (o) => o.status === 'payment_pending' || o.status === 'ai_violation_review';
-  const allEffective = D.ORDERS.map(o => ({ ...o, ...(fixState[o.id] || {}) }));
-  const considered = allEffective.filter(isInBatch);
-  const releaseable = considered.filter(passesGate);
-  const blocked = considered.filter(o => !passesGate(o));
+function FridayBatch({ navigate, toast }) {
+  const batch = window.EFHooks.useFridayBatch();
+  const releaseable = batch.releaseable;
+  const blocked = batch.blocked;
   const [selected, setSelected] = useStateA(() => new Set(releaseable.map(o => o.id)));
   const [running, setRunning] = useStateA(false);
   const [done, setDoneState] = useStateA(false);
   // Snapshot the batch the moment it's released, so the audit preview keeps
   // showing what was actually released even after orders move to 'completed'.
   const [releasedSnapshot, setReleasedSnapshot] = useStateA([]);
+  const [runningTargets, setRunningTargets] = useStateA([]);
   // Per-row payout state for cascade animation: 'sending' | 'paid'
   const [rowState, setRowState] = useStateA({});
 
   const total = releaseable.filter(o => selected.has(o.id)).reduce((s,o) => s + o.netHonorarium, 0);
+  const visibleReleaseable = (running || done) ? runningTargets : releaseable;
 
   const toggle = (id) => {
     const s = new Set(selected);
@@ -42,6 +32,7 @@ function FridayBatch({ navigate, fixState, setFixState, toast }) {
   const runBatch = () => {
     setRunning(true);
     const targets = releaseable.filter(o => selected.has(o.id));
+    setRunningTargets(targets);
     const snapshot = targets.map(o => ({ id: o.id, amount: o.netHonorarium }));
     // Cascade: ~250ms per row → "sending" then "paid"
     targets.forEach((o, i) => {
@@ -49,7 +40,7 @@ function FridayBatch({ navigate, fixState, setFixState, toast }) {
       setTimeout(() => setRowState(p => ({ ...p, [o.id]: 'sending' })), start);
       setTimeout(() => {
         setRowState(p => ({ ...p, [o.id]: 'paid' }));
-        setFixState(prev => ({ ...prev, [o.id]: { ...(prev[o.id]||{}), status: 'completed', gwPaymentStatus: 'paid' }}));
+        window.EFActions.payments.releaseBatch([o.id]);
       }, start + 320);
     });
     const totalDur = 200 + targets.length * 220 + 400;
@@ -58,10 +49,6 @@ function FridayBatch({ navigate, fixState, setFixState, toast }) {
       setDoneState(true);
       setReleasedSnapshot(snapshot);
       toast({ text: `${snapshot.length} payments released · ${U.EUR(snapshot.reduce((s,x)=>s+x.amount,0))} via SEPA · Sevdesk receipts queued`, tone: 'success' });
-      // One notification per released GW
-      snapshot.forEach(x => {
-        if (window.efNotify) window.efNotify({ to: 'gw', title: `${U.EUR(x.amount)} released · #${x.id}`, body: 'See your bank in 1–3 business days' });
-      });
     }, totalDur);
   };
 
@@ -104,7 +91,7 @@ function FridayBatch({ navigate, fixState, setFixState, toast }) {
             <table className="tbl">
               <thead><tr><th style={{ width: 32 }}></th><th>Order</th><th>GW</th><th className="num">Honorar</th><th>Gates</th><th>IBAN</th><th>SEPA</th></tr></thead>
               <tbody>
-                {releaseable.map(o => {
+              {visibleReleaseable.map(o => {
                   const gw = D.gw(o.gwId);
                   const rs = rowState[o.id];
                   const bg = rs === 'paid'
@@ -138,8 +125,9 @@ function FridayBatch({ navigate, fixState, setFixState, toast }) {
         <div className="card">
           <div className="card-head"><div className="card-title">Blocked ({blocked.length})</div></div>
           <div className="card-pad flex-col gap-2">
-            {blocked.map(o => {
+            {blocked.map(({ order: o, gates }) => {
               const gw = D.gw(o.gwId);
+              const mainReason = gates.reasons.find(r => r !== 'Order is not awaiting Friday release') || gates.reasons[0];
               return (
                 <div key={o.id} className="card-pad" style={{ border: '1px solid color-mix(in oklab, var(--red) 30%, var(--border))', borderRadius: 8, background: 'color-mix(in oklab, var(--red) 3%, var(--surface))' }}>
                   <div className="flex items-center gap-2 mb-2">
@@ -148,7 +136,7 @@ function FridayBatch({ navigate, fixState, setFixState, toast }) {
                     <span style={{ flex: 1 }}/>
                     <span className="mono fs-12">{U.EUR(o.netHonorarium)}</span>
                   </div>
-                  <div className="fs-11 text-muted">{gw?.name || '—'} · {o.status === 'ai_violation_review' ? 'awaiting QA verdict — payment frozen' : `Outstanding ${U.EUR(o.outstandingEur)} from customer`}</div>
+                  <div className="fs-11 text-muted">{gw?.name || '—'} · {mainReason || 'Release gate blocked'}</div>
                   <button className="btn btn-sm mt-2" onClick={() => navigate('order-detail', { id: o.id })}>Resolve →</button>
                 </div>
               );

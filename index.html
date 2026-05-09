@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>efactory1 · Operations Console</title>
+<link rel="icon" href="data:,">
 <link rel="stylesheet" href="styles.css?v=chat-redesign">
 <script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
 <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
@@ -14,6 +15,14 @@
 
 <!-- Foundation: data, utilities, shell -->
 <script type="text/babel" src="data.js?v=gw-demo-assignments-2"></script>
+<script type="text/babel" src="src/core/workflow.js"></script>
+<script type="text/babel" src="src/core/entities.js"></script>
+<script type="text/babel" src="src/core/store.js"></script>
+<script type="text/babel" src="src/core/selectors.js"></script>
+<script type="text/babel" src="src/core/actions.js"></script>
+<script type="text/babel" src="src/core/hooks.js"></script>
+<script type="text/babel" src="src/core/routes.js"></script>
+<script type="text/babel" src="src/core/compat.js"></script>
 <script type="text/babel" src="utils.jsx?v=chat-redesign"></script>
 <script type="text/babel" src="shell.jsx"></script>
 
@@ -93,33 +102,20 @@ const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
 // Lightweight hash router — survives reload, supports back/forward, deep links.
 // Format: #role/route?key=value (e.g. #admin/order-detail?id=3499)
 function parseHash() {
-  const raw = (window.location.hash || '').replace(/^#\/?/, '');
-  if (!raw) return { role: 'admin', name: 'admin-dashboard', params: {} };
-  const [path, query] = raw.split('?');
-  const segments = path.split('/').filter(Boolean);
-  const role = ['admin','gw','qa','customer'].includes(segments[0]) ? segments[0] : 'admin';
-  const name = segments[1] || (role === 'admin' ? 'admin-dashboard' : role === 'gw' ? 'gw-dashboard' : role === 'qa' ? 'qa-queue' : 'cust-orders');
-  const params = {};
-  if (query) {
-    new URLSearchParams(query).forEach((v, k) => { params[k] = /^\d+$/.test(v) ? Number(v) : v; });
-  }
-  return { role, name, params };
+  return window.EFRoutes.parseHash();
 }
 function buildHash(role, name, params) {
-  const qs = params && Object.keys(params).length
-    ? '?' + new URLSearchParams(Object.entries(params).filter(([,v]) => v != null && v !== '').map(([k,v]) => [k, String(v)])).toString()
-    : '';
-  return `#/${role}/${name}${qs}`;
+  return window.EFRoutes.buildHash(role, name, params);
 }
 
 function App() {
   const init = parseHash();
   const [route, setRoute] = useState({ name: init.name, params: init.params });
-  const [role, setRole] = useState(init.role);
+  const [role, setRoleState] = useState(init.role);
   const [tweaks, setTweaksState] = useState(TWEAK_DEFAULTS);
   const [tweakOpen, setTweakOpen] = useState(false);
   const [toasts, setToasts] = useState([]);
-  const [fixState, setFixState] = useState({}); // mutations to orders
+  window.EFHooks.useStore(s => s.meta.version);
 
   // Sync URL <- state
   useEffect(() => {
@@ -127,14 +123,18 @@ function App() {
     if (window.location.hash !== expected) {
       window.history.replaceState(null, '', expected);
     }
+    window.EFActions.session.setRole(role);
+    window.EFActions.session.setRoute(route);
   }, [role, route.name, route.params]);
 
   // Sync state <- URL (back/forward, manual edits, reload)
   useEffect(() => {
     const onHash = () => {
       const next = parseHash();
-      setRole(next.role);
+      setRoleState(next.role);
       setRoute({ name: next.name, params: next.params });
+      window.EFActions.session.setRole(next.role);
+      window.EFActions.session.setRoute({ name: next.name, params: next.params });
     };
     window.addEventListener('hashchange', onHash);
     return () => window.removeEventListener('hashchange', onHash);
@@ -170,6 +170,16 @@ function App() {
 
   const navigate = useCallback((name, params = {}) => {
     setRoute({ name, params });
+    window.EFActions.session.setRoute({ name, params });
+    window.scrollTo(0, 0);
+  }, []);
+
+  const setRole = useCallback((nextRole) => {
+    const nextName = window.EFRoutes.defaultRouteFor(nextRole);
+    setRoleState(nextRole);
+    setRoute({ name: nextName, params: {} });
+    window.EFActions.session.setRole(nextRole);
+    window.EFActions.session.setRoute({ name: nextName, params: {} });
     window.scrollTo(0, 0);
   }, []);
 
@@ -182,81 +192,82 @@ function App() {
   // Expose toast globally so non-prop-threaded helpers (e.g. <NotReady>) can summon one.
   useEffect(() => { window.efToast = toast; return () => { if (window.efToast === toast) delete window.efToast; }; }, [toast]);
 
-  // Mirror fixState to window so role-switched views (which don't all receive the prop)
-  // can use EF.liveOrders() / EF.liveOrder(id) and see admin mutations.
-  useEffect(() => { window.__fixState = fixState; }, [fixState]);
-  // Expose setter so deep-tree views (e.g. customer feedback buttons) can patch order state
-  // without us threading the prop through every container.
-  useEffect(() => {
-    window.__patchOrder = (id, patch) => setFixState(prev => ({ ...prev, [id]: { ...(prev[id] || {}), ...patch } }));
-    return () => { if (window.__patchOrder) delete window.__patchOrder; };
-  }, []);
-
   const dismiss = (id) => setToasts(t => t.filter(x => x.id !== id));
 
-  // role-aware route resolution
-  let body = null;
-  if (role === 'customer') {
-    const custSection = {
-      'cust-orders': 'orders', 'cust-messages': 'messages', 'cust-invoices': 'invoices',
-      'cust-downloads': 'downloads', 'cust-profile': 'profile', 'admin-dashboard': 'orders',
-    }[route.name] || 'orders';
-    body = <CustomerView role={role} setRole={setRole} navigate={navigate} toast={toast} section={custSection}/>;
-  } else if (role === 'qa') {
-    switch (route.name) {
-      case 'qa-queue':
-      case 'qa':
-      case 'admin-dashboard': body = <QAQueue navigate={navigate} toast={toast} fixState={fixState} setFixState={setFixState}/>; break;
-      case 'qa-plagiarism': body = <QAPlagiarismReports navigate={navigate}/>; break;
-      case 'qa-ai': body = <QAAIDetection navigate={navigate}/>; break;
-      case 'qa-history': body = <QAHistory navigate={navigate}/>; break;
-      case 'order-detail': body = <QAOrderDetail orderId={route.params.id} navigate={navigate} toast={toast} fixState={fixState} setFixState={setFixState}/>; break;
-      default: body = <QAQueue navigate={navigate} toast={toast} fixState={fixState} setFixState={setFixState}/>;
-    }
-  } else if (role === 'gw') {
-    switch (route.name) {
-      case 'gw-dashboard':
-      case 'admin-dashboard': body = <GWDashboard navigate={navigate}/>; break;
-      case 'gw-active':
-      case 'orders': body = <GWActiveJobs navigate={navigate} fixState={fixState}/>; break;
-      case 'gw-job-board': body = <GWJobBoard navigate={navigate} fixState={fixState} setFixState={setFixState} toast={toast}/>; break;
-      case 'gw-submit': body = <GWSubmit orderId={route.params.id} kind={route.params.kind} navigate={navigate} toast={toast} setFixState={setFixState}/>; break;
-      case 'gw-report-delay': body = <GWReportDelay orderId={route.params.id} navigate={navigate} toast={toast} setFixState={setFixState}/>; break;
-      case 'gw-extension': body = <GWExtensionRequest orderId={route.params.id} navigate={navigate} toast={toast} setFixState={setFixState}/>; break;
-      case 'gw-first-contact': body = <GWFirstContact orderId={route.params.id} navigate={navigate} toast={toast}/>; break;
-      case 'gw-onboarding': body = <GWOnboarding navigate={navigate} toast={toast}/>; break;
-      case 'gw-submissions-list': body = <GWSubmissionsList navigate={navigate}/>; break;
-      case 'gw-templates': body = <GWTemplates/>; break;
-      case 'gw-payments': body = <GWPayments navigate={navigate}/>; break;
-      case 'gw-messages': body = <GWMessages navigate={navigate}/>; break;
-      case 'gw-profile': body = <GWProfile/>; break;
-      case 'gw-assignment-detail':
-      case 'order-detail': body = <GWAssignmentDetail orderId={route.params.id} navigate={navigate} toast={toast}/>; break;
-      default: body = <GWDashboard navigate={navigate}/>;
-    }
+  // Route table — one place to register what page each role/route renders.
+  // Adding a new route is a single-file change here (plus the route name in src/core/routes.js).
+  // Customer is a single-component portal that switches its own internal section.
+  const routeTable = {
+    customer: {
+      _resolve: (params, name) => {
+        const section = {
+          'cust-orders': 'orders', 'cust-messages': 'messages', 'cust-invoices': 'invoices',
+          'cust-downloads': 'downloads', 'cust-profile': 'profile', 'admin-dashboard': 'orders',
+        }[name] || 'orders';
+        return <CustomerView role={role} setRole={setRole} navigate={navigate} toast={toast} section={section}/>;
+      },
+    },
+    qa: {
+      'qa-queue':         () => <QAQueue navigate={navigate} toast={toast}/>,
+      'qa':               () => <QAQueue navigate={navigate} toast={toast}/>,
+      'admin-dashboard':  () => <QAQueue navigate={navigate} toast={toast}/>,
+      'qa-plagiarism':    () => <QAPlagiarismReports navigate={navigate}/>,
+      'qa-ai':            () => <QAAIDetection navigate={navigate}/>,
+      'qa-history':       () => <QAHistory navigate={navigate}/>,
+      'order-detail':     (p) => <QAOrderDetail orderId={p.id} navigate={navigate} toast={toast}/>,
+      _default:           () => <QAQueue navigate={navigate} toast={toast}/>,
+    },
+    gw: {
+      'gw-dashboard':         () => <GWDashboard navigate={navigate}/>,
+      'admin-dashboard':      () => <GWDashboard navigate={navigate}/>,
+      'gw-active':            () => <GWActiveJobs navigate={navigate}/>,
+      'orders':               () => <GWActiveJobs navigate={navigate}/>,
+      'gw-job-board':         () => <GWJobBoard navigate={navigate} toast={toast}/>,
+      'gw-submit':            (p) => <GWSubmit orderId={p.id} kind={p.kind} navigate={navigate} toast={toast}/>,
+      'gw-report-delay':      (p) => <GWReportDelay orderId={p.id} navigate={navigate} toast={toast}/>,
+      'gw-extension':         (p) => <GWExtensionRequest orderId={p.id} navigate={navigate} toast={toast}/>,
+      'gw-first-contact':     (p) => <GWFirstContact orderId={p.id} navigate={navigate} toast={toast}/>,
+      'gw-onboarding':        () => <GWOnboarding navigate={navigate} toast={toast}/>,
+      'gw-submissions-list':  () => <GWSubmissionsList navigate={navigate}/>,
+      'gw-templates':         () => <GWTemplates/>,
+      'gw-payments':          () => <GWPayments navigate={navigate}/>,
+      'gw-messages':          () => <GWMessages navigate={navigate}/>,
+      'gw-profile':           () => <GWProfile/>,
+      'gw-assignment-detail': (p) => <GWAssignmentDetail orderId={p.id} navigate={navigate} toast={toast}/>,
+      'order-detail':         (p) => <GWAssignmentDetail orderId={p.id} navigate={navigate} toast={toast}/>,
+      _default:               () => <GWDashboard navigate={navigate}/>,
+    },
+    admin: {
+      'admin-dashboard':    () => <AdminDashboard navigate={navigate} openFridayBatch={() => navigate('friday-batch')}/>,
+      'orders':             () => <OrdersTable navigate={navigate} route={route}/>,
+      'order-detail':       (p) => <OrderDetail orderId={p.id} navigate={navigate} toast={toast}/>,
+      'friday-batch':       () => <FridayBatch navigate={navigate} toast={toast}/>,
+      'qa':                 () => <QAQueue navigate={navigate} toast={toast}/>,
+      'inbox':              () => <Inbox toast={toast}/>,
+      'ai-bi':              () => <AIBIDashboard/>,
+      'gw-job-board':       () => <GWJobBoard navigate={navigate} toast={toast} role="admin"/>,
+      'ghostwriters':       () => <GhostwritersList navigate={navigate}/>,
+      'ghostwriter-detail': (p) => <GhostwriterDetail gwId={p.id} navigate={navigate} toast={toast}/>,
+      'pipeline':           () => <PipelineKanban navigate={navigate}/>,
+      'customers':          () => <CustomersPage navigate={navigate}/>,
+      'customer-detail':    (p) => <CustomerDetail customerId={p.id} navigate={navigate}/>,
+      'disputes':           () => <DisputesPage navigate={navigate}/>,
+      'reports':            () => <ReportsPage navigate={navigate}/>,
+      'settings':           () => <SettingsPage navigate={navigate} toast={toast}/>,
+      'order-new':          () => <OrderNewWizard navigate={navigate} toast={toast}/>,
+      'offers':             () => <OffersPage navigate={navigate} toast={toast}/>,
+      _default:             () => <AdminDashboard navigate={navigate} openFridayBatch={() => navigate('friday-batch')}/>,
+    },
+  };
+
+  const roleRoutes = routeTable[role] || routeTable.admin;
+  const params = route.params || {};
+  let body;
+  if (roleRoutes._resolve) {
+    body = roleRoutes._resolve(params, route.name);
   } else {
-    // admin
-    switch (route.name) {
-      case 'admin-dashboard': body = <AdminDashboard navigate={navigate} openFridayBatch={() => navigate('friday-batch')}/>; break;
-      case 'orders': body = <OrdersTable navigate={navigate} fixState={fixState} route={route}/>; break;
-      case 'order-detail': body = <OrderDetail orderId={route.params.id} navigate={navigate} toast={toast} fixState={fixState} setFixState={setFixState}/>; break;
-      case 'friday-batch': body = <FridayBatch navigate={navigate} fixState={fixState} setFixState={setFixState} toast={toast}/>; break;
-      case 'qa': body = <QAQueue navigate={navigate} toast={toast} fixState={fixState} setFixState={setFixState}/>; break;
-      case 'inbox': body = <Inbox toast={toast}/>; break;
-      case 'ai-bi': body = <AIBIDashboard/>; break;
-      case 'gw-job-board': body = <GWJobBoard navigate={navigate} fixState={fixState} setFixState={setFixState} toast={toast} role="admin"/>; break;
-      case 'ghostwriters': body = <GhostwritersList navigate={navigate}/>; break;
-      case 'ghostwriter-detail': body = <GhostwriterDetail gwId={route.params.id} navigate={navigate} fixState={fixState} setFixState={setFixState} toast={toast}/>; break;
-      case 'pipeline': body = <PipelineKanban navigate={navigate}/>; break;
-      case 'customers': body = <CustomersPage navigate={navigate}/>; break;
-      case 'customer-detail': body = <CustomerDetail customerId={route.params.id} navigate={navigate} fixState={fixState}/>; break;
-      case 'disputes': body = <DisputesPage navigate={navigate} fixState={fixState}/>; break;
-      case 'reports': body = <ReportsPage navigate={navigate}/>; break;
-      case 'settings': body = <SettingsPage navigate={navigate} toast={toast}/>; break;
-      case 'order-new': body = <OrderNewWizard navigate={navigate} toast={toast} setFixState={setFixState}/>; break;
-      case 'offers': body = <OffersPage navigate={navigate} toast={toast} fixState={fixState} setFixState={setFixState}/>; break;
-      default: body = <AdminDashboard navigate={navigate} openFridayBatch={() => navigate('friday-batch')}/>;
-    }
+    const handler = roleRoutes[route.name] || roleRoutes._default;
+    body = handler(params);
   }
 
   const tweakPanel = tweakOpen && <TweaksPanel tweaks={tweaks} setTweak={setTweak} onClose={() => { setTweakOpen(false); try { window.parent.postMessage({ type: '__edit_mode_dismissed' }, '*'); } catch(e){} }}/>;
@@ -274,7 +285,7 @@ function App() {
 
   return (
     <div className="app-root">
-      <Sidebar route={route} navigate={navigate} role={role} fixState={fixState}/>
+      <Sidebar route={route} navigate={navigate} role={role}/>
       <div className="app-main">
         <Topbar role={role} setRole={setRole} navigate={navigate} toast={toast}/>
         {role === 'admin' && <AdminGlobalBanners navigate={navigate}/>}

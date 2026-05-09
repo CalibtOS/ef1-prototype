@@ -10,7 +10,7 @@ const D = window.EF;
 // Pipedrive funnel, Sevdesk invoice details, customer email/phone/LTV/lead source.
 // Per PRD: GW sees only job spec, customer name (after approval), their own
 // honorarium, submission tiles, messages, templates, deadlines.
-function GWAssignmentDetail({ orderId, navigate, toast, fixState, setFixState }) {
+function GWAssignmentDetail({ orderId, navigate, toast }) {
   const order = D.liveOrder(orderId);
   if (!order) return <div className="page">Assignment not found.</div>;
   // Ownership guard — a GW may only view assignments where they are the assigned writer

@@ -6,11 +6,11 @@ const U = window.EFU;
 const D = window.EF;
 
 // ====================================================================
-function CustomerDetail({ customerId, navigate, fixState }) {
+function CustomerDetail({ customerId, navigate }) {
   const c = D.customer(customerId);
+  const liveOrders = window.EFHooks.useOrders({ customerId });
   if (!c) return <div className="page">Customer not found.</div>;
-  const orders = D.ORDERS
-    .map(o => ({ ...o, ...(fixState?.[o.id] || {}) }))
+  const orders = liveOrders
     .filter(o => o.customerId === customerId)
     .sort((a, b) => (b.acceptedAt || '').localeCompare(a.acceptedAt || ''));
   const ltv = orders.reduce((s, o) => s + (o.paidEur || 0), 0);

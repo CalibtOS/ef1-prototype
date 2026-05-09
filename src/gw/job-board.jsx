@@ -7,14 +7,12 @@ const D = window.EF;
 
 // ============ GW JOB BOARD ============
 // Same surface, two perspectives: GW claims, admin manages (no Claim button).
-function GWJobBoard({ navigate, fixState, setFixState, toast, role = 'gw' }) {
+function GWJobBoard({ navigate, toast, role = 'gw' }) {
   const isAdmin = role === 'admin';
   const [filter, setFilter] = useStateA('all');
   const [claimingId, setClaimingId] = useStateA(null);
   // Source of truth: ORDERS where status === 'available' AND no GW assigned.
-  // Apply fixState so a successful claim immediately removes the job from the board.
-  const unclaimed = D.ORDERS
-    .map(o => ({ ...o, ...(fixState?.[o.id] || {}) }))
+  const unclaimed = window.EFHooks.useOrders({ filter: 'available' })
     .filter(o => o.status === 'available' && !o.gwId)
     .map(o => ({
       id: o.id,
@@ -33,10 +31,7 @@ function GWJobBoard({ navigate, fixState, setFixState, toast, role = 'gw' }) {
   const filtered = filter === 'all' ? unclaimed : unclaimed.filter(o => o.workType === filter);
 
   const onUnpublish = (id) => {
-    setFixState && setFixState(prev => ({
-      ...prev,
-      [id]: { ...(prev[id] || {}), status: 'on_hold', holdReason: 'Unpublished by admin' },
-    }));
+    window.EFActions.orders.patch(id, { status: 'on_hold', holdReason: 'Unpublished by admin' });
     toast && toast({
       tone: 'info',
       transition: { entity: `Order #${id}`, from: 'On Job Board', to: 'On Hold' },
@@ -139,36 +134,25 @@ function GWJobBoard({ navigate, fixState, setFixState, toast, role = 'gw' }) {
           <div className="card"><div className="card-pad text-faint fs-12">No jobs match this filter.</div></div>
         )}
       </div>
-      {!isAdmin && claimingId && <ClaimModal job={unclaimed.find(j => j.id === claimingId)} onClose={() => setClaimingId(null)} toast={toast} navigate={navigate} setFixState={setFixState}/>}
+      {!isAdmin && claimingId && <ClaimModal job={unclaimed.find(j => j.id === claimingId)} onClose={() => setClaimingId(null)} toast={toast} navigate={navigate}/>}
     </div>
   );
 }
 
-function ClaimModal({ job, onClose, toast, navigate, setFixState }) {
+function ClaimModal({ job, onClose, toast, navigate }) {
   const [step, setStep] = useStateA(1);
   const [acks, setAcks] = useStateA({ agb: false, ai: false, gdpr: false, deadline: false, fee: false, individual: false });
   const allAcked = Object.values(acks).every(Boolean);
   const submit = () => {
     // Stateful transition: order moves to claimed_pending_approval and is bound
     // to the logged-in GW (Isabel Walter, gw-iw). Visible across all role views.
-    if (setFixState) {
-      setFixState(prev => ({
-        ...prev,
-        [job.id]: {
-          ...(prev[job.id] || {}),
-          status: 'claimed_pending_approval',
-          gwId: 'gw-iw',
-          claimedAt: new Date().toISOString(),
-        },
-      }));
-    }
+    window.EFActions.gw.claimJob(job.id, 'gw-iw');
     onClose();
     toast({
       tone: 'info',
       transition: { entity: `Order #${job.id}`, from: 'On Job Board', to: 'GW Claimed — Approve' },
       text: '6 acknowledgements signed · awaiting admin approval',
     });
-    if (window.efNotify) window.efNotify({ to: 'admin', title: `Claim awaiting approval · #${job.id}`, body: `Isabel Walter claimed this job · 6 acknowledgements signed` });
     setTimeout(() => navigate('gw-active'), 400);
   };
   return (

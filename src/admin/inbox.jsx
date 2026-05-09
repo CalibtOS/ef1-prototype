@@ -7,19 +7,32 @@ const D = window.EF;
 
 // ============ INBOX ============
 function Inbox({ toast }) {
-  const [activeId, setActiveId] = useStateA('th-1');
+  const [activeId, setActiveId] = useStateA('t1');
   const [tab, setTab] = useStateA('Inbox');
   const [reply, setReply] = useStateA('');
   const _toast = toast || (m => console.log(m));
-  const threads = [
-    { id: 'th-1', subject: 'Re: Bachelorarbeit – Zwischenstand', last: 'Wann bekomme ich den nächsten Stand?', from: 'Lea Schmidt', orderId: 3508, ch: 'whatsapp', sentiment: 'tense', unread: true, at: '2026-05-07T11:14:00' },
-    // Voice channel: metadata-only per PRD constraint (no transcript content)
-    { id: 'th-2', subject: 'Voicemail · 0:42', last: 'Voicemail received · 0:42 · sentiment: tense', from: 'Lea Schmidt', orderId: 3508, ch: 'voice', sentiment: 'tense', unread: true, at: '2026-05-07T11:02:00', voiceMeta: { duration: '0:42', from: '+49 •••• 8821', recordedAt: '2026-05-07T11:02:00' } },
-    { id: 'th-3', subject: 'Hausarbeit Marketing — claim approved?', last: 'GW Maja hat sich gemeldet, ich frage mich, ob...', from: 'Sebastian Wolf', orderId: 3526, ch: 'email', sentiment: 'neutral', unread: false, at: '2026-05-07T10:43:00' },
-    { id: 'th-4', subject: 'Frage zur Rate', last: 'Können wir die zweite Rate splitten?', from: 'Kurt Müller', orderId: 3499, ch: 'email', sentiment: 'neutral', unread: false, at: '2026-05-07T09:55:00', autoflag: 'pricing' },
-    { id: 'th-5', subject: 'Danke!', last: 'Die Arbeit ist genau das, was ich mir vorgestellt habe.', from: 'Adrian Berger', orderId: 3520, ch: 'email', sentiment: 'positive', unread: false, at: '2026-05-06T18:22:00' },
-    { id: 'th-6', subject: 'Internal: GW Anna König', last: 'AI score 87% — auto shadow-ban applied. Awaiting QA verdict.', from: 'System', orderId: 3517, ch: 'platform', sentiment: 'tense', unread: true, at: '2026-05-07T09:02:00', system: true },
-  ];
+  const threads = window.EFHooks.useThreads().map(t => {
+    const cust = D.customer(t.customerId);
+    const ch = t.channel === 'whatsapp_proxy' ? 'whatsapp'
+      : t.channel === 'voice_metadata' ? 'voice'
+      : t.channel === 'platform_chat' ? 'platform'
+      : 'email';
+    return {
+      id: t.id,
+      subject: t.subject,
+      last: t.channel === 'voice_metadata' ? 'Voicemail received · metadata only' : t.subject,
+      from: cust?.name || (t.system ? 'System' : 'Customer'),
+      orderId: t.orderId,
+      ch,
+      sentiment: t.sentiment || 'neutral',
+      unread: !!t.unread,
+      at: t.lastAt,
+      flagged: !!t.flagged,
+      autoflag: t.flaggedReason === 'financial_question' ? 'pricing' : null,
+      voiceMeta: t.channel === 'voice_metadata' ? { duration: '0:42', from: cust?.phone || 'unknown', recordedAt: t.lastAt } : null,
+      system: t.channel === 'system',
+    };
+  });
 
   const filteredThreads = tab === 'Mentions'
     ? threads.filter(t => t.system || t.from?.toLowerCase().includes('berat'))

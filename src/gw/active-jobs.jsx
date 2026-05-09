@@ -6,11 +6,11 @@ const U = window.EFU;
 const D = window.EF;
 
 // ============ GW ACTIVE JOBS ============
-function GWActiveJobs({ navigate, fixState }) {
+function GWActiveJobs({ navigate }) {
   const [filter, setFilter] = useStateA('all');
 
   // The list and the detail route must read the same live order source.
-  const realMine = D.liveOrders().filter(o => o.gwId === 'gw-iw');
+  const realMine = window.EFHooks.useOrders({ gwId: D.GW_ME.id });
 
   // Augment real with derived stage info
   const realAugmented = realMine.map(o => {

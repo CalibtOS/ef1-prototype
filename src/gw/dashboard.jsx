@@ -7,7 +7,7 @@ const D = window.EF;
 
 function GWDashboard({ navigate }) {
   const GW_ME = D.GW_ME;
-  const mine = D.myAssignments();
+  const mine = window.EFHooks.useOrders({ gwId: GW_ME.id });
   const activeCount = mine.filter(o => ['active','interim_submitted','under_customer_review','revision_required','final_submitted','qa_review'].includes(o.status)).length;
   // Earnings split (G-10):
   //   paid this month → already in bank (gwPaymentStatus === 'paid')
@@ -24,11 +24,14 @@ function GWDashboard({ navigate }) {
     .sort((a,b) => new Date(a.date) - new Date(b.date))
     .slice(0, 5);
 
-  const previewJobs = [
-    { id: 9101, title: 'Cloud-native Architekturen für Mittelstand', field: 'Wirtschaftsinformatik', pages: 14, honorEur: 318.75, deadline: '2026-05-19' },
-    { id: 9102, title: 'DSGVO Compliance bei KI-gestützten HR-Tools', field: 'Recht', pages: 22, honorEur: 538.10, deadline: '2026-05-25' },
-    { id: 9103, title: 'Bindungsstile und digitale Intimität', field: 'Psychologie', pages: 45, honorEur: 1296.40, deadline: '2026-06-08' },
-  ];
+  const previewJobs = window.EFHooks.useOrders({ filter: 'available' }).slice(0, 3).map(o => ({
+    id: o.id,
+    title: o.titleTBD ? 'Titel folgt — Briefing nach Claim' : o.title,
+    field: o.field,
+    pages: o.pages,
+    honorEur: o.netHonorarium,
+    deadline: o.finalDeadline,
+  }));
 
   return (
     <div className="page">

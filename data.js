@@ -199,35 +199,9 @@ const STATUS_PILLS = {
   plagiarism_violation_review: { color: 'red', label: '🚨 Plagiarism Flag' },
 };
 
-// KPI: derived from ORDERS so dashboard counts always match list views.
-// "Lifetime" totals (645 active, 3,359 completed) are out of seed scope and remain literals.
-const _passesGate = (o) => (
-  o.status === 'payment_pending' &&
-  (o.outstandingEur || 0) === 0 &&
-  o.qaPassed !== false &&
-  !o.disputeOpen &&
-  o.gwPaymentStatus !== 'work_in_progress'
-);
-const _fridayReleasable = ORDERS.filter(_passesGate);
-const _fridayEur = _fridayReleasable.reduce((s, o) => s + (o.netHonorarium || 0), 0);
-
-const KPI = {
-  openReceivables: ORDERS.reduce((s, o) => s + (o.outstandingEur || 0), 0),
-  activeOrders: 645, // lifetime — out of seed scope
-  completedLifetime: 3359,
-  totalLifetime: 3522,
-  fridayCount: _fridayReleasable.length,
-  fridayEur: Math.round(_fridayEur * 100) / 100,
-  qaPending: SUBMISSIONS.filter(s => s.qaStatus === 'pending').length,
-  overdueInterim: ORDERS.filter(o => {
-    if (!o.interimDeadline) return false;
-    if (['completed','cancelled','payment_pending'].includes(o.status)) return false;
-    return new Date(o.interimDeadline) < NOW;
-  }).length,
-  aiFlagged: SUBMISSIONS.filter(s => s.aiScore >= 70).length,
-  disputesOpen: ORDERS.filter(o => o.disputeOpen).length,
-  pipedriveSubs: '4,159 / 5,000',
-};
+// KPI is derived live by EFSelectors.selectKpis (src/core/selectors.js) and exposed
+// as EF.KPI via src/core/compat.js, so dashboards always see post-mutation counts.
+// Lifetime totals (645 active, 3,359 completed, 3,522 total) live in selectors.
 
 // Feature flags — single source of truth for "what is real vs. planned" in the prototype.
 // Status: 'live' (wired through), 'beta' (partial), 'planned' (UI present but inert).
@@ -281,83 +255,19 @@ const FEATURE_FLAGS = {
 const featureStatus = (key) => FEATURE_FLAGS[key] || null;
 const isFeatureLive = (key) => (FEATURE_FLAGS[key]?.status === 'live');
 
-// Shared-state accessor — merges live admin mutations (window.__fixState) on top of the
-// seed ORDERS so role-switched views (customer, GW, pipeline) see the same truth as admin.
-// App keeps window.__fixState in sync; pages that previously read EF.ORDERS directly should
-// call EF.liveOrders() (or EF.liveOrder(id)) when they want the latest state.
-// Live-order accessor: merges seed ORDERS with admin mutations from window.__fixState,
-// AND surfaces brand-new orders that exist only in fixState (e.g. created via the wizard
-// at IDs 9100+). Without this second branch, OrderDetail navigation would show "not found".
-const liveOrders = () => {
-  const fix = (typeof window !== 'undefined' && window.__fixState) || {};
-  const baseOrders = [...ORDERS, ...GW_DEMO_ASSIGNMENTS];
-  if (!fix || Object.keys(fix).length === 0) return baseOrders;
-  const merged = baseOrders.map(o => fix[o.id] ? { ...o, ...fix[o.id] } : o);
-  const seedIds = new Set(baseOrders.map(o => o.id));
-  // Pick up any fix-state entry that has a `customerId` AND isn't in the seed — those are
-  // newly-created orders (the wizard sets customerId; partial mutations on existing orders don't).
-  Object.keys(fix).forEach(k => {
-    const id = isNaN(Number(k)) ? k : Number(k);
-    if (!seedIds.has(id) && fix[k] && fix[k].customerId) {
-      merged.push({ id, ...fix[k] });
-    }
-  });
-  return merged;
-};
-const liveOrder = (id) => {
-  const fix = (typeof window !== 'undefined' && window.__fixState) || {};
-  const numericId = typeof id === 'string' && /^\d+$/.test(id) ? Number(id) : id;
-  const base = [...ORDERS, ...GW_DEMO_ASSIGNMENTS].find(o => o.id === numericId);
-  if (base) return fix[numericId] ? { ...base, ...fix[numericId] } : base;
-  // Newly-created order living only in fixState.
-  if (fix[numericId] && fix[numericId].customerId) return { id: numericId, ...fix[numericId] };
-  return null;
-};
-
-// Friday-batch release gates (PRD `friday_payment_batch.release_gates`).
-// All five must be true for the GW honorarium to be releasable.
-// Returns { releasable, blocked, reasons[], gates{} } so UI can render checklist + reason.
-const releaseGates = (order) => {
-  if (!order) return { releasable: false, blocked: true, reasons: ['Order not found'], gates: {} };
-  const installmentsAllPaid = (order.installments || []).every(i => i.status === 'paid')
-    && (order.outstandingEur || 0) === 0;
-  const gates = {
-    customer_satisfied:      order.customerSatisfied === true,
-    quality_approved:        order.qaPassed === true && !order.flagged && order.status !== 'ai_violation_review' && order.status !== 'plagiarism_violation_review',
-    revisions_complete:      !order.disputeOpen && order.status !== 'revision_required',
-    all_installments_paid:   installmentsAllPaid,
-    gw_invoice_received:     order.gwPaymentStatus === 'invoice_received' || order.gwPaymentStatus === 'paid',
-  };
-  const reasons = [];
-  if (!gates.customer_satisfied)      reasons.push('Customer satisfaction not confirmed');
-  if (!gates.quality_approved)        reasons.push('Quality not approved (QA pending or flagged)');
-  if (!gates.revisions_complete)      reasons.push('Revision rounds open');
-  if (!gates.all_installments_paid)   reasons.push(`Installments outstanding (€${(order.outstandingEur||0).toFixed(2)})`);
-  if (!gates.gw_invoice_received)     reasons.push('GW invoice not received');
-  return {
-    releasable: reasons.length === 0,
-    blocked:    reasons.length > 0,
-    reasons,
-    gates,
-  };
-};
-
-// Persona helpers — the demo always views the GW role through "Isabel Walter".
-// Surfaced on EF so role-scoped views in src/gw/* don't each duplicate the lookup.
+// Persona constant for the GW persona we ship in the demo — Isabel Walter.
+// Live order/customer/gw/release-gate accessors live in src/core/compat.js
+// (EF.liveOrders, EF.liveOrder, EF.releaseGates, EF.gw, EF.customer, EF.order,
+// EF.myAssignments) so they always read the reactive store.
 const GW_ME = GHOSTWRITERS.find(g => g.id === 'gw-iw') || {
   name: 'Isabel Walter', initials: 'IW', email: 'isabel.walter@gw.efactory1.de'
 };
-const myAssignments = () => liveOrders().filter(o => o.gwId === GW_ME.id);
 
 window.EF = {
   NOW, DEMO_NOW,
   GHOSTWRITERS, CUSTOMERS, ORDERS, GW_DEMO_ASSIGNMENTS, SUBMISSIONS, FRIDAY_BATCH, INBOX_THREADS, NOTIFICATIONS,
-  WORK_TYPE_LABELS, STATUS_PILLS, KPI, FEATURE_FLAGS,
+  WORK_TYPE_LABELS, STATUS_PILLS, FEATURE_FLAGS,
   featureStatus, isFeatureLive,
-  liveOrders, liveOrder, releaseGates,
-  GW_ME, myAssignments,
-  gw: (id) => GHOSTWRITERS.find(g => g.id === id),
-  customer: (id) => CUSTOMERS.find(c => c.id === id),
-  order: (id) => ORDERS.find(o => o.id === id),
+  GW_ME,
 };
 })();

@@ -5,18 +5,17 @@ const { Icon, StatusPill, Avatar, Money, Bi, ScoreBar, CrumbBar, NotReady, Plann
 const U = window.EFU;
 const D = window.EF;
 
-function OrdersTable({ navigate, fixState, route }) {
+function OrdersTable({ navigate, route }) {
   const [search, setSearch] = useStateA('');
   const [statusFilter, setStatusFilter] = useStateA('all');
   const [view, setView] = useStateA('all');
+  const orders = window.EFHooks.useOrders();
 
   // Deep link: if navigated with { id }, open the detail view directly.
   useEffectA(() => {
     const id = route?.params?.id;
     if (id) navigate('order-detail', { id });
   }, [route?.params?.id]);
-
-  const orders = D.ORDERS.map(o => ({ ...o, ...(fixState[o.id] || {}) }));
 
   let filtered = orders;
   if (view === 'friday') filtered = filtered.filter(o => o.status === 'payment_pending');

@@ -5,19 +5,19 @@ const { Icon, StatusPill, Avatar, Money, Bi, ScoreBar, CrumbBar, NotReady, Plann
 const U = window.EFU;
 const D = window.EF;
 
-function QAOrderDetail({ orderId, navigate, toast, fixState, setFixState }) {
+function QAOrderDetail({ orderId, navigate, toast }) {
   const [tab, setTab] = useStateA('overview');
-  const order = D.liveOrder(orderId);
+  const order = window.EFHooks.useOrder(orderId);
+  const subs = window.EFHooks.useSubmissions({ orderId });
   if (!order) return <div className="page">Order not found.</div>;
   const cust = D.customer(order.customerId);
   const gw = D.gw(order.gwId);
   const dm = U.deadlineMeta(order.finalDeadline);
-  const subs = D.SUBMISSIONS.filter(s => s.orderId === order.id);
   const latest = subs.sort((a,b) => new Date(b.submittedAt) - new Date(a.submittedAt))[0];
 
   const goToQueue = () => navigate('qa-queue');
   const requestRevision = () => {
-    setFixState(prev => ({ ...prev, [orderId]: { ...(prev[orderId]||{}), status: 'revision_required', revisionRounds: ((prev[orderId]?.revisionRounds) ?? order.revisionRounds ?? 0) + 1 }}));
+    if (latest) window.EFActions.qa.requestRevision(latest.id);
     toast({
       tone: 'info',
       transition: { entity: `Order #${orderId}`, from: 'QA Review', to: 'Revision Required' },
@@ -26,7 +26,7 @@ function QAOrderDetail({ orderId, navigate, toast, fixState, setFixState }) {
   };
   const passToCustomer = () => {
     const isFinal = latest?.kind === 'final_work';
-    setFixState(prev => ({ ...prev, [orderId]: { ...(prev[orderId]||{}), status: isFinal ? 'delivered' : 'under_customer_review', qaPassed: true }}));
+    if (latest) window.EFActions.qa.pass(latest.id);
     toast({
       tone: 'success',
       transition: { entity: `Order #${orderId}`, from: 'QA Review', to: isFinal ? 'Delivered' : 'Customer Review' },

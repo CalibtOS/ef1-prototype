@@ -5,7 +5,7 @@ const { Icon, StatusPill, Avatar, Money, Bi, ScoreBar, CrumbBar, NotReady, Plann
 const U = window.EFU;
 const D = window.EF;
 
-function GWReportDelay({ orderId, navigate, toast, setFixState }) {
+function GWReportDelay({ orderId, navigate, toast }) {
   const order = D.order(orderId);
   if (!order) return <div className="page">Assignment not found.</div>;
   const cust = D.customer(order.customerId);
@@ -24,21 +24,12 @@ function GWReportDelay({ orderId, navigate, toast, setFixState }) {
     setTimeout(() => setSentSteps({ customer: true, kundenservice: false }), 600);
     setTimeout(() => {
       setSentSteps({ customer: true, kundenservice: true });
-      if (setFixState) {
-        // Per SOP-B: a GW delay notifies both customer + kundenservice simultaneously,
-        // but the order is NOT unilaterally placed on hold — admin (and ideally customer)
-        // must approve the new deadline. Status `delay_reported` flags it for review.
-        setFixState(prev => ({ ...prev, [orderId]: { ...(prev[orderId] || {}), status: 'delay_reported', delayReason: reasonKind, delayReportedAt: new Date().toISOString(), proposedNewDeadline: newDate + 'T18:00:00' } }));
-      }
+      window.EFActions.gw.reportDelay(orderId, { reasonKind, reason, newDate, customerInformed });
       toast({
         tone: 'info',
         transition: { entity: `Order #${orderId}`, from: 'Active', to: 'Delay Reported' },
         text: 'Customer + kundenservice notified · awaiting admin review',
       });
-      if (window.efNotify) {
-        window.efNotify({ to: 'admin', title: `Delay reported · #${orderId}`, body: `New proposed date ${newDate} · reason: ${reasonKind}`, urgent: true });
-        window.efNotify({ to: 'customer', title: 'Lieferdatum-Anpassung gemeldet', body: `Neuer Termin: ${newDate}. Wir kümmern uns.` });
-      }
       setPhase('sent');
     }, 1400);
   };

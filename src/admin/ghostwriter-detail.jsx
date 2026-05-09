@@ -6,10 +6,11 @@ const U = window.EFU;
 const D = window.EF;
 
 // ====================================================================
-function GhostwriterDetail({ gwId, navigate, fixState, setFixState, toast }) {
-  const g = D.gw(gwId);
+function GhostwriterDetail({ gwId, navigate, toast }) {
+  const g = window.EFHooks.useGw(gwId);
+  const allOrders = window.EFHooks.useOrders({ gwId });
   if (!g) return <div className="page">Ghostwriter not found.</div>;
-  const orders = D.ORDERS.map(o => ({ ...o, ...(fixState?.[o.id] || {}) })).filter(o => o.gwId === gwId);
+  const orders = allOrders.filter(o => o.gwId === gwId);
   const active = orders.filter(o => !['completed','cancelled','bye'].includes(o.status));
   const completed = orders.filter(o => o.status === 'completed');
   const honorTotal = orders.reduce((s, o) => s + (o.netHonorarium || 0), 0);
@@ -18,14 +19,7 @@ function GhostwriterDetail({ gwId, navigate, fixState, setFixState, toast }) {
   const [shadowToggle, setShadowToggle] = useStateA(g.banned || false);
   const [reason, setReason] = useStateA(g.banReason || '');
   const applyShadowBan = () => {
-    // Mutate the seed GW record so ban state shows up in the GW list, job-board admin view,
-    // sidebar badges, etc. (Prototype-side; in production this would be a backend call.)
-    const target = D.GHOSTWRITERS.find(x => x.id === gwId);
-    if (target) {
-      target.banned = shadowToggle;
-      target.banReason = shadowToggle ? (reason || target.banReason || 'Quality concerns') : null;
-    }
-    if (setFixState) setFixState(prev => ({ ...prev, ['__gw_' + gwId]: { banned: shadowToggle, banReason: reason, _bumpAt: Date.now() } }));
+    window.EFActions.gws.shadowBan(gwId, { banned: shadowToggle, reason: reason || 'Quality concerns' });
     toast && toast({ text: shadowToggle ? `${g.name} shadow-banned · email alerts paused` : `${g.name} reinstated · email alerts resumed`, tone: shadowToggle ? 'danger' : 'success' });
   };
 

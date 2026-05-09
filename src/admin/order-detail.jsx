@@ -5,16 +5,17 @@ const { Icon, StatusPill, Avatar, Money, Bi, ScoreBar, CrumbBar, NotReady, Plann
 const U = window.EFU;
 const D = window.EF;
 
-function OrderDetail({ orderId, navigate, toast, fixState, setFixState }) {
+function OrderDetail({ orderId, navigate, toast }) {
   const [tab, setTab] = useStateA('overview');
   const [showRateSlider, setShowRateSlider] = useStateA(false);
   const [approving, setApproving] = useStateA(null);
-  // Use liveOrder so newly-created orders (admin wizard, IDs 9100+ in fixState) resolve.
-  const order = D.liveOrder(orderId);
+  // Store-backed read so newly-created orders resolve across all role views.
+  const order = window.EFHooks.useOrder(orderId);
+  const submissions = window.EFHooks.useSubmissions({ orderId });
   if (!order) return <div className="page">Order not found.</div>;
   const cust = D.customer(order.customerId);
   const gw = D.gw(order.gwId);
-  const submissionsCount = D.SUBMISSIONS.filter(s => s.orderId === order.id).length;
+  const submissionsCount = submissions.length;
   const dm = U.deadlineMeta(order.finalDeadline);
   const isClaim = order.status === 'claimed_pending_approval';
 
@@ -37,21 +38,17 @@ function OrderDetail({ orderId, navigate, toast, fixState, setFixState }) {
     setTimeout(() => setApproving({ phase: 'cust' }), 700);
     setTimeout(() => setApproving({ phase: 'done' }), 1400);
     setTimeout(() => {
-      setFixState(prev => ({ ...prev, [orderId]: { ...(prev[orderId]||{}), status: 'active' }}));
+      window.EFActions.orders.approveClaim(orderId);
       toast({
         tone: 'success',
         transition: { entity: `Order #${orderId}`, from: 'GW Claimed — Approve', to: 'Active' },
         text: 'Briefing email sent · customer introduced',
       });
-      if (window.efNotify) {
-        window.efNotify({ to: 'gw', title: `Order #${orderId} approved — you may begin`, body: 'Briefing email sent · customer was introduced' });
-        window.efNotify({ to: 'customer', title: 'Ihr Ghostwriter wurde zugewiesen', body: `${gw?.name || 'Ihr Ghostwriter'} meldet sich heute bei Ihnen.` });
-      }
     }, 1700);
     setTimeout(() => setApproving(null), 2400);
   };
   const rejectClaim = () => {
-    setFixState(prev => ({ ...prev, [orderId]: { ...(prev[orderId]||{}), status: 'available', gwId: null, claimedAt: null }}));
+    window.EFActions.orders.rejectClaim(orderId);
     toast({
       tone: 'info',
       transition: { entity: `Order #${orderId}`, from: 'GW Claimed — Approve', to: 'On Job Board' },
@@ -59,11 +56,9 @@ function OrderDetail({ orderId, navigate, toast, fixState, setFixState }) {
     });
   };
   const markInstallmentPaid = (n) => {
-    const installments = order.installments.map(i => i.n === n ? { ...i, status: 'paid', date: '2026-05-07' } : i);
-    const paid = installments.filter(i => i.status==='paid').reduce((s,i)=>s+i.amt,0);
-    const out = order.grossEur - paid;
-    setFixState(prev => ({ ...prev, [orderId]: { ...(prev[orderId]||{}), installments, paidEur: paid, outstandingEur: out }}));
-    toast({ text: `Installment ${n} marked as paid · ${U.EUR(installments.find(i=>i.n===n).amt)} via SEPA`, tone: 'success' });
+    const installment = (order.installments || []).find(i => i.n === n);
+    window.EFActions.orders.markInstallmentPaid(orderId, n);
+    toast({ text: `Installment ${n} marked as paid · ${U.EUR(installment?.amt)} via SEPA`, tone: 'success' });
   };
   // Direct release is intentionally removed: per business_rules §5 GW payments are released
   // via the Friday batch — never ad-hoc. The button on this card just navigates there.
@@ -243,7 +238,7 @@ function OrderDetail({ orderId, navigate, toast, fixState, setFixState }) {
                     <input type="range" min="33" max="62" step="1" value={Math.round((order.rate||0.4)*100)} onChange={(e) => {
                       const r = +e.target.value / 100;
                       const honor = (order.grossEur / 1.07) * r;
-                      setFixState(prev => ({ ...prev, [orderId]: { ...(prev[orderId]||{}), rate: r, netHonorarium: honor }}));
+                      window.EFActions.orders.setHonorRate(orderId, r);
                     }} style={{ width: '100%' }}/>
                     <div className="flex justify-between fs-11 mt-1 text-faint mono"><span>33%</span><span>40% mode</span><span>62%</span></div>
                   </div>
@@ -449,7 +444,7 @@ function OrderDetail({ orderId, navigate, toast, fixState, setFixState }) {
         <CommsTab order={order} />
       )}
       {tab === 'assignment' && (
-        <AssignmentTab order={order} navigate={navigate} setFixState={setFixState} toast={toast}/>
+        <AssignmentTab order={order} navigate={navigate} toast={toast}/>
       )}
       {tab === 'audit' && (
         <AuditTab order={order} />
@@ -459,7 +454,7 @@ function OrderDetail({ orderId, navigate, toast, fixState, setFixState }) {
 }
 
 function SubmissionsTab({ order }) {
-  const subs = D.SUBMISSIONS.filter(s => s.orderId === order.id);
+  const subs = window.EFHooks.useSubmissions({ orderId: order.id });
   return (
     <div className="card">
       <div className="card-head"><div className="card-title">Submissions</div><span className="text-faint fs-11">interim · final · invoices</span></div>
@@ -537,7 +532,7 @@ function CommsTab({ order }) {
   );
 }
 
-function AssignmentTab({ order, navigate, setFixState, toast }) {
+function AssignmentTab({ order, navigate, toast }) {
   const gw = D.gw(order.gwId);
   // Per PRD order_lifecycle: assignment can happen only after the offer/invoice has been paid
   // (state ≥ "paid"/"available"). Earlier states must complete the offer→invoice→payment path
@@ -555,11 +550,7 @@ function AssignmentTab({ order, navigate, setFixState, toast }) {
       if (toast) toast({ text: blockReason, tone: 'danger' });
       return;
     }
-    if (setFixState) {
-      // Per business_rules §4: on assignment, both GW + customer get simultaneous emails.
-      // Status becomes "active" only when the GW is assigned (or self-assigned via Berat).
-      setFixState(prev => ({ ...prev, [order.id]: { ...(prev[order.id] || {}), gwId: g.id, status: 'active', assignedAt: new Date().toISOString() } }));
-    }
+    window.EFActions.orders.assignGw(order.id, g.id, { selfAssigned: !!g.isOwner });
     if (toast) toast({
       tone: 'success',
       transition: { entity: `Order #${order.id}`, from: order.status === 'available' ? 'On Job Board' : 'Awaiting Assignment', to: 'Active' },

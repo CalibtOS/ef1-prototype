@@ -15,90 +15,16 @@ const ROLES = [
 ];
 
 // Build nav lazily so badges reflect current ORDERS / SUBMISSIONS data.
-function buildNav(role, fixState) {
-  const D = window.EF;
-  if (!D) return [];
-  const orders = (D.ORDERS || []).map(o => ({ ...o, ...(fixState?.[o.id] || {}) }));
-  const subs = D.SUBMISSIONS || [];
-
-  if (role === 'admin') {
-    const qaPending = subs.filter(s => s.qaStatus === 'pending').length;
-    const friday = orders.filter(o => o.status === 'payment_pending' && (o.outstandingEur || 0) === 0).length;
-    const disputes = orders.filter(o => o.disputeOpen).length;
-    return [
-      { id: 'dashboard', label: 'Dashboard', icon: 'layout-dashboard' },
-      { id: 'orders', label: 'Orders', icon: 'package', badge: String(orders.length) },
-      { id: 'customers', label: 'Customers', icon: 'users' },
-      { id: 'ghostwriters', label: 'Ghostwriters', icon: 'feather' },
-      { id: 'jobs', label: 'Job Board', icon: 'clipboard-list', badge: String(orders.filter(o => o.status === 'available' && !o.gwId).length) },
-      { id: 'qa', label: 'QA Queue', icon: 'shield-check', badge: qaPending ? String(qaPending) : null, badgeTone: 'warn' },
-      { id: 'payments', label: 'Payments', icon: 'wallet', badge: friday ? String(friday) : null },
-      { id: 'disputes', label: 'Disputes', icon: 'alert-triangle', badge: disputes ? String(disputes) : null },
-      { id: 'inbox', label: 'Inbox', icon: 'inbox' },
-      { id: 'offers', label: 'Offers / Sevdesk', icon: 'file-text' },
-      { id: 'pipeline', label: 'Pipeline', icon: 'git-branch' },
-      { id: 'bi', label: 'AI BI', icon: 'sparkles', tag: 'Beta' },
-      { id: 'reports', label: 'Reports', icon: 'bar-chart-3' },
-      { id: 'settings', label: 'Settings', icon: 'settings' },
-    ];
-  }
-
-  if (role === 'gw') {
-    const myId = 'gw-iw';
-    const board = orders.filter(o => o.status === 'available' && !o.gwId).length;
-    const mine = orders.filter(o => o.gwId === myId && !['completed','cancelled'].includes(o.status));
-    return [
-      { id: 'gw-dashboard', label: 'My Dashboard', icon: 'layout-dashboard' },
-      { id: 'gw-jobs', label: 'Job Board', icon: 'clipboard-list', badge: board ? String(board) : null },
-      { id: 'gw-assignments', label: 'My Assignments', icon: 'briefcase', badge: mine.length ? String(mine.length) : null },
-      { id: 'gw-submissions', label: 'Submissions', icon: 'upload-cloud' },
-      { id: 'gw-templates', label: 'Templates', icon: 'folder' },
-      { id: 'gw-payments', label: 'Payments', icon: 'wallet' },
-      { id: 'gw-messages', label: 'Messages', icon: 'message-square' },
-      { id: 'gw-profile', label: 'Profile', icon: 'user' },
-    ];
-  }
-
-  if (role === 'customer') {
-    return [
-      { id: 'cust-orders', label: 'My Orders', icon: 'package' },
-      { id: 'cust-messages', label: 'Messages', icon: 'message-square' },
-      { id: 'cust-invoices', label: 'Invoices', icon: 'file-text' },
-      { id: 'cust-downloads', label: 'Downloads', icon: 'download' },
-      { id: 'cust-profile', label: 'Profile', icon: 'user' },
-    ];
-  }
-
-  if (role === 'qa') {
-    const pend = subs.filter(s => s.qaStatus === 'pending').length;
-    const ai = subs.filter(s => s.aiScore >= 70).length;
-    return [
-      { id: 'qa-queue', label: 'Review Queue', icon: 'shield-check', badge: pend ? String(pend) : null, badgeTone: 'warn' },
-      { id: 'qa-plagiarism', label: 'Plagiarism Reports', icon: 'search' },
-      { id: 'qa-ai', label: 'AI Detection', icon: 'bot', badge: ai ? String(ai) : null, badgeTone: 'danger' },
-      { id: 'qa-history', label: 'QA History', icon: 'history' },
-    ];
-  }
-
-  return [];
+function buildNav(role) {
+  return window.EFRoutes.navItems(role, window.EFStore.getState());
 }
 
-function Sidebar({ role, route, navigate, collapsed, setCollapsed, fixState }) {
-  const nav = buildNav(role, fixState);
+function Sidebar({ role, route, navigate, collapsed, setCollapsed }) {
+  window.EFHooks.useStore(s => s.meta.version);
+  const nav = buildNav(role);
   const roleMeta = ROLES.find(r => r.id === role) || ROLES[0];
   // Map nav item ids to internal route names
-  const routeMap = {
-    dashboard: 'admin-dashboard', orders: 'orders', jobs: 'gw-job-board',
-    qa: 'qa', payments: 'friday-batch', inbox: 'inbox', bi: 'ai-bi',
-    ghostwriters: 'ghostwriters', pipeline: 'pipeline', offers: 'offers',
-    customers: 'customers', disputes: 'disputes', reports: 'reports', settings: 'settings',
-    'gw-dashboard': 'gw-dashboard', 'gw-jobs': 'gw-job-board',
-    'gw-assignments': 'gw-active', 'gw-submissions': 'gw-submissions-list',
-    'gw-templates': 'gw-templates', 'gw-payments': 'gw-payments',
-    'gw-messages': 'gw-messages', 'gw-profile': 'gw-profile',
-    'qa-queue': 'qa-queue', 'qa-plagiarism': 'qa-plagiarism',
-    'qa-ai': 'qa-ai', 'qa-history': 'qa-history',
-  };
+  const routeMap = window.EFRoutes.NAV_ROUTE_MAP;
   const activeId = Object.entries(routeMap).find(([, v]) => v === route?.name)?.[0] || route?.name;
   return (
     <aside className={`sidebar ${collapsed ? 'collapsed' : ''}`}>
@@ -239,8 +165,8 @@ function NotifBell({ notifications, onMark }) {
 }
 
 function FridayWidget({ onClick }) {
-  // Derive counts from current data + applied fixState so the widget never lies.
-  const k = window.EF?.KPI || { fridayCount: 0, fridayEur: 0 };
+  // Derive counts from the shared store so the widget never lies.
+  const k = window.EFHooks.useKpis();
   return (
     <button type="button" className="friday-widget" onClick={onClick} title="Open Friday batch">
       <span className="friday-dot" />
@@ -281,8 +207,8 @@ function CrumbBar({ trail }) {
 // Persistent admin-only banner: Pipedrive subscriber limit warning
 function AdminGlobalBanners({ navigate }) {
   const [dismissed, setDismissed] = useState(false);
+  const subs = window.EFHooks.useKpis().pipedriveSubs || '4,159 / 5,000';
   if (dismissed) return null;
-  const subs = window.EF?.KPI?.pipedriveSubs || '4,159 / 5,000';
   return (
     <div style={{ background: 'color-mix(in oklab, var(--amber) 10%, var(--surface))', borderBottom: '1px solid color-mix(in oklab, var(--amber) 30%, var(--border))', padding: '6px 16px', display: 'flex', alignItems: 'center', gap: 10, fontSize: 12 }}>
       <Icon name="alert-triangle" size={14} style={{ color: 'var(--amber)' }}/>
@@ -298,50 +224,7 @@ function AdminGlobalBanners({ navigate }) {
 function Topbar({ role, setRole, navigate, toast }) {
   const isAdmin = role === 'admin';
   const isStaff = role === 'admin' || role === 'qa';
-  // Notifications scoped per role — admin sees ops alerts; others see role-relevant items
-  const notifsByRole = {
-    admin: [
-      { id: 'n1', title: '🚨 AI violation flagged', body: 'Order #3517 — GW Anna König — 87% AI score', at: '2026-05-07T09:02:00', urgent: true, read: false },
-      { id: 'n2', title: 'New claim awaiting approval', body: 'GW Maja Petrović claimed #3526', at: '2026-05-07T11:14:00', read: false },
-      { id: 'n3', title: 'Customer message tagged', body: 'Pricing keyword auto-redirected · #3499', at: '2026-05-07T09:55:00', read: false },
-      { id: 'n4', title: 'Friday batch ready', body: 'Releasable count derived from data', at: '2026-05-07T08:00:00', read: true },
-    ],
-    qa: [
-      { id: 'qn1', title: 'New submission · #3530', body: 'Felix Becker · final work · pending', at: '2026-05-07T09:14:00', urgent: false, read: false },
-      { id: 'qn2', title: 'AI flag · #3517', body: 'Score 87% — verdict required', at: '2026-05-07T08:42:00', urgent: true, read: false },
-    ],
-    gw: [
-      { id: 'gn1', title: 'Claim approved · #3526', body: 'Briefing email sent', at: '2026-05-07T11:14:00', read: false },
-      { id: 'gn2', title: 'Interim deadline tomorrow', body: '#3508 · Zwischenstand 1 · 18:00', at: '2026-05-07T09:00:00', read: false },
-    ],
-    customer: [
-      { id: 'cn1', title: 'Zwischenstand verfügbar', body: 'Auftrag #3518 — Zwischenstand 1 hochgeladen · bitte prüfen', at: '2026-05-06T15:30:00', read: false, urgent: false },
-      { id: 'cn2', title: 'Zahlung bestätigt', body: 'Rate 1 von 2 · 1.180,00 € · Kreditkarte · Auftrag #3518', at: '2026-04-01T10:00:00', read: true },
-    ],
-  };
-  const [notifs, setNotifs] = useState(notifsByRole[role] || notifsByRole.admin);
-  // When role changes, reset the notification list to that role's set
-  useEffect(() => { setNotifs(notifsByRole[role] || notifsByRole.admin); }, [role]);
-  // Listen for state-mutation-driven notifications
-  // Dispatch from anywhere with: window.dispatchEvent(new CustomEvent('efactory:notify', { detail: { to: 'admin', title, body, urgent } }))
-  useEffect(() => {
-    const handler = (e) => {
-      const n = e.detail || {};
-      const target = Array.isArray(n.to) ? n.to : [n.to || 'admin'];
-      if (!target.includes(role)) return;
-      const note = {
-        id: 'live-' + Date.now() + '-' + Math.random().toString(36).slice(2, 6),
-        title: n.title || 'Notification',
-        body: n.body || '',
-        at: n.at || new Date().toISOString(),
-        urgent: !!n.urgent,
-        read: false,
-      };
-      setNotifs(prev => [note, ...prev].slice(0, 12));
-    };
-    window.addEventListener('efactory:notify', handler);
-    return () => window.removeEventListener('efactory:notify', handler);
-  }, [role]);
+  const notifs = window.EFHooks.useNotifications(role);
   return (
     <div className="topbar">
       {isStaff && (
@@ -358,7 +241,7 @@ function Topbar({ role, setRole, navigate, toast }) {
       )}
       <div style={{ flex: 1 }}/>
       {isAdmin && <FridayWidget onClick={() => navigate('friday-batch')}/>}
-      <NotifBell notifications={notifs} onMark={() => setNotifs(notifs.map(n => ({...n, read: true})))}/>
+      <NotifBell notifications={notifs} onMark={() => window.EFActions.notifications.markAllRead(role)}/>
       <RoleSwitcher role={role} setRole={setRole}/>
     </div>
   );
@@ -396,7 +279,7 @@ function ToastStack({ toasts, onDismiss }) {
 
 // Helper: anywhere in the app, push a real-time notification:
 //   window.efNotify({ to: 'admin' | 'gw' | 'qa' | 'customer' | [array], title, body, urgent })
-window.efNotify = function(payload) {
+window.efNotify = window.EFActions?.notify || function(payload) {
   try { window.dispatchEvent(new CustomEvent('efactory:notify', { detail: payload || {} })); } catch (e) {}
 };
 

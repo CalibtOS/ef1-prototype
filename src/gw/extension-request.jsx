@@ -8,7 +8,7 @@ const D = window.EF;
 // ====================================================================
 // GW — Extension Request (SOP 6)
 // ====================================================================
-function GWExtensionRequest({ orderId, navigate, toast, setFixState }) {
+function GWExtensionRequest({ orderId, navigate, toast }) {
   const order = D.order(orderId);
   if (!order) return <div className="page">Assignment not found.</div>;
   const [desc, setDesc] = useStateA('');
@@ -21,9 +21,7 @@ function GWExtensionRequest({ orderId, navigate, toast, setFixState }) {
   const submit = () => {
     setPhase('sending');
     setTimeout(() => {
-      if (setFixState) {
-        setFixState(prev => ({ ...prev, [orderId]: { ...(prev[orderId] || {}), extensionPending: { description: desc, extraPages, extraFee, requestedAt: new Date().toISOString() } } }));
-      }
+      window.EFActions.gw.requestExtension(orderId, { description: desc, extraPages, extraFee });
       toast({ text: `Extension request submitted · Berat will review and ask the customer · you'll be notified to proceed`, tone: 'info' });
       setPhase('sent');
     }, 1100);

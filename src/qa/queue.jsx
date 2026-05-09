@@ -96,8 +96,9 @@ function QADocumentPreview({ submission, order }) {
 // Q-03: side-by-side mock diff — final/revision submission vs prior interim from same order.
 function QACompareInterim({ submission, order }) {
   // Find prior interim submission for the same order; fall back to a synthesized stub.
-  const priors = D.SUBMISSIONS
-    .filter(s => s.orderId === submission.orderId && s.id !== submission.id && (s.kind === 'interim_1' || s.kind === 'interim_2' || s.round < submission.round))
+  const orderSubs = window.EFHooks.useSubmissions({ orderId: submission.orderId });
+  const priors = orderSubs
+    .filter(s => s.id !== submission.id && (s.kind === 'interim_1' || s.kind === 'interim_2' || s.round < submission.round))
     .sort((a, b) => new Date(a.submittedAt) - new Date(b.submittedAt));
   const prior = priors[priors.length - 1];
 
@@ -354,9 +355,9 @@ function AIDetectionRunner({ submission }) {
   );
 }
 
-function QAQueue({ navigate, toast, fixState, setFixState }) {
+function QAQueue({ navigate, toast }) {
   const [activeId, setActiveId] = useStateA(3517);
-  const subs = D.SUBMISSIONS.filter(s => s.qaStatus === 'pending' || s.aiScore > 50);
+  const subs = window.EFHooks.useSubmissions({ qaQueue: true });
   const active = subs.find(s => s.orderId === activeId) || subs[0];
   const order = active && D.order(active.orderId);
   const cust = order && D.customer(order.customerId);
@@ -377,49 +378,29 @@ function QAQueue({ navigate, toast, fixState, setFixState }) {
     // problems, but enforcement (shadow-ban, payment blocks, GW exclusion, reassignment,
     // contract/legal review) is admin-only. QA decisions therefore route to admin.
     if (kind === 'reject_ai') {
-      setFixState(prev => ({ ...prev, [order.id]: { ...(prev[order.id]||{}), status: 'ai_violation_review', flagged: true, qaFlaggedAt: new Date().toISOString(), qaFlagReason: 'AI use suspected', qaPassed: false }}));
+      window.EFActions.qa.flagAi(active.id);
       toast({
         tone: 'danger',
         transition: { entity: `Order #${order.id}`, from: 'QA Review', to: '🚨 AI Violation — flagged for admin' },
         text: `Flag raised · ${gw.name} · awaiting admin decision`,
       });
-      if (window.efNotify) window.efNotify({ to: 'admin', title: `🚨 AI violation FLAGGED · #${order.id}`, body: `QA flagged ${gw.name}. Admin must confirm exclusion + reassignment.`, urgent: true });
     } else if (kind === 'flag_plagiarism') {
-      setFixState(prev => ({ ...prev, [order.id]: { ...(prev[order.id]||{}), status: 'plagiarism_violation_review', flagged: true, qaFlaggedAt: new Date().toISOString(), qaFlagReason: 'Plagiarism suspected', qaPassed: false }}));
+      window.EFActions.qa.flagPlagiarism(active.id);
       toast({
         tone: 'danger',
         transition: { entity: `Order #${order.id}`, from: 'QA Review', to: '🚨 Plagiarism — flagged for admin' },
         text: `Flag raised · admin will review`,
       });
-      if (window.efNotify) window.efNotify({ to: 'admin', title: `🚨 Plagiarism FLAGGED · #${order.id}`, body: `QA flagged ${gw.name}. Admin must confirm payment hold + audit.`, urgent: true });
     } else if (kind === 'pass') {
       // Stateful: forward to customer review, mark QA passed
-      setFixState(prev => ({
-        ...prev,
-        [order.id]: {
-          ...(prev[order.id] || {}),
-          status: active.kind === 'final_work' ? 'delivered' : 'under_customer_review',
-          qaPassed: true,
-        },
-      }));
+      window.EFActions.qa.pass(active.id);
       toast({
         tone: 'success',
         transition: { entity: `Order #${order.id}`, from: 'QA Review', to: active.kind === 'final_work' ? 'Delivered' : 'Customer Review' },
         text: `Forwarded to ${cust.name} · 14-day review timer started`,
       });
-      if (window.efNotify) {
-        window.efNotify({ to: 'customer', title: 'Ihre Arbeit hat die Qualitätsprüfung bestanden', body: `Auftrag #${order.id} · ${active.kind === 'final_work' ? 'Endabgabe' : 'Zwischenstand'} freigegeben` });
-        window.efNotify({ to: 'gw', title: `QA passed · #${order.id}`, body: 'Forwarded to customer · payment release gate progressing' });
-      }
     } else if (kind === 'request_revision') {
-      setFixState(prev => ({
-        ...prev,
-        [order.id]: {
-          ...(prev[order.id] || {}),
-          status: 'revision_required',
-          revisionRounds: ((prev[order.id]?.revisionRounds) ?? order.revisionRounds ?? 0) + 1,
-        },
-      }));
+      window.EFActions.qa.requestRevision(active.id);
       toast({
         tone: 'info',
         transition: { entity: `Order #${order.id}`, from: 'QA Review', to: 'Revision Required' },

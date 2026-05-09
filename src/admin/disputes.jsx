@@ -6,12 +6,13 @@ const U = window.EFU;
 const D = window.EF;
 
 // ============ DISPUTES (minimal) ============
-function DisputesPage({ navigate, fixState }) {
+function DisputesPage({ navigate }) {
   // Derive disputes from real order state. Categorize by what's actually wrong.
-  const allEffective = D.ORDERS.map(o => ({ ...o, ...(fixState?.[o.id] || {}) }));
+  const allEffective = window.EFHooks.useOrders();
+  const allSubmissions = window.EFHooks.useSubmissions();
   const summarizeOrder = (o) => {
     if (o.status === 'ai_violation_review') {
-      const sub = D.SUBMISSIONS?.find(s => s.orderId === o.id);
+      const sub = allSubmissions.find(s => s.orderId === o.id);
       return { category: 'ai_use', raisedBy: 'admin', blocksPayment: true, status: 'investigating', summary: `AI score ${sub?.aiScore || '—'}% — payment frozen pending QA verdict`, daysOpen: 1 };
     }
     if (o.disputeOpen) {

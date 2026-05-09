@@ -1,0 +1,133 @@
+// React hooks over EFStore/selectors.
+;(function(){
+const store = window.EFStore;
+const S = window.EFSelectors;
+const A = window.EFActions;
+
+function shallowEqual(a, b) {
+  if (Object.is(a, b)) return true;
+  if (!a || !b || typeof a !== 'object' || typeof b !== 'object') return false;
+  const ak = Object.keys(a);
+  const bk = Object.keys(b);
+  if (ak.length !== bk.length) return false;
+  return ak.every(k => Object.is(a[k], b[k]));
+}
+
+function useStore(selector, equal = Object.is) {
+  const select = selector || ((s) => s);
+  const [slice, setSlice] = React.useState(() => select(store.getState()));
+  React.useEffect(() => {
+    let current = select(store.getState());
+    setSlice(prev => equal(prev, current) ? prev : current);
+    return store.subscribe((state) => {
+      const next = select(state);
+      setSlice(prev => equal(prev, next) ? prev : next);
+      current = next;
+    });
+  }, [selector, equal]);
+  return slice;
+}
+
+function useOrders(opts = {}) {
+  const key = JSON.stringify(opts || {});
+  const selector = React.useMemo(() => (state) => {
+    let orders = S.selectAllOrders(state);
+    if (opts.gwId) orders = orders.filter(o => o.gwId === opts.gwId);
+    if (opts.customerId) orders = orders.filter(o => o.customerId === opts.customerId);
+    if (opts.status) {
+      const statuses = Array.isArray(opts.status) ? opts.status : [opts.status];
+      orders = orders.filter(o => statuses.includes(o.status));
+    }
+    if (opts.filter === 'available') orders = orders.filter(o => o.status === 'available' && !o.gwId);
+    if (opts.filter === 'active') orders = orders.filter(o => !['completed','cancelled'].includes(o.status));
+    return orders;
+  }, [key]);
+  return useStore(selector, shallowEqual);
+}
+
+function useOrder(id) {
+  const selector = React.useMemo(() => (state) => S.selectOrder(state, id), [id]);
+  return useStore(selector, shallowEqual);
+}
+
+function useSubmissions(opts = {}) {
+  const key = JSON.stringify(opts || {});
+  const selector = React.useMemo(() => (state) => {
+    if (opts.orderId != null) return S.selectSubmissionsForOrder(state, opts.orderId);
+    if (opts.qaQueue) return S.selectQaQueue(state);
+    return S.selectAllSubmissions(state);
+  }, [key]);
+  return useStore(selector, shallowEqual);
+}
+
+function useKpis() {
+  return useStore(S.selectKpis, shallowEqual);
+}
+
+function useReleaseGate(id) {
+  const selector = React.useMemo(() => (state) => window.EFWorkflow.releaseGates(S.selectOrder(state, id)), [id]);
+  return useStore(selector, shallowEqual);
+}
+
+function useGw(id) {
+  const selector = React.useMemo(() => (state) => S.selectGhostwriter(state, id), [id]);
+  return useStore(selector, shallowEqual);
+}
+
+function useCustomer(id) {
+  const selector = React.useMemo(() => (state) => S.selectCustomer(state, id), [id]);
+  return useStore(selector, shallowEqual);
+}
+
+function useGhostwriters() {
+  return useStore(S.selectAllGhostwriters, shallowEqual);
+}
+
+function useCustomers() {
+  return useStore(S.selectAllCustomers, shallowEqual);
+}
+
+function useThreads() {
+  return useStore(S.selectThreads, shallowEqual);
+}
+
+function useNotifications(role) {
+  const selector = React.useMemo(() => (state) => S.selectNotifications(state, role || state.session.role), [role]);
+  return useStore(selector, shallowEqual);
+}
+
+function useCurrentRole() {
+  return useStore(state => state.session, shallowEqual);
+}
+
+function useNavigation() {
+  return useStore(state => state.ui.route, shallowEqual);
+}
+
+function useToast() {
+  return { toast: A.toast };
+}
+
+function useFridayBatch() {
+  return useStore(S.selectFridayBatch, shallowEqual);
+}
+
+window.EFHooks = {
+  useStore,
+  useOrders,
+  useOrder,
+  useSubmissions,
+  useKpis,
+  useReleaseGate,
+  useGw,
+  useCustomer,
+  useGhostwriters,
+  useCustomers,
+  useThreads,
+  useNotifications,
+  useCurrentRole,
+  useNavigation,
+  useToast,
+  useFridayBatch,
+};
+})();

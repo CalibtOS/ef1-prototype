@@ -44,7 +44,7 @@ function MiniBars({ data, w = 320, h = 110 }) {
 
 // ============ ADMIN DASHBOARD ============
 function AdminDashboard({ navigate, openFridayBatch }) {
-  const k = D.KPI;
+  const k = window.EFHooks.useKpis();
   return (
     <div className="page">
       <div className="page-header">

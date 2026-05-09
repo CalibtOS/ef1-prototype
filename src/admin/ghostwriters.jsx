@@ -9,7 +9,7 @@ const D = window.EF;
 function GhostwritersList({ navigate }) {
   const [search, setSearch] = useStateA('');
   const [filter, setFilter] = useStateA('all'); // all | active | banned | overloaded | free
-  const all = D.GHOSTWRITERS;
+  const all = window.EFHooks.useGhostwriters();
 
   const filtered = all.filter(g => {
     if (filter === 'banned' && !g.banned) return false;

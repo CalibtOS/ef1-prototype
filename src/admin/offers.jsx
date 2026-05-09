@@ -6,12 +6,12 @@ const U = window.EFU;
 const D = window.EF;
 
 // ====================================================================
-function OffersPage({ navigate, toast, fixState, setFixState }) {
+function OffersPage({ navigate, toast }) {
   const [tab, setTab] = useStateA('all');
   const [genFor, setGenFor] = useStateA(null); // order id while wizard open
 
   // Source: every order with status qualified | offer_sent | invoice_sent | paid+
-  const allEffective = D.ORDERS.map(o => ({ ...o, ...(fixState?.[o.id] || {}) }));
+  const allEffective = window.EFHooks.useOrders();
   const offerable = allEffective.filter(o => ['qualified','offer_sent','invoice_sent'].includes(o.status));
   const accepted = allEffective.filter(o => !['qualified','offer_sent','invoice_sent','lead','cancelled','bye'].includes(o.status));
 
@@ -136,16 +136,15 @@ function OffersPage({ navigate, toast, fixState, setFixState }) {
       </div>
 
       {genFor && (
-        <GenerateOfferModal orderId={genFor} fixState={fixState} setFixState={setFixState} toast={toast} onClose={() => setGenFor(null)}/>
+        <GenerateOfferModal orderId={genFor} toast={toast} onClose={() => setGenFor(null)}/>
       )}
     </div>
   );
 }
 window.OffersPage = OffersPage;
 
-function GenerateOfferModal({ orderId, fixState, setFixState, toast, onClose }) {
-  const orderBase = D.order(orderId);
-  const order = { ...orderBase, ...(fixState?.[orderId] || {}) };
+function GenerateOfferModal({ orderId, toast, onClose }) {
+  const order = window.EFHooks.useOrder(orderId);
   const cust = D.customer(order.customerId);
   const [phase, setPhase] = useStateA('preview'); // preview → sending → sent
   const [progress, setProgress] = useStateA([
@@ -164,7 +163,7 @@ function GenerateOfferModal({ orderId, fixState, setFixState, toast, onClose }) 
     });
     setTimeout(() => {
       setPhase('sent');
-      if (setFixState) setFixState(prev => ({ ...prev, [orderId]: { ...(prev[orderId] || {}), status: 'offer_sent' } }));
+      window.EFActions.orders.patch(orderId, { status: 'offer_sent' });
       toast && toast({ text: `Angebot AN-2026-${String(orderId).padStart(4, '0')} sent · Pipedrive Rückmeldung`, tone: 'success' });
     }, progress.length * 600 + 200);
   };

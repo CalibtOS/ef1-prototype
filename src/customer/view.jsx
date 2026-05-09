@@ -7,35 +7,17 @@ const D = window.EF;
 
 // ============ CUSTOMER PORTAL ============
 // B2C portal — centered, internal tab nav. Demo persona resolves from shell.jsx
-// ROLES (Antigona Berisha · c-ab). She has 2 real orders; we synthesize one
-// mid-flight (interim awaiting feedback) so the portal can demo all states.
+// ROLES (Antigona Berisha · c-ab). Demo orders now live in the shared store
+// so customer/admin/GW/QA views all see the same lifecycle state.
 
 const CUST_PERSONA = (window.EFShell?.ROLES || []).find(r => r.id === 'customer') ||
   { user: 'Antigona Berisha', initials: 'AB', email: 'antigona.berisha@example.com' };
 const CUST_ME = D.CUSTOMERS.find(c => c.initials === CUST_PERSONA.initials) ||
   { id: 'c-demo', name: CUST_PERSONA.user, initials: CUST_PERSONA.initials, email: CUST_PERSONA.email };
 
-const CUST_SYNTH_ORDERS = [{
-  id: 3518, status: 'under_customer_review', customerId: CUST_ME.id,
-  workType: 'bachelorarbeit',
-  title: 'Strategisches Controlling im Maschinenbau',
-  field: 'BWL', pages: 40,
-  finalDeadline: '2026-05-22T18:00:00',
-  interimDeadline: '2026-05-08T18:00:00',
-  interim2Deadline: '2026-05-15T18:00:00',
-  grossEur: 2360, gwId: 'gw-mp', acceptedAt: '2026-04-01',
-  paidEur: 1180, outstandingEur: 1180,
-  installments: [
-    { n: 1, amt: 1180, status: 'paid',      date: '2026-04-01', method: 'stripe_card' },
-    { n: 2, amt: 1180, status: 'scheduled', date: '2026-05-15', method: 'stripe_card' },
-  ],
-  revisionRounds: 0,
-  customerNote: 'Fokus auf Industrie-4.0-Kennzahlen; Fallbeispiel Bosch.',
-}];
-
 function custOrders() {
   const real = D.liveOrders().filter(o => o.customerId === CUST_ME.id);
-  return [...CUST_SYNTH_ORDERS, ...real].sort((a, b) => {
+  return real.sort((a, b) => {
     const ra = a.status === 'completed' ? 1 : 0;
     const rb = b.status === 'completed' ? 1 : 0;
     if (ra !== rb) return ra - rb;
@@ -45,7 +27,9 @@ function custOrders() {
 
 function custStatusMeta(o) {
   const s = o.status;
-  if (s === 'completed' || s === 'delivered' || s === 'payment_pending')
+  if (s === 'delivered')
+    return { color: 'amber', label: 'Endabgabe prüfen', icon: 'check-circle' };
+  if (s === 'completed' || s === 'payment_pending')
     return { color: 'green', label: 'Abgeschlossen', icon: 'check-circle' };
   // Pre-payment states: customer must understand we're waiting on the offer/invoice/payment.
   if (s === 'qualified' || s === 'offer_sent')
@@ -71,7 +55,8 @@ function custStatusMeta(o) {
 
 function custProgress(o) {
   const s = o.status;
-  if (s === 'completed' || s === 'delivered' || s === 'payment_pending') return 100;
+  if (s === 'completed' || s === 'payment_pending') return 100;
+  if (s === 'delivered') return 95; // QA passed, awaiting customer acceptance
   if (s === 'cancelled') return 0;
   if (s === 'available' || s === 'qualified' || s === 'invoice_sent') return 5;
   if (s === 'claimed_pending_approval') return 12;
@@ -391,7 +376,9 @@ function CustOrderStatus({ o }) {
                 'Ihr Ghostwriter überarbeitet die Arbeit gemäß Ihrem Feedback (Runde ' + (o.revisionRounds || 1) + ').' :
                 o.status === 'final_submitted' || o.status === 'qa_review' ?
                 'Die Endversion wird derzeit vom efactory1 QA-Team auf Plagiat, KI-Nutzung und Formatierung geprüft.' :
-                o.status === 'completed' || o.status === 'delivered' || o.status === 'payment_pending' ?
+                o.status === 'delivered' ?
+                'Die Endversion hat die Qualitätsprüfung bestanden und steht für Sie bereit. Bitte prüfen Sie sie und nehmen Sie die Endabgabe an oder fordern Sie letzte Anpassungen an.' :
+                o.status === 'completed' || o.status === 'payment_pending' ?
                 'Ihre Arbeit wurde erfolgreich geliefert. Die Endrechnung finden Sie im Tab „Zahlungen".' :
                 'Ihr Auftrag wird bearbeitet.'}
             </div>
@@ -575,9 +562,8 @@ function CustInterimFeedback({ o, toast }) {
         <div className="flex gap-2 mt-1">
           <button type="button" className="btn btn-sm" onClick={()=>setMode(null)}>Zurück</button>
           <button type="button" className="btn btn-sm btn-success" onClick={()=>{
-            if (window.__patchOrder) window.__patchOrder(o.id, { status: 'active', customerSatisfied: true });
+            window.EFActions.customer.approveInterim(o.id);
             toast && toast({ tone: 'success', transition: { entity: `Auftrag #${o.id}`, from: 'Zwischenstand', to: 'In Bearbeitung' }, text: 'Zwischenstand freigegeben · GW arbeitet weiter' });
-            window.efNotify && window.efNotify({ to: 'gw', title: 'Zwischenstand freigegeben', body: `Kunde hat Zwischenstand #${o.id} freigegeben` });
           }}>
             <Icon name="check" size={12}/> Freigabe bestätigen
           </button>
@@ -600,9 +586,8 @@ function CustInterimFeedback({ o, toast }) {
         <div className="flex gap-2">
           <button type="button" className="btn btn-sm" onClick={()=>{setMode(null);setNote('');}}>Zurück</button>
           <button type="button" className="btn btn-sm btn-primary" disabled={!canSubmit} onClick={()=>{
-            if (window.__patchOrder) window.__patchOrder(o.id, { status: 'revision_required', revisionRounds: (o.revisionRounds || 0) + 1 });
+            window.EFActions.customer.requestRevision(o.id, note);
             toast && toast({ tone: 'info', transition: { entity: `Auftrag #${o.id}`, from: 'Zwischenstand', to: 'Überarbeitung' }, text: 'Überarbeitungsanfrage gesendet' });
-            window.efNotify && window.efNotify({ to: 'gw', title: 'Überarbeitung angefordert', body: `Auftrag #${o.id}: ${note.slice(0, 60)}` });
           }}>
             <Icon name="rotate-ccw" size={12}/> Überarbeitung anfordern
           </button>
@@ -622,7 +607,80 @@ function CustInterimFeedback({ o, toast }) {
       </button>
       <hr style={{ border: 'none', borderTop: '1px solid var(--border)', margin: '4px 0' }}/>
       <button type="button" className="btn btn-sm btn-ghost" style={{ fontSize: 11.5, color: 'var(--text-3)' }} onClick={()=>{
-        if (window.__patchOrder) window.__patchOrder(o.id, { disputeOpen: true });
+        window.EFActions.customer.escalate(o.id);
+        toast && toast({ tone: 'danger', text: 'Streitfall gemeldet · Berat prüft und meldet sich.' });
+      }}>
+        <Icon name="alert-triangle" size={11}/> Problem eskalieren
+      </button>
+    </div>
+  );
+}
+
+// CustFinalAcceptance — once QA passes a final, the order sits in 'delivered'
+// until the customer explicitly accepts it. Acceptance is the customer-side
+// gate of the Friday release (PRD friday_payment_batch.release_gates ·
+// customer_satisfied). Without this UI no live order can ever reach
+// payment_pending and the GW honorarium would stay stuck behind the gate.
+function CustFinalAcceptance({ o, toast }) {
+  const [mode, setMode] = useStateA(null); // null | 'accept' | 'revision'
+  const [note, setNote] = useStateA('');
+
+  if (mode === 'accept') {
+    return (
+      <div className="flex-col gap-2">
+        <div className="banner success" style={{ fontSize: 12 }}>
+          <Icon name="check-circle" size={13}/>
+          <span>Mit der Annahme bestätigen Sie, dass die Endversion Ihren Anforderungen entspricht. efactory1 wird die Endrechnung erstellen und das Honorar an Ihren Ghostwriter im nächsten Freitags-Batch auszahlen.</span>
+        </div>
+        <div className="flex gap-2 mt-1">
+          <button type="button" className="btn btn-sm" onClick={()=>setMode(null)}>Zurück</button>
+          <button type="button" className="btn btn-sm btn-success" onClick={()=>{
+            const ok = window.EFActions.customer.acceptFinal(o.id);
+            if (ok) toast && toast({ tone: 'success', transition: { entity: `Auftrag #${o.id}`, from: 'Endversion', to: 'Abgeschlossen' }, text: 'Endversion akzeptiert · Auftrag abgeschlossen' });
+          }}>
+            <Icon name="check" size={12}/> Endabgabe annehmen
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (mode === 'revision') {
+    const canSubmit = note.trim().length >= 10;
+    return (
+      <div className="flex-col gap-2">
+        <label className="fs-12 text-muted">Bitte beschreiben Sie die letzten gewünschten Anpassungen (mind. 10 Zeichen):</label>
+        <textarea
+          style={{ width: '100%', minHeight: 80, resize: 'vertical', padding: 10, fontSize: 13, border: `1px solid ${canSubmit ? 'var(--border)' : 'var(--amber)'}`, borderRadius: 8, background: 'var(--surface)', color: 'var(--text)', fontFamily: 'inherit', boxSizing: 'border-box' }}
+          placeholder="z.B. Quellenverzeichnis bitte ergänzen, Tippfehler in Kapitel 4..."
+          value={note}
+          onChange={(e)=>setNote(e.target.value)}
+        />
+        <div className="flex gap-2">
+          <button type="button" className="btn btn-sm" onClick={()=>{setMode(null);setNote('');}}>Zurück</button>
+          <button type="button" className="btn btn-sm btn-primary" disabled={!canSubmit} onClick={()=>{
+            window.EFActions.customer.requestRevision(o.id, note);
+            toast && toast({ tone: 'info', transition: { entity: `Auftrag #${o.id}`, from: 'Endversion', to: 'Überarbeitung' }, text: 'Überarbeitungsanfrage gesendet' });
+          }}>
+            <Icon name="rotate-ccw" size={12}/> Überarbeitung anfordern
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex-col gap-2">
+      <div className="text-muted fs-12 mb-1">Die Endversion ist freigegeben. Bitte prüfen Sie sie und entscheiden Sie:</div>
+      <button type="button" className="btn btn-sm btn-success" onClick={()=>setMode('accept')}>
+        <Icon name="check" size={12}/> Endabgabe annehmen
+      </button>
+      <button type="button" className="btn btn-sm" onClick={()=>setMode('revision')}>
+        <Icon name="rotate-ccw" size={12}/> Letzte Anpassungen anfordern
+      </button>
+      <hr style={{ border: 'none', borderTop: '1px solid var(--border)', margin: '4px 0' }}/>
+      <button type="button" className="btn btn-sm btn-ghost" style={{ fontSize: 11.5, color: 'var(--text-3)' }} onClick={()=>{
+        window.EFActions.customer.escalate(o.id);
         toast && toast({ tone: 'danger', text: 'Streitfall gemeldet · Berat prüft und meldet sich.' });
       }}>
         <Icon name="alert-triangle" size={11}/> Problem eskalieren
@@ -704,6 +762,18 @@ function CustOrderFiles({ o, toast }) {
             </div>
             <div className="card-pad">
               <CustInterimFeedback o={o} toast={toast}/>
+            </div>
+          </div>
+        )}
+
+        {o.status === 'delivered' && (
+          <div className="card">
+            <div className="card-head">
+              <div className="card-title">Endabgabe prüfen</div>
+              <span className="pill pill-amber" style={{ fontSize: 10 }}><Icon name="clock" size={9}/> Ihre Entscheidung</span>
+            </div>
+            <div className="card-pad">
+              <CustFinalAcceptance o={o} toast={toast}/>
             </div>
           </div>
         )}
