@@ -57,9 +57,9 @@ function CustomersPage({ navigate }) {
       </div>
 
       <div className="flex items-center gap-2 mb-3" style={{ flexWrap: 'wrap' }}>
-        <div className="topbar-search" style={{ width: 280, background: 'var(--surface)' }}>
-          <Icon name="search" size={14} className="text-faint"/>
-          <input style={{ border: 'none', outline: 'none', background: 'transparent', flex: 1, fontSize: 12.5, color: 'var(--text)' }} placeholder="Search name or email…" value={search} onChange={e => setSearch(e.target.value)}/>
+        <div className="topbar-search" style={{ width: 280 }}>
+          <Icon name="search" size={14} className="text-faint topbar-search-icon" aria-hidden/>
+          <input type="search" placeholder="Search name or email…" value={search} onChange={e => setSearch(e.target.value)} aria-label="Search customers"/>
         </div>
         {[['all','All'],['open','Has open balance'],['vip','VIP'],['dispute','In dispute']].map(([v,l]) => (
           <button key={v} className={`chip ${filter===v?'active':''}`} onClick={() => setFilter(v)}>{l}</button>

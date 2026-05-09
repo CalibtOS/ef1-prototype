@@ -346,8 +346,13 @@ function Topbar({ role, setRole, navigate, toast }) {
     <div className="topbar">
       {isStaff && (
         <div className="topbar-search">
-          <Icon name="search" size={14} className="text-faint"/>
-          <input placeholder={isAdmin ? 'Search orders, customers, GWs… or ask AI' : 'Search submissions, orders…'} aria-label="Search"/>
+          <Icon name="search" size={14} className="text-faint topbar-search-icon" aria-hidden/>
+          <input
+            type="search"
+            enterKeyHint="search"
+            placeholder={isAdmin ? 'Search orders, customers, GWs…' : 'Search submissions, orders…'}
+            aria-label="Search"
+          />
           <span className="kbd">⌘K</span>
         </div>
       )}
