@@ -1,18 +1,20 @@
 // Admin · Order detail — overview, payments, submissions, comms, assignment, audit tabs.
 ;(function(){
 const { useState: useStateA, useEffect: useEffectA, useMemo: useMemoA } = React;
-const { Icon, StatusPill, Avatar, Money, Bi, ScoreBar, CrumbBar, NotReady, PlannedTag, EmptyState, Skeleton } = window;
+const { Icon, StatusPill, Avatar, Money, Bi, ScoreBar, CrumbBar, NotReady, PlannedTag, EmptyState, Skeleton, ChatNotice, ChatMessage } = window;
 const U = window.EFU;
 const D = window.EF;
 
 function OrderDetail({ orderId, navigate, toast, fixState, setFixState }) {
   const [tab, setTab] = useStateA('overview');
   const [showRateSlider, setShowRateSlider] = useStateA(false);
+  const [approving, setApproving] = useStateA(null);
   // Use liveOrder so newly-created orders (admin wizard, IDs 9100+ in fixState) resolve.
   const order = D.liveOrder(orderId);
   if (!order) return <div className="page">Order not found.</div>;
   const cust = D.customer(order.customerId);
   const gw = D.gw(order.gwId);
+  const submissionsCount = D.SUBMISSIONS.filter(s => s.orderId === order.id).length;
   const dm = U.deadlineMeta(order.finalDeadline);
   const isClaim = order.status === 'claimed_pending_approval';
 
@@ -30,7 +32,6 @@ function OrderDetail({ orderId, navigate, toast, fixState, setFixState }) {
   const gateAllPass = _gates.releasable;
 
   // Approve claim (golden path) — plays a dual-email cascade animation
-  const [approving, setApproving] = useStateA(null);
   const approveClaim = () => {
     setApproving({ phase: 'gw' });
     setTimeout(() => setApproving({ phase: 'cust' }), 700);
@@ -189,7 +190,7 @@ function OrderDetail({ orderId, navigate, toast, fixState, setFixState }) {
         {['overview','assignment','submissions','communications','payments','audit'].map(t => (
           <div key={t} className={`tab ${tab===t?'active':''}`} onClick={() => setTab(t)} style={{ textTransform: 'capitalize' }}>
             {t === 'audit' ? 'Audit log' : t}
-            {t === 'submissions' && <span className="pill pill-pink">3</span>}
+            {t === 'submissions' && submissionsCount > 0 && <span className="pill pill-pink">{submissionsCount}</span>}
             {t === 'payments' && order.outstandingEur > 0 && <span className="pill pill-amber">!</span>}
           </div>
         ))}
@@ -489,30 +490,48 @@ function SubmissionsTab({ order }) {
 }
 
 function CommsTab({ order }) {
+  const cust = D.customer(order.customerId);
+  const gw = D.gw(order.gwId);
+  const customerInitials = cust?.initials || 'CU';
+  const gwInitials = gw?.initials || 'GW';
+  const comms = [
+    { ch: 'email', from: 'GW', sender: gw?.name || 'Ghostwriter', initials: gwInitials, text: 'Hallo Adrian, anbei der Zwischenstand für Kapitel 3...', at: '2026-05-06T16:42:00', attachments: [{ name: 'Zwischenstand_Kapitel_3.pdf', meta: '812 KB', icon: 'file-text' }] },
+    { ch: 'whatsapp', from: 'Customer', sender: cust?.name || 'Customer', initials: customerInitials, text: 'Wann bekomme ich den nächsten Stand?', at: '2026-05-07T09:14:00' },
+    { ch: 'voice', from: 'Customer', sender: cust?.name || 'Customer', initials: customerInitials, text: 'Voicemail received · 0:42 · metadata only', at: '2026-05-07T11:02:00', system: true },
+    { ch: 'email', from: 'efactory1', sender: 'efactory1', initials: 'EF', text: 'Lieber Adrian, der Zwischenstand wird morgen früh übermittelt.', at: '2026-05-07T13:42:00' },
+  ];
   return (
-    <div className="card">
-      <div className="card-head"><div className="card-title">Unified communications</div><span className="text-faint fs-11">email · WhatsApp · voice metadata · platform chat</span></div>
-      <div className="card-pad">
-        <div className="banner info mb-3"><Icon name="lock" size={14}/><span>efactory1 always in CC. Financial keywords auto-redirected to <code>kundenservice@efactory1.de</code>.</span></div>
-        <div className="flex-col gap-2">
-          {[
-            { ch: 'email', from: 'GW', to: 'Customer', text: 'Hallo Adrian, anbei der Zwischenstand für Kapitel 3...', at: '2026-05-06T16:42:00', sentiment: 'neutral' },
-            { ch: 'whatsapp', from: 'Customer', to: 'efactory1', text: 'Wann bekomme ich den nächsten Stand?', at: '2026-05-07T09:14:00', sentiment: 'neutral' },
-            { ch: 'voice', from: 'Customer', text: 'Voicemail · 0:42 · transcribed', at: '2026-05-07T11:02:00', sentiment: 'tense' },
-            { ch: 'email', from: 'efactory1', to: 'Customer', text: 'Lieber Adrian, der Zwischenstand wird morgen früh übermittelt.', at: '2026-05-07T13:42:00', sentiment: 'positive' },
-          ].map((m, i) => (
-            <div key={i} className="card-pad" style={{ border: '1px solid var(--border)', borderRadius: 8 }}>
-              <div className="flex items-center gap-2 mb-2">
-                <div className={`thread-channel-icon ${m.ch}`}><Icon name={m.ch==='email'?'mail':m.ch==='whatsapp'?'message-circle':m.ch==='voice'?'mic':'message-square'} size={14}/></div>
-                <strong className="fs-12">{m.from}</strong>
-                <Icon name="arrow-right" size={11} className="text-faint"/>
-                <span className="fs-12 text-muted">{m.to || 'efactory1'}</span>
-                <span className="text-faint fs-11" style={{ marginLeft: 'auto' }}>{U.relTime(m.at)}</span>
-              </div>
-              <div className="fs-12">{m.text}</div>
-            </div>
-          ))}
+    <div className="chat-shell chat-shell-soft">
+      <div className="chat-header">
+        <div className="chat-title">
+          <div>
+            <span className="chat-title-main">Unified communications</span>
+            <span className="chat-title-sub">email · WhatsApp · voice metadata · platform chat</span>
+          </div>
         </div>
+      </div>
+      <ChatNotice compact>
+        efactory1 stays in CC. Financial keywords are auto-redirected to <code>kundenservice@efactory1.de</code>.
+      </ChatNotice>
+      <div className="chat-stream" style={{ maxHeight: 560 }}>
+        {comms.map((m, i) => {
+          if (m.system) return <ChatMessage key={i} system at={m.at}>{m.text}</ChatMessage>;
+          const mine = m.from === 'efactory1';
+          return (
+            <ChatMessage
+              key={i}
+              mine={mine}
+              sender={m.sender}
+              initials={m.initials}
+              at={m.at}
+              channel={m.ch}
+              attachments={m.attachments}
+              status={mine ? 'sent' : null}
+            >
+              {m.text}
+            </ChatMessage>
+          );
+        })}
       </div>
     </div>
   );

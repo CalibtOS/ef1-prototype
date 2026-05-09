@@ -1,7 +1,7 @@
 // GW · Assignment detail — privacy-respecting order view (no financials).
 ;(function(){
 const { useState: useStateA, useEffect: useEffectA, useMemo: useMemoA } = React;
-const { Icon, StatusPill, Avatar, Money, Bi, ScoreBar, CrumbBar, NotReady, PlannedTag, EmptyState, Skeleton } = window;
+const { Icon, StatusPill, Avatar, Money, Bi, ScoreBar, CrumbBar, NotReady, PlannedTag, EmptyState, Skeleton, ChatNotice, ChatMessage } = window;
 const U = window.EFU;
 const D = window.EF;
 
@@ -171,6 +171,10 @@ function GWAssignmentDetail({ orderId, navigate, toast, fixState, setFixState })
             const finalAllowed   = isApproved && s === 'active';
             // Revision upload (re-routed to the GWSubmit kind=final flow with revisionRounds++).
             const revisionMode   = isApproved && s === 'revision_required';
+            const finalAlreadySubmitted = ['final_submitted','qa_review','delivered','payment_pending','completed'].includes(s);
+            const finalButtonLabel = finalAlreadySubmitted
+              ? 'Final + invoice submitted'
+              : revisionMode ? 'Upload revision' : 'Upload final + invoice';
             const stateNote = (allow, fallback) => allow ? null : fallback;
             const reasonFor = {
               interim_submitted: 'Interim already submitted — awaiting customer feedback',
@@ -222,7 +226,7 @@ function GWAssignmentDetail({ orderId, navigate, toast, fixState, setFixState })
                 </div>
                 <div className="text-faint fs-11 mono mb-2">due {U.fmtDate(order.finalDeadline)}, 18:00</div>
                 <button className="btn btn-sm w-full" onClick={() => (finalAllowed || revisionMode) && navigate('gw-submit', { id: order.id, kind: revisionMode ? 'revision' : 'final' })} disabled={!(finalAllowed || revisionMode)} title={stateNote(finalAllowed || revisionMode, stateReason)} style={{ justifyContent: 'center' }}>
-                  <Icon name="upload-cloud" size={12}/> {revisionMode ? 'Upload revision' : 'Upload final + invoice'}
+                  <Icon name={finalAlreadySubmitted ? 'check-circle' : 'upload-cloud'} size={12}/> {finalButtonLabel}
                 </button>
               </div>
               <div style={{ padding: 14, border: '1px dashed var(--border)', borderRadius: 8, background: 'var(--surface-2)' }}>
@@ -246,14 +250,15 @@ function GWAssignmentDetail({ orderId, navigate, toast, fixState, setFixState })
             </div>
             <div className="card-pad">
               {!isApproved ? (
-                <div className="banner info" style={{ fontSize: 11.5 }}>
-                  <Icon name="lock" size={12}/>
-                  <span>Customer chat unlocks after Berat approves your claim.</span>
-                </div>
+                <ChatNotice compact icon="lock">Customer chat unlocks after Berat approves your claim.</ChatNotice>
               ) : (
-                <div className="text-muted fs-12">
-                  Last message: <em>&quot;Vielen Dank für die schnelle Rückmeldung — passt so!&quot;</em>
-                  <div className="text-faint fs-11 mt-1">Auto-CC kundenservice@efactory1.de · financial keywords intercepted.</div>
+                <div className="chat-shell chat-shell-soft" style={{ minHeight: 0 }}>
+                  <div className="chat-stream" style={{ padding: 12, maxHeight: 170 }}>
+                    <ChatMessage sender="Customer" initials={D.customer(order.customerId)?.initials || 'CU'} at="2026-05-07T10:34:00">
+                      Vielen Dank für die schnelle Rückmeldung — passt so!
+                    </ChatMessage>
+                  </div>
+                  <ChatNotice compact>Auto-CC kundenservice@efactory1.de · financial keywords intercepted.</ChatNotice>
                 </div>
               )}
             </div>

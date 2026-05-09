@@ -1,7 +1,7 @@
 // QA · Order detail — restricted view (no financials per PRD qa.permissions).
 ;(function(){
 const { useState: useStateA, useEffect: useEffectA, useMemo: useMemoA } = React;
-const { Icon, StatusPill, Avatar, Money, Bi, ScoreBar, CrumbBar, NotReady, PlannedTag, EmptyState, Skeleton } = window;
+const { Icon, StatusPill, Avatar, Money, Bi, ScoreBar, CrumbBar, NotReady, PlannedTag, EmptyState, Skeleton, ChatNotice, ChatMessage } = window;
 const U = window.EFU;
 const D = window.EF;
 
@@ -187,23 +187,34 @@ function QAOrderDetail({ orderId, navigate, toast, fixState, setFixState }) {
         <SubmissionsTab order={order} />
       )}
       {tab === 'communications' && (
-        <div className="card">
-          <div className="card-head"><div className="card-title">Customer-facing communications</div><span className="text-faint fs-11">QA-relevant excerpts only — financial threads hidden</span></div>
-          <div className="card-pad flex-col gap-2">
-            <div className="banner info"><Icon name="lock" size={14}/><span>Threads containing pricing/payment keywords are auto-redirected to <code>kundenservice@efactory1.de</code> and not visible to QA.</span></div>
-            {[
-              { from: 'GW', to: 'Customer', text: 'Anbei der Zwischenstand für Kapitel 3. Bitte um Rückmeldung.', at: '2026-05-06T16:42:00' },
-              { from: 'Customer', to: 'efactory1', text: 'Inhaltlich gut, aber §3 fehlt die Methodendiskussion.', at: '2026-05-07T09:14:00' },
-            ].map((m, i) => (
-              <div key={i} className="card-pad" style={{ border: '1px solid var(--border)', borderRadius: 8 }}>
-                <div className="flex items-center gap-2 mb-2">
-                  <strong className="fs-12">{m.from}</strong>
-                  <Icon name="arrow-right" size={11} className="text-faint"/>
-                  <span className="fs-12 text-muted">{m.to}</span>
-                  <span className="text-faint fs-11" style={{ marginLeft: 'auto' }}>{U.relTime(m.at)}</span>
-                </div>
-                <div className="fs-12">{m.text}</div>
+        <div className="chat-shell chat-shell-soft">
+          <div className="chat-header">
+            <div className="chat-title">
+              <div>
+                <span className="chat-title-main">Customer-facing communications</span>
+                <span className="chat-title-sub">QA-relevant excerpts only · financial threads hidden</span>
               </div>
+            </div>
+          </div>
+          <ChatNotice compact icon="lock">
+            Threads containing pricing/payment keywords are auto-redirected to <code>kundenservice@efactory1.de</code> and not visible to QA.
+          </ChatNotice>
+          <div className="chat-stream" style={{ maxHeight: 520 }}>
+            {[
+              { from: 'GW', sender: gw?.name || 'GW', initials: gw?.initials || 'GW', text: 'Anbei der Zwischenstand für Kapitel 3. Bitte um Rückmeldung.', at: '2026-05-06T16:42:00', attachments: [{ name: 'Zwischenstand_Kapitel_3.pdf', meta: '812 KB', icon: 'file-text' }] },
+              { from: 'Customer', sender: cust?.name || 'Customer', initials: cust?.initials || 'CU', text: 'Inhaltlich gut, aber §3 fehlt die Methodendiskussion.', at: '2026-05-07T09:14:00' },
+            ].map((m, i) => (
+              <ChatMessage
+                key={i}
+                mine={m.from === 'GW'}
+                sender={m.sender}
+                initials={m.initials}
+                at={m.at}
+                attachments={m.attachments}
+                channel="platform"
+              >
+                {m.text}
+              </ChatMessage>
             ))}
           </div>
         </div>

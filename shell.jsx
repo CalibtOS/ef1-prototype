@@ -315,8 +315,8 @@ function Topbar({ role, setRole, navigate, toast }) {
       { id: 'gn2', title: 'Interim deadline tomorrow', body: '#3508 · Zwischenstand 1 · 18:00', at: '2026-05-07T09:00:00', read: false },
     ],
     customer: [
-      { id: 'cn1', title: 'Zwischenstand verfügbar', body: 'Auftrag #3508 — Kapitel 1 freigegeben', at: '2026-05-06T16:30:00', read: false },
-      { id: 'cn2', title: 'Rechnung bereit', body: 'RG-2026-3508 zum Download verfügbar', at: '2026-05-06T18:00:00', read: true },
+      { id: 'cn1', title: 'Zwischenstand verfügbar', body: 'Auftrag #3518 — Zwischenstand 1 hochgeladen · bitte prüfen', at: '2026-05-06T15:30:00', read: false, urgent: false },
+      { id: 'cn2', title: 'Zahlung bestätigt', body: 'Rate 1 von 2 · 1.180,00 € · Kreditkarte · Auftrag #3518', at: '2026-04-01T10:00:00', read: true },
     ],
   };
   const [notifs, setNotifs] = useState(notifsByRole[role] || notifsByRole.admin);

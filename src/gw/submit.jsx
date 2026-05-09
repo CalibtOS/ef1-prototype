@@ -5,6 +5,38 @@ const { Icon, StatusPill, Avatar, Money, Bi, ScoreBar, CrumbBar, NotReady, Plann
 const U = window.EFU;
 const D = window.EF;
 
+const CLOSED_SUBMISSION_REASONS = {
+  claimed_pending_approval: 'Awaiting admin approval',
+  interim_submitted: 'Interim already submitted — awaiting customer feedback',
+  under_customer_review: 'Awaiting customer review',
+  final_submitted: 'Final submitted — awaiting QA',
+  qa_review: 'In QA — no further upload needed',
+  delivered: 'Delivered — awaiting customer acceptance/payment gate',
+  payment_pending: 'Payment pending — work complete',
+  completed: 'Order complete',
+  cancelled: 'Order cancelled',
+  on_hold: 'Order on hold',
+  delay_reported: 'Delay reported — awaiting admin decision',
+  extension_requested: 'Extension requested — awaiting admin decision',
+  ai_violation_review: 'AI violation under review',
+  plagiarism_violation_review: 'Plagiarism violation under review',
+};
+
+function allowedSubmissionKinds(order) {
+  if (!order || order.gwId !== D.GW_ME.id) return [];
+  if (order.status === 'revision_required') return ['revision'];
+  if (order.status !== 'active') return [];
+  return [
+    order.interimDeadline ? 'interim_1' : null,
+    order.interim2Deadline ? 'interim_2' : null,
+    'final',
+  ].filter(Boolean);
+}
+
+function submissionClosedReason(order) {
+  return CLOSED_SUBMISSION_REASONS[order?.status] || 'No submission is currently expected for this assignment';
+}
+
 // ============ GW SUBMIT ============
 // Per-assignment submit. Routes:
 //   #/gw/gw-submit?id=3520&kind=interim_1
@@ -14,7 +46,7 @@ const D = window.EF;
 function GWSubmit({ orderId, kind, navigate, toast, setFixState }) {
   // No orderId → show picker of my active assignments.
   if (!orderId) return <GWSubmitPicker navigate={navigate}/>;
-  const order = D.order(orderId);
+  const order = D.liveOrder(orderId);
   if (!order) return <div className="page">Assignment #{orderId} not found.</div>;
   if (order.gwId !== 'gw-iw') return <div className="page">This assignment isn't yours.</div>;
 
@@ -26,6 +58,34 @@ function GWSubmit({ orderId, kind, navigate, toast, setFixState }) {
     if (order.interimDeadline && U.daysTo(order.interimDeadline) >= -1 && order.status === 'active') return 'interim_1';
     return 'final';
   })();
+  const allowedKinds = allowedSubmissionKinds(order);
+  if (!allowedKinds.includes(resolvedKind)) {
+    return (
+      <div className="page" style={{ maxWidth: 640, margin: '0 auto' }}>
+        <div className="page-header">
+          <div>
+            <CrumbBar trail={['My Assignments', `#${order.id}`, 'Submit']}/>
+            <h1 className="page-title" style={{ marginTop: 6 }}>Submission closed</h1>
+            <div className="page-subtitle">Order #{order.id} · {order.titleTBD ? 'folgt' : order.title}</div>
+          </div>
+        </div>
+        <div className="card">
+          <div className="card-pad flex-col gap-3" style={{ textAlign: 'center', padding: 28 }}>
+            <div style={{ width: 48, height: 48, borderRadius: '50%', background: 'var(--surface-2)', color: 'var(--text-3)', display: 'grid', placeItems: 'center', margin: '0 auto' }}>
+              <Icon name="lock" size={20}/>
+            </div>
+            <div>
+              <div className="strong fs-13">{submissionClosedReason(order)}</div>
+              <div className="text-muted fs-12 mt-1">The final work and invoice are already recorded for this workflow state. Wait for the next platform action instead of uploading another file.</div>
+            </div>
+            <button type="button" className="btn btn-primary" onClick={() => navigate('order-detail', { id: order.id })} style={{ alignSelf: 'center' }}>
+              <Icon name="chevron-left" size={14}/> Back to assignment
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
   const isFinal = resolvedKind === 'final';
   const isRevision = resolvedKind === 'revision';
   const kindLabel = {
@@ -433,7 +493,7 @@ function GWSubmit({ orderId, kind, navigate, toast, setFixState }) {
 
 // Sub-component: when GW navigates to /gw/gw-submit without an id, list active assignments.
 function GWSubmitPicker({ navigate }) {
-  const myActive = D.liveOrders().filter(o => o.gwId === 'gw-iw' && !['available','qualified','offer_sent','invoice_sent','completed','cancelled','lead'].includes(o.status));
+  const myActive = D.liveOrders().filter(o => allowedSubmissionKinds(o).length > 0);
   return (
     <div className="page" style={{ maxWidth: 720, margin: '0 auto' }}>
       <div className="page-header">
@@ -447,6 +507,7 @@ function GWSubmitPicker({ navigate }) {
       ) : (
         <div className="card" style={{ padding: 0 }}>
           {myActive.map(o => {
+            const allowedKinds = allowedSubmissionKinds(o);
             const interimDue = o.interimDeadline && U.daysTo(o.interimDeadline);
             const finalDue = U.daysTo(o.finalDeadline);
             return (
@@ -459,20 +520,22 @@ function GWSubmitPicker({ navigate }) {
                   <StatusPill status={o.status}/>
                 </div>
                 <div className="flex gap-2" style={{ flexWrap: 'wrap' }}>
-                  {o.interimDeadline && (
+                  {allowedKinds.includes('interim_1') && (
                     <button className="btn btn-sm" onClick={() => navigate('gw-submit', { id: o.id, kind: 'interim_1' })}>
                       <Icon name="upload-cloud" size={11}/> Interim 1 · {U.fmtDate(o.interimDeadline)}
                     </button>
                   )}
-                  {o.interim2Deadline && (
+                  {allowedKinds.includes('interim_2') && (
                     <button className="btn btn-sm" onClick={() => navigate('gw-submit', { id: o.id, kind: 'interim_2' })}>
                       <Icon name="upload-cloud" size={11}/> Interim 2 · {U.fmtDate(o.interim2Deadline)}
                     </button>
                   )}
-                  <button className="btn btn-sm btn-primary" onClick={() => navigate('gw-submit', { id: o.id, kind: 'final' })}>
-                    <Icon name="upload-cloud" size={11}/> Final + invoice
-                  </button>
-                  {o.status === 'revision_required' && (
+                  {allowedKinds.includes('final') && (
+                    <button className="btn btn-sm btn-primary" onClick={() => navigate('gw-submit', { id: o.id, kind: 'final' })}>
+                      <Icon name="upload-cloud" size={11}/> Final + invoice
+                    </button>
+                  )}
+                  {allowedKinds.includes('revision') && (
                     <button className="btn btn-sm" onClick={() => navigate('gw-submit', { id: o.id, kind: 'revision' })}>
                       <Icon name="rotate-ccw" size={11}/> Revision (round {(o.revisionRounds || 0) + 1})
                     </button>

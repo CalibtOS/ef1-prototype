@@ -1,7 +1,7 @@
 // Admin · Inbox — customer & GW threads with reply, redirect-to-kundenservice.
 ;(function(){
 const { useState: useStateA, useEffect: useEffectA, useMemo: useMemoA } = React;
-const { Icon, StatusPill, Avatar, Money, Bi, ScoreBar, CrumbBar, NotReady, PlannedTag, EmptyState, Skeleton } = window;
+const { Icon, StatusPill, Avatar, Money, Bi, ScoreBar, CrumbBar, NotReady, PlannedTag, EmptyState, Skeleton, ChatNotice, ChatMessage, ChatComposer, ChatThreadRow } = window;
 const U = window.EFU;
 const D = window.EF;
 
@@ -70,56 +70,51 @@ function Inbox({ toast }) {
   };
   const onRedirect = () => _toast({ text: `Thread #${active.orderId} redirected to kundenservice@efactory1.de`, tone: 'info' });
   const onEscalate = () => _toast({ text: `Thread escalated · admin Berat notified`, tone: 'info' });
+  const initialsFor = (name) => (name || 'EF').split(/\s+/).map(s => s[0]).join('').slice(0, 2).toUpperCase();
+  const activeInitials = active.system ? 'EF' : initialsFor(active.from);
+  const activeChannel = active.ch === 'whatsapp' ? 'WhatsApp' : active.ch === 'voice' ? 'Voice' : active.ch === 'platform' ? 'Platform' : 'Email';
 
   return (
     <div className="page" style={{ paddingBottom: 0 }}>
       <div className="page-header">
         <div>
           <h1 className="page-title">Unified Inbox</h1>
-          <div className="page-subtitle">all channels · efactory1 always in CC · sentiment-tagged · pricing keywords auto-redirected</div>
+          <div className="page-subtitle">all channels · sentiment-tagged · pricing keywords auto-redirected</div>
         </div>
       </div>
-      <div className="inbox-grid" style={{ display: 'grid', gridTemplateColumns: '320px 1fr 320px', gap: 16, height: 'calc(100vh - 220px)', minHeight: 560 }}>
-        <div className="card" style={{ overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-          <div className="card-head" style={{ padding: '8px 12px' }}>
+      <ChatNotice compact>
+        efactory1 remains in CC on platform, email and WhatsApp replies. Pricing/payment threads are routed to <span className="mono">kundenservice@efactory1.de</span>.
+      </ChatNotice>
+
+      <div className="chat-app-grid with-side mt-3" style={{ height: 'calc(100vh - 240px)', minHeight: 620 }}>
+        <div className="chat-shell">
+          <div className="chat-header" style={{ padding: '8px 12px' }}>
             <div className="flex gap-1">
               {['Inbox', 'Mentions', 'Auto-flagged'].map(t => (
                 <button type="button" key={t} className={`chip ${tab===t?'active':''}`} onClick={() => setTab(t)}>{t}</button>
               ))}
             </div>
           </div>
-          <div style={{ overflowY: 'auto', flex: 1 }}>
+          <div className="chat-thread-list">
             {filteredThreads.map(t => (
-              <button
-                type="button"
+              <ChatThreadRow
                 key={t.id}
+                active={active?.id === t.id}
+                unread={t.unread ? 1 : 0}
+                initials={t.system ? 'EF' : initialsFor(t.from)}
+                tone={t.system ? 'amber' : t.ch === 'whatsapp' ? 'emerald' : 'blue'}
+                title={t.from}
+                subtitle={`#${t.orderId} · ${t.subject}`}
+                preview={t.last}
+                meta={U.relTime(t.at)}
                 onClick={() => setActiveId(t.id)}
-                aria-current={activeId === t.id}
-                style={{
-                  display: 'block', textAlign: 'left', width: '100%',
-                  padding: '12px 14px', borderBottom: '1px solid var(--border)', cursor: 'pointer',
-                  background: activeId === t.id ? 'var(--surface-3)' : (t.unread ? 'color-mix(in oklab, var(--blue) 3%, var(--surface))' : 'var(--surface)'),
-                  borderLeft: activeId === t.id ? '3px solid var(--blue)' : (t.unread ? '3px solid color-mix(in oklab, var(--blue) 50%, transparent)' : '3px solid transparent'),
-                  borderTop: 'none', borderRight: 'none',
-                }}
-              >
-                <div className="flex items-center gap-2 mb-1">
-                  <div className={`thread-channel-icon ${t.ch}`} style={{ width: 22, height: 22 }}><Icon name={t.ch==='email'?'mail':t.ch==='whatsapp'?'message-circle':t.ch==='voice'?'mic':'message-square'} size={11}/></div>
-                  <strong className={`fs-12 ${t.unread ? '' : 'text-muted'}`}>{t.from}</strong>
-                  {t.system && <span className="pill pill-red">System</span>}
-                  <span style={{ flex: 1 }}/>
-                  <span className="fs-11 text-faint">{U.relTime(t.at).split(' ')[0]+'h'}</span>
-                </div>
-                <div className={`fs-12 ${t.unread ? 'strong' : 'text-muted'}`} style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{t.subject}</div>
-                <div className="fs-11 text-muted" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginTop: 2 }}>{t.last}</div>
-                <div className="flex gap-1 mt-1">
-                  <span className="fs-11 text-faint mono">#{t.orderId}</span>
-                  <span style={{ flex: 1 }}/>
+                badges={<>
+                  <span className={`pill pill-${t.ch === 'whatsapp' ? 'green' : t.ch === 'voice' ? 'orange' : t.ch === 'platform' ? 'slate' : 'blue'}`} style={{ fontSize: 10 }}>{t.ch}</span>
                   {t.sentiment === 'tense' && <span className="pill pill-amber" style={{ fontSize: 10 }}>tense</span>}
                   {t.sentiment === 'positive' && <span className="pill pill-green" style={{ fontSize: 10 }}>positive</span>}
                   {t.autoflag && <span className="pill pill-orange" style={{ fontSize: 10 }}>auto: {t.autoflag}</span>}
-                </div>
-              </button>
+                </>}
+              />
             ))}
             {filteredThreads.length === 0 && (
               <div className="text-faint fs-12" style={{ padding: 16 }}>No threads in this tab.</div>
@@ -127,71 +122,73 @@ function Inbox({ toast }) {
           </div>
         </div>
 
-        <div className="card" style={{ display: 'flex', flexDirection: 'column' }}>
-          <div className="card-head">
-            <div>
-              <div className="card-title">{active.subject}</div>
-              <div className="fs-11 text-faint">From <strong>{active.from}</strong> · order #{active.orderId} · {active.ch}</div>
+        <div className="chat-shell chat-shell-soft">
+          <div className="chat-header">
+            <div className="chat-title">
+              <Avatar initials={activeInitials} size={34} tone={active.system ? 'amber' : 'blue'}/>
+              <div style={{ minWidth: 0 }}>
+                <span className="chat-title-main">{active.subject}</span>
+                <span className="chat-title-sub">{active.from} · order #{active.orderId} · {activeChannel}</span>
+              </div>
             </div>
-            {active.autoflag && <span className="pill pill-orange"><Icon name="alert-triangle" size={11}/> Pricing keyword detected → auto-redirected to <span className="mono">kundenservice@efactory1.de</span></span>}
+            {active.autoflag && <span className="pill pill-orange"><Icon name="alert-triangle" size={11}/> pricing redirect</span>}
           </div>
-          <div className="card-pad flex-col gap-3" style={{ flex: 1, overflowY: 'auto' }}>
+
+          <div className="chat-stream">
             {active.ch === 'voice' ? (
-              // Metadata-only per PRD constraint — no transcript or translation
-              <div style={{ padding: 12, background: 'var(--surface-2)', borderRadius: 8 }}>
-                <div className="flex items-center gap-2 mb-2">
-                  <Icon name="mic" size={14} className="text-muted"/>
-                  <span className="fs-11 text-muted">Voicemail metadata · transcript not available by policy</span>
+              <>
+                <ChatMessage system at={active.voiceMeta?.recordedAt || active.at}>Voicemail received · metadata only</ChatMessage>
+                <div className="chat-row is-theirs">
+                  <Avatar initials={activeInitials} size={30} tone="blue"/>
+                  <div className="chat-bubble-wrap">
+                    <div className="chat-name"><span>{active.from}</span><span className="chat-channel">voice</span></div>
+                    <div className="chat-bubble">
+                      <div className="kv" style={{ fontSize: 12 }}>
+                        <div className="kv-row"><dt>Duration</dt><dd className="mono">{active.voiceMeta?.duration || '—'}</dd></div>
+                        <div className="kv-row"><dt>From</dt><dd className="mono">{active.voiceMeta?.from || active.from}</dd></div>
+                        <div className="kv-row"><dt>Recorded at</dt><dd className="mono">{U.fmtDateTime(active.voiceMeta?.recordedAt || active.at)}</dd></div>
+                        <div className="kv-row"><dt>Sentiment tag</dt><dd><span className="pill pill-amber">{active.sentiment}</span></dd></div>
+                      </div>
+                    </div>
+                    <div className="chat-meta"><span>Transcript disabled by policy</span></div>
+                  </div>
                 </div>
-                <div className="kv" style={{ fontSize: 12 }}>
-                  <div className="kv-row"><dt>Duration</dt><dd className="mono">{active.voiceMeta?.duration || '—'}</dd></div>
-                  <div className="kv-row"><dt>From</dt><dd className="mono">{active.voiceMeta?.from || active.from}</dd></div>
-                  <div className="kv-row"><dt>Recorded at</dt><dd className="mono">{U.fmtDateTime(active.voiceMeta?.recordedAt || active.at)}</dd></div>
-                  <div className="kv-row"><dt>Sentiment tag</dt><dd><span className="pill pill-amber">{active.sentiment}</span></dd></div>
-                </div>
-                <div className="banner info mt-2" style={{ fontSize: 11.5 }}>
-                  <Icon name="lock" size={12}/>
-                  <span>Audio playback and transcription are disabled. Reply by phone or email.</span>
-                </div>
-              </div>
+                <ChatNotice compact icon="lock">Audio playback and transcription are disabled. Reply by phone or email.</ChatNotice>
+              </>
             ) : (
-              <div style={{ padding: 12, background: 'var(--surface-2)', borderRadius: 8 }}>
-                <div className="fs-11 text-muted mb-2">{U.fmtDateTime(active.at)} · {active.from}</div>
-                <div className="fs-12">{active.last}</div>
-              </div>
+              <ChatMessage
+                sender={active.from}
+                initials={activeInitials}
+                at={active.at}
+                channel={activeChannel}
+                tone={active.system ? 'amber' : 'blue'}
+              >
+                {active.last}
+              </ChatMessage>
             )}
             {active.id === 'th-4' && (
-              <div className="banner info">
-                <Icon name="zap" size={14}/>
-                <span>This message was auto-redirected. Berat → Kurt: "Für Fragen zu Zahlungen/Raten bitte kundenservice@efactory1.de — der GW darf darauf nicht antworten."</span>
-              </div>
+              <ChatMessage system at={active.at}>Pricing question auto-routed to kundenservice. The GW is not allowed to answer financial terms.</ChatMessage>
             )}
           </div>
-          <div style={{ borderTop: '1px solid var(--border)', padding: 12, background: 'var(--surface-2)' }}>
-            <textarea
-              value={reply}
-              onChange={(e) => setReply(e.target.value)}
-              placeholder="Reply…"
-              aria-label="Reply"
-              style={{ width: '100%', minHeight: 80, border: '1px solid var(--border)', borderRadius: 8, padding: 10, fontFamily: 'inherit', fontSize: 12, resize: 'vertical', background: 'var(--surface)' }}
-            />
-            <div className="flex justify-between mt-2">
-              <div className="flex gap-1">
-                <NotReady className="btn btn-sm" ariaLabel="Attach file" feature="attach-file"><Icon name="paperclip" size={12}/></NotReady>
-                <span className="chip">Auto-translate DE → EN: ON</span>
-                <span className="chip">CC: kundenservice@efactory1.de</span>
-              </div>
-              <button type="button" className="btn btn-primary btn-sm" onClick={onSend} disabled={!reply.trim()}>
-                <Icon name="send" size={12}/> Send via {active.ch}
-              </button>
-            </div>
-          </div>
+
+          <ChatComposer
+            value={reply}
+            onChange={(e) => setReply(e.target.value)}
+            onSend={onSend}
+            placeholder={`Reply via ${activeChannel}...`}
+            sendLabel={`Send via ${activeChannel}`}
+            actions={<>
+              <NotReady className="chat-icon-action" ariaLabel="Attach file" feature="attach-file"><Icon name="paperclip" size={15}/></NotReady>
+              <span className="chip">DE -> EN</span>
+              <span className="chip">CC active</span>
+            </>}
+          />
         </div>
 
         {/* AI assist pane — 3rd column per PRD */}
-        <div className="card" style={{ display: 'flex', flexDirection: 'column' }}>
-          <div className="card-head">
-            <div className="card-title flex items-center gap-2"><Icon name="sparkles" size={14}/> AI assist</div>
+        <div className="chat-shell">
+          <div className="chat-header">
+            <div className="chat-title-main flex items-center gap-2"><Icon name="sparkles" size={14}/> AI assist</div>
             <span className="pill pill-blue" style={{ fontSize: 10 }}>Beta</span>
           </div>
           <div className="card-pad flex-col gap-3" style={{ flex: 1, overflowY: 'auto' }}>
@@ -201,7 +198,7 @@ function Inbox({ toast }) {
             </div>
             <div>
               <div className="fs-11 text-muted mb-1">Suggested reply <span className="text-faint">· tone: {suggestions?.tone}</span></div>
-              <div style={{ padding: 10, background: 'var(--surface-2)', borderRadius: 8, fontSize: 12, lineHeight: 1.5 }}>{suggestions?.reply}</div>
+              <div className="chat-bubble" style={{ background: 'var(--surface-2)', color: 'var(--text)', borderBottomLeftRadius: 5, fontSize: 12 }}>{suggestions?.reply}</div>
               <button type="button" className="btn btn-sm w-full mt-2" onClick={onUseSuggestion} style={{ justifyContent: 'center' }}>
                 <Icon name="zap" size={12}/> Use suggestion
               </button>
@@ -224,10 +221,7 @@ function Inbox({ toast }) {
                 </button>
               </div>
             </div>
-            <div className="banner" style={{ background: 'var(--surface-2)', border: '1px dashed var(--border)', fontSize: 11 }}>
-              <Icon name="lock" size={12}/>
-              <span>Suggestions are drafts only — review before sending. Pricing terms are auto-redirected and never sent to GWs.</span>
-            </div>
+            <ChatNotice compact icon="lock">Suggestions are drafts only. Pricing terms are auto-redirected and never sent to GWs.</ChatNotice>
           </div>
         </div>
       </div>

@@ -481,7 +481,10 @@ function QAQueue({ navigate, toast, fixState, setFixState }) {
                       <div><Icon name="check" size={11} style={{ color: 'var(--green)' }}/> Citations: 47 (APA)</div>
                       <div><Icon name="check" size={11} style={{ color: 'var(--green)' }}/> Word count: matches</div>
                       <div><Icon name="check" size={11} style={{ color: 'var(--green)' }}/> Outline alignment: 92%</div>
-                      <div><Icon name="x" size={11} style={{ color: 'var(--red)' }}/> AI detector raised flags (any AI use = fraud · §5)</div>
+                      {active.aiScore >= 70
+                        ? <div><Icon name="x" size={11} style={{ color: 'var(--red)' }}/> AI detector raised flags ({active.aiScore}% — any AI use = fraud · §5)</div>
+                        : <div><Icon name="check" size={11} style={{ color: 'var(--green)' }}/> AI score within threshold ({active.aiScore}%)</div>
+                      }
                     </div>
                   </div>
                 </div>
@@ -497,13 +500,15 @@ function QAQueue({ navigate, toast, fixState, setFixState }) {
                   </div>
                 </div>
 
-                <div className="banner danger mb-3">
-                  <Icon name="alert-triangle" size={16}/>
-                  <div style={{ flex: 1 }}>
-                    <strong>AI detector flagged §3 Methodology and §5 Conclusion (87% AI probability).</strong>
-                    <div className="fs-11 mt-1">Stylometric drift + repeated phrase templates ("It is important to note that...", "In conclusion, this paper..."). Compare with GW's prior 22 submissions: stylometric distance 4.2σ outside cluster.</div>
+                {active.aiScore >= 70 && (
+                  <div className="banner danger mb-3">
+                    <Icon name="alert-triangle" size={16}/>
+                    <div style={{ flex: 1 }}>
+                      <strong>AI detector flagged §3 Methodology and §5 Conclusion ({active.aiScore}% AI probability).</strong>
+                      <div className="fs-11 mt-1">Stylometric drift + repeated phrase templates ("It is important to note that...", "In conclusion, this paper..."). Compare with GW's prior {gw?.lifetime || 22} submissions: stylometric distance {active.aiScore >= 85 ? '4.2σ' : '2.8σ'} outside cluster.</div>
+                    </div>
                   </div>
-                </div>
+                )}
 
                 <div className="flex gap-2" style={{ flexWrap: 'wrap' }}>
                   <button type="button" className={`btn ${previewOpen ? 'btn-primary' : ''}`} onClick={() => setPreviewOpen(o => !o)}><Icon name="eye" size={14}/> {previewOpen ? 'Hide' : 'Open'} document preview</button>

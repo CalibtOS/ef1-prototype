@@ -85,6 +85,15 @@ const ORDERS = [
   { id: 3553, status: 'available', customerId: 'c-bf', workType: 'expose', title: 'Exposé Masterarbeit: Generation Z & Arbeitsethik', field: 'Soziologie', pages: 8, finalDeadline: '2026-05-15T18:00:00', grossEur: 490, netHonorarium: 184.20, rate: 0.40, gwId: null, leadSource: 'ebay', acceptedAt: '2026-05-03', paidEur: 490, outstandingEur: 0, installments: [{n:1,amt:490,status:'paid',date:'2026-05-03',method:'stripe_card'}], revisionRounds: 0 },
 ];
 
+// Demo GW assignments are real routeable orders for the Ghostwriter persona.
+// Keeping them in shared data avoids list/detail mismatches such as #3601 opening as "not found".
+const GW_DEMO_ASSIGNMENTS = [
+  { id: 3601, status: 'claimed_pending_approval', customerId: 'c-jb', workType: 'hausarbeit', title: 'Agile Skalierung mit SAFe in Großkonzernen', field: 'Wirtschaftsinformatik', pages: 16, finalDeadline: '2026-05-26T18:00:00', interimDeadline: '2026-05-18T18:00:00', grossEur: 784, netHonorarium: 313.46, rate: 0.40, gwId: 'gw-iw', claimedAt: '2026-05-07T10:42:00', leadSource: 'ef1', acceptedAt: '2026-05-07', paidEur: 784, outstandingEur: 0, installments: [{n:1,amt:784,status:'paid',date:'2026-05-07',method:'stripe_card'}], gwPaymentStatus: 'claim_pending', revisionRounds: 0 },
+  { id: 3602, status: 'active', customerId: 'c-mh', workType: 'hausarbeit', title: 'KPI-Dashboards für Marketing-Controlling', field: 'Marketing', pages: 18, finalDeadline: '2026-05-24T18:00:00', interimDeadline: '2026-05-12T18:00:00', grossEur: 1050, netHonorarium: 392.52, rate: 0.40, gwId: 'gw-iw', leadSource: 'sp1', acceptedAt: '2026-05-06', paidEur: 1050, outstandingEur: 0, installments: [{n:1,amt:1050,status:'paid',date:'2026-05-06',method:'stripe_card'}], gwPaymentStatus: 'work_in_progress', revisionRounds: 0 },
+  { id: 3603, status: 'revision_required', customerId: 'c-pn', workType: 'bachelorarbeit', title: 'IT-Security in der Smart-Factory', field: 'Wirtschaftsinformatik', pages: 38, finalDeadline: '2026-05-30T18:00:00', interimDeadline: '2026-05-09T18:00:00', interim2Deadline: '2026-05-20T18:00:00', grossEur: 1995, netHonorarium: 745.79, rate: 0.40, gwId: 'gw-iw', leadSource: 'ig', acceptedAt: '2026-04-26', paidEur: 997.5, outstandingEur: 997.5, installments: [{n:1,amt:997.5,status:'paid',date:'2026-04-26',method:'stripe_card'},{n:2,amt:997.5,status:'scheduled',date:'2026-05-20',method:'stripe_card'}], gwPaymentStatus: 'work_in_progress', revisionRounds: 1, disputeOpen: true },
+  { id: 3604, status: 'qa_review', customerId: 'c-vs', workType: 'hausarbeit', title: 'Personalcontrolling im Mittelstand', field: 'BWL', pages: 14, finalDeadline: '2026-05-06T18:00:00', grossEur: 686, netHonorarium: 256.45, rate: 0.40, gwId: 'gw-iw', leadSource: 'b1', acceptedAt: '2026-04-18', paidEur: 686, outstandingEur: 0, installments: [{n:1,amt:686,status:'paid',date:'2026-04-18',method:'stripe_card'}], gwPaymentStatus: 'invoice_received', revisionRounds: 0 },
+];
+
 // ---- QA queue submissions ----
 const SUBMISSIONS = [
   { id: 's1', orderId: 3530, kind: 'final_work', round: 1, gwId: 'gw-fb', fileName: 'KI_Personalauswahl_Final_v1.docx', size: 4123881, plagiarismScore: 8, aiScore: 11, qaStatus: 'pending', submittedAt: '2026-05-07T09:14:00', selfChecks: { noAi: true, ready: true, individual: true, spelling: true, plagiarism: true } },
@@ -281,9 +290,10 @@ const isFeatureLive = (key) => (FEATURE_FLAGS[key]?.status === 'live');
 // at IDs 9100+). Without this second branch, OrderDetail navigation would show "not found".
 const liveOrders = () => {
   const fix = (typeof window !== 'undefined' && window.__fixState) || {};
-  if (!fix || Object.keys(fix).length === 0) return ORDERS;
-  const merged = ORDERS.map(o => fix[o.id] ? { ...o, ...fix[o.id] } : o);
-  const seedIds = new Set(ORDERS.map(o => o.id));
+  const baseOrders = [...ORDERS, ...GW_DEMO_ASSIGNMENTS];
+  if (!fix || Object.keys(fix).length === 0) return baseOrders;
+  const merged = baseOrders.map(o => fix[o.id] ? { ...o, ...fix[o.id] } : o);
+  const seedIds = new Set(baseOrders.map(o => o.id));
   // Pick up any fix-state entry that has a `customerId` AND isn't in the seed — those are
   // newly-created orders (the wizard sets customerId; partial mutations on existing orders don't).
   Object.keys(fix).forEach(k => {
@@ -296,10 +306,11 @@ const liveOrders = () => {
 };
 const liveOrder = (id) => {
   const fix = (typeof window !== 'undefined' && window.__fixState) || {};
-  const base = ORDERS.find(o => o.id === id);
-  if (base) return fix[id] ? { ...base, ...fix[id] } : base;
+  const numericId = typeof id === 'string' && /^\d+$/.test(id) ? Number(id) : id;
+  const base = [...ORDERS, ...GW_DEMO_ASSIGNMENTS].find(o => o.id === numericId);
+  if (base) return fix[numericId] ? { ...base, ...fix[numericId] } : base;
   // Newly-created order living only in fixState.
-  if (fix[id] && fix[id].customerId) return { id, ...fix[id] };
+  if (fix[numericId] && fix[numericId].customerId) return { id: numericId, ...fix[numericId] };
   return null;
 };
 
@@ -340,7 +351,7 @@ const myAssignments = () => liveOrders().filter(o => o.gwId === GW_ME.id);
 
 window.EF = {
   NOW, DEMO_NOW,
-  GHOSTWRITERS, CUSTOMERS, ORDERS, SUBMISSIONS, FRIDAY_BATCH, INBOX_THREADS, NOTIFICATIONS,
+  GHOSTWRITERS, CUSTOMERS, ORDERS, GW_DEMO_ASSIGNMENTS, SUBMISSIONS, FRIDAY_BATCH, INBOX_THREADS, NOTIFICATIONS,
   WORK_TYPE_LABELS, STATUS_PILLS, KPI, FEATURE_FLAGS,
   featureStatus, isFeatureLive,
   liveOrders, liveOrder, releaseGates,

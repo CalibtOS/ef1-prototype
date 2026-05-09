@@ -4,7 +4,8 @@
 //   Colors live as CSS variables in styles.css (`:root` and `[data-theme="dark"]`).
 //   Status semantics:  blue=in-progress · yellow=pending · green=done · red=violation/error · orange=overdue · gray=on-hold
 //   Components published to window: Icon, StatusPill, Avatar, Money, Bi, ScoreBar,
-//                                   NotReady, PlannedTag, EmptyState, Skeleton.
+//                                   NotReady, PlannedTag, EmptyState, Skeleton,
+//                                   ChatNotice, ChatMessage, ChatComposer, ChatThreadRow.
 //   Helpers: window.efToast({text, tone, transition}), window.efNotify({to, title, body, urgent}).
 //   Feature flags: window.EF.FEATURE_FLAGS — single source of truth for "what's planned vs. live".
 ;(function(){
@@ -236,6 +237,106 @@ const Skeleton = ({ w = '100%', h = 12, radius = 4, style }) => (
   <span className="skeleton" style={{ width: w, height: h, borderRadius: radius, ...style }} aria-hidden="true"/>
 );
 
+const ChatNotice = ({ tone = 'info', icon = 'lock', children, compact }) => (
+  <div className={`chat-notice chat-notice-${tone} ${compact ? 'chat-notice-compact' : ''}`}>
+    {icon && <Icon name={icon} size={compact ? 11 : 13}/>}
+    <span>{children}</span>
+  </div>
+);
+
+const ChatMessage = ({
+  mine,
+  system,
+  sender,
+  initials,
+  tone = 'blue',
+  at,
+  children,
+  attachments = [],
+  channel,
+  status,
+  grouped,
+}) => {
+  if (system) {
+    return (
+      <div className="chat-system">
+        <span>{children}</span>
+        {at && <small>{fmtDateTime(at)}</small>}
+      </div>
+    );
+  }
+  return (
+    <div className={`chat-row ${mine ? 'is-mine' : 'is-theirs'} ${grouped ? 'is-grouped' : ''}`}>
+      {!mine && !grouped && <Avatar initials={initials || 'EF'} size={30} tone={tone}/>}
+      {!mine && grouped && <span className="chat-avatar-spacer"/>}
+      <div className="chat-bubble-wrap">
+        {!grouped && (
+          <div className="chat-name">
+            <span>{mine ? 'Sie' : sender}</span>
+            {channel && <span className="chat-channel">{channel}</span>}
+          </div>
+        )}
+        <div className="chat-bubble">
+          <div style={{ whiteSpace: 'pre-wrap' }}>{children}</div>
+          {attachments.length > 0 && (
+            <div className="chat-attachments">
+              {attachments.map((a, i) => (
+                <div key={i} className="chat-attachment">
+                  <Icon name={a.icon || 'paperclip'} size={12}/>
+                  <span>{a.name}</span>
+                  {a.meta && <small>{a.meta}</small>}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+        <div className="chat-meta">
+          {at && <span>{fmtDateTime(at)}</span>}
+          {status && <span>{status}</span>}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const ChatComposer = ({ value, onChange, onSend, placeholder, disabled, helper, actions, sendLabel = 'Senden' }) => (
+  <div className="chat-composer">
+    {helper}
+    <div className="chat-composer-main">
+      <textarea
+        value={value}
+        onChange={onChange}
+        placeholder={placeholder}
+        disabled={disabled}
+        aria-label={placeholder || 'Message'}
+      />
+      <div className="chat-composer-actions">
+        {actions}
+        <button type="button" className="chat-send" onClick={onSend} disabled={disabled || !String(value || '').trim()} aria-label={sendLabel}>
+          <Icon name="send" size={15}/>
+          <span>{sendLabel}</span>
+        </button>
+      </div>
+    </div>
+  </div>
+);
+
+const ChatThreadRow = ({ active, unread, initials, tone = 'blue', title, subtitle, preview, meta, badges, onClick }) => (
+  <button type="button" className={`chat-thread-row ${active ? 'is-active' : ''} ${unread ? 'has-unread' : ''}`} onClick={onClick} aria-current={active || undefined}>
+    <Avatar initials={initials || 'EF'} size={38} tone={tone}/>
+    <span className="chat-thread-body">
+      <span className="chat-thread-top">
+        <strong>{title}</strong>
+        {meta && <span>{meta}</span>}
+      </span>
+      {subtitle && <span className="chat-thread-subtitle">{subtitle}</span>}
+      <span className="chat-thread-preview">{preview}</span>
+      {badges && <span className="chat-thread-badges">{badges}</span>}
+    </span>
+    {unread ? <span className="chat-unread-dot" aria-label={`${unread} unread`}>{unread}</span> : <Icon name="chevron-right" size={14} className="text-faint"/>}
+  </button>
+);
+
 // Score bar (plagiarism / AI)
 const ScoreBar = ({ value, label }) => {
   const tone = value < 15 ? 'green' : value < 30 ? 'amber' : 'red';
@@ -252,15 +353,15 @@ const ScoreBar = ({ value, label }) => {
   );
 };
 
-window.EFU = { EUR, fmtDate, fmtDateTime, fmtTime, relTime, daysTo, deadlineMeta, Icon, StatusPill, Avatar, Money, Bi, ScoreBar, NotReady, PlannedTag, EmptyState, Skeleton };
+window.EFU = { EUR, fmtDate, fmtDateTime, fmtTime, relTime, daysTo, deadlineMeta, Icon, StatusPill, Avatar, Money, Bi, ScoreBar, NotReady, PlannedTag, EmptyState, Skeleton, ChatNotice, ChatMessage, ChatComposer, ChatThreadRow };
 // Also expose at top-level for cross-script use
-Object.assign(window, { Icon, StatusPill, Avatar, Money, Bi, ScoreBar, NotReady, PlannedTag, EmptyState, Skeleton });
+Object.assign(window, { Icon, StatusPill, Avatar, Money, Bi, ScoreBar, NotReady, PlannedTag, EmptyState, Skeleton, ChatNotice, ChatMessage, ChatComposer, ChatThreadRow });
 
 // EFDS — design system surface: components + tokens reference.
 // Tokens are CSS variables (see :root in styles.css); EFDS.tokens documents the canonical names
 // so future code can read them via getComputedStyle() or simply consult this map.
 window.EFDS = {
-  components: { Icon, StatusPill, Avatar, Money, Bi, ScoreBar, NotReady, PlannedTag, EmptyState, Skeleton },
+  components: { Icon, StatusPill, Avatar, Money, Bi, ScoreBar, NotReady, PlannedTag, EmptyState, Skeleton, ChatNotice, ChatMessage, ChatComposer, ChatThreadRow },
   tokens: {
     color: {
       // semantics → css var name

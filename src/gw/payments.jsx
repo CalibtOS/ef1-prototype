@@ -24,7 +24,6 @@ function GWPayments({ navigate }) {
     <tr style={{ cursor: 'pointer' }} onClick={() => navigate('order-detail', { id: o.id })}>
       <td className="mono">#{o.id}</td>
       <td className="fs-12" style={{ maxWidth: 320, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{o.title}</td>
-      <td className="num mono">{Math.round((o.rate||0)*100)}%</td>
       <td className="num mono strong" style={{ color: 'var(--green)' }}>{U.EUR(o.netHonorarium)}</td>
       <td className="text-muted fs-11">{blocker || '—'}</td>
     </tr>
@@ -66,7 +65,7 @@ function GWPayments({ navigate }) {
           <div className="card-pad text-faint fs-12">No releases this week — invoices below are awaiting one or more release gates.</div>
         ) : (
           <table className="tbl">
-            <thead><tr><th>Order</th><th>Title</th><th className="num">Rate</th><th className="num">Honorar (net)</th><th>Note</th></tr></thead>
+            <thead><tr><th>Order</th><th>Title</th><th className="num">Honorar (net)</th><th>Note</th></tr></thead>
             <tbody>{releasable.map(o => <Row key={o.id} o={o} blocker="all gates clear · scheduled for Friday batch"/>)}</tbody>
           </table>
         )}
@@ -76,7 +75,7 @@ function GWPayments({ navigate }) {
         <div className="card mb-3" style={{ border: '1px solid color-mix(in oklab, var(--amber) 35%, var(--border))' }}>
           <div className="card-head"><div className="card-title flex items-center gap-2"><Icon name="lock" size={14}/> Invoice received · awaiting release gates</div><span className="pill pill-amber">{awaitingGates.length}</span></div>
           <table className="tbl">
-            <thead><tr><th>Order</th><th>Title</th><th className="num">Rate</th><th className="num">Honorar (net)</th><th>Blocker</th></tr></thead>
+            <thead><tr><th>Order</th><th>Title</th><th className="num">Honorar (net)</th><th>Blocker</th></tr></thead>
             <tbody>{awaitingGates.map(o => <Row key={o.id} o={o} blocker={o._blockerReason}/>)}</tbody>
           </table>
         </div>
@@ -85,9 +84,9 @@ function GWPayments({ navigate }) {
       <div className="card">
         <div className="card-head"><div className="card-title">Pending — work in progress</div></div>
         <table className="tbl">
-          <thead><tr><th>Order</th><th>Title</th><th className="num">Rate</th><th className="num">Honorar (net)</th><th>Blocker</th></tr></thead>
+          <thead><tr><th>Order</th><th>Title</th><th className="num">Honorar (net)</th><th>Blocker</th></tr></thead>
           <tbody>
-            {pending.length === 0 && <tr><td colSpan={5} className="text-faint fs-12" style={{ padding: 16, textAlign: 'center' }}>Nothing pending — claim a job on the board.</td></tr>}
+            {pending.length === 0 && <tr><td colSpan={4} className="text-faint fs-12" style={{ padding: 16, textAlign: 'center' }}>Nothing pending — claim a job on the board.</td></tr>}
             {pending.map(o => {
               const blocker = o.status === 'active' ? 'upload interim or final to advance' : o.status === 'qa_review' ? 'awaiting QA verdict' : o.status === 'revision_required' ? 'customer requested revision' : 'awaiting next milestone';
               return <Row key={o.id} o={o} blocker={blocker}/>;

@@ -1,7 +1,7 @@
 // Customer · Portal view — orders, messages, files, invoices, downloads, profile.
 ;(function(){
 const { useState: useStateA, useEffect: useEffectA, useMemo: useMemoA } = React;
-const { Icon, StatusPill, Avatar, Money, Bi, ScoreBar, CrumbBar, NotReady, PlannedTag, EmptyState, Skeleton } = window;
+const { Icon, StatusPill, Avatar, Money, Bi, ScoreBar, CrumbBar, NotReady, PlannedTag, EmptyState, Skeleton, ChatNotice, ChatMessage, ChatComposer, ChatThreadRow } = window;
 const U = window.EFU;
 const D = window.EF;
 
@@ -114,7 +114,7 @@ function CustHeader({ tab, setTab, role, setRole }) {
   return (
     <div style={{ background: 'var(--surface)', borderBottom: '1px solid var(--border)' }}>
       <div style={{ maxWidth: 1080, margin: '0 auto', padding: '14px 24px 0', display: 'flex', alignItems: 'center', gap: 16 }}>
-        <div style={{ fontWeight: 700, letterSpacing: -0.5, fontSize: 22 }}>
+        <div style={{ fontWeight: 700, letterSpacing: 0, fontSize: 22 }}>
           e<span style={{ color: 'var(--blue)' }}>factory</span>
           <span style={{ fontSize: 14, color: 'var(--text-2)' }}>1</span>
         </div>
@@ -230,22 +230,33 @@ function CustOrderCard({ o, onOpen }) {
           )}
         </div>
 
-        <div className="flex gap-2 mt-3" style={{ flexWrap: 'wrap' }}>
-          <button type="button" className="btn btn-sm" onClick={(e)=>{e.stopPropagation();onOpen('messages');}}>
-            <Icon name="message-square" size={12}/> Mit GW chatten
-          </button>
-          <button type="button" className="btn btn-sm" onClick={(e)=>{e.stopPropagation();onOpen('files');}}>
-            <Icon name="file-text" size={12}/> Dokumente
-          </button>
-          <button type="button" className="btn btn-sm" onClick={(e)=>{e.stopPropagation();onOpen('payments');}}>
-            <Icon name="wallet" size={12}/> Zahlungen
-          </button>
-          {(o.status === 'interim_submitted' || o.status === 'under_customer_review') && (
-            <button type="button" className="btn btn-sm btn-primary" onClick={(e)=>{e.stopPropagation();onOpen('files');}}>
-              <Icon name="eye" size={12}/> Zwischenstand prüfen
-            </button>
-          )}
-        </div>
+        {(() => {
+          const gwActive = !!o.gwId && !['available','qualified','offer_sent','invoice_sent','claimed_pending_approval'].includes(o.status);
+          const hasFiles = ['active','interim_submitted','under_customer_review','revision_required','final_submitted','qa_review','delivered','payment_pending','completed'].includes(o.status);
+          const needsReview = o.status === 'interim_submitted' || o.status === 'under_customer_review';
+          return (
+            <div className="flex gap-2 mt-3" style={{ flexWrap: 'wrap' }}>
+              {gwActive && (
+                <button type="button" className="btn btn-sm" onClick={(e)=>{e.stopPropagation();onOpen('messages');}}>
+                  <Icon name="message-square" size={12}/> Nachrichten
+                </button>
+              )}
+              {hasFiles && (
+                <button type="button" className="btn btn-sm" onClick={(e)=>{e.stopPropagation();onOpen('files');}}>
+                  <Icon name="file-text" size={12}/> Dokumente
+                </button>
+              )}
+              <button type="button" className="btn btn-sm" onClick={(e)=>{e.stopPropagation();onOpen('payments');}}>
+                <Icon name="wallet" size={12}/> Zahlungen
+              </button>
+              {needsReview && (
+                <button type="button" className="btn btn-sm btn-primary" onClick={(e)=>{e.stopPropagation();onOpen('files');}}>
+                  <Icon name="eye" size={12}/> Zwischenstand prüfen
+                </button>
+              )}
+            </div>
+          );
+        })()}
       </div>
     </div>
   );
@@ -259,7 +270,7 @@ function CustOrdersList({ openOrder }) {
 
   return (
     <div>
-      <h1 style={{ fontSize: 28, fontWeight: 600, letterSpacing: -0.6, margin: '24px 0 6px' }}>Hallo {firstName} 👋</h1>
+      <h1 style={{ fontSize: 28, fontWeight: 600, letterSpacing: 0, margin: '24px 0 6px' }}>Hallo {firstName}</h1>
       <div className="text-muted mb-4">Ihre laufenden und abgeschlossenen Aufträge</div>
 
       {active.length > 0 && (
@@ -311,7 +322,8 @@ function CustOrderStatus({ o }) {
   const stepIndex = (() => {
     if (progress >= 100) return milestones.length;
     if (o.status === 'qa_review' || o.status === 'final_submitted') return milestones.findIndex(m => m.id === 'qa');
-    if (o.status === 'revision_required' || o.status === 'interim_submitted' || o.status === 'under_customer_review') return milestones.findIndex(m => m.id === 'final');
+    if (o.status === 'interim_submitted' || o.status === 'under_customer_review') return milestones.findIndex(m => m.id === 'interim');
+    if (o.status === 'revision_required') return milestones.findIndex(m => m.id === 'interim');
     if (o.status === 'active') return milestones.findIndex(m => m.id === 'interim');
     if (o.gwId) return milestones.findIndex(m => m.id === 'interim');
     if (o.installments?.[0]?.status === 'paid') return milestones.findIndex(m => m.id === 'gw');
@@ -410,7 +422,15 @@ function CustOrderChat({ o, toast }) {
 
   const baseConv = [
     { from: 'gw',       at: '2026-04-02T09:14:00', text: 'Guten Tag und vielen Dank für Ihren Auftrag! Ich freue mich auf die Zusammenarbeit. Senden Sie mir bitte das Briefing-Dokument und ggf. relevante Vorlesungsfolien.' },
-    { from: 'customer', at: '2026-04-02T18:42:00', text: 'Hallo! Anbei das Briefing und die Folien. Schwerpunkt soll auf praxisnahen Beispielen aus dem Maschinenbau liegen.' },
+    {
+      from: 'customer',
+      at: '2026-04-02T18:42:00',
+      text: 'Hallo! Anbei das Briefing und die Folien. Schwerpunkt soll auf praxisnahen Beispielen aus dem Maschinenbau liegen.',
+      attachments: [
+        { name: 'Briefing.pdf', meta: '184 KB', icon: 'file-text' },
+        { name: 'Vorlesungsfolien.zip', meta: '2.4 MB', icon: 'paperclip' },
+      ],
+    },
     { from: 'gw',       at: '2026-04-08T11:02:00', text: 'Outline ist fertig. Ich habe sie über die Plattform unter „Dokumente" hochgeladen — bitte schauen Sie es sich an.' },
     { from: 'customer', at: '2026-04-09T10:15:00', text: 'Outline passt — bitte mit Kapitel 3 weitermachen.' },
     { from: 'gw',       at: '2026-05-06T15:30:00', text: 'Zwischenstand 1 ist hochgeladen — bitte um Feedback bis Donnerstag.' },
@@ -447,97 +467,166 @@ function CustOrderChat({ o, toast }) {
   const gwLabel = custGwLabel(o) || 'GW';
   const gwInits = gwLabel.split(' ').map(s=>s[0]).join('').slice(0,2).toUpperCase();
 
+  const activeTitle = isLocked ? 'Chat noch gesperrt' : gwLabel;
+
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 12 }}>
-      <div className="card" style={{ display: 'flex', flexDirection: 'column' }}>
-        <div className="card-head">
-          <div className="card-title">Konversation mit Ihrem Ghostwriter</div>
-          <span className="text-faint fs-11">{baseConv.length} Nachrichten</span>
-        </div>
-        <div className="banner info" style={{ margin: 12, fontSize: 11.5 }}>
-          <Icon name="lock" size={12}/>
-          <span>Auto-CC: jede Nachricht geht zusätzlich an <span className="mono">kundenservice@efactory1.de</span>. Finanzfragen werden automatisch umgeleitet.</span>
+    <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 280px', gap: 12 }}>
+      <div className="chat-shell chat-shell-soft">
+        <div className="chat-header">
+          <div className="chat-title">
+            <Avatar initials={isLocked ? 'EF' : gwInits} size={34} tone="blue"/>
+            <div style={{ minWidth: 0 }}>
+              <span className="chat-title-main">{activeTitle}</span>
+              <span className="chat-title-sub">{baseConv.length} Nachrichten · Antwortzeit meist innerhalb 24h</span>
+            </div>
+          </div>
+          <span className="pill pill-blue" style={{ fontSize: 10 }}><Icon name="lock" size={9}/> CC aktiv</span>
         </div>
 
-        <div style={{ flex: 1, padding: '4px 16px 16px', overflowY: 'auto', maxHeight: 480 }}>
+        <ChatNotice compact>
+          Jede Nachricht läuft über efactory1. Finanzfragen gehen automatisch an <span className="mono">kundenservice@efactory1.de</span>.
+        </ChatNotice>
+
+        <div className="chat-stream" style={{ maxHeight: 520 }}>
           {baseConv.length === 0 && (
-            <div className="text-muted text-center fs-12" style={{ padding: 32 }}>Noch keine Nachrichten.</div>
+            <EmptyState compact icon="message-square" title="Noch keine Nachrichten" body="Sobald der Ghostwriter zugewiesen ist, erscheint hier die Unterhaltung."/>
           )}
           {baseConv.map((m, i) => {
             const mine = m.from === 'customer';
             const sys  = m.from === 'platform';
-            if (sys) return (
-              <div key={i} className="text-center" style={{ margin: '12px 0' }}>
-                <span className="pill pill-slate" style={{ fontSize: 11 }}>{m.text}</span>
-                <div className="text-faint fs-11 mt-1">{U.fmtDateTime(m.at)}</div>
-              </div>
-            );
+            const prev = baseConv[i - 1];
+            const grouped = !!prev && prev.from === m.from && !sys && prev.from !== 'platform';
             return (
-              <div key={i} className="cust-msg" style={{ justifyContent: mine ? 'flex-end' : 'flex-start' }}>
-                {!mine && <Avatar initials={gwInits} size={28} tone="blue"/>}
-                <div className="cust-msg-bubble" data-mine={mine ? '1' : '0'}>
-                  <div style={{ whiteSpace: 'pre-wrap' }}>{m.text}</div>
-                  <div className="cust-msg-meta">{mine ? 'Sie' : gwLabel} · {U.fmtDateTime(m.at)}</div>
-                </div>
-                {mine && <Avatar initials={CUST_PERSONA.initials} size={28} tone="blue"/>}
-              </div>
+              <ChatMessage
+                key={i}
+                mine={mine}
+                system={sys}
+                sender={gwLabel}
+                initials={mine ? CUST_PERSONA.initials : gwInits}
+                at={m.at}
+                grouped={grouped}
+                attachments={m.attachments}
+                status={mine ? 'zugestellt' : null}
+              >
+                {m.text}
+              </ChatMessage>
             );
           })}
         </div>
 
-        <div style={{ borderTop: '1px solid var(--border)', padding: 12 }}>
-          {draftFlag === 'financial' && (
-            <div className="banner warn mb-2" style={{ fontSize: 11.5 }}>
-              <Icon name="alert-triangle" size={12}/>
-              <span><strong>Finanz-Schlüsselwort erkannt.</strong> Diese Nachricht wird automatisch an <span className="mono">kundenservice@efactory1.de</span> weitergeleitet — Ihr Ghostwriter darf keine Preisfragen beantworten.</span>
-            </div>
-          )}
-          {isLocked ? (
-            <div className="text-muted text-center fs-12" style={{ padding: 12 }}>
-              Chat wird aktiviert, sobald Ihnen ein Ghostwriter zugewiesen ist.
-            </div>
-          ) : (
-            <div className="flex gap-2">
-              <textarea
-                style={{ flex: 1, minHeight: 64, resize: 'vertical', padding: 10, fontSize: 13, border: '1px solid var(--border)', borderRadius: 8, background: 'var(--surface)', color: 'var(--text)', fontFamily: 'inherit' }}
-                placeholder="Nachricht an Ihren Ghostwriter…"
-                value={text}
-                onChange={(e)=>onChange(e.target.value)}
-              />
-              <div className="flex-col gap-1">
-                <NotReady className="btn btn-sm" ariaLabel="Datei anhängen" feature="attach-file"><Icon name="paperclip" size={12}/></NotReady>
-                <button type="button" className="btn btn-sm btn-primary" onClick={onSend} disabled={!text.trim()}>
-                  <Icon name="send" size={12}/> Senden
-                </button>
-              </div>
-            </div>
-          )}
-        </div>
+        {isLocked ? (
+          <div className="chat-composer">
+            <ChatNotice compact icon="lock">Chat wird aktiviert, sobald Ihnen ein Ghostwriter zugewiesen ist.</ChatNotice>
+          </div>
+        ) : (
+          <ChatComposer
+            value={text}
+            onChange={(e)=>onChange(e.target.value)}
+            onSend={onSend}
+            placeholder="Nachricht an Ihren Ghostwriter..."
+            actions={<NotReady className="chat-icon-action" ariaLabel="Datei anhängen" feature="attach-file"><Icon name="paperclip" size={15}/></NotReady>}
+            helper={draftFlag === 'financial' && (
+              <ChatNotice compact tone="warn" icon="alert-triangle">
+                <strong>Finanzfrage erkannt.</strong> Diese Nachricht wird an <span className="mono">kundenservice@efactory1.de</span> umgeleitet.
+              </ChatNotice>
+            )}
+          />
+        )}
       </div>
 
       <div className="flex-col gap-3">
         <div className="card">
-          <div className="card-head"><div className="card-title">Kommunikationsregeln</div></div>
-          <div className="card-pad">
-            <ul className="text-muted fs-12" style={{ paddingLeft: 16, lineHeight: 1.7, margin: 0 }}>
-              <li>Antwortzeit: 24 Stunden</li>
-              <li>Keine Preis- oder Honorarverhandlungen mit dem GW</li>
-              <li>efactory1 ist immer in CC — auch bei Direktchat</li>
-              <li>Direkter Kontakt zum GW per E-Mail/Telefon möglich (Daten in der Auftragsfreigabe)</li>
-              <li>Eskalation: <span className="mono">kundenservice@efactory1.de</span></li>
-            </ul>
+          <div className="card-head"><div className="card-title">Kontaktregeln</div></div>
+          <div className="card-pad flex-col gap-2">
+            <ChatNotice compact icon="clock">Antwortzeit: 24 Stunden</ChatNotice>
+            <ChatNotice compact icon="euro" tone="warn">Preise, Raten und Rechnungen laufen über den Kundenservice.</ChatNotice>
+            <ChatNotice compact icon="lock">efactory1 bleibt bei Direktnachrichten in CC.</ChatNotice>
           </div>
         </div>
 
         <div className="card">
-          <div className="card-head"><div className="card-title">Schnellzugriff</div></div>
+          <div className="card-head"><div className="card-title">Support</div></div>
           <div className="card-pad flex-col gap-2">
-            <NotReady className="btn btn-sm" feature="report-dispute" style={{ justifyContent: 'flex-start' }}><Icon name="alert-triangle" size={12}/> Streitfall melden</NotReady>
             <NotReady className="btn btn-sm" feature="request-callback" style={{ justifyContent: 'flex-start' }}><Icon name="phone" size={12}/> Rückruf anfordern</NotReady>
             <a className="btn btn-sm" href="mailto:kundenservice@efactory1.de" style={{ justifyContent: 'flex-start', textDecoration: 'none' }}><Icon name="mail" size={12}/> kundenservice@efactory1.de</a>
+            {['interim_submitted','under_customer_review','revision_required','on_hold','delay_reported'].includes(o.status) && (
+              <NotReady className="btn btn-sm btn-ghost" feature="report-dispute" style={{ justifyContent: 'flex-start', fontSize: 11.5, color: 'var(--text-3)' }}>
+                <Icon name="alert-triangle" size={11}/> Problem eskalieren
+              </NotReady>
+            )}
           </div>
         </div>
       </div>
+    </div>
+  );
+}
+
+function CustInterimFeedback({ o, toast }) {
+  const [mode, setMode] = useStateA(null); // null | 'approve' | 'revision'
+  const [note, setNote] = useStateA('');
+
+  if (mode === 'approve') {
+    return (
+      <div className="flex-col gap-2">
+        <div className="banner info" style={{ fontSize: 12 }}>
+          <Icon name="check-circle" size={13}/>
+          <span>Durch die Freigabe signalisieren Sie, dass Sie mit dem Zwischenstand zufrieden sind. Der Ghostwriter arbeitet dann an der nächsten Phase weiter.</span>
+        </div>
+        <div className="flex gap-2 mt-1">
+          <button type="button" className="btn btn-sm" onClick={()=>setMode(null)}>Zurück</button>
+          <button type="button" className="btn btn-sm btn-success" onClick={()=>{
+            if (window.__patchOrder) window.__patchOrder(o.id, { status: 'active', customerSatisfied: true });
+            toast && toast({ tone: 'success', transition: { entity: `Auftrag #${o.id}`, from: 'Zwischenstand', to: 'In Bearbeitung' }, text: 'Zwischenstand freigegeben · GW arbeitet weiter' });
+            window.efNotify && window.efNotify({ to: 'gw', title: 'Zwischenstand freigegeben', body: `Kunde hat Zwischenstand #${o.id} freigegeben` });
+          }}>
+            <Icon name="check" size={12}/> Freigabe bestätigen
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (mode === 'revision') {
+    const canSubmit = note.trim().length >= 10;
+    return (
+      <div className="flex-col gap-2">
+        <label className="fs-12 text-muted">Bitte beschreiben Sie die gewünschten Änderungen (mind. 10 Zeichen):</label>
+        <textarea
+          style={{ width: '100%', minHeight: 80, resize: 'vertical', padding: 10, fontSize: 13, border: `1px solid ${canSubmit ? 'var(--border)' : 'var(--amber)'}`, borderRadius: 8, background: 'var(--surface)', color: 'var(--text)', fontFamily: 'inherit', boxSizing: 'border-box' }}
+          placeholder="z.B. Kapitel 2 bitte kürzen, mehr Praxisbeispiele aus dem Automobilbereich..."
+          value={note}
+          onChange={(e)=>setNote(e.target.value)}
+        />
+        <div className="flex gap-2">
+          <button type="button" className="btn btn-sm" onClick={()=>{setMode(null);setNote('');}}>Zurück</button>
+          <button type="button" className="btn btn-sm btn-primary" disabled={!canSubmit} onClick={()=>{
+            if (window.__patchOrder) window.__patchOrder(o.id, { status: 'revision_required', revisionRounds: (o.revisionRounds || 0) + 1 });
+            toast && toast({ tone: 'info', transition: { entity: `Auftrag #${o.id}`, from: 'Zwischenstand', to: 'Überarbeitung' }, text: 'Überarbeitungsanfrage gesendet' });
+            window.efNotify && window.efNotify({ to: 'gw', title: 'Überarbeitung angefordert', body: `Auftrag #${o.id}: ${note.slice(0, 60)}` });
+          }}>
+            <Icon name="rotate-ccw" size={12}/> Überarbeitung anfordern
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex-col gap-2">
+      <div className="text-muted fs-12 mb-1">Bitte prüfen Sie den Zwischenstand im Tab und wählen Sie eine Aktion:</div>
+      <button type="button" className="btn btn-sm btn-success" onClick={()=>setMode('approve')}>
+        <Icon name="check" size={12}/> Zwischenstand freigeben
+      </button>
+      <button type="button" className="btn btn-sm" onClick={()=>setMode('revision')}>
+        <Icon name="rotate-ccw" size={12}/> Überarbeitung anfordern
+      </button>
+      <hr style={{ border: 'none', borderTop: '1px solid var(--border)', margin: '4px 0' }}/>
+      <button type="button" className="btn btn-sm btn-ghost" style={{ fontSize: 11.5, color: 'var(--text-3)' }} onClick={()=>{
+        if (window.__patchOrder) window.__patchOrder(o.id, { disputeOpen: true });
+        toast && toast({ tone: 'danger', text: 'Streitfall gemeldet · Berat prüft und meldet sich.' });
+      }}>
+        <Icon name="alert-triangle" size={11}/> Problem eskalieren
+      </button>
     </div>
   );
 }
@@ -574,9 +663,11 @@ function CustOrderFiles({ o, toast }) {
       <div className="card">
         <div className="card-head">
           <div className="card-title">Dokumente · {baseFiles.length}</div>
-          <button type="button" className="btn btn-sm" onClick={()=>toast&&toast({tone:'info',text:'Datei-Upload wird simuliert.'})}>
-            <Icon name="upload-cloud" size={12}/> Hochladen
-          </button>
+          {['available','claimed_pending_approval','active'].includes(o.status) && (
+            <button type="button" className="btn btn-sm" onClick={()=>toast&&toast({tone:'info',text:'Datei-Upload wird simuliert.'})}>
+              <Icon name="upload-cloud" size={12}/> Hochladen
+            </button>
+          )}
         </div>
         <div className="flex-col" style={{ borderTop: '1px solid var(--border)' }}>
           {baseFiles.map(f => (
@@ -607,30 +698,12 @@ function CustOrderFiles({ o, toast }) {
       <div className="flex-col gap-3">
         {(o.status === 'interim_submitted' || o.status === 'under_customer_review') && (
           <div className="card">
-            <div className="card-head"><div className="card-title">Feedback geben</div></div>
+            <div className="card-head">
+              <div className="card-title">Ihr Feedback</div>
+              <span className="pill pill-amber" style={{ fontSize: 10 }}><Icon name="clock" size={9}/> Wartet auf Sie</span>
+            </div>
             <div className="card-pad">
-              <div className="text-muted fs-12 mb-3">Der Zwischenstand wartet auf Ihre Rückmeldung. Wählen Sie eine der Optionen:</div>
-              <div className="flex-col gap-2">
-                <button type="button" className="btn btn-success btn-sm" onClick={() => {
-                  // Approve interim → order goes back to active (next interim or final to follow).
-                  if (window.__patchOrder) window.__patchOrder(o.id, { status: 'active', customerSatisfied: true });
-                  toast && toast({ tone: 'success', transition: { entity: `Auftrag #${o.id}`, from: 'Customer Review', to: 'Active' }, text: 'Zwischenstand freigegeben · GW arbeitet weiter' });
-                }}>
-                  <Icon name="check" size={12}/> Zwischenstand freigeben
-                </button>
-                <button type="button" className="btn btn-sm" onClick={() => {
-                  if (window.__patchOrder) window.__patchOrder(o.id, { status: 'revision_required', revisionRounds: (o.revisionRounds || 0) + 1 });
-                  toast && toast({ tone: 'info', transition: { entity: `Auftrag #${o.id}`, from: 'Customer Review', to: 'Revision Required' }, text: 'Überarbeitungsanfrage an GW gesendet' });
-                }}>
-                  <Icon name="rotate-ccw" size={12}/> Überarbeitung anfordern
-                </button>
-                <button type="button" className="btn btn-sm btn-danger" onClick={() => {
-                  if (window.__patchOrder) window.__patchOrder(o.id, { disputeOpen: true });
-                  toast && toast({ tone: 'danger', text: 'Streitfall gemeldet · Berat prüft und meldet sich.' });
-                }}>
-                  <Icon name="alert-triangle" size={12}/> Streitfall melden
-                </button>
-              </div>
+              <CustInterimFeedback o={o} toast={toast}/>
             </div>
           </div>
         )}
@@ -670,7 +743,7 @@ function CustOrderPayments({ o }) {
           <span className="text-faint fs-11">Gesamt {U.EUR(totalGross)}</span>
         </div>
         <div className="table-wrap">
-          <table className="table">
+          <table className="tbl tbl-static">
             <thead>
               <tr>
                 <th style={{ width: 50 }}>#</th>
@@ -764,7 +837,7 @@ function CustOrderDetail({ orderId, initialTab, onBack, toast }) {
 
       <div className="flex items-baseline gap-2" style={{ marginBottom: 6 }}>
         <span className="mono fs-13 text-faint">#{o.id}</span>
-        <h1 style={{ fontSize: 22, fontWeight: 600, letterSpacing: -0.4, margin: 0 }}>{wt} · {o.title}</h1>
+        <h1 style={{ fontSize: 22, fontWeight: 600, letterSpacing: 0, margin: 0 }}>{wt} · {o.title}</h1>
       </div>
       <div className="text-muted fs-13" style={{ marginBottom: 14 }}>
         {o.field} · {o.pages} Seiten · Endabgabe {U.fmtDate(o.finalDeadline)}
@@ -815,43 +888,43 @@ function CustMessagesList({ openOrder }) {
   };
   return (
     <div>
-      <h1 style={{ fontSize: 24, fontWeight: 600, letterSpacing: -0.4, margin: '24px 0 6px' }}>Nachrichten</h1>
+      <h1 style={{ fontSize: 24, fontWeight: 600, letterSpacing: 0, margin: '24px 0 6px' }}>Nachrichten</h1>
       <div className="text-muted mb-4">Eine Konversation pro Auftrag · efactory1 immer in CC</div>
 
-      <div className="banner info mb-3">
-        <Icon name="lock" size={14}/>
-        <span>Direktnachrichten an Ihren Ghostwriter laufen über die Plattform. Finanzfragen werden automatisch an <span className="mono">kundenservice@efactory1.de</span> weitergeleitet.</span>
-      </div>
+      <ChatNotice compact>
+        Direktnachrichten an Ihren Ghostwriter laufen über die Plattform. Finanzfragen werden an <span className="mono">kundenservice@efactory1.de</span> weitergeleitet.
+      </ChatNotice>
 
       {orders.length === 0 ? (
-        <div className="card"><div className="card-pad text-center text-muted">Noch keine Konversationen — Ihre Aufträge warten auf GW-Zuweisung.</div></div>
+        <div className="card mt-3"><div className="card-pad text-center text-muted">Noch keine Konversationen — Ihre Aufträge warten auf GW-Zuweisung.</div></div>
       ) : (
-        <div className="card">
-          <div className="flex-col">
+        <div className="chat-shell mt-3" style={{ minHeight: 0 }}>
+          <div className="chat-header">
+            <div className="chat-title">
+              <div>
+                <span className="chat-title-main">Ihre Unterhaltungen</span>
+                <span className="chat-title-sub">{orders.length} aktive Auftragschats</span>
+              </div>
+            </div>
+          </div>
+          <div className="chat-thread-list">
             {orders.map((o, i) => {
               const sn = snippets[o.id] || { from: 'platform', msg: 'Konversation öffnen…', at: o.acceptedAt, unread: 0 };
               const gw = custGwLabel(o);
               const wt = D.WORK_TYPE_LABELS[o.workType];
               const initials = gw ? gw.split(' ').map(s=>s[0]).join('').slice(0,2).toUpperCase() : '··';
               return (
-                <div key={o.id} className="flex items-center gap-3" style={{ padding: '12px 16px', borderBottom: i < orders.length - 1 ? '1px solid var(--border)' : 'none', cursor: 'pointer' }} onClick={()=>openOrder(o.id, 'messages')}>
-                  <Avatar initials={initials} size={36} tone="blue"/>
-                  <div className="flex-col" style={{ flex: 1, minWidth: 0, lineHeight: 1.3 }}>
-                    <div className="flex items-center gap-2">
-                      <span className="strong fs-13">{gw || 'GW-Suche'}</span>
-                      <span className="mono fs-11 text-faint">#{o.id}</span>
-                      <span className="text-faint fs-11">· {wt}</span>
-                      {sn.unread > 0 && <span className="pill pill-red" style={{ fontSize: 10 }}>{sn.unread} neu</span>}
-                    </div>
-                    <span className="text-faint fs-12" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 600 }}>
-                      {sn.from === 'customer' && <span className="text-faint">Sie: </span>}
-                      {sn.from === 'platform' && <span className="text-faint" style={{ fontStyle: 'italic' }}>System: </span>}
-                      {sn.msg}
-                    </span>
-                  </div>
-                  <span className="text-faint fs-11 mono">{U.relTime(sn.at)}</span>
-                  <Icon name="chevron-right" size={14} className="text-faint"/>
-                </div>
+                <ChatThreadRow
+                  key={o.id}
+                  initials={initials}
+                  title={gw || 'GW-Suche'}
+                  subtitle={`#${o.id} · ${wt}`}
+                  preview={<>{sn.from === 'customer' && 'Sie: '}{sn.from === 'platform' && 'System: '}{sn.msg}</>}
+                  meta={U.relTime(sn.at)}
+                  unread={sn.unread}
+                  onClick={()=>openOrder(o.id, 'messages')}
+                  badges={sn.unread > 0 && <span className="pill pill-red" style={{ fontSize: 10 }}>{sn.unread} neu</span>}
+                />
               );
             })}
           </div>
@@ -893,7 +966,7 @@ function CustInvoices() {
 
   return (
     <div>
-      <h1 style={{ fontSize: 24, fontWeight: 600, letterSpacing: -0.4, margin: '24px 0 6px' }}>Rechnungen</h1>
+      <h1 style={{ fontSize: 24, fontWeight: 600, letterSpacing: 0, margin: '24px 0 6px' }}>Rechnungen</h1>
       <div className="text-muted mb-4">Alle Zahlungen und Rechnungen Ihrer Aufträge</div>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12, marginBottom: 14 }}>
@@ -917,7 +990,7 @@ function CustInvoices() {
           <span className="text-faint fs-11">via Sevdesk</span>
         </div>
         <div className="table-wrap">
-          <table className="table">
+          <table className="tbl tbl-static">
             <thead>
               <tr>
                 <th>Rechnung</th>
@@ -985,7 +1058,7 @@ function CustDownloads({ toast }) {
 
   return (
     <div>
-      <h1 style={{ fontSize: 24, fontWeight: 600, letterSpacing: -0.4, margin: '24px 0 6px' }}>Downloads</h1>
+      <h1 style={{ fontSize: 24, fontWeight: 600, letterSpacing: 0, margin: '24px 0 6px' }}>Downloads</h1>
       <div className="text-muted mb-4">Alle Dokumente Ihrer Aufträge an einem Ort</div>
 
       {groups.length === 0 ? (
@@ -1046,7 +1119,7 @@ function CustProfile({ toast }) {
 
   return (
     <div>
-      <h1 style={{ fontSize: 24, fontWeight: 600, letterSpacing: -0.4, margin: '24px 0 6px' }}>Profil</h1>
+      <h1 style={{ fontSize: 24, fontWeight: 600, letterSpacing: 0, margin: '24px 0 6px' }}>Profil</h1>
       <div className="text-muted mb-4">Ihr Konto, Benachrichtigungen und Datenschutz</div>
 
       <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 12 }}>
@@ -1119,10 +1192,10 @@ function CustProfile({ toast }) {
           <div className="card">
             <div className="card-head"><div className="card-title">Hilfe & Support</div></div>
             <div className="card-pad flex-col gap-2">
-              <a className="btn btn-sm" style={{ justifyContent: 'flex-start' }}><Icon name="message-square" size={12}/> Live-Chat starten</a>
-              <a className="btn btn-sm" style={{ justifyContent: 'flex-start' }}><Icon name="mail" size={12}/> kundenservice@efactory1.de</a>
-              <a className="btn btn-sm" style={{ justifyContent: 'flex-start' }}><Icon name="file-text" size={12}/> AGB & Datenschutz</a>
-              <a className="btn btn-sm" style={{ justifyContent: 'flex-start' }}><Icon name="external-link" size={12}/> efactory1.de</a>
+              <NotReady className="btn btn-sm" feature="live-chat" style={{ justifyContent: 'flex-start' }}><Icon name="message-square" size={12}/> Live-Chat starten</NotReady>
+              <a className="btn btn-sm" href="mailto:kundenservice@efactory1.de" style={{ justifyContent: 'flex-start', textDecoration: 'none' }}><Icon name="mail" size={12}/> kundenservice@efactory1.de</a>
+              <NotReady className="btn btn-sm" feature="agb" style={{ justifyContent: 'flex-start' }}><Icon name="file-text" size={12}/> AGB & Datenschutz</NotReady>
+              <a className="btn btn-sm" href="https://efactory1.de" target="_blank" rel="noreferrer" style={{ justifyContent: 'flex-start', textDecoration: 'none' }}><Icon name="external-link" size={12}/> efactory1.de</a>
             </div>
           </div>
         </div>

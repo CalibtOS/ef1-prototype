@@ -9,18 +9,8 @@ const D = window.EF;
 function GWActiveJobs({ navigate, fixState }) {
   const [filter, setFilter] = useStateA('all');
 
-  // Apply fixState so claims/assignments made elsewhere appear here immediately.
-  const realMine = D.ORDERS
-    .map(o => ({ ...o, ...((fixState || {})[o.id] || {}) }))
-    .filter(o => o.gwId === 'gw-iw');
-
-  // Synthetic extras to make the page feel populated for the demo
-  const synthMine = [
-    { id: 3601, status: 'claimed_pending_approval', workType: 'hausarbeit', title: 'Agile Skalierung mit SAFe in Großkonzernen', field: 'Wirtschaftsinformatik', pages: 16, finalDeadline: '2026-05-26T18:00:00', interimDeadline: '2026-05-18T18:00:00', netHonorarium: 313.46, rate: 0.40, customerId: 'c-jb', claimedAt: '2026-05-07T10:42:00', stage: { interim1: 'pending', interim2: null, final: 'pending' } },
-    { id: 3602, status: 'active', workType: 'hausarbeit', title: 'KPI-Dashboards für Marketing-Controlling', field: 'Marketing', pages: 18, finalDeadline: '2026-05-24T18:00:00', interimDeadline: '2026-05-12T18:00:00', netHonorarium: 392.52, rate: 0.40, customerId: 'c-mh', stage: { interim1: 'pending', interim2: null, final: 'pending' } },
-    { id: 3603, status: 'revision_required', workType: 'bachelorarbeit', title: 'IT-Security in der Smart-Factory', field: 'Wirtschaftsinformatik', pages: 38, finalDeadline: '2026-05-30T18:00:00', interimDeadline: '2026-05-09T18:00:00', interim2Deadline: '2026-05-20T18:00:00', netHonorarium: 745.79, rate: 0.40, customerId: 'c-pn', revisionRounds: 1, stage: { interim1: 'done', interim2: 'pending', final: 'pending' } },
-    { id: 3604, status: 'qa_review', workType: 'hausarbeit', title: 'Personalcontrolling im Mittelstand', field: 'BWL', pages: 14, finalDeadline: '2026-05-06T18:00:00', netHonorarium: 256.45, rate: 0.40, customerId: 'c-vs', gwPaymentStatus: 'invoice_received', stage: { interim1: 'done', interim2: null, final: 'done' } },
-  ];
+  // The list and the detail route must read the same live order source.
+  const realMine = D.liveOrders().filter(o => o.gwId === 'gw-iw');
 
   // Augment real with derived stage info
   const realAugmented = realMine.map(o => {
@@ -32,7 +22,7 @@ function GWActiveJobs({ navigate, fixState }) {
     return { ...o, stage };
   });
 
-  const all = [...realAugmented, ...synthMine].sort((a,b) => {
+  const all = realAugmented.sort((a,b) => {
     // Pending approval first, then by deadline ascending
     if (a.status === 'claimed_pending_approval' && b.status !== 'claimed_pending_approval') return -1;
     if (b.status === 'claimed_pending_approval' && a.status !== 'claimed_pending_approval') return 1;

@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>efactory1 · Operations Console</title>
-<link rel="stylesheet" href="styles.css">
+<link rel="stylesheet" href="styles.css?v=chat-redesign">
 <script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
 <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
 <script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
@@ -13,14 +13,14 @@
 <div id="root"></div>
 
 <!-- Foundation: data, utilities, shell -->
-<script type="text/babel" src="data.js"></script>
-<script type="text/babel" src="utils.jsx"></script>
+<script type="text/babel" src="data.js?v=gw-demo-assignments-2"></script>
+<script type="text/babel" src="utils.jsx?v=chat-redesign"></script>
 <script type="text/babel" src="shell.jsx"></script>
 
 <!-- Admin role -->
 <script type="text/babel" src="src/admin/dashboard.jsx"></script>
 <script type="text/babel" src="src/admin/orders-list.jsx"></script>
-<script type="text/babel" src="src/admin/order-detail.jsx"></script>
+<script type="text/babel" src="src/admin/order-detail.jsx?v=chat-redesign"></script>
 <script type="text/babel" src="src/admin/order-new-wizard.jsx"></script>
 <script type="text/babel" src="src/admin/customers.jsx"></script>
 <script type="text/babel" src="src/admin/customer-detail.jsx"></script>
@@ -32,18 +32,18 @@
 <script type="text/babel" src="src/admin/reports.jsx"></script>
 <script type="text/babel" src="src/admin/settings.jsx"></script>
 <script type="text/babel" src="src/admin/bi.jsx"></script>
-<script type="text/babel" src="src/admin/inbox.jsx"></script>
+<script type="text/babel" src="src/admin/inbox.jsx?v=chat-redesign"></script>
 <script type="text/babel" src="src/admin/friday-batch.jsx"></script>
 
 <!-- Ghostwriter role -->
 <script type="text/babel" src="src/gw/dashboard.jsx"></script>
 <script type="text/babel" src="src/gw/job-board.jsx"></script>
-<script type="text/babel" src="src/gw/active-jobs.jsx"></script>
-<script type="text/babel" src="src/gw/submit.jsx"></script>
-<script type="text/babel" src="src/gw/assignment-detail.jsx"></script>
+<script type="text/babel" src="src/gw/active-jobs.jsx?v=shared-assignments-2"></script>
+<script type="text/babel" src="src/gw/submit.jsx?v=state-gated-submit"></script>
+<script type="text/babel" src="src/gw/assignment-detail.jsx?v=chat-redesign"></script>
 <script type="text/babel" src="src/gw/submissions-list.jsx"></script>
-<script type="text/babel" src="src/gw/payments.jsx"></script>
-<script type="text/babel" src="src/gw/messages.jsx"></script>
+<script type="text/babel" src="src/gw/payments.jsx?v=hide-rate"></script>
+<script type="text/babel" src="src/gw/messages.jsx?v=chat-redesign"></script>
 <script type="text/babel" src="src/gw/templates.jsx"></script>
 <script type="text/babel" src="src/gw/profile.jsx"></script>
 <script type="text/babel" src="src/gw/onboarding.jsx"></script>
@@ -52,14 +52,14 @@
 <script type="text/babel" src="src/gw/extension-request.jsx"></script>
 
 <!-- QA role (queue must load before order-detail because qa/order-detail uses SubmissionsTab from admin/order-detail) -->
-<script type="text/babel" src="src/qa/queue.jsx"></script>
-<script type="text/babel" src="src/qa/order-detail.jsx"></script>
+<script type="text/babel" src="src/qa/queue.jsx?v=dynamic-ai-banner"></script>
+<script type="text/babel" src="src/qa/order-detail.jsx?v=chat-redesign"></script>
 <script type="text/babel" src="src/qa/plagiarism.jsx"></script>
 <script type="text/babel" src="src/qa/ai-detection.jsx"></script>
 <script type="text/babel" src="src/qa/history.jsx"></script>
 
 <!-- Customer role -->
-<script type="text/babel" src="src/customer/view.jsx"></script>
+<script type="text/babel" src="src/customer/view.jsx?v=chat-redesign"></script>
 
 <!-- Dev tools -->
 <script type="text/babel" src="src/dev/tweaks-panel.jsx"></script>
@@ -197,15 +197,11 @@ function App() {
   // role-aware route resolution
   let body = null;
   if (role === 'customer') {
-    switch (route.name) {
-      case 'cust-orders':
-      case 'admin-dashboard': body = <CustomerView navigate={navigate} section="orders"/>; break;
-      case 'cust-messages': body = <CustomerView navigate={navigate} section="messages"/>; break;
-      case 'cust-invoices': body = <CustomerView navigate={navigate} section="invoices"/>; break;
-      case 'cust-downloads': body = <CustomerView navigate={navigate} section="downloads"/>; break;
-      case 'cust-profile': body = <CustomerView navigate={navigate} section="profile"/>; break;
-      default: body = <CustomerView navigate={navigate} section="orders"/>;
-    }
+    const custSection = {
+      'cust-orders': 'orders', 'cust-messages': 'messages', 'cust-invoices': 'invoices',
+      'cust-downloads': 'downloads', 'cust-profile': 'profile', 'admin-dashboard': 'orders',
+    }[route.name] || 'orders';
+    body = <CustomerView role={role} setRole={setRole} navigate={navigate} toast={toast} section={custSection}/>;
   } else if (role === 'qa') {
     switch (route.name) {
       case 'qa-queue':
@@ -263,6 +259,19 @@ function App() {
     }
   }
 
+  const tweakPanel = tweakOpen && <TweaksPanel tweaks={tweaks} setTweak={setTweak} onClose={() => { setTweakOpen(false); try { window.parent.postMessage({ type: '__edit_mode_dismissed' }, '*'); } catch(e){} }}/>;
+
+  // Customer portal: self-contained shell — no ops sidebar, no topbar
+  if (role === 'customer') {
+    return (
+      <div style={{ minHeight: '100vh', background: 'var(--bg)' }}>
+        {body}
+        {tweakPanel}
+        <ToastStack toasts={toasts} onDismiss={dismiss}/>
+      </div>
+    );
+  }
+
   return (
     <div className="app-root">
       <Sidebar route={route} navigate={navigate} role={role} fixState={fixState}/>
@@ -273,7 +282,7 @@ function App() {
           {body}
         </div>
       </div>
-      {tweakOpen && <TweaksPanel tweaks={tweaks} setTweak={setTweak} onClose={() => { setTweakOpen(false); try { window.parent.postMessage({ type: '__edit_mode_dismissed' }, '*'); } catch(e){} }}/>}
+      {tweakPanel}
       <ToastStack toasts={toasts} onDismiss={dismiss}/>
     </div>
   );
