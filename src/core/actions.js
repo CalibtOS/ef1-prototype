@@ -353,6 +353,118 @@ function releaseBatch(orderIds) {
   return released;
 }
 
+// ============ A5: ADMIN RESOLUTION FOR EXTENSION / DELAY / DISPUTE ============
+// Each closes a state that previously had no admin response path (orders would
+// stick in extension_requested / delay_reported / disputeOpen forever).
+
+function approveExtension(orderId, payload = {}) {
+  const o = order(orderId);
+  if (!o) return false;
+  const ext = o.extensionPending || {};
+  const extraPages = Number(ext.extraPages) || 0;
+  const extraFee = Number(ext.extraFee) || 0;
+  const newDeadline = payload.newDeadline || ext.proposedNewDeadline || o.finalDeadline;
+  patchOrder(orderId, prev => ({
+    ...prev,
+    status: 'active',
+    finalDeadline: newDeadline,
+    pages: (prev.pages || 0) + extraPages,
+    grossEur: (prev.grossEur || 0) + extraFee,
+    extensionPending: null,
+    extensionApprovedAt: nowIso(),
+  }));
+  notify({ to: 'gw', kind: 'extension_approved', title: `Extension approved · #${orderId}`, body: `Scope updated · ${extraPages ? '+' + extraPages + ' pages · ' : ''}${extraFee ? '+' + extraFee + ' € · ' : ''}new deadline ${newDeadline?.slice?.(0,10) || ''}` });
+  notify({ to: 'customer', kind: 'extension_approved', title: 'Erweiterung genehmigt', body: `Auftrag #${orderId} wurde erweitert. Neuer Liefertermin: ${newDeadline?.slice?.(0,10) || ''}.` });
+  return true;
+}
+
+function rejectExtension(orderId, reason) {
+  const o = order(orderId);
+  if (!o) return false;
+  patchOrder(orderId, { status: 'active', extensionPending: null, extensionRejectedAt: nowIso(), extensionRejectReason: reason || null });
+  notify({ to: 'gw', kind: 'extension_rejected', title: `Extension declined · #${orderId}`, body: reason ? `Reason: ${reason}` : 'Please continue with the original scope.' });
+  return true;
+}
+
+function acceptDelay(orderId, payload = {}) {
+  const o = order(orderId);
+  if (!o) return false;
+  const newDeadline = payload.newDeadline || o.proposedNewDeadline || o.finalDeadline;
+  patchOrder(orderId, {
+    status: 'active',
+    finalDeadline: newDeadline,
+    delayAcceptedAt: nowIso(),
+    proposedNewDeadline: null,
+  });
+  notify({ to: 'gw', kind: 'delay_accepted', title: `New deadline confirmed · #${orderId}`, body: `Final deadline now ${newDeadline?.slice?.(0,10) || ''}` });
+  notify({ to: 'customer', kind: 'delay_accepted', title: 'Neuer Liefertermin bestätigt', body: `Auftrag #${orderId} · neuer Termin ${newDeadline?.slice?.(0,10) || ''}` });
+  return true;
+}
+
+function proposeNewDelay(orderId, newDeadline) {
+  const o = order(orderId);
+  if (!o) return false;
+  patchOrder(orderId, { proposedNewDeadline: newDeadline });
+  notify({ to: 'customer', kind: 'delay_counter', title: 'Gegenvorschlag für Liefertermin', body: `Auftrag #${orderId} · vorgeschlagen: ${newDeadline?.slice?.(0,10) || ''}` });
+  notify({ to: 'gw', kind: 'delay_counter', title: `Admin proposed new deadline · #${orderId}`, body: newDeadline?.slice?.(0,10) || '' });
+  return true;
+}
+
+function closeDispute(orderId, resolution) {
+  const o = order(orderId);
+  if (!o) return false;
+  patchOrder(orderId, { disputeOpen: false, disputeResolution: resolution || 'resolved', disputeClosedAt: nowIso() });
+  notify({ to: 'customer', kind: 'dispute_closed', title: `Streitfall gelöst · Auftrag #${orderId}`, body: resolution ? resolution.slice(0, 140) : 'Der Streitfall wurde geschlossen.' });
+  notify({ to: 'gw', kind: 'dispute_closed', title: `Dispute closed · #${orderId}`, body: resolution ? resolution.slice(0, 140) : 'Closed by admin.' });
+  return true;
+}
+
+// ============ A6: ADMIN RESOLUTION FOR AI / PLAGIARISM VIOLATIONS ============
+
+function confirmViolation(orderId, payload = {}) {
+  const o = order(orderId);
+  if (!o) return false;
+  const reasonText = payload.reason || o.qaFlagReason || 'Quality violation confirmed';
+  const violationType = o.status === 'plagiarism_violation_review' ? 'plagiarism' : 'ai';
+  // Shadow-ban the GW (already an existing action) and reset the order so a new
+  // GW can be assigned; payment stays blocked until reassignment + re-QA.
+  if (o.gwId) {
+    shadowBan(o.gwId, { banned: true, reason: `${violationType === 'plagiarism' ? 'Plagiarism' : 'AI use'} confirmed on #${orderId}` });
+  }
+  patchOrder(orderId, {
+    status: 'available',
+    gwId: null,
+    flagged: false,
+    paymentBlocked: false,
+    qaPassed: false,
+    violationConfirmedAt: nowIso(),
+    violationReason: reasonText,
+  });
+  notify({ to: 'customer', kind: 'violation_confirmed', title: 'Wir setzen Ihren Auftrag mit einem neuen Ghostwriter fort', body: `Auftrag #${orderId} · die Qualitätsprüfung hat eine Auffälligkeit bestätigt. Wir weisen Ihnen kurzfristig einen neuen Ghostwriter zu — ohne Mehrkosten.` });
+  notify({ to: 'admin', kind: 'violation_confirmed', title: `Violation confirmed · #${orderId}`, body: `Order returned to job board · GW shadow-banned · payment block lifted (no honorarium owed).` });
+  return true;
+}
+
+function clearViolation(orderId, reason) {
+  const o = order(orderId);
+  if (!o) return false;
+  // Restore the order to the appropriate prior state: if a final was already
+  // submitted treat as delivered; otherwise back to qa_review.
+  const restoreTo = o.lastSubmissionKind === 'final' || o.finalSubmittedAt ? 'delivered' : 'qa_review';
+  patchOrder(orderId, {
+    status: restoreTo,
+    flagged: false,
+    paymentBlocked: false,
+    qaPassed: restoreTo === 'delivered' ? true : o.qaPassed,
+    violationClearedAt: nowIso(),
+    violationClearReason: reason || null,
+    qaFlagReason: null,
+  });
+  notify({ to: 'gw', kind: 'violation_cleared', title: `Flag cleared · #${orderId}`, body: reason ? `Admin reviewed and cleared the flag: ${reason}` : 'Admin reviewed the evidence and cleared the flag.' });
+  notify({ to: 'customer', kind: 'violation_cleared', title: 'Auftrag freigegeben', body: `Auftrag #${orderId} · die Endversion wurde nach Prüfung freigegeben.` });
+  return true;
+}
+
 function shadowBan(gwId, payload = {}) {
   const target = gw(gwId);
   if (!target) return false;
@@ -382,6 +494,210 @@ function setRoute(route) {
   store.setState(prev => ({ ...prev, ui: { ...prev.ui, route } }), 'ui.setRoute');
 }
 
+// ============ THREADS / MESSAGING (A1) ============
+//
+// Threads live in state.entities.threads with shape:
+//   { id, orderId, customerId, gwId, subject, channel, sentiment, lastAt,
+//     flagged, followUp, snoozeUntil,
+//     unread: { admin: N, gw: N, customer: N },
+//     messages: [{ id, threadId, from, body, at, attachments?, autoflag?, system? }] }
+//
+// All composer surfaces (admin/inbox.jsx, gw/messages.jsx, customer/view.jsx)
+// route through `threads.send` so a message sent in one persona is visible to
+// the others on role switch.
+const FINANCIAL_KEYWORD_RE = /preis|kosten|rabatt|nachlass|raten|geld|honorar|bezahl|rechnung|euro|€/i;
+
+function selectThread(state, threadId) {
+  return S.byId(state.entities.threads, threadId);
+}
+
+function selectThreadByOrder(state, orderId) {
+  const threads = state.entities.threads;
+  const id = (threads.allIds || []).find(tid => Number(threads.byId[tid]?.orderId) === Number(orderId));
+  return id ? threads.byId[id] : null;
+}
+
+function newMessageId(threadId) {
+  return `${threadId}-m-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 5)}`;
+}
+
+function ensureThreadForOrder(orderId, sender) {
+  const state = store.getState();
+  const existing = selectThreadByOrder(state, orderId);
+  if (existing) return existing;
+  const o = order(orderId);
+  if (!o) return null;
+  const id = `t-live-${orderId}`;
+  const thread = {
+    id,
+    orderId: Number(orderId),
+    customerId: o.customerId,
+    gwId: o.gwId || null,
+    subject: o.title || `Auftrag #${orderId}`,
+    channel: 'platform_chat',
+    sentiment: 'neutral',
+    lastAt: nowIso(),
+    flagged: false,
+    followUp: false,
+    snoozeUntil: null,
+    unread: { admin: 0, gw: 0, customer: 0 },
+    messages: [],
+  };
+  upsertEntity('threads', thread, 'threads.create');
+  return thread;
+}
+
+function appendMessage(threadId, message, label) {
+  patchEntity('threads', threadId, prev => {
+    const messages = [...(prev.messages || []), message];
+    return {
+      ...prev,
+      messages,
+      lastAt: message.at,
+    };
+  }, label || 'threads.appendMessage');
+}
+
+function bumpUnread(threadId, recipientRoles) {
+  patchEntity('threads', threadId, prev => {
+    const unread = { admin: 0, gw: 0, customer: 0, ...(prev.unread || {}) };
+    recipientRoles.forEach(r => { unread[r] = (unread[r] || 0) + 1; });
+    return { ...prev, unread };
+  }, 'threads.bumpUnread');
+}
+
+function recipientsForThread(thread, senderRole) {
+  // Admin always observes (CC). The other side of the conversation gets a ping.
+  const all = ['admin', 'gw', 'customer'];
+  return all.filter(r => r !== senderRole);
+}
+
+function sendMessage(payload = {}) {
+  const role = payload.role || store.getState().session.role || 'admin';
+  const orderId = payload.orderId;
+  let threadId = payload.threadId;
+  let thread = threadId
+    ? selectThread(store.getState(), threadId)
+    : (orderId != null ? selectThreadByOrder(store.getState(), orderId) : null);
+
+  if (!thread && orderId != null) {
+    thread = ensureThreadForOrder(orderId, role);
+  }
+  if (!thread) {
+    toast({ text: 'Thread not found', tone: 'danger' });
+    return null;
+  }
+  threadId = thread.id;
+
+  const body = (payload.body || '').trim();
+  if (!body && !(payload.attachments && payload.attachments.length)) return null;
+
+  const at = nowIso();
+  const isFinancial = role !== 'admin' && FINANCIAL_KEYWORD_RE.test(body);
+  const message = {
+    id: newMessageId(threadId),
+    threadId,
+    from: role,
+    body,
+    at,
+    autoflag: isFinancial ? 'financial' : null,
+    system: false,
+  };
+  if (payload.attachments && payload.attachments.length) message.attachments = payload.attachments;
+  appendMessage(threadId, message, 'threads.send');
+
+  // Always bump unread for non-sender roles. The financial system message
+  // (below) bumps admin again so the redirect is unmistakable in the bell.
+  bumpUnread(threadId, recipientsForThread(thread, role));
+
+  if (isFinancial) {
+    const sysMsg = {
+      id: newMessageId(threadId) + '-sys',
+      threadId,
+      from: 'system',
+      body: 'Finanzbezug erkannt — Anfrage automatisch an kundenservice@efactory1.de weitergeleitet. Der Ghostwriter darf finanzielle Themen nicht besprechen.',
+      at: nowIso(),
+      system: true,
+      autoflag: 'financial',
+    };
+    appendMessage(threadId, sysMsg, 'threads.financialRedirect');
+    patchEntity('threads', threadId, { flagged: 'financial' }, 'threads.flagFinancial');
+    notify({
+      to: 'admin',
+      kind: 'message_redirected',
+      title: `Finanzfrage umgeleitet · #${thread.orderId}`,
+      body: 'Customer fragte nach Preisen/Raten. Auto-Redirect an kundenservice@efactory1.de.',
+      urgent: false,
+    });
+  }
+
+  // Notify the other participants. Skip admin notification if it's the financial
+  // path (already covered above) and skip self.
+  const senderName = role === 'gw'
+    ? (gw(thread.gwId)?.name || 'Ghostwriter')
+    : role === 'customer'
+      ? (customer(thread.customerId)?.name || 'Kunde')
+      : 'efactory1';
+  const previewBody = body.length > 90 ? body.slice(0, 90) + '…' : body;
+  const recipients = recipientsForThread(thread, role)
+    .filter(r => !(isFinancial && r === 'admin'));
+  if (recipients.length) {
+    notify({
+      to: recipients,
+      kind: 'message_received',
+      title: `Neue Nachricht · #${thread.orderId}`,
+      body: `${senderName}: ${previewBody}`,
+      urgent: false,
+    });
+  }
+
+  return message;
+}
+
+function markThreadRead(threadId, role) {
+  if (!threadId || !role) return false;
+  patchEntity('threads', threadId, prev => {
+    const unread = { admin: 0, gw: 0, customer: 0, ...(prev.unread || {}) };
+    unread[role] = 0;
+    return { ...prev, unread };
+  }, 'threads.markRead');
+  return true;
+}
+
+function redirectThread(threadId) {
+  const thread = selectThread(store.getState(), threadId);
+  if (!thread) return false;
+  const sysMsg = {
+    id: newMessageId(threadId) + '-redir',
+    threadId,
+    from: 'system',
+    body: 'Admin hat diesen Thread an kundenservice@efactory1.de weitergeleitet. Bitte alle Finanzfragen dort fortführen.',
+    at: nowIso(),
+    system: true,
+    autoflag: 'financial',
+  };
+  appendMessage(threadId, sysMsg, 'threads.redirect');
+  patchEntity('threads', threadId, { flagged: 'financial' }, 'threads.flagFinancial');
+  notify({
+    to: 'customer',
+    kind: 'message_redirected',
+    title: `Anfrage an Kundenservice weitergeleitet · #${thread.orderId}`,
+    body: 'Wir kümmern uns von dort um Ihre Frage.',
+  });
+  return true;
+}
+
+function flagThreadFollowUp(threadId) {
+  patchEntity('threads', threadId, prev => ({ ...prev, followUp: !prev.followUp }), 'threads.followUp');
+  return true;
+}
+
+function snoozeThread(threadId, hours = 4) {
+  const ms = Date.now() + hours * 3600 * 1000;
+  patchEntity('threads', threadId, { snoozeUntil: new Date(ms).toISOString() }, 'threads.snooze');
+  return true;
+}
+
 const actions = {
   toast,
   notify,
@@ -394,6 +710,13 @@ const actions = {
     assignGw,
     markInstallmentPaid,
     setHonorRate,
+    approveExtension,
+    rejectExtension,
+    acceptDelay,
+    proposeNewDelay,
+    closeDispute,
+    confirmViolation,
+    clearViolation,
   },
   gw: {
     claimJob,
@@ -416,6 +739,13 @@ const actions = {
   payments: { releaseBatch },
   gws: { shadowBan },
   notifications: { markAllRead: markAllNotificationsRead },
+  threads: {
+    send: sendMessage,
+    markRead: markThreadRead,
+    redirect: redirectThread,
+    flagFollowUp: flagThreadFollowUp,
+    snooze: snoozeThread,
+  },
 };
 
 window.EFActions = actions;

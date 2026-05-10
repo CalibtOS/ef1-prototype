@@ -89,6 +89,8 @@ function custGwContact(o) {
 
 function CustHeader({ tab, setTab, role, setRole }) {
   const [open, setOpen] = useStateA(false);
+  const NotifBell = window.NotifBell;
+  const customerNotifs = window.EFHooks.useNotifications('customer');
   const tabs = [
     { id: 'orders', label: 'Meine Aufträge', icon: 'package' },
     { id: 'messages', label: 'Nachrichten', icon: 'message-square' },
@@ -98,12 +100,18 @@ function CustHeader({ tab, setTab, role, setRole }) {
   ];
   return (
     <div style={{ background: 'var(--surface)', borderBottom: '1px solid var(--border)' }}>
-      <div style={{ maxWidth: 1080, margin: '0 auto', padding: '14px 24px 0', display: 'flex', alignItems: 'center', gap: 16 }}>
+      <div style={{ maxWidth: 1080, margin: '0 auto', padding: '14px 24px 0', display: 'flex', alignItems: 'center', gap: 12 }}>
         <div style={{ fontWeight: 700, letterSpacing: 0, fontSize: 22 }}>
           e<span style={{ color: 'var(--blue)' }}>factory</span>
           <span style={{ fontSize: 14, color: 'var(--text-2)' }}>1</span>
         </div>
         <span style={{ flex: 1 }}/>
+        {NotifBell && (
+          <NotifBell
+            notifications={customerNotifs}
+            onMark={() => window.EFActions.notifications.markAllRead('customer')}
+          />
+        )}
         <div style={{ position: 'relative' }}>
           <div onClick={() => setOpen(!open)} className="role-switcher" style={{ cursor: 'pointer' }}>
             <Avatar initials={CUST_PERSONA.initials} size={26} tone="blue"/>
@@ -406,51 +414,51 @@ function CustOrderStatus({ o }) {
 function CustOrderChat({ o, toast }) {
   const [text, setText] = useStateA('');
   const [draftFlag, setDraftFlag] = useStateA(null);
+  const thread = window.EFHooks.useThreadByOrder(o.id);
 
-  const baseConv = [
-    { from: 'gw',       at: '2026-04-02T09:14:00', text: 'Guten Tag und vielen Dank für Ihren Auftrag! Ich freue mich auf die Zusammenarbeit. Senden Sie mir bitte das Briefing-Dokument und ggf. relevante Vorlesungsfolien.' },
-    {
-      from: 'customer',
-      at: '2026-04-02T18:42:00',
-      text: 'Hallo! Anbei das Briefing und die Folien. Schwerpunkt soll auf praxisnahen Beispielen aus dem Maschinenbau liegen.',
-      attachments: [
-        { name: 'Briefing.pdf', meta: '184 KB', icon: 'file-text' },
-        { name: 'Vorlesungsfolien.zip', meta: '2.4 MB', icon: 'paperclip' },
-      ],
-    },
-    { from: 'gw',       at: '2026-04-08T11:02:00', text: 'Outline ist fertig. Ich habe sie über die Plattform unter „Dokumente" hochgeladen — bitte schauen Sie es sich an.' },
-    { from: 'customer', at: '2026-04-09T10:15:00', text: 'Outline passt — bitte mit Kapitel 3 weitermachen.' },
-    { from: 'gw',       at: '2026-05-06T15:30:00', text: 'Zwischenstand 1 ist hochgeladen — bitte um Feedback bis Donnerstag.' },
-  ];
-  if (o.status === 'completed') {
-    baseConv.push(
-      { from: 'customer', at: '2026-04-10T16:00:00', text: 'Vielen Dank! Bin sehr zufrieden mit der finalen Version.' },
-      { from: 'platform', at: '2026-04-12T10:30:00', text: '✓ Endabgabe geliefert · QA bestanden · Auftrag abgeschlossen.' }
-    );
-  }
-  if (o.status === 'qualified' || o.status === 'offer_sent') {
-    baseConv.length = 0;
-    baseConv.push({ from: 'platform', at: '2026-05-05T14:00:00', text: 'Ihre Anfrage ist eingegangen. Wir bereiten Ihr Angebot vor.' });
-  } else if (o.status === 'invoice_sent') {
-    baseConv.length = 0;
-    baseConv.push({ from: 'platform', at: '2026-05-05T14:00:00', text: 'Rechnung versendet · Sobald Ihre Zahlung eingegangen ist, starten wir die Ghostwriter-Suche.' });
-  } else if (o.status === 'available') {
-    baseConv.length = 0;
-    baseConv.push({ from: 'platform', at: o.acceptedAt || '2026-05-05T14:00:00', text: 'Zahlung erhalten · Ghostwriter-Suche gestartet · Sie werden benachrichtigt sobald ein passender GW zugewiesen ist.' });
-  }
+  // Pre-GW / pre-payment status messages — synthetic system entries for stages
+  // where no thread exists yet because the order has no GW.
+  const syntheticConv = (() => {
+    if (o.status === 'qualified' || o.status === 'offer_sent') {
+      return [{ from: 'system', at: '2026-05-05T14:00:00', body: 'Ihre Anfrage ist eingegangen. Wir bereiten Ihr Angebot vor.' }];
+    }
+    if (o.status === 'invoice_sent') {
+      return [{ from: 'system', at: '2026-05-05T14:00:00', body: 'Rechnung versendet · Sobald Ihre Zahlung eingegangen ist, starten wir die Ghostwriter-Suche.' }];
+    }
+    if (o.status === 'available' || o.status === 'claimed_pending_approval') {
+      return [{ from: 'system', at: o.acceptedAt || '2026-05-05T14:00:00', body: 'Zahlung erhalten · Ghostwriter-Suche gestartet · Sie werden benachrichtigt sobald ein passender GW zugewiesen ist.' }];
+    }
+    return null;
+  })();
+
+  const messages = syntheticConv ? syntheticConv : (thread?.messages || []);
+
+  // Mark unread customer messages as read once the chat is opened.
+  useEffectA(() => {
+    if (thread?.id && (thread.unread?.customer || 0) > 0) {
+      window.EFActions.threads.markRead(thread.id, 'customer');
+    }
+  }, [thread?.id]);
 
   const detectFinancial = (txt) => /preis|kosten|rabatt|nachlass|raten|geld|honorar|bezahl|rechnung|euro|€/i.test(txt);
   const onChange = (v) => { setText(v); setDraftFlag(detectFinancial(v) ? 'financial' : null); };
   const onSend = () => {
     if (!text.trim()) return;
-    if (draftFlag === 'financial') {
-      toast && toast({ tone: 'info', text: 'Finanzfrage erkannt — automatisch an kundenservice@efactory1.de weitergeleitet.' });
-    } else {
-      toast && toast({ tone: 'success', text: 'Nachricht gesendet · efactory1 in CC' });
+    const msg = window.EFActions.threads.send({
+      orderId: o.id,
+      role: 'customer',
+      body: text,
+    });
+    if (msg) {
+      if (msg.autoflag === 'financial') {
+        toast && toast({ tone: 'info', text: 'Finanzfrage erkannt — automatisch an kundenservice@efactory1.de weitergeleitet.' });
+      } else {
+        toast && toast({ tone: 'success', text: 'Nachricht gesendet · efactory1 in CC' });
+      }
+      setText(''); setDraftFlag(null);
     }
-    setText(''); setDraftFlag(null);
   };
-  const isLocked = !o.gwId;
+  const isLocked = !o.gwId || ['claimed_pending_approval','available','qualified','offer_sent','invoice_sent'].includes(o.status);
   const gwLabel = custGwLabel(o) || 'GW';
   const gwInits = gwLabel.split(' ').map(s=>s[0]).join('').slice(0,2).toUpperCase();
 
@@ -464,7 +472,7 @@ function CustOrderChat({ o, toast }) {
             <Avatar initials={isLocked ? 'EF' : gwInits} size={34} tone="blue"/>
             <div style={{ minWidth: 0 }}>
               <span className="chat-title-main">{activeTitle}</span>
-              <span className="chat-title-sub">{baseConv.length} Nachrichten · Antwortzeit meist innerhalb 24h</span>
+              <span className="chat-title-sub">{messages.length} Nachrichten · Antwortzeit meist innerhalb 24h</span>
             </div>
           </div>
           <span className="pill pill-blue" style={{ fontSize: 10 }}><Icon name="lock" size={9}/> CC aktiv</span>
@@ -475,27 +483,33 @@ function CustOrderChat({ o, toast }) {
         </ChatNotice>
 
         <div className="chat-stream" style={{ maxHeight: 520 }}>
-          {baseConv.length === 0 && (
+          {messages.length === 0 && (
             <EmptyState compact icon="message-square" title="Noch keine Nachrichten" body="Sobald der Ghostwriter zugewiesen ist, erscheint hier die Unterhaltung."/>
           )}
-          {baseConv.map((m, i) => {
+          {messages.map((m, i) => {
             const mine = m.from === 'customer';
-            const sys  = m.from === 'platform';
-            const prev = baseConv[i - 1];
-            const grouped = !!prev && prev.from === m.from && !sys && prev.from !== 'platform';
+            const sys  = m.from === 'system' || m.from === 'platform' || m.from === 'admin';
+            const senderName = mine ? CUST_PERSONA.user
+              : m.from === 'gw' ? gwLabel
+              : m.from === 'admin' ? 'efactory1' : 'System';
+            const senderInits = mine ? CUST_PERSONA.initials
+              : m.from === 'gw' ? gwInits
+              : m.from === 'admin' ? 'EF' : 'EF';
+            const prev = messages[i - 1];
+            const grouped = !!prev && prev.from === m.from && !sys;
             return (
               <ChatMessage
-                key={i}
+                key={m.id || i}
                 mine={mine}
                 system={sys}
-                sender={gwLabel}
-                initials={mine ? CUST_PERSONA.initials : gwInits}
+                sender={senderName}
+                initials={senderInits}
                 at={m.at}
                 grouped={grouped}
                 attachments={m.attachments}
                 status={mine ? 'zugestellt' : null}
               >
-                {m.text}
+                {m.body || m.text}
               </ChatMessage>
             );
           })}
@@ -952,10 +966,13 @@ function CustOrderDetail({ orderId, initialTab, onBack, toast }) {
 
 function CustMessagesList({ openOrder }) {
   const orders = custOrders().filter(o => o.gwId);
-  const snippets = {
-    3518: { from: 'gw',       msg: 'Zwischenstand 1 ist hochgeladen — bitte um Feedback bis Donnerstag.', at: '2026-05-06T15:30:00', unread: 1 },
-    3492: { from: 'platform', msg: '✓ Endabgabe geliefert · Auftrag abgeschlossen.', at: '2026-04-12T10:30:00', unread: 0 },
-  };
+  const allThreads = window.EFHooks.useThreads();
+  const threadsByOrder = useMemoA(() => {
+    const m = {};
+    allThreads.forEach(t => { m[t.orderId] = t; });
+    return m;
+  }, [allThreads]);
+
   return (
     <div>
       <h1 style={{ fontSize: 24, fontWeight: 600, letterSpacing: 0, margin: '24px 0 6px' }}>Nachrichten</h1>
@@ -978,22 +995,30 @@ function CustMessagesList({ openOrder }) {
             </div>
           </div>
           <div className="chat-thread-list">
-            {orders.map((o, i) => {
-              const sn = snippets[o.id] || { from: 'platform', msg: 'Konversation öffnen…', at: o.acceptedAt, unread: 0 };
+            {orders.map((o) => {
               const gw = custGwLabel(o);
               const wt = D.WORK_TYPE_LABELS[o.workType];
               const initials = gw ? gw.split(' ').map(s=>s[0]).join('').slice(0,2).toUpperCase() : '··';
+              const t = threadsByOrder[o.id];
+              const lastMsg = t?.messages?.[t.messages.length - 1];
+              const previewText = lastMsg
+                ? (lastMsg.body || '').slice(0, 110)
+                : 'Konversation öffnen…';
+              const previewPrefix = lastMsg?.from === 'customer' ? 'Sie: '
+                : lastMsg?.from === 'system' || lastMsg?.from === 'admin' ? 'System: '
+                : '';
+              const unreadCount = t?.unread?.customer || 0;
               return (
                 <ChatThreadRow
                   key={o.id}
                   initials={initials}
                   title={gw || 'GW-Suche'}
                   subtitle={`#${o.id} · ${wt}`}
-                  preview={<>{sn.from === 'customer' && 'Sie: '}{sn.from === 'platform' && 'System: '}{sn.msg}</>}
-                  meta={U.relTime(sn.at)}
-                  unread={sn.unread}
+                  preview={<>{previewPrefix}{previewText}</>}
+                  meta={U.relTime(lastMsg?.at || t?.lastAt || o.acceptedAt)}
+                  unread={unreadCount}
                   onClick={()=>openOrder(o.id, 'messages')}
-                  badges={sn.unread > 0 && <span className="pill pill-red" style={{ fontSize: 10 }}>{sn.unread} neu</span>}
+                  badges={unreadCount > 0 && <span className="pill pill-red" style={{ fontSize: 10 }}>{unreadCount} neu</span>}
                 />
               );
             })}

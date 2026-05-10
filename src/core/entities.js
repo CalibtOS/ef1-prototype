@@ -15,6 +15,8 @@ function normalize(list) {
   return { byId, allIds };
 }
 
+// Demo spine order: links Antigone Berisha (c-ab) ↔ Isabel Walter (gw-iw)
+// so the four canonical demo personas all touch one lifecycle order.
 function customerDemoOrder() {
   return {
     id: 3518,
@@ -30,7 +32,7 @@ function customerDemoOrder() {
     grossEur: 2360,
     netHonorarium: 793.46,
     rate: 0.36,
-    gwId: 'gw-mp',
+    gwId: 'gw-iw',
     acceptedAt: '2026-04-01',
     leadSource: 'ig',
     paidEur: 1180,
@@ -45,6 +47,121 @@ function customerDemoOrder() {
   };
 }
 
+// Per-thread message seeds. Keyed by thread id from data.js INBOX_THREADS.
+// Each message: { id, from: 'gw'|'customer'|'admin'|'system', body, at, attachments?, autoflag? }
+const THREAD_MESSAGE_SEEDS = {
+  t1: [
+    { from: 'customer', at: '2026-05-04T09:14:00', body: 'Hallo, kurze Frage zum Aufbau von Kapitel 3 — wollten Sie da eher induktiv oder deduktiv vorgehen?' },
+    { from: 'gw',       at: '2026-05-04T11:30:00', body: 'Guten Tag! Geplant ist deduktiv, von der Theorie zur Anwendung. Falls Sie es anders bevorzugen, kann ich das anpassen.' },
+    { from: 'customer', at: '2026-05-07T13:38:00', body: 'Klingt gut. Können wir noch ein konkretes Bosch-Beispiel einbauen?' },
+    { from: 'customer', at: '2026-05-07T13:42:00', body: 'Und nochmal kurz: Welche Quellen ziehen Sie für die ERP-Diskussion heran?' },
+  ],
+  t2: [
+    { from: 'gw',       at: '2026-05-05T10:00:00', body: 'Liebe Frau Schmidt, die überarbeitete Version (Runde 2) liegt im Dokumente-Bereich.' },
+    { from: 'customer', at: '2026-05-06T18:42:00', body: 'Sorry, aber Kapitel 4 ist immer noch nicht das, was wir besprochen haben. Ich brauche das diese Woche fertig.' },
+    { from: 'customer', at: '2026-05-07T08:11:00', body: 'Bitte melden Sie sich heute noch — sonst muss ich eskalieren.' },
+    { from: 'gw',       at: '2026-05-07T10:50:00', body: 'Ich verstehe Ihren Frust. Ich überarbeite §4 heute komplett neu und melde mich um 17 Uhr mit einem Status.' },
+    { from: 'customer', at: '2026-05-07T11:12:00', body: '⚠ Bitte dringend — der Abgabetermin rückt näher.' },
+  ],
+  t3: [
+    { from: 'customer', at: '2026-05-07T09:55:00', body: 'Hallo, kurze Frage: Können wir die letzte Rate noch in zwei Teile splitten? Mir ist gerade etwas dazwischen gekommen mit der Finanzierung.', autoflag: 'financial' },
+    { from: 'system',   at: '2026-05-07T09:55:10', body: 'Finanzbezug erkannt — Anfrage automatisch an kundenservice@efactory1.de weitergeleitet. Der Ghostwriter darf finanzielle Themen nicht besprechen.' },
+  ],
+  t4: [
+    { from: 'gw',       at: '2026-05-06T11:02:00', body: 'Zwischenstand 1 ist hochgeladen — bitte schauen Sie über den Dokumente-Bereich rein.' },
+    { from: 'customer', at: '2026-05-06T16:30:00', body: 'Vielen Dank, sieht super aus! Können Sie mit Kapitel 4 weitermachen.' },
+    { from: 'gw',       at: '2026-05-06T17:10:00', body: 'Sehr gerne — ich starte direkt damit. Zwischenstand 2 dann zum 28.05.' },
+  ],
+  t5: [
+    { from: 'customer', at: '2026-05-07T10:00:00', body: 'Hallo, ich habe meinen Auftrag (#3527) vor zwei Tagen platziert. Wann wird ein Ghostwriter zugewiesen?' },
+    { from: 'system',   at: '2026-05-07T10:00:30', body: 'Ihre Anfrage wurde an unser Team weitergeleitet — typische Zuweisung innerhalb 24h.' },
+  ],
+  t6: [
+    { from: 'system',   at: '2026-05-06T18:11:00', body: 'Voicemail von Sven Hartmann eingegangen · 0:42s · Sentiment: angespannt. Audio-Wiedergabe und Transkription sind per Richtlinie deaktiviert. Bitte zurückrufen.' },
+  ],
+  t7: [
+    { from: 'admin',    at: '2026-05-05T13:30:00', body: 'Liebe Frau Lehmann, hier nochmal zur Bestätigung: Coaching-Termin am Montag, 09.05. um 14:00 via Zoom.' },
+    { from: 'customer', at: '2026-05-05T14:00:00', body: 'Perfekt, bis Montag!' },
+  ],
+  // Demo spine — Antigone Berisha ↔ Isabel Walter ↔ Berat ↔ Lina (via QA)
+  t8: [
+    { from: 'gw',       at: '2026-04-02T09:14:00', body: 'Guten Tag Frau Berisha, vielen Dank für den Auftrag — ich freue mich auf die Zusammenarbeit. Senden Sie mir gerne das Briefing.' },
+    { from: 'customer', at: '2026-04-02T18:42:00', body: 'Hallo Frau Walter! Anbei das Briefing und die Vorlesungsfolien. Schwerpunkt soll auf Industrie-4.0-Kennzahlen liegen, Fallbeispiel Bosch.', attachments: [{ name: 'Briefing.pdf', meta: '184 KB', icon: 'file-text' }] },
+    { from: 'gw',       at: '2026-04-08T11:02:00', body: 'Outline ist fertig — habe sie unter „Dokumente" hochgeladen.' },
+    { from: 'customer', at: '2026-04-09T10:15:00', body: 'Outline passt — bitte mit Kapitel 3 weitermachen.' },
+    { from: 'gw',       at: '2026-05-06T15:30:00', body: 'Zwischenstand 1 ist hochgeladen — bitte um Feedback bis Donnerstag.', attachments: [{ name: 'Zwischenstand_1.docx', meta: '1.2 MB', icon: 'file-text' }] },
+  ],
+};
+
+// Per-thread per-role unread counts. We pre-compute these against THREAD_MESSAGE_SEEDS
+// so the seeded inbox states feel authored: tense thread t2 has 4 unread for admin,
+// t3 has a redirected pricing flag for admin to action, t8 (demo spine) has 1 unread
+// for the customer (Antigone) so her bell shows the freshest GW message after we
+// mount it in A2.
+const THREAD_UNREAD_SEEDS = {
+  t1: { admin: 0, gw: 2, customer: 0 },
+  t2: { admin: 1, gw: 4, customer: 0 },
+  t3: { admin: 1, gw: 0, customer: 0 },
+  t4: { admin: 0, gw: 0, customer: 0 },
+  t5: { admin: 1, gw: 0, customer: 0 },
+  t6: { admin: 1, gw: 0, customer: 0 },
+  t7: { admin: 0, gw: 0, customer: 0 },
+  t8: { admin: 0, gw: 0, customer: 1 },
+};
+
+// Synthetic thread for the demo spine order (#3518) so Antigone and Isabel
+// have a real chat history when the demo opens. Mirrors INBOX_THREADS shape.
+function demoSpineThread() {
+  return {
+    id: 't8',
+    orderId: 3518,
+    customerId: 'c-ab',
+    gwId: 'gw-iw',
+    subject: 'Auftrag #3518 — Zwischenstand 1',
+    channel: 'platform_chat',
+    sentiment: 'positive',
+    lastAt: '2026-05-06T15:30:00',
+    flagged: false,
+  };
+}
+
+function hydrateThread(t) {
+  const id = t.id;
+  const seedMessages = THREAD_MESSAGE_SEEDS[id] || [];
+  const messages = seedMessages.map((m, i) => {
+    const msg = {
+      id: `${id}-m${i + 1}`,
+      threadId: id,
+      from: m.from,
+      body: m.body,
+      at: m.at,
+      autoflag: m.autoflag || null,
+      system: m.from === 'system',
+    };
+    if (m.attachments && m.attachments.length) msg.attachments = m.attachments;
+    return msg;
+  });
+  const lastAt = messages.length ? messages[messages.length - 1].at : t.lastAt;
+  const seedUnread = THREAD_UNREAD_SEEDS[id] || { admin: 0, gw: 0, customer: 0 };
+  // Preserve the seed's `unread` boolean as a fallback for anyone reading the
+  // pre-A1 shape, but the source of truth is `unread.{role}`.
+  return {
+    ...t,
+    messages,
+    lastAt,
+    unread: { ...seedUnread },
+    flagged: t.flagged || (seedMessages.some(m => m.autoflag === 'financial') ? 'financial' : false),
+    followUp: t.followUp || false,
+    snoozeUntil: t.snoozeUntil || null,
+  };
+}
+
+function buildThreads(D) {
+  const baseThreads = [...(D.INBOX_THREADS || [])];
+  if (!baseThreads.some(t => t.id === 't8')) baseThreads.push(demoSpineThread());
+  return baseThreads.map(hydrateThread);
+}
+
 function roleSeedNotifications(D) {
   const admin = (D.NOTIFICATIONS || []).map(n => ({ ...n, to: n.to || 'admin' }));
   return [
@@ -55,6 +172,7 @@ function roleSeedNotifications(D) {
     { id: 'gn2', to: 'gw', kind: 'interim_due_d1', title: 'Interim deadline tomorrow', body: '#3508 · Zwischenstand 1 · 18:00', at: '2026-05-07T09:00:00', read: false },
     { id: 'cn1', to: 'customer', kind: 'interim_received', title: 'Zwischenstand verfügbar', body: 'Auftrag #3518 — Zwischenstand 1 hochgeladen · bitte prüfen', at: '2026-05-06T15:30:00', read: false, urgent: false },
     { id: 'cn2', to: 'customer', kind: 'payment_confirmed', title: 'Zahlung bestätigt', body: 'Rate 1 von 2 · 1.180,00 € · Kreditkarte · Auftrag #3518', at: '2026-04-01T10:00:00', read: true },
+    { id: 'cn3', to: 'customer', kind: 'assignment_intro', title: 'Ihre Ghostwriterin ist zugewiesen', body: 'Isabel Walter übernimmt #3518 — sie meldet sich heute bei Ihnen.', at: '2026-04-01T16:30:00', read: true },
   ];
 }
 
@@ -71,7 +189,7 @@ function hydrate() {
     submissions: normalize(D.SUBMISSIONS || []),
     customers: normalize(D.CUSTOMERS || []),
     ghostwriters: normalize(D.GHOSTWRITERS || []),
-    threads: normalize(D.INBOX_THREADS || []),
+    threads: normalize(buildThreads(D)),
     notifications: normalize(roleSeedNotifications(D)),
   };
 }

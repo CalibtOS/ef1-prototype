@@ -11,36 +11,50 @@ function Inbox({ toast }) {
   const [tab, setTab] = useStateA('Inbox');
   const [reply, setReply] = useStateA('');
   const _toast = toast || (m => console.log(m));
-  const threads = window.EFHooks.useThreads().map(t => {
+  const rawThreads = window.EFHooks.useThreads();
+  const threads = rawThreads.map(t => {
     const cust = D.customer(t.customerId);
     const ch = t.channel === 'whatsapp_proxy' ? 'whatsapp'
       : t.channel === 'voice_metadata' ? 'voice'
       : t.channel === 'platform_chat' ? 'platform'
       : 'email';
+    const lastMsg = (t.messages && t.messages.length) ? t.messages[t.messages.length - 1] : null;
+    const unreadAdmin = (t.unread && typeof t.unread === 'object') ? (t.unread.admin || 0) : (t.unread ? 1 : 0);
     return {
       id: t.id,
       subject: t.subject,
-      last: t.channel === 'voice_metadata' ? 'Voicemail received · metadata only' : t.subject,
+      last: ch === 'voice' ? 'Voicemail received · metadata only'
+        : (lastMsg ? (lastMsg.body || '').slice(0, 110) : t.subject),
       from: cust?.name || (t.system ? 'System' : 'Customer'),
       orderId: t.orderId,
       ch,
       sentiment: t.sentiment || 'neutral',
-      unread: !!t.unread,
+      unread: unreadAdmin,
       at: t.lastAt,
       flagged: !!t.flagged,
-      autoflag: t.flaggedReason === 'financial_question' ? 'pricing' : null,
-      voiceMeta: t.channel === 'voice_metadata' ? { duration: '0:42', from: cust?.phone || 'unknown', recordedAt: t.lastAt } : null,
-      system: t.channel === 'system',
+      autoflag: t.flagged === 'financial' || t.flaggedReason === 'financial_question' ? 'pricing' : null,
+      voiceMeta: ch === 'voice' ? { duration: '0:42', from: cust?.phone || 'unknown', recordedAt: t.lastAt } : null,
+      followUp: !!t.followUp,
+      snoozeUntil: t.snoozeUntil || null,
+      messages: t.messages || [],
+      raw: t,
     };
   });
 
   const filteredThreads = tab === 'Mentions'
-    ? threads.filter(t => t.system || t.from?.toLowerCase().includes('berat'))
+    ? threads.filter(t => t.from?.toLowerCase().includes('berat'))
     : tab === 'Auto-flagged'
-    ? threads.filter(t => t.autoflag || t.flagged)
+    ? threads.filter(t => t.autoflag || t.flagged || t.followUp)
     : threads;
 
   const active = filteredThreads.find(t => t.id === activeId) || filteredThreads[0] || threads[0];
+
+  // Mark the active thread read for admin once it's open. Effect runs on selection change.
+  useEffectA(() => {
+    if (active?.id && active.unread > 0) {
+      window.EFActions.threads.markRead(active.id, 'admin');
+    }
+  }, [active?.id]);
 
   // AI assist suggestions — deterministic per active thread
   const suggestions = active && (
@@ -78,11 +92,29 @@ function Inbox({ toast }) {
       _toast({ text: 'Reply is empty.', tone: 'danger' });
       return;
     }
-    _toast({ text: `Reply sent via ${active.ch} to ${active.from} · CC kundenservice@efactory1.de`, tone: 'success' });
-    setReply('');
+    const msg = window.EFActions.threads.send({
+      threadId: active.id,
+      orderId: active.orderId,
+      role: 'admin',
+      body: reply,
+    });
+    if (msg) {
+      _toast({ text: `Reply sent via ${active.ch} to ${active.from} · CC kundenservice@efactory1.de`, tone: 'success' });
+      setReply('');
+    }
   };
-  const onRedirect = () => _toast({ text: `Thread #${active.orderId} redirected to kundenservice@efactory1.de`, tone: 'info' });
-  const onEscalate = () => _toast({ text: `Thread escalated · admin Berat notified`, tone: 'info' });
+  const onRedirect = () => {
+    const ok = window.EFActions.threads.redirect(active.id);
+    if (ok) _toast({ text: `Thread #${active.orderId} redirected to kundenservice@efactory1.de`, tone: 'info' });
+  };
+  const onSnooze = () => {
+    window.EFActions.threads.snooze(active.id, 4);
+    _toast({ text: 'Thread snoozed for 4h', tone: 'info' });
+  };
+  const onFollowUp = () => {
+    window.EFActions.threads.flagFollowUp(active.id);
+    _toast({ text: active.followUp ? 'Follow-up flag cleared' : 'Thread flagged for follow-up', tone: 'info' });
+  };
   const initialsFor = (name) => (name || 'EF').split(/\s+/).map(s => s[0]).join('').slice(0, 2).toUpperCase();
   const activeInitials = active.system ? 'EF' : initialsFor(active.from);
   const activeChannel = active.ch === 'whatsapp' ? 'WhatsApp' : active.ch === 'voice' ? 'Voice' : active.ch === 'platform' ? 'Platform' : 'Email';
@@ -113,9 +145,9 @@ function Inbox({ toast }) {
               <ChatThreadRow
                 key={t.id}
                 active={active?.id === t.id}
-                unread={t.unread ? 1 : 0}
-                initials={t.system ? 'EF' : initialsFor(t.from)}
-                tone={t.system ? 'amber' : t.ch === 'whatsapp' ? 'emerald' : 'blue'}
+                unread={t.unread || 0}
+                initials={initialsFor(t.from)}
+                tone={t.ch === 'whatsapp' ? 'emerald' : 'blue'}
                 title={t.from}
                 subtitle={`#${t.orderId} · ${t.subject}`}
                 preview={t.last}
@@ -126,6 +158,7 @@ function Inbox({ toast }) {
                   {t.sentiment === 'tense' && <span className="pill pill-amber" style={{ fontSize: 10 }}>tense</span>}
                   {t.sentiment === 'positive' && <span className="pill pill-green" style={{ fontSize: 10 }}>positive</span>}
                   {t.autoflag && <span className="pill pill-orange" style={{ fontSize: 10 }}>auto: {t.autoflag}</span>}
+                  {t.followUp && <span className="pill pill-blue" style={{ fontSize: 10 }}>follow-up</span>}
                 </>}
               />
             ))}
@@ -168,20 +201,42 @@ function Inbox({ toast }) {
                 </div>
                 <ChatNotice compact icon="lock">Audio playback and transcription are disabled. Reply by phone or email.</ChatNotice>
               </>
+            ) : (active.messages.length === 0 ? (
+              <EmptyState compact icon="message-square" title="Noch keine Nachrichten" body="Sobald jemand schreibt, erscheint die Unterhaltung hier."/>
             ) : (
-              <ChatMessage
-                sender={active.from}
-                initials={activeInitials}
-                at={active.at}
-                channel={activeChannel}
-                tone={active.system ? 'amber' : 'blue'}
-              >
-                {active.last}
-              </ChatMessage>
-            )}
-            {active.id === 'th-4' && (
-              <ChatMessage system at={active.at}>Pricing question auto-routed to kundenservice. The GW is not allowed to answer financial terms.</ChatMessage>
-            )}
+              active.messages.map((m, i) => {
+                const sys = m.from === 'system';
+                const mine = m.from === 'admin';
+                const senderName = m.from === 'gw'
+                  ? (D.gw(active.raw.gwId)?.name || 'Ghostwriter')
+                  : m.from === 'customer'
+                    ? active.from
+                    : m.from === 'admin' ? 'efactory1 (Berat)' : 'System';
+                const senderInits = m.from === 'gw'
+                  ? (D.gw(active.raw.gwId)?.initials || '··')
+                  : m.from === 'customer'
+                    ? activeInitials
+                    : m.from === 'admin' ? 'BÖ' : 'EF';
+                const prev = active.messages[i - 1];
+                const grouped = !!prev && prev.from === m.from && !sys;
+                return (
+                  <ChatMessage
+                    key={m.id}
+                    mine={mine}
+                    system={sys}
+                    sender={senderName}
+                    initials={senderInits}
+                    at={m.at}
+                    grouped={grouped}
+                    attachments={m.attachments}
+                    channel={!grouped && !sys ? activeChannel : null}
+                    tone={mine ? 'blue' : sys ? 'amber' : 'slate'}
+                  >
+                    {m.body}
+                  </ChatMessage>
+                );
+              })
+            ))}
           </div>
 
           <ChatComposer
@@ -225,11 +280,11 @@ function Inbox({ toast }) {
                 {/* "Escalate to admin" is hidden for the admin role — admin IS the escalation target.
                     Replaced with "Mark for follow-up" to flag the thread for the admin's own queue. */}
                 {suggestions?.actions?.includes('escalate') && (
-                  <button type="button" className="btn btn-sm" onClick={() => _toast({ text: 'Thread flagged for follow-up', tone: 'info' })}>
-                    <Icon name="flag" size={12}/> Flag for follow-up
+                  <button type="button" className="btn btn-sm" onClick={onFollowUp}>
+                    <Icon name="flag" size={12}/> {active.followUp ? 'Clear follow-up flag' : 'Flag for follow-up'}
                   </button>
                 )}
-                <button type="button" className="btn btn-sm" onClick={() => _toast({ text: 'Thread snoozed for 4h', tone: 'info' })}>
+                <button type="button" className="btn btn-sm" onClick={onSnooze}>
                   <Icon name="clock" size={12}/> Snooze 4h
                 </button>
               </div>

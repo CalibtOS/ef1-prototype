@@ -91,6 +91,16 @@ function useThreads() {
   return useStore(S.selectThreads, shallowEqual);
 }
 
+function useThread(id) {
+  const selector = React.useMemo(() => (state) => S.selectThread(state, id), [id]);
+  return useStore(selector, shallowEqual);
+}
+
+function useThreadByOrder(orderId) {
+  const selector = React.useMemo(() => (state) => S.selectThreadByOrder(state, orderId), [orderId]);
+  return useStore(selector, shallowEqual);
+}
+
 function useNotifications(role) {
   const selector = React.useMemo(() => (state) => S.selectNotifications(state, role || state.session.role), [role]);
   return useStore(selector, shallowEqual);
@@ -124,6 +134,8 @@ window.EFHooks = {
   useGhostwriters,
   useCustomers,
   useThreads,
+  useThread,
+  useThreadByOrder,
   useNotifications,
   useCurrentRole,
   useNavigation,

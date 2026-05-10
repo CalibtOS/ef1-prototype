@@ -60,6 +60,15 @@ function selectThreads(state) {
   return tableItems(state.entities.threads).sort((a, b) => new Date(b.lastAt || 0) - new Date(a.lastAt || 0));
 }
 
+function selectThread(state, id) {
+  return byId(state.entities.threads, id);
+}
+
+function selectThreadByOrder(state, orderId) {
+  if (orderId == null) return null;
+  return tableItems(state.entities.threads).find(t => Number(t.orderId) === Number(orderId)) || null;
+}
+
 function selectNotifications(state, role) {
   const target = role || state.session.role || 'admin';
   return tableItems(state.entities.notifications)
@@ -123,6 +132,8 @@ window.EFSelectors = {
   selectOrdersByGw,
   selectOrdersByCustomer,
   selectThreads,
+  selectThread,
+  selectThreadByOrder,
   selectNotifications,
   selectKpis,
   selectFridayBatch,

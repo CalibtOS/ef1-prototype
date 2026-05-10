@@ -98,100 +98,8 @@ function AdminDashboard({ navigate, openFridayBatch }) {
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 16 }}>
-        <div className="card">
-          <div className="card-head">
-            <div className="card-title">Needs your decision</div>
-            <span className="text-faint fs-11">5 items</span>
-          </div>
-          <div className="card-pad flex-col gap-2">
-            <button type="button" className="action-row" onClick={() => navigate('order-detail', { id: 3517 })}>
-              <div className="action-icon" style={{ background: 'var(--red-soft)', color: 'var(--red)' }}><Icon name="alert-triangle" size={16}/></div>
-              <div style={{ flex: 1, textAlign: 'left' }}>
-                <div className="text-strong fs-12"><span className="pill pill-red" style={{ marginRight: 6 }}>🚨 AI Violation</span>Order #3517 — Verhaltensökonomie und Konsumentscheidungen</div>
-                <div className="text-muted fs-11">GW Anna König — AI score 87% · plagiarism 12% · {U.relTime('2026-05-07T09:02:00')}</div>
-              </div>
-              <Icon name="chevron-right" size={16} className="text-faint" />
-            </button>
-            <button type="button" className="action-row" onClick={() => navigate('order-detail', { id: 3526 })}>
-              <div className="action-icon" style={{ background: 'color-mix(in oklab, #8b5cf6 14%, transparent)', color: '#7c3aed' }}><Icon name="feather" size={16}/></div>
-              <div style={{ flex: 1, textAlign: 'left' }}>
-                <div className="text-strong fs-12">GW Maja Petrović claimed Order #3526 — approve to start</div>
-                <div className="text-muted fs-11">Hausarbeit · Agile Transformation im Mittelstand · 12 pages · {U.EUR(219.78)} {U.relTime('2026-05-07T11:14:00')}</div>
-              </div>
-              <span className="btn btn-blue btn-sm">Review</span>
-            </button>
-            <button type="button" className="action-row" onClick={() => navigate('order-detail', { id: 3508 })}>
-              <div className="action-icon" style={{ background: 'var(--amber-soft)', color: '#B45309' }}><Icon name="clock" size={16}/></div>
-              <div style={{ flex: 1, textAlign: 'left' }}>
-                <div className="text-strong fs-12">Order #3508 interim due tomorrow 18:00</div>
-                <div className="text-muted fs-11">Lea Schmidt · GW Maja Petrović · revision round 3 · dispute open</div>
-              </div>
-              <Icon name="chevron-right" size={16} className="text-faint" />
-            </button>
-            <button type="button" className="action-row" onClick={() => navigate('order-detail', { id: 3499 })}>
-              <div className="action-icon" style={{ background: 'var(--amber-soft)', color: '#B45309' }}><Icon name="wallet" size={16}/></div>
-              <div style={{ flex: 1, textAlign: 'left' }}>
-                <div className="text-strong fs-12">Order #3499 ready for payment release — gate blocked</div>
-                <div className="text-muted fs-11">Customer: Kurt Müller · GW: Lukas Bauer · 1 of 3 installments outstanding ({U.EUR(1495)})</div>
-              </div>
-              <span className="btn btn-sm">Open</span>
-            </button>
-            <button type="button" className="action-row" onClick={() => navigate('inbox')}>
-              <div className="action-icon" style={{ background: 'color-mix(in oklab, var(--blue) 14%, transparent)', color: 'var(--blue)' }}><Icon name="message-square" size={16}/></div>
-              <div style={{ flex: 1, textAlign: 'left' }}>
-                <div className="text-strong fs-12">Customer #3499 asked GW about pricing — auto-redirected (FYI)</div>
-                <div className="text-muted fs-11">Detected keyword: "Rate" → suggested kundenservice@efactory1.de · {U.relTime('2026-05-07T09:55:00')}</div>
-              </div>
-              <Icon name="chevron-right" size={16} className="text-faint" />
-            </button>
-          </div>
-        </div>
-
-        <div className="card">
-          <div className="card-head">
-            <div className="card-title">Today's deadlines</div>
-            <span className="text-faint fs-11">5 items · next 48h</span>
-          </div>
-          <div className="card-pad">
-            <div className="timeline">
-              <div className="timeline-item">
-                <div className="timeline-dot red"><Icon name="dot" size={10}/></div>
-                <div className="timeline-content">
-                  <div className="timeline-title"><span className="pill pill-orange" style={{ marginRight: 6 }}>D-1</span> Order #3508 · <span className="mono">Zwischenstand 1 / Interim 1</span> — 08.05.2026, 18:00</div>
-                  <div className="timeline-meta">Lea Schmidt · GW Maja Petrović · Bachelorarbeit, 40 pages</div>
-                </div>
-              </div>
-              <div className="timeline-item">
-                <div className="timeline-dot red"><Icon name="dot" size={10}/></div>
-                <div className="timeline-content">
-                  <div className="timeline-title"><span className="pill pill-red" style={{ marginRight: 6 }}>Today 18:00</span> Order #3530 · Final — 08.05.2026 → already submitted, awaiting QA</div>
-                  <div className="timeline-meta">Nina Iversen · GW Felix Becker · Bachelorarbeit, 55 pages</div>
-                </div>
-              </div>
-              <div className="timeline-item">
-                <div className="timeline-dot"><Icon name="dot" size={10}/></div>
-                <div className="timeline-content">
-                  <div className="timeline-title"><span className="pill pill-amber" style={{ marginRight: 6 }}>D-2</span> Order #3538 · Zwischenstand 1 — 10.05.2026, 18:00</div>
-                  <div className="timeline-meta">Robert Hofmann · GW Tomás Rodriguez · Seminararbeit, 22 pages</div>
-                </div>
-              </div>
-              <div className="timeline-item">
-                <div className="timeline-dot"><Icon name="dot" size={10}/></div>
-                <div className="timeline-content">
-                  <div className="timeline-title"><span className="pill pill-amber" style={{ marginRight: 6 }}>D-1</span> Order #3517 · Final — 12.05.2026, 18:00 → blocked, AI violation review</div>
-                  <div className="timeline-meta">Sven Hartmann · GW Anna König (shadow-banned)</div>
-                </div>
-              </div>
-              <div className="timeline-item">
-                <div className="timeline-dot"><Icon name="dot" size={10}/></div>
-                <div className="timeline-content">
-                  <div className="timeline-title">Order #3537 · Final — 18.05.2026, 18:00</div>
-                  <div className="timeline-meta">Jana Brandt · GW Dr. Henrik Vogel · Exposé, 8 pages</div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
+        <NeedsYourDecision navigate={navigate}/>
+        <TodaysDeadlines navigate={navigate}/>
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr', gap: 16, marginBottom: 16 }}>
@@ -232,6 +140,263 @@ function AdminDashboard({ navigate, openFridayBatch }) {
         <div className="card-pad" style={{ overflowX: 'auto' }}>
           <Heatmap />
         </div>
+      </div>
+    </div>
+  );
+}
+
+// ===== Needs Your Decision (derived) =====
+// Pulls action items live from the store. Replaces five hardcoded buttons that
+// went stale after any user action. Items are ranked by urgency:
+//   1. AI / plagiarism violations (red)
+//   2. Pending GW claim approvals
+//   3. Extension / delay requests awaiting admin
+//   4. Disputes open
+//   5. Payment-release blocked (gates fail on payment_pending order)
+//   6. Threads with financial auto-flag
+function buildDecisionItems(orders, submissions, threads) {
+  const items = [];
+  const seen = new Set();
+  const D = window.EF;
+
+  // 1. AI / plagiarism violations
+  orders.forEach(o => {
+    if (o.status === 'ai_violation_review' || o.status === 'plagiarism_violation_review') {
+      items.push({
+        kind: 'violation',
+        urgency: 1,
+        orderId: o.id,
+        title: o.status === 'ai_violation_review' ? '🚨 AI Violation' : '🚨 Plagiarism Flag',
+        body: `Order #${o.id} — ${o.title}`,
+        meta: `GW ${D.gw(o.gwId)?.name || 'unknown'} · ${o.qaFlagReason || 'flagged for admin review'}`,
+        cta: 'Review',
+        ctaTone: 'red',
+        navigate: ['order-detail', { id: o.id }],
+      });
+      seen.add(o.id);
+    }
+  });
+
+  // 2. Claim approvals
+  orders.forEach(o => {
+    if (o.status === 'claimed_pending_approval') {
+      const claimer = D.gw(o.gwId);
+      items.push({
+        kind: 'claim',
+        urgency: 2,
+        orderId: o.id,
+        title: `${claimer?.name || 'GW'} claimed Order #${o.id} — approve to start`,
+        body: `${D.WORK_TYPE_LABELS[o.workType] || o.workType} · ${o.title}`,
+        meta: `${o.pages || '—'} pages · ${o.netHonorarium ? window.EFU.EUR(o.netHonorarium) : ''} · ${o.claimedAt ? window.EFU.relTime(o.claimedAt) : ''}`,
+        cta: 'Review',
+        ctaTone: 'blue',
+        navigate: ['order-detail', { id: o.id }],
+      });
+      seen.add(o.id);
+    }
+  });
+
+  // 3. Extension / delay
+  orders.forEach(o => {
+    if (o.status === 'extension_requested' || o.status === 'delay_reported') {
+      const isExt = o.status === 'extension_requested';
+      items.push({
+        kind: 'extension',
+        urgency: 3,
+        orderId: o.id,
+        title: `${isExt ? 'Extension requested' : 'Delay reported'} · #${o.id}`,
+        body: o.title,
+        meta: isExt
+          ? `${o.extensionPending?.extraPages ? o.extensionPending.extraPages + ' extra pages · ' : ''}${o.extensionPending?.requestedAt ? window.EFU.relTime(o.extensionPending.requestedAt) : ''}`
+          : `Reason: ${o.delayReason || 'unspecified'} · proposed ${o.proposedNewDeadline ? window.EFU.fmtDate(o.proposedNewDeadline) : 'TBD'}`,
+        cta: 'Decide',
+        ctaTone: 'amber',
+        navigate: ['order-detail', { id: o.id }],
+      });
+      seen.add(o.id);
+    }
+  });
+
+  // 4. Open disputes
+  orders.forEach(o => {
+    if (o.disputeOpen && !seen.has(o.id)) {
+      items.push({
+        kind: 'dispute',
+        urgency: 4,
+        orderId: o.id,
+        title: `Dispute open · #${o.id}`,
+        body: o.title,
+        meta: `${D.customer(o.customerId)?.name || ''} · revision round ${o.revisionRounds || 0}`,
+        cta: 'Open',
+        ctaTone: 'orange',
+        navigate: ['order-detail', { id: o.id }],
+      });
+      seen.add(o.id);
+    }
+  });
+
+  // 5. Friday batch blocked (payment_pending but not all gates green)
+  const W = window.EFWorkflow;
+  orders.forEach(o => {
+    if (o.status !== 'payment_pending' || seen.has(o.id)) return;
+    const gates = W.releaseGates(o);
+    if (gates.releasable) return;
+    const reason = gates.reasons[0] || 'release blocked';
+    items.push({
+      kind: 'release_blocked',
+      urgency: 5,
+      orderId: o.id,
+      title: `Order #${o.id} ready for payment release — gate blocked`,
+      body: `${D.customer(o.customerId)?.name || ''} · GW ${D.gw(o.gwId)?.name || ''}`,
+      meta: reason,
+      cta: 'Open',
+      ctaTone: 'amber',
+      navigate: ['order-detail', { id: o.id }],
+    });
+    seen.add(o.id);
+  });
+
+  // 6. Threads flagged financial / follow-up
+  threads.forEach(t => {
+    if (t.flagged === 'financial' || t.followUp) {
+      items.push({
+        kind: 'thread_flag',
+        urgency: 6,
+        orderId: t.orderId,
+        title: t.flagged === 'financial' ? `Customer #${t.orderId} asked about pricing — auto-redirected` : `Thread flagged for follow-up · #${t.orderId}`,
+        body: t.subject,
+        meta: window.EFU.relTime(t.lastAt),
+        cta: 'Open inbox',
+        ctaTone: 'blue',
+        navigate: ['inbox'],
+      });
+    }
+  });
+
+  items.sort((a, b) => a.urgency - b.urgency);
+  return items;
+}
+
+function NeedsYourDecision({ navigate }) {
+  const orders = window.EFHooks.useOrders();
+  const submissions = window.EFHooks.useSubmissions();
+  const threads = window.EFHooks.useThreads();
+  const items = buildDecisionItems(orders, submissions, threads).slice(0, 6);
+
+  const iconFor = (k) => k === 'violation' ? 'alert-triangle'
+    : k === 'claim' ? 'feather'
+    : k === 'extension' ? 'clock'
+    : k === 'dispute' ? 'alert-triangle'
+    : k === 'release_blocked' ? 'wallet'
+    : 'message-square';
+  const iconColor = (tone) => tone === 'red' ? { bg: 'var(--red-soft)', fg: 'var(--red)' }
+    : tone === 'blue' ? { bg: 'color-mix(in oklab, var(--blue) 14%, transparent)', fg: 'var(--blue)' }
+    : tone === 'amber' ? { bg: 'var(--amber-soft)', fg: '#B45309' }
+    : tone === 'orange' ? { bg: 'color-mix(in oklab, var(--orange) 14%, transparent)', fg: 'var(--orange)' }
+    : { bg: 'var(--surface-2)', fg: 'var(--text-2)' };
+
+  return (
+    <div className="card">
+      <div className="card-head">
+        <div className="card-title">Needs your decision</div>
+        <span className="text-faint fs-11">{items.length} item{items.length === 1 ? '' : 's'}</span>
+      </div>
+      <div className="card-pad flex-col gap-2">
+        {items.length === 0 && (
+          <div className="text-faint fs-12" style={{ padding: '24px 12px', textAlign: 'center' }}>
+            <Icon name="check-circle" size={18} className="mb-2" style={{ color: 'var(--green)' }}/>
+            <div>0 actions — all clear.</div>
+          </div>
+        )}
+        {items.map((it, i) => {
+          const c = iconColor(it.ctaTone);
+          return (
+            <button key={`${it.kind}-${it.orderId}-${i}`} type="button" className="action-row" onClick={() => navigate(...it.navigate)}>
+              <div className="action-icon" style={{ background: c.bg, color: c.fg }}>
+                <Icon name={iconFor(it.kind)} size={16}/>
+              </div>
+              <div style={{ flex: 1, textAlign: 'left' }}>
+                <div className="text-strong fs-12">
+                  {it.kind === 'violation' && <span className="pill pill-red" style={{ marginRight: 6 }}>{it.title.replace('🚨 ', '🚨 ')}</span>}
+                  {it.kind !== 'violation' && it.title}
+                  {it.kind === 'violation' && <span>{it.body}</span>}
+                </div>
+                <div className="text-muted fs-11">
+                  {it.kind === 'violation' ? it.meta : <>{it.body}{it.meta ? ' · ' + it.meta : ''}</>}
+                </div>
+              </div>
+              {it.cta === 'Review' || it.cta === 'Open' || it.cta === 'Decide' || it.cta === 'Open inbox'
+                ? <span className={`btn btn-sm ${it.ctaTone === 'blue' ? 'btn-blue' : ''}`}>{it.cta}</span>
+                : <Icon name="chevron-right" size={16} className="text-faint"/>}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ===== Today's Deadlines (derived) =====
+// Pulls all interim/final deadlines in a +/- window from the demo NOW. Replaces
+// the hardcoded list, so a delay-reported or extension-approved order updates
+// the panel immediately on role-switch.
+function TodaysDeadlines({ navigate }) {
+  const orders = window.EFHooks.useOrders();
+  const D = window.EF;
+  const NOW = D.DEMO_NOW || new Date();
+  const closedStates = new Set(['completed','cancelled','payment_pending','delivered']);
+  const items = [];
+  orders.forEach(o => {
+    if (closedStates.has(o.status)) return;
+    if (o.interimDeadline) items.push({ orderId: o.id, kind: 'interim_1', label: 'Zwischenstand 1', date: o.interimDeadline, order: o });
+    if (o.interim2Deadline) items.push({ orderId: o.id, kind: 'interim_2', label: 'Zwischenstand 2', date: o.interim2Deadline, order: o });
+    if (o.finalDeadline) items.push({ orderId: o.id, kind: 'final', label: 'Final', date: o.finalDeadline, order: o });
+  });
+  items.sort((a, b) => new Date(a.date) - new Date(b.date));
+  // Window: from yesterday to +5 days, capped at 6.
+  const windowStart = new Date(NOW); windowStart.setDate(windowStart.getDate() - 1);
+  const windowEnd = new Date(NOW); windowEnd.setDate(windowEnd.getDate() + 5);
+  const visible = items.filter(d => {
+    const dt = new Date(d.date);
+    return dt >= windowStart && dt <= windowEnd;
+  }).slice(0, 6);
+
+  return (
+    <div className="card">
+      <div className="card-head">
+        <div className="card-title">Today's deadlines</div>
+        <span className="text-faint fs-11">{visible.length} items · next 5 days</span>
+      </div>
+      <div className="card-pad">
+        {visible.length === 0 ? (
+          <div className="text-faint fs-12" style={{ padding: '12px 0' }}>No upcoming deadlines in the window.</div>
+        ) : (
+          <div className="timeline">
+            {visible.map((d, i) => {
+              const meta = window.EFU.deadlineMeta(d.date);
+              const cust = D.customer(d.order.customerId);
+              const gw = D.gw(d.order.gwId);
+              const dotTone = meta.tone === 'danger' ? 'red' : meta.tone === 'warn' ? '' : '';
+              const pillTone = meta.tone === 'danger' ? 'pill-red' : meta.tone === 'warn' ? 'pill-amber' : 'pill-slate';
+              const isFlagged = d.order.flagged || d.order.status === 'ai_violation_review';
+              return (
+                <div key={`${d.orderId}-${d.kind}-${i}`} className="timeline-item" style={{ cursor: 'pointer' }} onClick={() => navigate('order-detail', { id: d.orderId })}>
+                  <div className={`timeline-dot ${dotTone}`}><Icon name="dot" size={10}/></div>
+                  <div className="timeline-content">
+                    <div className="timeline-title">
+                      <span className={`pill ${pillTone}`} style={{ marginRight: 6 }}>{meta.label}</span>
+                      Order #{d.orderId} · <span className="mono">{d.label}</span> — {window.EFU.fmtDate(d.date)}, 18:00
+                      {isFlagged && <span className="pill pill-red" style={{ marginLeft: 6 }}>blocked</span>}
+                    </div>
+                    <div className="timeline-meta">
+                      {cust?.name || ''}{gw ? ` · GW ${gw.name}` : ''} · {D.WORK_TYPE_LABELS[d.order.workType] || d.order.workType}{d.order.pages ? `, ${d.order.pages} pages` : ''}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
     </div>
   );
