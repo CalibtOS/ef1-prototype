@@ -29,7 +29,9 @@ function selectSubmissionsForOrder(state, orderId) {
 }
 
 function selectQaQueue(state) {
-  return selectAllSubmissions(state).filter(s => s.qaStatus === 'pending' || s.aiScore > 50);
+  return selectAllSubmissions(state).filter(s =>
+    W.isQaReviewKind(s.kind) && (s.qaStatus === 'pending' || s.aiScore > 50 || s.flagged)
+  );
 }
 
 function selectAllCustomers(state) {
@@ -86,13 +88,13 @@ function selectKpis(state) {
   const fridayEur = friday.reduce((s, o) => s + (o.netHonorarium || 0), 0);
   const now = window.EF?.DEMO_NOW || new Date();
   return {
-    openReceivables: orders.reduce((s, o) => s + (o.outstandingEur || 0), 0),
+    openReceivables: orders.reduce((s, o) => s + (W.canShowReceivable(o) ? (o.outstandingEur || 0) : 0), 0),
     activeOrders: 645,
     completedLifetime: 3359,
     totalLifetime: 3522,
     fridayCount: friday.length,
     fridayEur: Math.round(fridayEur * 100) / 100,
-    qaPending: submissions.filter(s => s.qaStatus === 'pending').length,
+    qaPending: submissions.filter(s => W.isQaReviewKind(s.kind) && s.qaStatus === 'pending').length,
     overdueInterim: orders.filter(o => {
       if (!o.interimDeadline) return false;
       if (['completed','cancelled','payment_pending'].includes(o.status)) return false;

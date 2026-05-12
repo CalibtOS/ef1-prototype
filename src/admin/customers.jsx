@@ -4,6 +4,7 @@ const { useState: useStateA, useEffect: useEffectA, useMemo: useMemoA } = React;
 const { Icon, StatusPill, Avatar, Money, Bi, ScoreBar, CrumbBar, NotReady, PlannedTag, EmptyState, Skeleton } = window;
 const U = window.EFU;
 const D = window.EF;
+const W = window.EFWorkflow;
 
 // ============ CUSTOMERS (minimal) ============
 function CustomersPage({ navigate }) {
@@ -13,7 +14,7 @@ function CustomersPage({ navigate }) {
   const liveOrders = D.liveOrders();
   const customersWithStats = D.CUSTOMERS.map(c => {
     const orders = liveOrders.filter(o => o.customerId === c.id);
-    const openBalance = orders.reduce((s, o) => s + (o.outstandingEur || 0), 0);
+    const openBalance = orders.reduce((s, o) => s + (W.canShowReceivable(o) ? (o.outstandingEur || 0) : 0), 0);
     const hasDispute = orders.some(o => o.disputeOpen);
     const lastOrder = orders.sort((a,b) => (b.acceptedAt||'').localeCompare(a.acceptedAt||''))[0];
     return { ...c, orderCount: orders.length, openBalance, hasDispute, lastOrderDate: lastOrder?.acceptedAt };

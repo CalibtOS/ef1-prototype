@@ -4,13 +4,14 @@ const { useState: useStateA, useEffect: useEffectA, useMemo: useMemoA } = React;
 const { Icon, StatusPill, Avatar, Money, Bi, ScoreBar, CrumbBar, NotReady, PlannedTag, EmptyState, Skeleton } = window;
 const U = window.EFU;
 const D = window.EF;
+const W = window.EFWorkflow;
 
 // ============ PIPELINE (Pipedrive kanban mirror) ============
 function PipelineKanban({ navigate }) {
   const stageDefs = [
     { id: 'anfrage', label: 'Anfrage', sub: 'Inquiry', color: 'slate' },
     { id: 'qualifiziert', label: 'Qualifiziert', sub: 'Qualified for Ghostwriting', color: 'blue' },
-    { id: 'rueckmeldung', label: 'Rückmeldung', sub: 'Negotiation', color: 'amber' },
+    { id: 'rueckmeldung', label: 'Proposal', sub: 'Offer sent', color: 'amber' },
     { id: 'rechnung', label: 'Rechnung angefordert', sub: 'Invoice requested', color: 'orange' },
     { id: 'won', label: 'Won', sub: 'Closed', color: 'green' },
     { id: 'lost', label: 'Lost', sub: 'Lost / Storno', color: 'red' },
@@ -43,8 +44,12 @@ function PipelineKanban({ navigate }) {
   }));
   const cards = [...synthLeads, ...realOrders];
   const byStage = stageDefs.reduce((acc, s) => { acc[s.id] = cards.filter(c => c.stage === s.id); return acc; }, {});
-  const stageTotal = (s) => byStage[s].reduce((sum, c) => sum + (c.grossEur || 0), 0);
-  const totalPipeline = cards.filter(c => c.stage !== 'lost' && c.stage !== 'won').reduce((s,c) => s + (c.grossEur||0), 0);
+  const stageTotal = (s) => (s === 'anfrage' || s === 'qualifiziert')
+    ? null
+    : byStage[s].reduce((sum, c) => sum + (c.grossEur || 0), 0);
+  const totalPipeline = cards
+    .filter(c => c.stage !== 'lost' && c.stage !== 'won' && c.stage !== 'anfrage' && c.stage !== 'qualifiziert')
+    .reduce((s,c) => s + (c.grossEur||0), 0);
 
   return (
     <div className="page">
@@ -76,7 +81,7 @@ function PipelineKanban({ navigate }) {
               </div>
               <span className={`pill pill-${s.color}`}>{byStage[s.id].length}</span>
             </div>
-            <div className="text-faint fs-11 mono mb-2" style={{ padding: '0 4px' }}>{U.EUR(stageTotal(s.id))}</div>
+            <div className="text-faint fs-11 mono mb-2" style={{ padding: '0 4px' }}>{stageTotal(s.id) == null ? 'No money shown' : U.EUR(stageTotal(s.id))}</div>
             <div className="flex-col gap-2">
               {byStage[s.id].slice(0, 12).map(c => (
                 <div key={c.id} className="card" style={{ padding: 10, cursor: 'pointer' }} onClick={() => c.real && navigate('order-detail', { id: c.id })}>
@@ -92,7 +97,7 @@ function PipelineKanban({ navigate }) {
                     {D.WORK_TYPE_LABELS[c.workType] || c.workType} · {c.field}
                   </div>
                   <div className="flex items-center justify-between mt-2">
-                    <span className="mono fs-11" style={{ color: 'var(--text)' }}>{U.EUR(c.grossEur)}</span>
+                    <span className="mono fs-11" style={{ color: 'var(--text)' }}>{(c.stage === 'anfrage' || c.stage === 'qualifiziert' || (c.real && !W.canShowMoney(c.status))) ? '—' : U.EUR(c.grossEur)}</span>
                     {c.ageHours != null && <span className="text-faint fs-11">{c.ageHours < 24 ? c.ageHours + 'h' : Math.round(c.ageHours/24) + 'd'}</span>}
                   </div>
                 </div>
@@ -110,7 +115,5 @@ function PipelineKanban({ navigate }) {
     </div>
   );
 }
-window.PipelineKanban = PipelineKanban;
-
 window.PipelineKanban = PipelineKanban;
 })();

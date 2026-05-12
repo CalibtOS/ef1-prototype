@@ -362,6 +362,7 @@ function QAQueue({ navigate, toast }) {
   const order = active && D.order(active.orderId);
   const cust = order && D.customer(order.customerId);
   const gw = order && D.gw(order.gwId);
+  const aiFlaggedCount = subs.filter(s => s.aiScore >= 70 || s.flagged).length;
 
   const [verdict, setVerdict] = useStateA(null);
   const [previewOpen, setPreviewOpen] = useStateA(false);
@@ -396,7 +397,7 @@ function QAQueue({ navigate, toast }) {
       window.EFActions.qa.pass(active.id);
       toast({
         tone: 'success',
-        transition: { entity: `Order #${order.id}`, from: 'QA Review', to: active.kind === 'final_work' ? 'Delivered' : 'Customer Review' },
+        transition: { entity: `Order #${order.id}`, from: 'QA Review', to: (active.kind === 'final_work' || active.kind === 'revision') ? 'Delivered' : 'Customer Review' },
         text: `Forwarded to ${cust.name} · 14-day review timer started`,
       });
     } else if (kind === 'request_revision') {
@@ -414,7 +415,7 @@ function QAQueue({ navigate, toast }) {
       <div className="page-header">
         <div>
           <h1 className="page-title">QA Review Queue</h1>
-          <div className="page-subtitle">{subs.length} pending · 1 AI flagged 🚨 · oldest: 16h</div>
+          <div className="page-subtitle">{subs.length} pending final/revision submission{subs.length === 1 ? '' : 's'} · {aiFlaggedCount} AI flagged · interims auto-forward outside QA</div>
         </div>
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: '320px 1fr', gap: 16 }}>

@@ -23,7 +23,7 @@ function OffersPage({ navigate, toast }) {
       workType: o.workType,
       grossEur: o.grossEur,
       status: o.status === 'qualified' ? 'draft' : o.status === 'offer_sent' ? 'sent' : o.status === 'invoice_sent' ? 'accepted_invoice' : 'sent',
-      sentAt: o.acceptedAt,
+      sentAt: o.offerSentAt || o.invoiceSentAt || null,
     }));
     return rows;
   })();
@@ -152,7 +152,7 @@ function GenerateOfferModal({ orderId, toast, onClose }) {
     { label: 'POST /Order/Factory/saveOrder · pricing engine', done: false, running: false },
     { label: 'Generating PDF', done: false, running: false },
     { label: 'POST /Order/:id/sendViaEmail · to ' + (cust?.email || 'customer'), done: false, running: false },
-    { label: 'PATCH Pipedrive deal → Rückmeldung', done: false, running: false },
+    { label: 'PATCH Pipedrive deal → Proposal', done: false, running: false },
   ]);
 
   const send = () => {
@@ -163,8 +163,14 @@ function GenerateOfferModal({ orderId, toast, onClose }) {
     });
     setTimeout(() => {
       setPhase('sent');
-      window.EFActions.orders.patch(orderId, { status: 'offer_sent' });
-      toast && toast({ text: `Angebot AN-2026-${String(orderId).padStart(4, '0')} sent · Pipedrive Rückmeldung`, tone: 'success' });
+      window.EFActions.orders.patch(orderId, {
+        status: 'offer_sent',
+        offerSentAt: new Date().toISOString(),
+        sevdeskOfferNo: `AN-2026-${String(orderId).padStart(4, '0')}`,
+        outstandingEur: 0,
+        pipedriveStage: 'Proposal',
+      });
+      toast && toast({ text: `Angebot AN-2026-${String(orderId).padStart(4, '0')} sent · Pipedrive Proposal`, tone: 'success' });
     }, progress.length * 600 + 200);
   };
 
@@ -207,7 +213,7 @@ function GenerateOfferModal({ orderId, toast, onClose }) {
                 </div>
               ))}
               {phase === 'sent' && (
-                <div className="banner success mt-2"><Icon name="check-circle" size={14}/><span>Angebot sent · order moved to <strong>Offer Sent</strong> · Pipedrive deal in <strong>Rückmeldung</strong>.</span></div>
+                <div className="banner success mt-2"><Icon name="check-circle" size={14}/><span>Angebot sent · order moved to <strong>Offer Sent</strong> · Pipedrive deal in <strong>Proposal</strong>.</span></div>
               )}
             </div>
           )}

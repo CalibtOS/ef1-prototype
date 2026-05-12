@@ -128,11 +128,22 @@ function FridayBatch({ navigate, toast }) {
             {blocked.map(({ order: o, gates }) => {
               const gw = D.gw(o.gwId);
               const mainReason = gates.reasons.find(r => r !== 'Order is not awaiting Friday release') || gates.reasons[0];
+              const reasonLabel = o.status === 'ai_violation_review'
+                ? 'AI violation'
+                : o.status === 'plagiarism_violation_review'
+                  ? 'Plagiarism flag'
+                  : mainReason?.includes('installment')
+                    ? 'Installment blocked'
+                    : mainReason?.includes('Customer')
+                      ? 'Customer gate'
+                      : mainReason?.includes('Quality')
+                        ? 'QA gate'
+                        : 'Release blocked';
               return (
                 <div key={o.id} className="card-pad" style={{ border: '1px solid color-mix(in oklab, var(--red) 30%, var(--border))', borderRadius: 8, background: 'color-mix(in oklab, var(--red) 3%, var(--surface))' }}>
                   <div className="flex items-center gap-2 mb-2">
                     <span className="mono strong">#{o.id}</span>
-                    <span className="pill pill-red">{o.status === 'ai_violation_review' ? 'AI violation' : 'Outstanding installment'}</span>
+                    <span className="pill pill-red">{reasonLabel}</span>
                     <span style={{ flex: 1 }}/>
                     <span className="mono fs-12">{U.EUR(o.netHonorarium)}</span>
                   </div>

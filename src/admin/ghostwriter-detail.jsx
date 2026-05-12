@@ -4,6 +4,7 @@ const { useState: useStateA, useEffect: useEffectA, useMemo: useMemoA } = React;
 const { Icon, StatusPill, Avatar, Money, Bi, ScoreBar, CrumbBar, NotReady, PlannedTag, EmptyState, Skeleton } = window;
 const U = window.EFU;
 const D = window.EF;
+const W = window.EFWorkflow;
 
 // ====================================================================
 function GhostwriterDetail({ gwId, navigate, toast }) {
@@ -14,7 +15,8 @@ function GhostwriterDetail({ gwId, navigate, toast }) {
   const active = orders.filter(o => !['completed','cancelled','bye'].includes(o.status));
   const completed = orders.filter(o => o.status === 'completed');
   const honorTotal = orders.reduce((s, o) => s + (o.netHonorarium || 0), 0);
-  const releasable = orders.filter(o => o.gwPaymentStatus === 'invoice_received').reduce((s, o) => s + (o.netHonorarium || 0), 0);
+  const releasableOrders = orders.filter(o => W.releaseGates(o).releasable);
+  const releasable = releasableOrders.reduce((s, o) => s + (o.netHonorarium || 0), 0);
 
   const [shadowToggle, setShadowToggle] = useStateA(g.banned || false);
   const [reason, setReason] = useStateA(g.banReason || '');

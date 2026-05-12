@@ -47,9 +47,47 @@ function customerDemoOrder() {
   };
 }
 
+function normalizeChannel(value) {
+  if (value === 'email_proxy') return 'email';
+  if (value === 'whatsapp_proxy') return 'whatsapp';
+  if (value === 'platform_chat') return 'platform';
+  if (value === 'voice_metadata') return 'voice';
+  if (value === 'multi_channel') return 'multi';
+  return value || 'platform';
+}
+
+function defaultOriginChannel(threadChannel, from) {
+  if (from === 'system') return 'system';
+  if (from === 'admin') return 'admin';
+  return normalizeChannel(threadChannel);
+}
+
+function defaultDeliveryChannel(threadChannel, from) {
+  const normalized = normalizeChannel(threadChannel);
+  if (from === 'system') return 'internal';
+  if (normalized === 'voice') return 'none';
+  return normalized === 'multi' ? 'email' : normalized;
+}
+
+function lastMessageAt(messages, predicate) {
+  for (let i = messages.length - 1; i >= 0; i -= 1) {
+    if (predicate(messages[i])) return messages[i].at;
+  }
+  return null;
+}
+
 // Per-thread message seeds. Keyed by thread id from data.js INBOX_THREADS.
-// Each message: { id, from: 'gw'|'customer'|'admin'|'system', body, at, attachments?, autoflag? }
+// Each message: { id, from: 'gw'|'customer'|'admin'|'system', body, at,
+// origin_channel?, delivery_channel?, attachments?, autoflag? }
 const THREAD_MESSAGE_SEEDS = {
+  t3492: [
+    { from: 'customer', at: '2026-05-04T14:03:00', body: 'Hi, can we move interim #1 by 2 days?', origin_channel: 'whatsapp', delivery_channel: 'whatsapp' },
+    { from: 'admin',    at: '2026-05-04T14:40:00', body: 'We can do +2 days if final stays fixed. Confirm?', origin_channel: 'admin', delivery_channel: 'email' },
+    { from: 'customer', at: '2026-05-05T09:12:00', body: 'Attached: updated brief PDF + references', origin_channel: 'email', delivery_channel: 'email', attachments: [{ name: 'brief.pdf', meta: '226 KB', icon: 'file-text' }] },
+    { from: 'admin',    at: '2026-05-05T09:45:00', body: 'Received — forwarding to GW today.', origin_channel: 'admin', delivery_channel: 'email' },
+    { from: 'customer', at: '2026-05-06T11:02:00', body: 'Please confirm you got the email from yesterday.', origin_channel: 'platform', delivery_channel: 'email' },
+    { from: 'admin',    at: '2026-05-06T11:18:00', body: 'Yes — logged on the order. All set.', origin_channel: 'admin', delivery_channel: 'email' },
+  ],
   t1: [
     { from: 'customer', at: '2026-05-04T09:14:00', body: 'Hallo, kurze Frage zum Aufbau von Kapitel 3 — wollten Sie da eher induktiv oder deduktiv vorgehen?' },
     { from: 'gw',       at: '2026-05-04T11:30:00', body: 'Guten Tag! Geplant ist deduktiv, von der Theorie zur Anwendung. Falls Sie es anders bevorzugen, kann ich das anpassen.' },
@@ -83,6 +121,17 @@ const THREAD_MESSAGE_SEEDS = {
     { from: 'admin',    at: '2026-05-05T13:30:00', body: 'Liebe Frau Lehmann, hier nochmal zur Bestätigung: Coaching-Termin am Montag, 09.05. um 14:00 via Zoom.' },
     { from: 'customer', at: '2026-05-05T14:00:00', body: 'Perfekt, bis Montag!' },
   ],
+  // Lead threads
+  tl1: [
+    { from: 'customer', at: '2026-05-07T12:10:00', body: 'Hallo, ich habe Ihre Webseite gefunden. Können Sie mir kurz erklären wie das Ganze abläuft und was es kostet?' },
+  ],
+  tl2: [
+    { from: 'customer', at: '2026-05-06T14:30:00', body: 'Guten Tag, wir sind ein Unternehmen und haben jährlich rund 5 Doktorarbeiten die begleitet werden müssen. Gibt es Sonderkonditionen für B2B-Kunden?' },
+  ],
+  // GW direct thread
+  tg1: [
+    { from: 'gw', at: '2026-05-07T08:45:00', body: 'Hallo Berat, leider bin ich nächste Woche krank. Ich wollte dich kurz informieren, damit wir ggf. meine aktuellen Aufträge umplanen können.' },
+  ],
   // Demo spine — Antigone Berisha ↔ Isabel Walter ↔ Berat ↔ Lina (via QA)
   t8: [
     { from: 'gw',       at: '2026-04-02T09:14:00', body: 'Guten Tag Frau Berisha, vielen Dank für den Auftrag — ich freue mich auf die Zusammenarbeit. Senden Sie mir gerne das Briefing.' },
@@ -107,6 +156,9 @@ const THREAD_UNREAD_SEEDS = {
   t6: { admin: 1, gw: 0, customer: 0 },
   t7: { admin: 0, gw: 0, customer: 0 },
   t8: { admin: 0, gw: 0, customer: 1 },
+  tl1: { admin: 1, gw: 0, customer: 0 },
+  tl2: { admin: 1, gw: 0, customer: 0 },
+  tg1: { admin: 1, gw: 0, customer: 0 },
 };
 
 // Synthetic thread for the demo spine order (#3518) so Antigone and Isabel
@@ -114,6 +166,7 @@ const THREAD_UNREAD_SEEDS = {
 function demoSpineThread() {
   return {
     id: 't8',
+    threadType: 'order',
     orderId: 3518,
     customerId: 'c-ab',
     gwId: 'gw-iw',
@@ -128,6 +181,7 @@ function demoSpineThread() {
 function hydrateThread(t) {
   const id = t.id;
   const seedMessages = THREAD_MESSAGE_SEEDS[id] || [];
+  const threadChannel = t.channel || 'platform_chat';
   const messages = seedMessages.map((m, i) => {
     const msg = {
       id: `${id}-m${i + 1}`,
@@ -135,6 +189,9 @@ function hydrateThread(t) {
       from: m.from,
       body: m.body,
       at: m.at,
+      origin_channel: m.origin_channel || defaultOriginChannel(threadChannel, m.from),
+      delivery_channel: m.delivery_channel || defaultDeliveryChannel(threadChannel, m.from),
+      external_ref: m.external_ref || null,
       autoflag: m.autoflag || null,
       system: m.from === 'system',
     };
@@ -153,6 +210,8 @@ function hydrateThread(t) {
     flagged: t.flagged || (seedMessages.some(m => m.autoflag === 'financial') ? 'financial' : false),
     followUp: t.followUp || false,
     snoozeUntil: t.snoozeUntil || null,
+    lastInboundAt: lastMessageAt(messages, m => m.from === 'customer' || m.from === 'gw'),
+    lastOutboundAt: lastMessageAt(messages, m => m.from === 'admin'),
   };
 }
 

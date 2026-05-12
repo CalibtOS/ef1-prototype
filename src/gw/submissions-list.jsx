@@ -31,7 +31,7 @@ function GWSubmissionsList({ navigate }) {
         id: 'derived-i1-' + o.id, orderId: o.id, kind: 'interim_1', round: 1,
         fileName: `${D.WORK_TYPE_LABELS[o.workType] || 'Arbeit'}_${o.id}_Zwischenstand1.docx`,
         size: 380000 + (orderHash % 700000),
-        qaStatus: 'passed',
+        qaStatus: 'auto_forwarded',
         plagScore: 4 + (orderHash % 9),
         aiScore: 3 + (orderHash % 12),
         submittedAt: o.interimDeadline,
@@ -52,7 +52,7 @@ function GWSubmissionsList({ navigate }) {
           id: 'derived-inv-' + o.id, orderId: o.id, kind: 'final_invoice', round: 1,
           fileName: `Honorarrechnung_IW-2026-${String(o.id).padStart(3,'0')}.pdf`,
           size: 80000 + (orderHash % 25000),
-          qaStatus: 'passed',
+          qaStatus: 'archived',
           submittedAt: o.finalDeadline,
         }
       );
@@ -75,7 +75,7 @@ function GWSubmissionsList({ navigate }) {
       <div className="page-header">
         <div>
           <h1 className="page-title">Submissions</h1>
-          <div className="page-subtitle">Everything you&apos;ve uploaded · interim drafts, final works, invoices · QA status visible</div>
+          <div className="page-subtitle">Everything you&apos;ve uploaded · interim drafts auto-forward, final works go through QA, invoices are archived</div>
         </div>
         <div className="page-actions">
           <button className="btn btn-primary" onClick={() => navigate('gw-submit')}><Icon name="upload-cloud" size={14}/> New submission</button>
@@ -119,8 +119,10 @@ function GWSubmissionsList({ navigate }) {
                   <td className="num mono">{s.plagScore != null ? <span style={{ color: s.plagScore < 15 ? 'var(--green)' : s.plagScore < 30 ? 'var(--amber)' : 'var(--red)' }}>{s.plagScore}%</span> : '—'}</td>
                   <td className="num mono">{s.aiScore != null ? <span style={{ color: s.aiScore < 15 ? 'var(--green)' : s.aiScore < 30 ? 'var(--amber)' : 'var(--red)' }}>{s.aiScore}%</span> : '—'}</td>
                   <td>
+                    {s.qaStatus === 'auto_forwarded' && <span className="pill pill-blue"><Icon name="send" size={10}/> Auto-forwarded</span>}
                     {s.qaStatus === 'passed' && <span className="pill pill-green"><Icon name="check" size={10}/> Passed</span>}
                     {s.qaStatus === 'pending' && <span className="pill pill-amber">Pending</span>}
+                    {s.qaStatus === 'archived' && <span className="pill pill-slate">Archived</span>}
                     {s.qaStatus === 'failed_revision_required' && <span className="pill pill-orange">Revision</span>}
                     {s.qaStatus === 'ai_violation' && <span className="pill pill-red">AI violation</span>}
                   </td>

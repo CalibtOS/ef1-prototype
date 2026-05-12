@@ -81,6 +81,7 @@ function GWSubmit({ orderId, kind, navigate, toast }) {
   }
   const isFinal = resolvedKind === 'final';
   const isRevision = resolvedKind === 'revision';
+  const isInterim = !isFinal && !isRevision;
   const kindLabel = {
     interim_1: 'Zwischenstand 1 / Interim 1',
     interim_2: 'Zwischenstand 2 / Interim 2',
@@ -92,9 +93,9 @@ function GWSubmit({ orderId, kind, navigate, toast }) {
     : order.finalDeadline;
 
   // ---- self-check state ----
-  const baseChecks = { spelling: false, grammar: false, plagiarism: false, requirements: false };
-  const finalExtras = { noAi: false, ready: false, individual: false };
-  const [checks, setChecks] = useStateA({ ...baseChecks, ...(isFinal ? finalExtras : {}) });
+  const baseChecks = { spelling: false, grammar: false, plagiarism: false, requirements: false, noAi: false, ready: false };
+  const finalExtras = { individual: false };
+  const [checks, setChecks] = useStateA({ ...baseChecks, ...((isFinal || isRevision) ? finalExtras : {}) });
   const allChecksDone = Object.values(checks).every(Boolean);
 
   // ---- file state ----
@@ -161,15 +162,14 @@ function GWSubmit({ orderId, kind, navigate, toast }) {
         invoiceFile,
         selfChecks: checks,
       });
-      const isInterimAutoForward = !isFinal && !isRevision;
       toast({
         tone: 'success',
         transition: {
           entity: `Order #${order.id}`,
           from: isFinal ? 'Active' : isRevision ? 'Revision Required' : 'Active',
-          to: isInterimAutoForward ? 'Customer Review' : 'QA Review',
+          to: isInterim ? 'Customer Review' : 'QA Review',
         },
-        text: isInterimAutoForward
+        text: isInterim
           ? 'Auto-forwarded to customer · awaiting feedback'
           : 'Plag 4% · AI 8% · forwarded to QA queue',
       });
@@ -186,9 +186,8 @@ function GWSubmit({ orderId, kind, navigate, toast }) {
       ]
     : [
         { name: 'Upload', icon: 'upload-cloud' },
-        { name: 'Plagiarism', icon: 'shield-check' },
-        { name: 'AI detector', icon: 'zap' },
-        { name: 'Forwarded to customer', icon: 'send' },
+        { name: 'Self-check logged', icon: 'check-circle' },
+        { name: 'Auto-forwarded', icon: 'send' },
       ];
 
   const Check = ({ k, label, why }) => (
@@ -256,7 +255,7 @@ function GWSubmit({ orderId, kind, navigate, toast }) {
           <div>
             <CrumbBar trail={['My Assignments', `#${order.id}`, 'Submit']}/>
             <h1 className="page-title" style={{ marginTop: 6 }}>Submitting · {kindLabel}</h1>
-            <div className="page-subtitle">Order #{order.id} · scanning, scoring and forwarding to QA</div>
+            <div className="page-subtitle">Order #{order.id} · {isInterim ? 'uploading and auto-forwarding to customer' : 'scanning, scoring and forwarding to QA'}</div>
           </div>
         </div>
         <div className="card mb-3">
@@ -296,21 +295,38 @@ function GWSubmit({ orderId, kind, navigate, toast }) {
                 <span className="pill pill-green"><Icon name="check" size={10}/> Uploaded</span>
               </div>
             )}
-            <div className="flex items-center gap-3" style={{ padding: 12, border: '1px solid var(--border)', borderRadius: 8 }}>
-              <Icon name="shield-check" size={20} className={step >= 2 ? 'text-success' : 'text-muted'} />
-              <div style={{ flex: 1 }}><strong className="fs-12">Plagiarism scan (PlagScan)</strong><div className="fs-11 text-faint">{step >= 2 ? '4% — within tolerance' : 'Scanning…'}</div></div>
-              {step >= 2 && <span className="pill pill-green">PASS</span>}
-            </div>
-            <div className="flex items-center gap-3" style={{ padding: 12, border: '1px solid var(--border)', borderRadius: 8 }}>
-              <Icon name="zap" size={20} className={step >= 3 ? 'text-success' : 'text-muted'} />
-              <div style={{ flex: 1 }}><strong className="fs-12">AI detector (GPTZero + Originality.ai consensus)</strong><div className="fs-11 text-faint">{step >= 3 ? '8% AI probability — clean' : step >= 2 ? 'Running consensus…' : 'Waiting'}</div></div>
-              {step >= 3 && <span className="pill pill-green">PASS</span>}
-            </div>
-            <div className="flex items-center gap-3" style={{ padding: 12, border: '1px solid var(--border)', borderRadius: 8 }}>
-              <Icon name="inbox" size={20} className={step >= 4 ? 'text-success' : 'text-muted'} />
-              <div style={{ flex: 1 }}><strong className="fs-12">QA queue</strong><div className="fs-11 text-faint">{step >= 4 ? 'Forwarded · admin will review within 4h' : 'Queueing…'}</div></div>
-              {step >= 4 && <span className="pill pill-green"><Icon name="check" size={10}/> DONE</span>}
-            </div>
+            {isInterim ? (
+              <>
+                <div className="flex items-center gap-3" style={{ padding: 12, border: '1px solid var(--border)', borderRadius: 8 }}>
+                  <Icon name="check-circle" size={20} className={step >= 2 ? 'text-success' : 'text-muted'} />
+                  <div style={{ flex: 1 }}><strong className="fs-12">Customer-ready self-check recorded</strong><div className="fs-11 text-faint">{step >= 2 ? 'No-AI / ready-to-send / guidelines acknowledgements stored' : 'Recording checklist…'}</div></div>
+                  {step >= 2 && <span className="pill pill-green">DONE</span>}
+                </div>
+                <div className="flex items-center gap-3" style={{ padding: 12, border: '1px solid var(--border)', borderRadius: 8 }}>
+                  <Icon name="send" size={20} className={step >= 3 ? 'text-success' : 'text-muted'} />
+                  <div style={{ flex: 1 }}><strong className="fs-12">Auto-forward to customer</strong><div className="fs-11 text-faint">{step >= 3 ? 'Sent immediately to customer · efactory1 remains in CC' : 'Forwarding…'}</div></div>
+                  {step >= 3 && <span className="pill pill-green"><Icon name="check" size={10}/> SENT</span>}
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="flex items-center gap-3" style={{ padding: 12, border: '1px solid var(--border)', borderRadius: 8 }}>
+                  <Icon name="shield-check" size={20} className={step >= 2 ? 'text-success' : 'text-muted'} />
+                  <div style={{ flex: 1 }}><strong className="fs-12">Plagiarism scan (PlagScan)</strong><div className="fs-11 text-faint">{step >= 2 ? '4% — within tolerance' : 'Scanning…'}</div></div>
+                  {step >= 2 && <span className="pill pill-green">PASS</span>}
+                </div>
+                <div className="flex items-center gap-3" style={{ padding: 12, border: '1px solid var(--border)', borderRadius: 8 }}>
+                  <Icon name="zap" size={20} className={step >= 3 ? 'text-success' : 'text-muted'} />
+                  <div style={{ flex: 1 }}><strong className="fs-12">AI detector (GPTZero + Originality.ai consensus)</strong><div className="fs-11 text-faint">{step >= 3 ? '8% AI probability — clean' : step >= 2 ? 'Running consensus…' : 'Waiting'}</div></div>
+                  {step >= 3 && <span className="pill pill-green">PASS</span>}
+                </div>
+                <div className="flex items-center gap-3" style={{ padding: 12, border: '1px solid var(--border)', borderRadius: 8 }}>
+                  <Icon name="inbox" size={20} className={step >= 4 ? 'text-success' : 'text-muted'} />
+                  <div style={{ flex: 1 }}><strong className="fs-12">QA queue</strong><div className="fs-11 text-faint">{step >= 4 ? 'Forwarded · admin will review within 4h' : 'Queueing…'}</div></div>
+                  {step >= 4 && <span className="pill pill-green"><Icon name="check" size={10}/> DONE</span>}
+                </div>
+              </>
+            )}
             {step >= 5 && (
               <div className="banner success">
                 <Icon name="check-circle" size={16}/>
@@ -318,7 +334,7 @@ function GWSubmit({ orderId, kind, navigate, toast }) {
                   <strong>Submission complete.</strong>
                   <div className="fs-11 mt-1">{isFinal
                     ? `Final + Honorarrechnung received. Once QA passes and customer accepts, your honorarium of ${U.EUR(order.netHonorarium)} releases on the next Friday batch.`
-                    : `efactory1 handles forwarding to the customer after QA. You don't need to email them.`}
+                    : `Interim auto-forwarded to the customer immediately. You don't need to email it manually.`}
                   </div>
                   <div className="flex gap-2 mt-2">
                     <button className="btn btn-sm" onClick={() => navigate('gw-assignment-detail', { id: order.id })}>Back to assignment</button>
@@ -349,13 +365,13 @@ function GWSubmit({ orderId, kind, navigate, toast }) {
 
       <div className="banner info mb-3">
         <Icon name="lock" size={14}/>
-        <span>Files are uploaded directly to efactory1 and never sent to the customer. Send-to-customer is platform-controlled after QA passes.</span>
+        <span>{isInterim ? 'Interim drafts are auto-forwarded to the customer immediately after upload. Final work still goes to efactory1/QA first.' : 'Final work and revisions are uploaded to efactory1 first. Send-to-customer is platform-controlled after QA passes.'}</span>
       </div>
 
       {isRevision && (
         <div className="banner warn mb-3">
           <Icon name="alert-triangle" size={14}/>
-          <span><strong>Revision round {(order.revisionRounds || 0) + 1}.</strong> Address customer feedback before re-uploading. Round 3+ requires Berat's approval.</span>
+          <span><strong>Revision round {(order.revisionRounds || 0) + 1}.</strong> Address customer feedback before re-uploading. Payment remains blocked until the corrected final is accepted.</span>
         </div>
       )}
 
@@ -370,13 +386,11 @@ function GWSubmit({ orderId, kind, navigate, toast }) {
           <Check k="grammar" label="Grammar reviewed" why="Sentence structure, agreement, punctuation"/>
           <Check k="plagiarism" label="Plagiarism self-check completed" why="I've quoted/cited every external source. PlagScan will run again on upload."/>
           <Check k="requirements" label="Customer requirements re-read" why="Aligned to brief, outline, page count, citation style"/>
-          {isFinal && (
-            <>
-              <div style={{ borderTop: '1px dashed var(--border)', margin: '6px 0', paddingTop: 6 }}/>
-              <Check k="noAi" label="No AI tools used" why="ChatGPT, Claude, Gemini etc. are forbidden under AGB v3.2 (max 25% AI score)"/>
-              <Check k="ready" label="Work is ready to send to the customer" why="Final formatting, deckblatt, references, appendices — all done"/>
-              <Check k="individual" label="Individually created for this customer" why="No reused content from prior jobs (Werkvertrag requirement)"/>
-            </>
+          <div style={{ borderTop: '1px dashed var(--border)', margin: '6px 0', paddingTop: 6 }}/>
+          <Check k="noAi" label="No AI tools used" why="ChatGPT, Claude, Gemini etc. are forbidden under AGB v3.2"/>
+          <Check k="ready" label={isInterim ? 'Interim is ready to send to the customer' : 'Work is ready to send to the customer'} why={isInterim ? 'Interim drafts auto-forward immediately after upload.' : 'Final formatting, deckblatt, references, appendices — all done'}/>
+          {(isFinal || isRevision) && (
+            <Check k="individual" label="Individually created for this customer" why="No reused content from prior jobs (Werkvertrag requirement)"/>
           )}
         </div>
       </div>

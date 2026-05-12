@@ -4,6 +4,7 @@ const { useState: useStateA, useEffect: useEffectA, useMemo: useMemoA } = React;
 const { Icon, StatusPill, Avatar, Money, Bi, ScoreBar, CrumbBar, NotReady, PlannedTag, EmptyState, Skeleton, ChatNotice, ChatMessage, ChatComposer, ChatThreadRow } = window;
 const U = window.EFU;
 const D = window.EF;
+const W = window.EFWorkflow;
 
 // ============ CUSTOMER PORTAL ============
 // B2C portal — centered, internal tab nav. Demo persona resolves from shell.jsx
@@ -58,7 +59,10 @@ function custProgress(o) {
   if (s === 'completed' || s === 'payment_pending') return 100;
   if (s === 'delivered') return 95; // QA passed, awaiting customer acceptance
   if (s === 'cancelled') return 0;
-  if (s === 'available' || s === 'qualified' || s === 'invoice_sent') return 5;
+  if (s === 'qualified') return 5;
+  if (s === 'offer_sent') return 8;
+  if (s === 'invoice_sent') return 12;
+  if (s === 'available') return 18;
   if (s === 'claimed_pending_approval') return 12;
   if (s === 'active') return 35;
   if (s === 'interim_submitted' || s === 'under_customer_review') return 55;
@@ -173,7 +177,13 @@ function CustOrderCard({ o, onOpen }) {
   const isComplete = progress >= 100;
 
   let nextMs = null;
-  if (o.status === 'available' || o.status === 'qualified' || o.status === 'claimed_pending_approval') {
+  if (o.status === 'qualified') {
+    nextMs = { label: 'Angebot', date: null };
+  } else if (o.status === 'offer_sent') {
+    nextMs = { label: 'Angebot annehmen', date: null };
+  } else if (o.status === 'invoice_sent') {
+    nextMs = { label: 'Zahlung', date: o.installments?.[0]?.date };
+  } else if (o.status === 'available' || o.status === 'claimed_pending_approval') {
     nextMs = { label: 'GW-Zuweisung', date: '2026-05-09' };
   } else if (o.status === 'active' && o.interimDeadline) {
     nextMs = { label: 'Zwischenstand 1', date: o.interimDeadline };
@@ -304,7 +314,7 @@ function CustOrderStatus({ o }) {
   const milestones = [
     { id: 'placed',  label: 'Auftrag platziert',          date: o.acceptedAt || '2026-04-01', icon: 'package' },
     { id: 'paid1',   label: 'Anzahlung erhalten',         date: o.installments?.[0]?.status === 'paid' ? o.installments?.[0]?.date : null, icon: 'wallet' },
-    { id: 'gw',      label: 'Ghostwriter zugewiesen',     date: o.gwId ? o.acceptedAt : null, icon: 'user' },
+    { id: 'gw',      label: 'Ghostwriter zugewiesen',     date: custGwLabel(o) ? (o.assignedAt || o.acceptedAt) : null, icon: 'user' },
     { id: 'interim', label: 'Zwischenstand 1',            date: o.interimDeadline, icon: 'upload-cloud', deadline: true },
     o.interim2Deadline ? { id: 'interim2', label: 'Zwischenstand 2', date: o.interim2Deadline, icon: 'upload-cloud', deadline: true } : null,
     { id: 'final',   label: 'Endabgabe',                  date: o.finalDeadline, icon: 'shield-check', deadline: true },
@@ -318,7 +328,8 @@ function CustOrderStatus({ o }) {
     if (o.status === 'interim_submitted' || o.status === 'under_customer_review') return milestones.findIndex(m => m.id === 'interim');
     if (o.status === 'revision_required') return milestones.findIndex(m => m.id === 'interim');
     if (o.status === 'active') return milestones.findIndex(m => m.id === 'interim');
-    if (o.gwId) return milestones.findIndex(m => m.id === 'interim');
+    if (o.status === 'available' || o.status === 'claimed_pending_approval') return milestones.findIndex(m => m.id === 'gw');
+    if (custGwLabel(o)) return milestones.findIndex(m => m.id === 'interim');
     if (o.installments?.[0]?.status === 'paid') return milestones.findIndex(m => m.id === 'gw');
     return 1;
   })();
@@ -400,7 +411,7 @@ function CustOrderStatus({ o }) {
               <div className="kv-row"><dt>Art der Arbeit</dt><dd>{D.WORK_TYPE_LABELS[o.workType]}</dd></div>
               <div className="kv-row"><dt>Fachgebiet</dt><dd>{o.field}</dd></div>
               <div className="kv-row"><dt>Umfang</dt><dd className="mono">{o.pages} Seiten</dd></div>
-              <div className="kv-row"><dt>Gesamtpreis</dt><dd className="mono">{U.EUR(o.grossEur)}</dd></div>
+              <div className="kv-row"><dt>Gesamtpreis</dt><dd className="mono">{W.canShowMoney(o) ? U.EUR(o.grossEur) : 'im Angebot'}</dd></div>
               <div className="kv-row"><dt>Endabgabe</dt><dd className="mono">{U.fmtDate(o.finalDeadline)}</dd></div>
               {o.customerNote && <div className="kv-row"><dt>Notiz</dt><dd style={{ fontSize: 11.5, fontStyle: 'italic' }}>{o.customerNote}</dd></div>}
             </div>
@@ -712,7 +723,7 @@ function CustOrderFiles({ o, toast }) {
     baseFiles.push({ id: 'f-outline', kind: 'gw_doc', name: 'Outline_Gliederung_v2.docx', size: 92341, uploadedBy: 'gw', at: '2026-04-08T11:02:00', icon: 'file-text' });
   }
   if (['interim_submitted','under_customer_review','revision_required','final_submitted','qa_review','completed'].includes(o.status)) {
-    baseFiles.push({ id: 'f-int1', kind: 'interim', name: `Zwischenstand_1_${o.workType}.docx`, size: 1281022, uploadedBy: 'gw', at: '2026-05-06T15:30:00', icon: 'upload-cloud', qaPassed: true });
+    baseFiles.push({ id: 'f-int1', kind: 'interim', name: `Zwischenstand_1_${o.workType}.docx`, size: 1281022, uploadedBy: 'gw', at: '2026-05-06T15:30:00', icon: 'upload-cloud', autoForwarded: true });
   }
   if (['completed','payment_pending','delivered'].includes(o.status)) {
     baseFiles.push(
@@ -752,6 +763,7 @@ function CustOrderFiles({ o, toast }) {
                   <span className="strong fs-12.5" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{f.name}</span>
                   <span className={`pill pill-${kindPills[f.kind]}`} style={{ fontSize: 10 }}>{kindLabels[f.kind]}</span>
                   {f.qaPassed && <span className="pill pill-green" style={{ fontSize: 10 }}><Icon name="shield-check" size={9}/> QA bestanden</span>}
+                  {f.autoForwarded && <span className="pill pill-blue" style={{ fontSize: 10 }}><Icon name="send" size={9}/> automatisch gesendet</span>}
                 </div>
                 <span className="text-faint fs-11">
                   {f.uploadedBy === 'customer' ? 'Sie' : f.uploadedBy === 'gw' ? gwLabel : 'efactory1'} ·
@@ -805,9 +817,11 @@ function CustOrderFiles({ o, toast }) {
 
 function CustOrderPayments({ o }) {
   const installments = o.installments || [];
+  const showMoney = W.canShowMoney(o);
+  const showReceivable = W.canShowReceivable(o);
   const totalPaid = (o.paidEur || 0);
   const totalGross = (o.grossEur || 0);
-  const outstanding = Math.max(0, totalGross - totalPaid);
+  const outstanding = showReceivable ? Math.max(0, o.outstandingEur ?? (totalGross - totalPaid)) : 0;
 
   const methodLabel = (m) => ({
     stripe_card: 'Kreditkarte', stripe_klarna: 'Klarna', stripe_paypal: 'PayPal', bank_transfer_sepa: 'SEPA-Überweisung',
@@ -824,7 +838,7 @@ function CustOrderPayments({ o }) {
       <div className="card">
         <div className="card-head">
           <div className="card-title">Ratenplan · {installments.length} Raten</div>
-          <span className="text-faint fs-11">Gesamt {U.EUR(totalGross)}</span>
+          <span className="text-faint fs-11">{showMoney ? `Gesamt ${U.EUR(totalGross)}` : 'noch kein Angebot'}</span>
         </div>
         <div className="table-wrap">
           <table className="tbl tbl-static">
@@ -839,7 +853,11 @@ function CustOrderPayments({ o }) {
               </tr>
             </thead>
             <tbody>
-              {installments.length === 0 ? (
+              {!showMoney ? (
+                <tr><td colSpan="6" className="text-center text-muted" style={{ padding: 24 }}>Preis und Raten erscheinen, sobald Ihr Angebot erstellt wurde.</td></tr>
+              ) : !showReceivable ? (
+                <tr><td colSpan="6" className="text-center text-muted" style={{ padding: 24 }}>Noch keine Rechnung. Ein Zahlungsplan entsteht erst nach Annahme des Angebots.</td></tr>
+              ) : installments.length === 0 ? (
                 <tr><td colSpan="6" className="text-center text-muted" style={{ padding: 24 }}>Noch keine Raten geplant.</td></tr>
               ) : installments.map(inst => {
                 const sp = statusPill(inst.status);
@@ -870,12 +888,12 @@ function CustOrderPayments({ o }) {
           <div className="card-head"><div className="card-title">Übersicht</div></div>
           <div className="card-pad">
             <div className="kv">
-              <div className="kv-row"><dt>Gesamtpreis</dt><dd className="mono">{U.EUR(totalGross)}</dd></div>
-              <div className="kv-row"><dt>Bezahlt</dt><dd className="mono" style={{ color: 'var(--green)' }}>{U.EUR(totalPaid)}</dd></div>
-              <div className="kv-row"><dt>Offen</dt><dd className="mono" style={{ color: outstanding > 0 ? 'var(--amber)' : 'var(--text-3)' }}>{U.EUR(outstanding)}</dd></div>
+              <div className="kv-row"><dt>Gesamtpreis</dt><dd className="mono">{showMoney ? U.EUR(totalGross) : 'im Angebot'}</dd></div>
+              <div className="kv-row"><dt>Bezahlt</dt><dd className="mono" style={{ color: 'var(--green)' }}>{showReceivable ? U.EUR(totalPaid) : '—'}</dd></div>
+              <div className="kv-row"><dt>Offen</dt><dd className="mono" style={{ color: outstanding > 0 ? 'var(--amber)' : 'var(--text-3)' }}>{showReceivable ? U.EUR(outstanding) : '—'}</dd></div>
             </div>
             <div className="mt-3" style={{ height: 6, background: 'var(--surface-2)', borderRadius: 3, overflow: 'hidden' }}>
-              <div style={{ width: `${totalGross ? (totalPaid/totalGross)*100 : 0}%`, height: '100%', background: 'var(--green)' }}/>
+              <div style={{ width: `${showReceivable && totalGross ? (totalPaid/totalGross)*100 : 0}%`, height: '100%', background: 'var(--green)' }}/>
             </div>
           </div>
         </div>
@@ -1136,14 +1154,16 @@ function CustDownloads({ toast }) {
     if (o.acceptedAt) {
       files.push({ name: `${o.workType}_Briefing.pdf`, kind: 'briefing', size: '184 KB', uploadedBy: 'customer', at: o.acceptedAt });
     }
-    if (o.gwId && ['interim_submitted','under_customer_review','revision_required','final_submitted','qa_review','completed'].includes(o.status)) {
+    if (o.gwId && ['interim_submitted','under_customer_review','revision_required','final_submitted','qa_review','delivered','payment_pending','completed'].includes(o.status)) {
       files.push({ name: `Zwischenstand_1.docx`, kind: 'interim', size: '1.2 MB', uploadedBy: 'gw', at: '2026-05-06T15:30:00' });
     }
-    if (o.status === 'completed') {
+    if (['delivered','payment_pending','completed'].includes(o.status)) {
       files.push(
-        { name: `Endversion_${o.workType}.pdf`, kind: 'final', size: '2.8 MB', uploadedBy: 'gw', at: '2026-04-10T18:00:00' },
-        { name: `Rechnung_${o.id}.pdf`,         kind: 'invoice', size: '84 KB', uploadedBy: 'platform', at: '2026-04-12T08:00:00' }
+        { name: `Endversion_${o.workType}.pdf`, kind: 'final', size: '2.8 MB', uploadedBy: 'gw', at: '2026-04-10T18:00:00' }
       );
+    }
+    if (W.canShowReceivable(o) && (o.invoiceSentAt || (o.installments || []).length > 0)) {
+      files.push({ name: `Rechnung_${o.id}.pdf`, kind: 'invoice', size: '84 KB', uploadedBy: 'platform', at: o.invoiceSentAt || o.acceptedAt || '2026-05-07T15:10:00' });
     }
     return { o, files };
   }).filter(g => g.files.length > 0);

@@ -9,6 +9,17 @@ const ORDER_STATES = [
   'extension_requested'
 ];
 
+const PRE_PROPOSAL_STATES = ['lead', 'qualified'];
+const PRE_PAYMENT_STATES = ['lead', 'qualified', 'offer_sent', 'invoice_sent'];
+const POST_FINAL_STATES = [
+  'final_submitted', 'qa_review', 'ai_violation_review', 'plagiarism_violation_review',
+  'delivered', 'payment_pending', 'completed'
+];
+const RELEASE_GATE_RELEVANT_STATES = [
+  'delivered', 'payment_pending', 'completed', 'ai_violation_review', 'plagiarism_violation_review'
+];
+const QA_REVIEW_KINDS = ['final_work', 'revision'];
+
 const CLOSED_SUBMISSION_REASONS = {
   claimed_pending_approval: 'Awaiting admin approval',
   interim_submitted: 'Interim already submitted — awaiting customer feedback',
@@ -90,12 +101,70 @@ function isInterimKind(kind) {
   return kind === 'interim_1' || kind === 'interim_2';
 }
 
+function isQaReviewKind(kind) {
+  return QA_REVIEW_KINDS.indexOf(kind) >= 0;
+}
+
+function isPreProposal(orderOrStatus) {
+  const status = typeof orderOrStatus === 'string' ? orderOrStatus : orderOrStatus?.status;
+  return PRE_PROPOSAL_STATES.indexOf(status) >= 0;
+}
+
+function isPrePayment(orderOrStatus) {
+  const status = typeof orderOrStatus === 'string' ? orderOrStatus : orderOrStatus?.status;
+  return PRE_PAYMENT_STATES.indexOf(status) >= 0;
+}
+
+function canShowMoney(orderOrStatus) {
+  return !isPreProposal(orderOrStatus);
+}
+
+function canShowReceivable(orderOrStatus) {
+  const status = typeof orderOrStatus === 'string' ? orderOrStatus : orderOrStatus?.status;
+  return !isPreProposal(status) && !['offer_sent', 'cancelled', 'bye'].includes(status);
+}
+
+function isPostFinal(orderOrStatus) {
+  const status = typeof orderOrStatus === 'string' ? orderOrStatus : orderOrStatus?.status;
+  return POST_FINAL_STATES.indexOf(status) >= 0;
+}
+
+function isReleaseGateRelevant(order) {
+  if (!order) return false;
+  if (RELEASE_GATE_RELEVANT_STATES.indexOf(order.status) >= 0) return true;
+  return !!(order.finalSubmittedAt || order.deliveredAt || order.customerSatisfied || order.qaPassed || order.gwPaymentStatus === 'invoice_received' || order.gwPaymentStatus === 'paid');
+}
+
+function releaseGateStageNote(order) {
+  if (!order) return 'Order not found';
+  const map = {
+    lead: 'Lead is not qualified yet. No proposal, invoice, work, QA, customer acceptance, or GW payout exists.',
+    qualified: 'Qualified lead only. Create and send the proposal before showing invoice, assignment, QA, revision, or payout gates.',
+    offer_sent: 'Proposal sent. Wait for customer acceptance and invoice/payment before GW assignment or delivery gates apply.',
+    invoice_sent: 'Invoice sent. Confirm the first customer payment before starting GW assignment or delivery work.',
+    available: 'Payment received. Assign or approve a GW before delivery, QA, revisions, or payout gates can start.',
+    claimed_pending_approval: 'GW claim is waiting for admin approval. Work has not started until both assignment emails are sent.',
+    active: 'Work is in progress. Release gates start only after final work passes QA and the customer accepts it.',
+    interim_submitted: 'Interim was auto-forwarded to the customer. Final QA, customer acceptance, and payout are not reached yet.',
+    under_customer_review: 'Customer is reviewing an interim delivery. Final QA and payout gates are not reached yet.',
+    revision_required: 'A revision/dispute is open. Payment remains blocked until the corrected final is accepted.',
+    final_submitted: 'Final work is with efactory1/QA. Customer satisfaction and Friday payout are not available yet.',
+    qa_review: 'Final work is still in QA. It must pass before the customer can accept it.',
+    delivered: 'Final was delivered to the customer. Await customer acceptance before Friday release eligibility.',
+    payment_pending: 'Customer accepted the final. Friday release depends on all payout gates.',
+    completed: 'Order is complete and the GW payout is already settled.',
+    cancelled: 'Order is cancelled. No delivery or payout gate should be shown.',
+    on_hold: 'Order is on hold. Resolve the hold before continuing the workflow.',
+    delay_reported: 'Delay is awaiting admin decision. Delivery and payout gates are paused.',
+    extension_requested: 'Scope extension is awaiting admin/customer approval. Delivery and payout gates are paused.',
+  };
+  return map[order.status] || 'This workflow stage has not reached payout gating yet.';
+}
+
 function canAssign(order) {
   if (!order) return { ok: false, reason: 'Order not found' };
-  const isPrePay = ['lead','qualified','offer_sent','invoice_sent'].includes(order.status);
-  const isPostFinal = ['final_submitted','qa_review','delivered','payment_pending','completed','cancelled','ai_violation_review','plagiarism_violation_review'].includes(order.status);
-  if (isPrePay) return { ok: false, reason: 'Order must be paid before GW assignment. Send invoice and confirm payment first.' };
-  if (isPostFinal) return { ok: false, reason: 'Order is past the assignment window. Use reassign from dispute handling if a switch is needed.' };
+  if (isPrePayment(order)) return { ok: false, reason: 'Order must be paid before GW assignment. Send invoice and confirm payment first.' };
+  if (isPostFinal(order) || order.status === 'cancelled') return { ok: false, reason: 'Order is past the assignment window. Use reassign from dispute handling if a switch is needed.' };
   return { ok: true };
 }
 
@@ -171,6 +240,14 @@ window.EFWorkflow = {
   submissionKindToEntityKind,
   nextStateAfterSubmit,
   isInterimKind,
+  isQaReviewKind,
+  isPreProposal,
+  isPrePayment,
+  canShowMoney,
+  canShowReceivable,
+  isPostFinal,
+  isReleaseGateRelevant,
+  releaseGateStageNote,
   canAssign,
   releaseGates,
   statusFor,

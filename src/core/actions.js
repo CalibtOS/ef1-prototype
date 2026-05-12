@@ -118,7 +118,7 @@ function markInstallmentPaid(orderId, n) {
   const paid = installments.filter(i => i.status === 'paid').reduce((s, i) => s + (i.amt || 0), 0);
   const outstanding = Math.max(0, (o.grossEur || 0) - paid);
   const nextPatch = { installments, paidEur: paid, outstandingEur: outstanding };
-  if (o.status === 'invoice_sent' && outstanding === 0) nextPatch.status = 'available';
+  if (o.status === 'invoice_sent' && paid > 0) nextPatch.status = 'available';
   patchOrder(orderId, nextPatch);
   notify({ to: 'admin', kind: 'payment_confirmed', title: `Installment ${n} paid · #${orderId}`, body: `Outstanding balance now €${outstanding.toFixed(2)}` });
   return true;
@@ -166,6 +166,7 @@ function submitWork(orderId, payload = {}) {
   const entityKind = W.submissionKindToEntityKind(kind);
   const nextStatus = W.nextStateAfterSubmit(kind);
   const existing = S.selectSubmissionsForOrder(store.getState(), orderId);
+  const isInterim = W.isInterimKind(kind);
   const submission = {
     id: 's-live-' + Date.now() + '-' + Math.random().toString(36).slice(2, 6),
     orderId: Number(orderId),
@@ -177,9 +178,9 @@ function submitWork(orderId, payload = {}) {
     size: payload.size || payload.workFile?.size || 1200000,
     plagiarismScore: payload.plagiarismScore ?? 4,
     aiScore: payload.aiScore ?? 8,
-    qaStatus: W.isInterimKind(kind) ? 'passed' : 'pending',
+    qaStatus: isInterim ? 'auto_forwarded' : 'pending',
     submittedAt: nowIso(),
-    forwardedAt: W.isInterimKind(kind) ? nowIso() : null,
+    forwardedAt: isInterim ? nowIso() : null,
     selfChecks: payload.selfChecks || { noAi: true, ready: true, individual: true, spelling: true, grammar: true, plagiarism: true, requirements: true },
   };
   upsertEntity('submissions', submission, 'gw.submit.submission');
@@ -194,7 +195,7 @@ function submitWork(orderId, payload = {}) {
     gwPaymentStatus: kind === 'final' && o.gwPaymentStatus !== 'paid' ? 'invoice_received' : o.gwPaymentStatus,
   });
   const g = gw(currentGwId);
-  if (W.isInterimKind(kind)) {
+  if (isInterim) {
     notify({ to: 'customer', kind: 'interim_received', title: 'Ihr Zwischenstand ist verfügbar', body: `Auftrag #${orderId} · Bitte prüfen und Feedback geben` });
     notify({ to: 'admin', kind: 'interim_received', title: `Interim forwarded · #${orderId}`, body: `${g?.name || 'GW'} uploaded interim · auto-sent to customer` });
   } else {
@@ -209,7 +210,7 @@ function qaPass(submissionId) {
   const sub = S.byId(state.entities.submissions, submissionId);
   if (!sub) return false;
   const o = order(sub.orderId);
-  const isFinal = sub.kind === 'final_work';
+  const isFinal = sub.kind === 'final_work' || sub.kind === 'revision';
   patchEntity('submissions', submissionId, { qaStatus: 'passed', reviewedAt: nowIso(), reviewer: 'qa@efactory1.de' }, 'qa.pass.submission');
   patchOrder(sub.orderId, {
     status: isFinal ? 'delivered' : 'under_customer_review',
@@ -498,9 +499,10 @@ function setRoute(route) {
 //
 // Threads live in state.entities.threads with shape:
 //   { id, orderId, customerId, gwId, subject, channel, sentiment, lastAt,
-//     flagged, followUp, snoozeUntil,
+//     flagged, followUp, snoozeUntil, lastInboundAt, lastOutboundAt,
 //     unread: { admin: N, gw: N, customer: N },
-//     messages: [{ id, threadId, from, body, at, attachments?, autoflag?, system? }] }
+//     messages: [{ id, threadId, from, body, at, origin_channel, delivery_channel,
+//       external_ref?, attachments?, autoflag?, system? }] }
 //
 // All composer surfaces (admin/inbox.jsx, gw/messages.jsx, customer/view.jsx)
 // route through `threads.send` so a message sent in one persona is visible to
@@ -521,6 +523,15 @@ function newMessageId(threadId) {
   return `${threadId}-m-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 5)}`;
 }
 
+function normalizeChannel(value) {
+  if (value === 'email_proxy') return 'email';
+  if (value === 'whatsapp_proxy') return 'whatsapp';
+  if (value === 'platform_chat') return 'platform';
+  if (value === 'voice_metadata') return 'voice';
+  if (value === 'multi_channel') return 'multi';
+  return value || 'platform';
+}
+
 function ensureThreadForOrder(orderId, sender) {
   const state = store.getState();
   const existing = selectThreadByOrder(state, orderId);
@@ -534,9 +545,11 @@ function ensureThreadForOrder(orderId, sender) {
     customerId: o.customerId,
     gwId: o.gwId || null,
     subject: o.title || `Auftrag #${orderId}`,
-    channel: 'platform_chat',
+    channel: 'multi_channel',
     sentiment: 'neutral',
     lastAt: nowIso(),
+    lastInboundAt: null,
+    lastOutboundAt: null,
     flagged: false,
     followUp: false,
     snoozeUntil: null,
@@ -554,6 +567,8 @@ function appendMessage(threadId, message, label) {
       ...prev,
       messages,
       lastAt: message.at,
+      lastInboundAt: (message.from === 'customer' || message.from === 'gw') ? message.at : (prev.lastInboundAt || null),
+      lastOutboundAt: message.from === 'admin' ? message.at : (prev.lastOutboundAt || null),
     };
   }, label || 'threads.appendMessage');
 }
@@ -594,12 +609,17 @@ function sendMessage(payload = {}) {
 
   const at = nowIso();
   const isFinancial = role !== 'admin' && FINANCIAL_KEYWORD_RE.test(body);
+  const threadDefaultChannel = normalizeChannel(thread.channel);
+  const defaultDelivery = threadDefaultChannel === 'voice' || threadDefaultChannel === 'multi' ? 'email' : threadDefaultChannel;
   const message = {
     id: newMessageId(threadId),
     threadId,
     from: role,
     body,
     at,
+    origin_channel: payload.origin_channel || (role === 'admin' ? 'admin' : 'platform'),
+    delivery_channel: payload.delivery_channel || payload.channel || defaultDelivery,
+    external_ref: payload.external_ref || null,
     autoflag: isFinancial ? 'financial' : null,
     system: false,
   };
@@ -617,6 +637,9 @@ function sendMessage(payload = {}) {
       from: 'system',
       body: 'Finanzbezug erkannt — Anfrage automatisch an kundenservice@efactory1.de weitergeleitet. Der Ghostwriter darf finanzielle Themen nicht besprechen.',
       at: nowIso(),
+      origin_channel: 'system',
+      delivery_channel: 'internal',
+      external_ref: null,
       system: true,
       autoflag: 'financial',
     };

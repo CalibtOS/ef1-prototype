@@ -343,11 +343,12 @@ function NeedsYourDecision({ navigate }) {
 function TodaysDeadlines({ navigate }) {
   const orders = window.EFHooks.useOrders();
   const D = window.EF;
+  const W = window.EFWorkflow;
   const NOW = D.DEMO_NOW || new Date();
   const closedStates = new Set(['completed','cancelled','payment_pending','delivered']);
   const items = [];
   orders.forEach(o => {
-    if (closedStates.has(o.status)) return;
+    if (closedStates.has(o.status) || W.isPrePayment(o)) return;
     if (o.interimDeadline) items.push({ orderId: o.id, kind: 'interim_1', label: 'Zwischenstand 1', date: o.interimDeadline, order: o });
     if (o.interim2Deadline) items.push({ orderId: o.id, kind: 'interim_2', label: 'Zwischenstand 2', date: o.interim2Deadline, order: o });
     if (o.finalDeadline) items.push({ orderId: o.id, kind: 'final', label: 'Final', date: o.finalDeadline, order: o });
@@ -593,7 +594,7 @@ function FunnelChart() {
   const stages = [
     { name: 'Anfrage', count: 142, color: 'var(--text-3)' },
     { name: 'Qualifiziert', count: 86, color: '#94A3B8' },
-    { name: 'Rückmeldung', count: 54, color: 'var(--blue)' },
+    { name: 'Proposal', count: 54, color: 'var(--blue)' },
     { name: 'Rechnung angefordert', count: 38, color: 'var(--blue)' },
     { name: 'Won', count: 31, color: 'var(--green)' },
   ];

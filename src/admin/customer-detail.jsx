@@ -4,6 +4,7 @@ const { useState: useStateA, useEffect: useEffectA, useMemo: useMemoA } = React;
 const { Icon, StatusPill, Avatar, Money, Bi, ScoreBar, CrumbBar, NotReady, PlannedTag, EmptyState, Skeleton } = window;
 const U = window.EFU;
 const D = window.EF;
+const W = window.EFWorkflow;
 
 // ====================================================================
 function CustomerDetail({ customerId, navigate }) {
@@ -14,11 +15,11 @@ function CustomerDetail({ customerId, navigate }) {
     .filter(o => o.customerId === customerId)
     .sort((a, b) => (b.acceptedAt || '').localeCompare(a.acceptedAt || ''));
   const ltv = orders.reduce((s, o) => s + (o.paidEur || 0), 0);
-  const open = orders.reduce((s, o) => s + (o.outstandingEur || 0), 0);
+  const open = orders.reduce((s, o) => s + (W.canShowReceivable(o) ? (o.outstandingEur || 0) : 0), 0);
   const inflight = orders.filter(o => !['completed', 'cancelled', 'bye'].includes(o.status)).length;
 
   const timeline = orders.flatMap(o => ([
-    o.acceptedAt && { kind: 'order', t: o.acceptedAt, text: `Order #${o.id} · ${D.WORK_TYPE_LABELS[o.workType]} · ${U.EUR(o.grossEur)}`, icon: 'package' },
+    o.acceptedAt && { kind: 'order', t: o.acceptedAt, text: `Order #${o.id} · ${D.WORK_TYPE_LABELS[o.workType]}${W.canShowMoney(o) ? ' · ' + U.EUR(o.grossEur) : ''}`, icon: 'package' },
     ...(o.installments || []).filter(i => i.status === 'paid').map(i => ({ kind: 'pay', t: i.date, text: `Installment ${i.n}/${o.installments.length} paid · ${U.EUR(i.amt)} · ${(i.method || '').replace('stripe_', 'Stripe ').replace('bank_transfer_sepa', 'SEPA').replace('_', ' ')} · #${o.id}`, icon: 'check-circle' })),
   ])).filter(Boolean).sort((a, b) => (b.t || '').localeCompare(a.t || '')).slice(0, 10);
 
@@ -60,17 +61,21 @@ function CustomerDetail({ customerId, navigate }) {
               <table className="tbl" style={{ fontSize: 12 }}>
                 <thead><tr><th>ID</th><th>Status</th><th>Type</th><th>Title</th><th className="num">Gross</th><th className="num">Outstanding</th><th>Final deadline</th></tr></thead>
                 <tbody>
-                  {orders.map(o => (
+                  {orders.map(o => {
+                    const showMoney = W.canShowMoney(o);
+                    const showReceivable = W.canShowReceivable(o);
+                    return (
                     <tr key={o.id} onClick={() => navigate('order-detail', { id: o.id })} style={{ cursor: 'pointer' }}>
                       <td className="mono"><strong>#{o.id}</strong></td>
                       <td><StatusPill status={o.status}/></td>
                       <td className="text-muted">{D.WORK_TYPE_LABELS[o.workType]}</td>
                       <td style={{ maxWidth: 280, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{o.titleTBD ? <em className="text-faint">folgt</em> : o.title}</td>
-                      <td className="num mono">{U.EUR(o.grossEur)}</td>
-                      <td className="num mono">{o.outstandingEur > 0 ? <span style={{ color: 'var(--red)' }}>{U.EUR(o.outstandingEur)}</span> : <span className="text-faint">€0</span>}</td>
+                      <td className="num mono">{showMoney ? U.EUR(o.grossEur) : <span className="text-faint fs-11">Hidden until proposal</span>}</td>
+                      <td className="num mono">{!showMoney ? <span className="text-faint">—</span> : !showReceivable ? <span className="text-faint fs-11">Awaiting acceptance</span> : (o.outstandingEur > 0 ? <span style={{ color: 'var(--red)' }}>{U.EUR(o.outstandingEur)}</span> : <span className="text-faint">€0</span>)}</td>
                       <td className="mono fs-11">{o.finalDeadline ? U.fmtDate(o.finalDeadline) : '—'}</td>
                     </tr>
-                  ))}
+                    );
+                  })}
                 </tbody>
               </table>
             </div>

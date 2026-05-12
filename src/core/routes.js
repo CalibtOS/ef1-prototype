@@ -106,7 +106,7 @@ function navItems(role, state) {
   const orders = S.selectAllOrders(state);
   const submissions = S.selectAllSubmissions(state);
   if (role === 'admin') {
-    const qaPending = submissions.filter(s => s.qaStatus === 'pending').length;
+    const qaPending = submissions.filter(s => W.isQaReviewKind(s.kind) && s.qaStatus === 'pending').length;
     const friday = orders.filter(o => W.releaseGates(o).releasable).length;
     const disputes = orders.filter(o => o.disputeOpen).length;
     return [
@@ -119,7 +119,6 @@ function navItems(role, state) {
       { id: 'payments', label: 'Payments', icon: 'wallet', badge: friday ? String(friday) : null },
       { id: 'disputes', label: 'Disputes', icon: 'alert-triangle', badge: disputes ? String(disputes) : null },
       { id: 'inbox', label: 'Inbox', icon: 'inbox' },
-      { id: 'offers', label: 'Offers / Sevdesk', icon: 'file-text' },
       { id: 'pipeline', label: 'Pipeline', icon: 'git-branch' },
       { id: 'bi', label: 'AI BI', icon: 'sparkles', tag: 'Beta' },
       { id: 'reports', label: 'Reports', icon: 'bar-chart-3' },
@@ -142,7 +141,7 @@ function navItems(role, state) {
     ];
   }
   if (role === 'qa') {
-    const pend = submissions.filter(s => s.qaStatus === 'pending').length;
+    const pend = submissions.filter(s => W.isQaReviewKind(s.kind) && s.qaStatus === 'pending').length;
     const ai = submissions.filter(s => s.aiScore >= 70 || s.flagged).length;
     return [
       { id: 'qa-queue', label: 'Review Queue', icon: 'shield-check', badge: pend ? String(pend) : null, badgeTone: 'warn' },

@@ -8,43 +8,70 @@ const D = window.EF;
 // ============ INBOX ============
 function Inbox({ toast }) {
   const [activeId, setActiveId] = useStateA('t1');
-  const [tab, setTab] = useStateA('Inbox');
+  const [tab, setTab] = useStateA('All');
+  const [channelFilter, setChannelFilter] = useStateA('all');
+  const [deliveryRail, setDeliveryRail] = useStateA('email');
   const [reply, setReply] = useStateA('');
   const _toast = toast || (m => console.log(m));
   const rawThreads = window.EFHooks.useThreads();
   const threads = rawThreads.map(t => {
     const cust = D.customer(t.customerId);
+    const gw = D.gw(t.gwId);
+    const order = t.orderId ? D.order(t.orderId) : null;
     const ch = t.channel === 'whatsapp_proxy' ? 'whatsapp'
       : t.channel === 'voice_metadata' ? 'voice'
       : t.channel === 'platform_chat' ? 'platform'
+      : t.channel === 'multi_channel' ? 'multi'
       : 'email';
     const lastMsg = (t.messages && t.messages.length) ? t.messages[t.messages.length - 1] : null;
     const unreadAdmin = (t.unread && typeof t.unread === 'object') ? (t.unread.admin || 0) : (t.unread ? 1 : 0);
+    const threadType = t.threadType || 'order';
+
+    // Compute display name and subtitle based on thread type
+    let displayName, displaySubtitle;
+    if (threadType === 'lead') {
+      displayName = t.contactName || t.phone || 'Unknown contact';
+      displaySubtitle = t.subject;
+    } else if (threadType === 'gw_direct') {
+      displayName = gw?.name || 'Ghostwriter';
+      displaySubtitle = t.subject;
+    } else {
+      displayName = cust?.name || 'Customer';
+      displaySubtitle = `#${t.orderId} · ${t.subject}`;
+    }
+
     return {
       id: t.id,
+      threadType,
       subject: t.subject,
       last: ch === 'voice' ? 'Voicemail received · metadata only'
         : (lastMsg ? (lastMsg.body || '').slice(0, 110) : t.subject),
-      from: cust?.name || (t.system ? 'System' : 'Customer'),
+      from: displayName,
+      displaySubtitle,
       orderId: t.orderId,
+      order,
       ch,
       sentiment: t.sentiment || 'neutral',
       unread: unreadAdmin,
       at: t.lastAt,
+      awaitingReply: !!(t.lastInboundAt && (!t.lastOutboundAt || new Date(t.lastInboundAt) > new Date(t.lastOutboundAt))),
       flagged: !!t.flagged,
       autoflag: t.flagged === 'financial' || t.flaggedReason === 'financial_question' ? 'pricing' : null,
       voiceMeta: ch === 'voice' ? { duration: '0:42', from: cust?.phone || 'unknown', recordedAt: t.lastAt } : null,
       followUp: !!t.followUp,
       snoozeUntil: t.snoozeUntil || null,
+      isB2B: !!t.isB2B,
       messages: t.messages || [],
       raw: t,
     };
   });
 
-  const filteredThreads = tab === 'Mentions'
-    ? threads.filter(t => t.from?.toLowerCase().includes('berat'))
-    : tab === 'Auto-flagged'
-    ? threads.filter(t => t.autoflag || t.flagged || t.followUp)
+  const filteredThreads = tab === 'Orders'
+    ? threads.filter(t => t.threadType === 'order')
+    : tab === 'Leads'
+    ? threads.filter(t => t.threadType === 'lead')
+    : tab === 'GWs'
+    ? threads.filter(t => t.threadType === 'gw_direct')
     : threads;
 
   const active = filteredThreads.find(t => t.id === activeId) || filteredThreads[0] || threads[0];
@@ -97,15 +124,18 @@ function Inbox({ toast }) {
       orderId: active.orderId,
       role: 'admin',
       body: reply,
+      origin_channel: 'admin',
+      delivery_channel: deliveryRail,
     });
     if (msg) {
-      _toast({ text: `Reply sent via ${active.ch} to ${active.from} · CC kundenservice@efactory1.de`, tone: 'success' });
+      _toast({ text: `Reply sent via ${channelLabel(deliveryRail)} to ${active.from} · CC kundenservice@efactory1.de`, tone: 'success' });
       setReply('');
     }
   };
   const onRedirect = () => {
     const ok = window.EFActions.threads.redirect(active.id);
-    if (ok) _toast({ text: `Thread #${active.orderId} redirected to kundenservice@efactory1.de`, tone: 'info' });
+    const label = active.orderId ? `Thread #${active.orderId}` : `Thread (${active.from})`;
+    if (ok) _toast({ text: `${label} redirected to kundenservice@efactory1.de`, tone: 'info' });
   };
   const onSnooze = () => {
     window.EFActions.threads.snooze(active.id, 4);
@@ -117,7 +147,75 @@ function Inbox({ toast }) {
   };
   const initialsFor = (name) => (name || 'EF').split(/\s+/).map(s => s[0]).join('').slice(0, 2).toUpperCase();
   const activeInitials = active.system ? 'EF' : initialsFor(active.from);
-  const activeChannel = active.ch === 'whatsapp' ? 'WhatsApp' : active.ch === 'voice' ? 'Voice' : active.ch === 'platform' ? 'Platform' : 'Email';
+  const activeChannel = active.ch === 'whatsapp' ? 'WhatsApp' : active.ch === 'voice' ? 'Voice' : active.ch === 'platform' ? 'Platform' : active.ch === 'multi' ? 'Multi-channel' : 'Email';
+  const channelLabel = (channel) => {
+    if (channel === 'whatsapp') return 'WhatsApp';
+    if (channel === 'platform') return 'Platform';
+    if (channel === 'voice') return 'Voice';
+    if (channel === 'system' || channel === 'internal') return 'System';
+    return 'Email';
+  };
+  const displayChannel = (m) => {
+    if (m.from === 'admin') return m.delivery_channel || 'email';
+    return m.origin_channel || m.delivery_channel || active.ch;
+  };
+  const messageChannel = (m) => {
+    const ch = displayChannel(m);
+    return channelLabel(ch);
+  };
+  const enrichedMessages = useMemoA(() => {
+    return [...(active?.messages || [])]
+      .map(m => ({
+        ...m,
+        origin_channel: m.origin_channel || (m.from === 'admin' ? 'admin' : m.from === 'system' ? 'system' : active?.ch || 'platform'),
+        delivery_channel: m.delivery_channel || (m.from === 'system' ? 'internal' : active?.ch === 'multi' || active?.ch === 'voice' ? 'email' : active?.ch || 'email'),
+      }))
+      .sort((a, b) => new Date(a.at) - new Date(b.at));
+  }, [active?.id, active?.messages, active?.ch]);
+  const matchesChannelFilter = (m) => {
+    if (channelFilter === 'all') return true;
+    if (channelFilter === 'email') return m.origin_channel === 'email' || (m.from === 'admin' && m.delivery_channel === 'email');
+    if (channelFilter === 'whatsapp') return m.origin_channel === 'whatsapp' || (m.from === 'admin' && m.delivery_channel === 'whatsapp');
+    if (channelFilter === 'platform') return m.origin_channel === 'platform' || (m.from === 'admin' && m.delivery_channel === 'platform');
+    return true;
+  };
+  const visibleMessages = enrichedMessages.filter(matchesChannelFilter);
+  const hiddenCount = enrichedMessages.length - visibleMessages.length;
+  const hiddenLabel = channelFilter === 'all' ? '' : ['email', 'whatsapp', 'platform']
+    .filter(ch => ch !== channelFilter)
+    .map(channelLabel)
+    .join('/');
+  const activeContextLine = active.threadType === 'lead'
+    ? `Lead · ${active.from} · ${activeChannel}`
+    : active.threadType === 'gw_direct'
+    ? `GW Direct · ${active.from} · ${activeChannel}`
+    : `${active.from} · order #${active.orderId} · unified thread`;
+  const orderBadge = (t) => {
+    const config = t.order?.status ? D.STATUS_PILLS?.[t.order.status] : null;
+    if (!config) return null;
+    const tone = config.color === 'yellow' ? 'amber' : config.color;
+    return <span className={`pill pill-${tone}`} style={{ fontSize: 10 }}>{config.label}</span>;
+  };
+  const triageBadges = (t) => {
+    if (t.threadType === 'order') {
+      return <>
+        {t.awaitingReply && <span className="pill pill-blue" style={{ fontSize: 10 }}>awaiting reply</span>}
+        {t.autoflag && <span className="pill pill-orange" style={{ fontSize: 10 }}>pricing</span>}
+        {t.sentiment === 'tense' || t.sentiment === 'frustrated' ? <span className="pill pill-amber" style={{ fontSize: 10 }}>tense</span> : null}
+        {t.followUp && <span className="pill pill-blue" style={{ fontSize: 10 }}>follow-up</span>}
+        {!t.awaitingReply && !t.autoflag && t.sentiment !== 'tense' && t.sentiment !== 'frustrated' && !t.followUp && orderBadge(t)}
+      </>;
+    }
+    return <>
+      <span className={`pill pill-${t.ch === 'whatsapp' ? 'green' : t.ch === 'voice' ? 'orange' : t.ch === 'platform' ? 'slate' : 'blue'}`} style={{ fontSize: 10 }}>{t.ch}</span>
+      {t.isB2B && <span className="pill pill-purple" style={{ fontSize: 10 }}>B2B</span>}
+      {t.threadType === 'gw_direct' && <span className="pill pill-amber" style={{ fontSize: 10 }}>GW direct</span>}
+      {t.sentiment === 'tense' || t.sentiment === 'frustrated' ? <span className="pill pill-amber" style={{ fontSize: 10 }}>tense</span> : null}
+      {t.sentiment === 'positive' && <span className="pill pill-green" style={{ fontSize: 10 }}>positive</span>}
+      {t.autoflag && <span className="pill pill-orange" style={{ fontSize: 10 }}>auto: {t.autoflag}</span>}
+      {t.followUp && <span className="pill pill-blue" style={{ fontSize: 10 }}>follow-up</span>}
+    </>;
+  };
 
   return (
     <div className="page" style={{ paddingBottom: 0 }}>
@@ -135,8 +233,13 @@ function Inbox({ toast }) {
         <div className="chat-shell">
           <div className="chat-header" style={{ padding: '8px 12px' }}>
             <div className="flex gap-1">
-              {['Inbox', 'Mentions', 'Auto-flagged'].map(t => (
-                <button type="button" key={t} className={`chip ${tab===t?'active':''}`} onClick={() => setTab(t)}>{t}</button>
+              {[
+                ['All', 'All threads'],
+                ['Orders', 'Orders'],
+                ['Leads', 'Leads'],
+                ['GWs', 'GWs'],
+              ].map(([id, label]) => (
+                <button type="button" key={id} className={`chip ${tab===id?'active':''}`} onClick={() => setTab(id)}>{label}</button>
               ))}
             </div>
           </div>
@@ -147,19 +250,13 @@ function Inbox({ toast }) {
                 active={active?.id === t.id}
                 unread={t.unread || 0}
                 initials={initialsFor(t.from)}
-                tone={t.ch === 'whatsapp' ? 'emerald' : 'blue'}
+                tone={t.threadType === 'order' ? 'blue' : t.threadType === 'gw_direct' ? 'amber' : t.ch === 'whatsapp' ? 'emerald' : 'blue'}
                 title={t.from}
-                subtitle={`#${t.orderId} · ${t.subject}`}
+                subtitle={t.displaySubtitle}
                 preview={t.last}
                 meta={U.relTime(t.at)}
                 onClick={() => setActiveId(t.id)}
-                badges={<>
-                  <span className={`pill pill-${t.ch === 'whatsapp' ? 'green' : t.ch === 'voice' ? 'orange' : t.ch === 'platform' ? 'slate' : 'blue'}`} style={{ fontSize: 10 }}>{t.ch}</span>
-                  {t.sentiment === 'tense' && <span className="pill pill-amber" style={{ fontSize: 10 }}>tense</span>}
-                  {t.sentiment === 'positive' && <span className="pill pill-green" style={{ fontSize: 10 }}>positive</span>}
-                  {t.autoflag && <span className="pill pill-orange" style={{ fontSize: 10 }}>auto: {t.autoflag}</span>}
-                  {t.followUp && <span className="pill pill-blue" style={{ fontSize: 10 }}>follow-up</span>}
-                </>}
+                badges={triageBadges(t)}
               />
             ))}
             {filteredThreads.length === 0 && (
@@ -174,14 +271,30 @@ function Inbox({ toast }) {
               <Avatar initials={activeInitials} size={34} tone={active.system ? 'amber' : 'blue'}/>
               <div style={{ minWidth: 0 }}>
                 <span className="chat-title-main">{active.subject}</span>
-                <span className="chat-title-sub">{active.from} · order #{active.orderId} · {activeChannel}</span>
+                <span className="chat-title-sub">{activeContextLine}</span>
               </div>
             </div>
-            {active.autoflag && <span className="pill pill-orange"><Icon name="alert-triangle" size={11}/> pricing redirect</span>}
+            <div className="flex gap-1" style={{ flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+              {['all', 'email', 'whatsapp', 'platform'].map(ch => (
+                <button type="button" key={ch} className={`chip ${channelFilter === ch ? 'active' : ''}`} onClick={() => setChannelFilter(ch)}>
+                  {ch === 'all' ? 'All' : channelLabel(ch)}
+                </button>
+              ))}
+              {active.autoflag && <span className="pill pill-orange"><Icon name="alert-triangle" size={11}/> pricing redirect</span>}
+            </div>
           </div>
 
+          <ChatNotice compact>
+            Same order-thread structure as Communications: chronological messages with channel metadata. The left list is only a triage lens across orders, leads and GW-direct threads.
+          </ChatNotice>
+          {hiddenCount > 0 && (
+            <ChatNotice compact icon="eye-off">
+              {hiddenCount} message{hiddenCount === 1 ? '' : 's'} hidden while filtered to {channelLabel(channelFilter)} ({hiddenLabel}).
+            </ChatNotice>
+          )}
+
           <div className="chat-stream">
-            {active.ch === 'voice' ? (
+            {active.ch === 'voice' && channelFilter === 'all' ? (
               <>
                 <ChatMessage system at={active.voiceMeta?.recordedAt || active.at}>Voicemail received · metadata only</ChatMessage>
                 <div className="chat-row is-theirs">
@@ -201,10 +314,10 @@ function Inbox({ toast }) {
                 </div>
                 <ChatNotice compact icon="lock">Audio playback and transcription are disabled. Reply by phone or email.</ChatNotice>
               </>
-            ) : (active.messages.length === 0 ? (
-              <EmptyState compact icon="message-square" title="Noch keine Nachrichten" body="Sobald jemand schreibt, erscheint die Unterhaltung hier."/>
+            ) : (visibleMessages.length === 0 ? (
+              <EmptyState compact icon="message-square" title="No messages in this view" body={enrichedMessages.length ? 'Switch back to All to see the full thread.' : 'Sobald jemand schreibt, erscheint die Unterhaltung hier.'}/>
             ) : (
-              active.messages.map((m, i) => {
+              visibleMessages.map((m, i) => {
                 const sys = m.from === 'system';
                 const mine = m.from === 'admin';
                 const senderName = m.from === 'gw'
@@ -217,7 +330,7 @@ function Inbox({ toast }) {
                   : m.from === 'customer'
                     ? activeInitials
                     : m.from === 'admin' ? 'BÖ' : 'EF';
-                const prev = active.messages[i - 1];
+                const prev = visibleMessages[i - 1];
                 const grouped = !!prev && prev.from === m.from && !sys;
                 return (
                   <ChatMessage
@@ -229,7 +342,7 @@ function Inbox({ toast }) {
                     at={m.at}
                     grouped={grouped}
                     attachments={m.attachments}
-                    channel={!grouped && !sys ? activeChannel : null}
+                    channel={!grouped && !sys ? messageChannel(m) : null}
                     tone={mine ? 'blue' : sys ? 'amber' : 'slate'}
                   >
                     {m.body}
@@ -243,9 +356,14 @@ function Inbox({ toast }) {
             value={reply}
             onChange={(e) => setReply(e.target.value)}
             onSend={onSend}
-            placeholder={`Reply via ${activeChannel}...`}
-            sendLabel={`Send via ${activeChannel}`}
+            placeholder={`Reply in ${active.threadType === 'order' ? `order #${active.orderId}` : active.from}...`}
+            sendLabel={`Send via ${channelLabel(deliveryRail)}`}
             actions={<>
+              <div className="flex gap-1">
+                {['email', 'whatsapp'].map(ch => (
+                  <button type="button" key={ch} className={`chip ${deliveryRail === ch ? 'active' : ''}`} onClick={() => setDeliveryRail(ch)}>{channelLabel(ch)}</button>
+                ))}
+              </div>
               <NotReady className="chat-icon-action" ariaLabel="Attach file" feature="attach-file"><Icon name="paperclip" size={15}/></NotReady>
               <span className="chip">DE -> EN</span>
               <span className="chip">CC active</span>

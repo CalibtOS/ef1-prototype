@@ -109,13 +109,13 @@ function GWAssignmentDetail({ orderId, navigate, toast }) {
             <div className="kv" style={{ fontSize: 12, marginBottom: 12 }}>
               <div className="kv-row"><dt>From</dt><dd><strong>{cust?.name || 'Customer'}</strong></dd></div>
               <div className="kv-row"><dt>Round</dt><dd className="mono">{order.revisionRounds || 1} of 3</dd></div>
-              <div className="kv-row"><dt>Free revisions remaining</dt><dd>{Math.max(0, 3 - (order.revisionRounds || 1))} (AGB v3.2 §5)</dd></div>
+              <div className="kv-row"><dt>Payment impact</dt><dd>Blocked until the revision is accepted</dd></div>
             </div>
             <div style={{ padding: 12, background: 'var(--surface-2)', borderRadius: 8, fontSize: 12, lineHeight: 1.5 }}>
               {order.feedbackText || `Die Methodik in Kapitel 3 ist mir noch zu oberflächlich — bitte mit zusätzlichen empirischen Beispielen ergänzen. Quellenlage in §5 wirkt zu schmal (nur 4 Quellen für die Konklusion). Sonst passt der Stil sehr gut, danke!`}
             </div>
             <div className="flex gap-2 mt-3" style={{ flexWrap: 'wrap' }}>
-              <button className="btn btn-primary btn-sm" onClick={() => navigate('gw-submit', { id: order.id, kind: 'final' })}>
+              <button className="btn btn-primary btn-sm" onClick={() => navigate('gw-submit', { id: order.id, kind: 'revision' })}>
                 <Icon name="upload-cloud" size={12}/> Upload revised version
               </button>
               <button className="btn btn-sm" onClick={() => navigate('gw-messages')}>

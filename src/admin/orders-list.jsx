@@ -4,12 +4,15 @@ const { useState: useStateA, useEffect: useEffectA, useMemo: useMemoA } = React;
 const { Icon, StatusPill, Avatar, Money, Bi, ScoreBar, CrumbBar, NotReady, PlannedTag, EmptyState, Skeleton } = window;
 const U = window.EFU;
 const D = window.EF;
+const W = window.EFWorkflow;
 
 function OrdersTable({ navigate, route }) {
   const [search, setSearch] = useStateA('');
   const [statusFilter, setStatusFilter] = useStateA('all');
   const [view, setView] = useStateA('all');
   const orders = window.EFHooks.useOrders();
+  const needsOffer = (o) => o.status === 'qualified' && !o.sevdeskOfferNo && !o.offerSentAt;
+  const needsOfferCount = orders.filter(needsOffer).length;
 
   // Deep link: if navigated with { id }, open the detail view directly.
   useEffectA(() => {
@@ -21,8 +24,9 @@ function OrdersTable({ navigate, route }) {
   if (view === 'friday') filtered = filtered.filter(o => o.status === 'payment_pending');
   if (view === 'overdue') filtered = filtered.filter(o => o.interimDeadline && U.daysTo(o.interimDeadline) < 0 && !['completed','cancelled','payment_pending'].includes(o.status));
   if (view === 'ai') filtered = filtered.filter(o => o.status === 'ai_violation_review');
+  if (view === 'needs_offer') filtered = filtered.filter(needsOffer);
   if (view === 'self') filtered = filtered.filter(o => o.selfAssigned);
-  if (view === 'nogw') filtered = filtered.filter(o => !o.gwId && !['cancelled','completed','qualified'].includes(o.status));
+  if (view === 'nogw') filtered = filtered.filter(o => !o.gwId && W.canAssign(o).ok);
   if (statusFilter !== 'all') filtered = filtered.filter(o => o.status === statusFilter);
   if (search) {
     const s = search.toLowerCase();
@@ -42,7 +46,6 @@ function OrdersTable({ navigate, route }) {
         <div className="page-actions">
           <NotReady className="btn" feature="filters-advanced"><Icon name="filter" size={14}/> Filters</NotReady>
           <NotReady className="btn" feature="export-csv"><Icon name="download" size={14}/> Export CSV</NotReady>
-          <button type="button" className="btn" onClick={() => navigate('offers')}><Icon name="file-text" size={14}/> Offers / Sevdesk</button>
           <button type="button" className="btn btn-primary" onClick={() => navigate('order-new')}><Icon name="plus" size={14}/> New order</button>
         </div>
       </div>
@@ -51,7 +54,7 @@ function OrdersTable({ navigate, route }) {
         <div className="tbl-toolbar">
           <input type="text" placeholder="Search ID, customer, paper title…" value={search} onChange={e => setSearch(e.target.value)} />
           <div className="saved-views">
-            {[['all','All'],['friday','Friday batch'],['overdue','Overdue interim'],['ai','AI flagged'],['self','Self-assigned'],['nogw','Without GW']].map(([k,l]) => (
+            {[['all','All'],['needs_offer',`Needs offer${needsOfferCount ? ` ${needsOfferCount}` : ''}`],['friday','Friday batch'],['overdue','Overdue interim'],['ai','AI flagged'],['self','Self-assigned'],['nogw','Without GW']].map(([k,l]) => (
               <span key={k} className={`chip ${view===k?'active':''}`} onClick={() => setView(k)}>{l}</span>
             ))}
           </div>
@@ -75,6 +78,7 @@ function OrdersTable({ navigate, route }) {
                 <th className="num">Gross</th>
                 <th className="num">Outstanding</th>
                 <th>GW</th>
+                <th>Next step</th>
                 <th>Lead</th>
               </tr>
             </thead>
@@ -83,6 +87,9 @@ function OrdersTable({ navigate, route }) {
                 const cust = D.customer(o.customerId);
                 const gw = D.gw(o.gwId);
                 const dm = U.deadlineMeta(o.finalDeadline);
+                const offerDue = needsOffer(o);
+                const showMoney = W.canShowMoney(o);
+                const showReceivable = W.canShowReceivable(o);
                 return (
                   <tr key={o.id} onClick={() => navigate('order-detail', { id: o.id })} className={
                     o.status==='ai_violation_review' ? 'row-danger'
@@ -114,8 +121,8 @@ function OrdersTable({ navigate, route }) {
                         <span className={`deadline-when tone-${dm.tone}`}>{dm.label}</span>
                       </div>
                     </td>
-                    <td className="num"><Money amount={o.grossEur} /></td>
-                    <td className="num">{o.outstandingEur > 0 ? <span className="mono" style={{ color: 'var(--red)', fontWeight: 600 }}>{U.EUR(o.outstandingEur)}</span> : <span className="text-faint mono">€0,00</span>}</td>
+                    <td className="num">{showMoney ? <Money amount={o.grossEur} /> : <span className="text-faint fs-11">Hidden until proposal</span>}</td>
+                    <td className="num">{!showMoney ? <span className="text-faint mono">—</span> : !showReceivable ? <span className="text-faint fs-11">Awaiting acceptance</span> : (o.outstandingEur > 0 ? <span className="mono" style={{ color: 'var(--red)', fontWeight: 600 }}>{U.EUR(o.outstandingEur)}</span> : <span className="text-faint mono">€0,00</span>)}</td>
                     <td>
                       {gw ? (
                         <div className="flex items-center gap-2">
@@ -123,6 +130,21 @@ function OrdersTable({ navigate, route }) {
                           <span className="fs-12">{gw.name}{gw.banned && <Icon name="eye" size={11} className="text-faint" style={{ marginLeft: 4 }}/>}</span>
                         </div>
                       ) : <span className="pill pill-gray">unassigned</span>}
+                    </td>
+                    <td>
+                      {offerDue ? (
+                        <button type="button" className="btn btn-sm btn-primary" onClick={(e) => { e.stopPropagation(); navigate('order-detail', { id: o.id, tab: 'offer' }); }}>
+                          <Icon name="file-text" size={12}/> Create offer
+                        </button>
+                      ) : o.status === 'offer_sent' ? (
+                        <span className="pill pill-blue">Await response</span>
+                      ) : o.status === 'invoice_sent' ? (
+                        <span className="pill pill-amber">Await payment</span>
+                      ) : o.status === 'lead' ? (
+                        <span className="pill pill-slate">Qualify lead</span>
+                      ) : (
+                        <span className="text-faint fs-11">—</span>
+                      )}
                     </td>
                     <td className="text-faint fs-11">{o.leadSource}</td>
                   </tr>

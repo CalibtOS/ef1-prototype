@@ -21,7 +21,7 @@ function AIBIDashboard() {
         'Joined to Sevdesk invoices for "Won" verification',
         'Compared to industry benchmark (academic services, EU)'
       ],
-      answer: '21.8% (Anfrage → Won) is **above** the EU academic-services benchmark of 14–18%. The largest drop is **Qualifiziert → Rückmeldung (-37%)** — 32 leads went silent after first quote. Common pattern: leads asking about Bachelorarbeit > 60 pages with deadline < 2 weeks, where pricing factor jumps to 1.5×. Recommend: A/B-test a sub-quote ("staged delivery option") for these leads. Projected lift: +6 deals/month.',
+      answer: '21.8% (Anfrage → Won) is **above** the EU academic-services benchmark of 14–18%. The largest drop is **Qualifiziert → Proposal (-37%)** — 32 leads went silent after first quote. Common pattern: leads asking about Bachelorarbeit > 60 pages with deadline < 2 weeks, where pricing factor jumps to 1.5×. Recommend: A/B-test a sub-quote ("staged delivery option") for these leads. Projected lift: +6 deals/month.',
       sources: ['Pipedrive (live)', 'Sevdesk (synced 2h ago)', 'Internal benchmarks doc']
     },
     {
@@ -190,7 +190,7 @@ function FunnelDropoff() {
   const stages = [
     { name: 'Anfrage', pct: 100 },
     { name: 'Qualifiziert', pct: 60.5 },
-    { name: 'Rückmeldung', pct: 38.0 },
+    { name: 'Proposal', pct: 38.0 },
     { name: 'Rechnung', pct: 26.7 },
     { name: 'Won', pct: 21.8 },
   ];
