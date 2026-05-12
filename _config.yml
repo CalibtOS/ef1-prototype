@@ -1,0 +1,4 @@
+# Jekyll (GitHub Pages Actions): keep submodule metadata and empty docs path out of the build.
+exclude:
+  - docs
+  - .gitmodules
