@@ -1,0 +1,242 @@
+{
+  "meta": {
+    "title": "eFactory One — PRD Brief (Charter · Scope · Proposal)",
+    "version": "1.0",
+    "last_updated": "2026-05-13",
+    "purpose": "Structured source material for generating a Project Charter, Project Scope Statement, and Project Proposal. This file is optimized for those deliverables; detailed execution requirements, prototype matrices, and the full task backlog live in PRD.json at repo root.",
+    "pm_framework_notes": {
+      "project_charter": "Formal authorization to start; states purpose, measurable objectives, high-level scope/deliverables, key stakeholders and roles, summary schedule and budget envelope, known risks, sponsor sign-off. (Common practice aligns with PMI PMBOK-style charter content.)",
+      "project_scope_statement": "Defines what is in and out of scope: business justification, product/deliverable description at summary level, measurable project objectives, acceptance criteria themes, exclusions. Often expands charter scope into planning detail.",
+      "project_proposal": "Decision-oriented document for approval/funding: problem and context, proposed approach/solution, benefits and alignment, costs and resources, timeline, risks and mitigations, governance and success measures. May be more outward-facing than an internal charter."
+    },
+    "corpus_traceability": {
+      "primary_execution_prd": "PRD.json",
+      "authoritative_docs": [
+        "docs/INDEX.md",
+        "docs/QUICKREF.md",
+        "docs/business_rules.md",
+        "docs/decisions_log.md",
+        "docs/gw_workflow_sops.md",
+        "docs/open_questions.md",
+        "docs/team_conventions.md"
+      ]
+    }
+  },
+  "executive_summary": {
+    "project_name": "eFactory One",
+    "one_line": "Operator-centric order-to-payout platform for a German-first academic ghostwriting marketplace (DACH), replacing manual orchestration and Zapier while keeping Pipedrive as CRM system of record and Sevdesk as invoicing/legal accounting system of record.",
+    "business_driver": "Consolidate intake from 17 WordPress Contact Form 7 surfaces, Sheets/Notion operational drift, Zapier→Pipedrive, Outlook, and WhatsApp into one controlled workflow with enforceable business rules and GW SOP alignment.",
+    "sponsor": "Berat Özdemir — Bery Ventures GmbH",
+    "delivery_partner": "CalibtOS",
+    "tech_lead_named": "Ferhat Çatak",
+    "project_manager_named": null,
+    "pm_assignment_note": "Name a single accountable Project Manager for charter sign-off (may be tech lead, product owner, or dedicated PM).",
+    "non_negotiable_deadline": {
+      "label": "Zapier replacement / D-03",
+      "date": "2026-07-31",
+      "meaning": "Path that depends on Zapier→Pipedrive must be replaced by platform-native or direct integration flows before this date."
+    },
+    "design_north_star": "Order is the atomic unit; Admin is financial firewall, QA gate, assignment intelligence, dispute resolver; thin Customer and Ghostwriter (GW) surfaces — see docs/explorations/product_ux_workflow_discussion.md."
+  },
+  "project_charter_inputs": {
+    "purpose_and_justification": "Eliminate fragmented tools and manual handoffs that create revenue leakage, inconsistent GW/customer experience, and integration brittleness; establish auditable workflow from inquiry through payout with external CRM and accounting truth lines preserved.",
+    "measurable_objectives": [
+      "100% of new intakes persist to platform database and Pipedrive without Zapier after cutover (from PRD.json success_metrics).",
+      "Single payment confirmation path: Stripe webhooks and manual mark-paid converge on one server-side confirmPayment semantics (D-06, D-07).",
+      "Honorarium release governed by documented five-gate Friday batch policy aligned to gw_workflow_sops and business_rules.",
+      "Order-centric unified communications model (D-11, D-17, D-18) ready for production email ingress (D-15) by M3 target."
+    ],
+    "high_level_scope_description": "Persisted multi-tenant application: customers, orders, 1:1 assignments, ghostwriters, payments (installments), submissions, QA, disputes, extensions; integrations with Pipedrive (phased), Sevdesk proposals/invoices, Stripe; WordPress webhook intake; communications layers as scoped in M2–M3; English-first UI with i18n-ready architecture (D-12, D-13).",
+    "key_deliverables_charter_level": [
+      "Signed MVP scope and explicit out-of-MVP deferral list (M1 / blocker A-01).",
+      "Signed UX/Figma for Admin order spine, GW job board and submissions, customer portal, QA queue (D-04).",
+      "Integration contract pack: Pipedrive stage semantics (D-20), Sevdesk TextTemplates and API callers, Stripe metadata keys, Cloudflare inbound email authentication.",
+      "Staging end-to-end lifecycle per docs/INDEX.md six-step narrative with test Stripe and sandbox CRM/accounting (M2 exit).",
+      "Production cutover with Zapier decommission attestation and hypercare runbooks (M3)."
+    ],
+    "authorization_and_governance": {
+      "sponsor_authority": "Business owner / sponsor: Berat Özdemir.",
+      "binding_decisions_source": "docs/decisions_log.md — mirrored as confirmed_decisions_register in PRD.json (D-01 through D-20).",
+      "gating_rule": "D-04: No production application code until requirements and Figma are signed off.",
+      "team_conventions": "docs/team_conventions.md (TC-01–TC-05) including naming ownership (D-05)."
+    },
+    "summary_schedule": {
+      "milestones_reference": "PRD.json milestones M1–M3",
+      "m1_theme": "Scope, contracts, design lock — charter-ready baseline.",
+      "m2_theme": "Integrated platform build — staging lifecycle + Zapier functional parity.",
+      "m3_theme": "Communications production, cutover, hypercare — deadline 2026-07-31 for D-03."
+    },
+    "summary_budget": {
+      "status": "not_captured_in_repository",
+      "charter_action": "Attach approved budget envelope, contingency, and external subscription costs (Pipedrive tier, Stripe, Sevdesk, Cloudflare, WhatsApp/voice vendors if in scope)."
+    },
+    "charter_risks_top": [
+      "MVP undefined (A-01) blocks sequencing.",
+      "Fixed cutover date vs design-first gate (D-03 vs D-04) compresses schedule.",
+      "Pipedrive subscriber cap (~4159/5000) risks campaign disruption (PP-01).",
+      "WhatsApp automation fragility and ToS risk if Option A–style paths chosen without acceptance.",
+      "NL→SQL BI (E-11) if rushed — injection and data exposure risk."
+    ]
+  },
+  "scope_statement_inputs": {
+    "project_justification": "Observable pain: manual orchestration across Google Sheets, Notion, 17 CF7 forms, Zapier→Pipedrive, Outlook, WhatsApp; need for operator-mediated control, German business rule fidelity, GW SOP traceability, and payment/legal consistency via Sevdesk + Stripe.",
+    "product_scope_inclusions": [
+      "Webhook-based intake replacing Zapier for primary forms (see docs/source/wordpress_forms.md and PRD.json tasks).",
+      "Pipedrive mirroring and deal/person lifecycle per pipedrive.md phases 1–3.",
+      "Sevdesk saveOrder, proposal send, invoice-from-order, status changes per sevdesk.md.",
+      "Stripe with webhook authority and installment rules per payment_flow.md.",
+      "Admin pipeline (D-20 visibility rules), Friday batch release gates, disputes/revisions, extensions.",
+      "GW flows for SOPs 1–6, D, E per gw_sop_platform_mapping in PRD.json.",
+      "Customer portal thin surface and D-09 guest-to-account after acceptance/payment.",
+      "Cloudflare Email Worker inbound path (D-15); unified inbox model (D-17/D-18/D-19).",
+      "i18n-ready implementation (D-12/D-13); optional cash method if PM-01 approved."
+    ],
+    "product_scope_exclusions": [
+      "Replacing Pipedrive or Sevdesk as systems of record (D-01, D-02).",
+      "Legal determination of ghostwriting market-by-market outside DE counsel scope.",
+      "Production-safe WhatsApp Web automation without explicit risk acceptance.",
+      "Voice call recording as product scope (D-16: metadata only if voice ships).",
+      "Multi-tab live-collaboration prototype behavior as production requirement.",
+      "Binding behavior to explorations E-* until promoted to decisions_log."
+    ],
+    "measurable_objectives_scope_level": [
+      "Median time from paid to GW assignment within SLA stated in business_rules (quoted in PRD.json success_metrics).",
+      "Zero divergent payment paths post-implementation.",
+      "GW SOP core path executable without WordPress form dependency for primary customer journey."
+    ],
+    "acceptance_criteria_themes": [
+      "Lifecycle acceptance: INDEX.md six-step path demonstrable on staging with test payments and sandbox integrations (M2 exit_criteria).",
+      "Cutover acceptance: Zapier disabled with mapping attestation from old zaps to platform handlers (M3 exit_criteria).",
+      "Comms acceptance: order threads + person threads + mention notifications per D-17–D-19.",
+      "Operational acceptance: SLO dashboards for Stripe webhooks, Worker ingress, Pipedrive/Sevdesk error rates (M3)."
+    ],
+    "constraints": [
+      "Pipedrive API rate limit 100 requests / 10 seconds — queue and backoff required.",
+      "Platform is not the payment processor of record; marks paid via API after Stripe or admin confirmation.",
+      "Sevdesk sevUser and German template constraints per integrations doc.",
+      "Subscriber headroom and hygiene (PP-01) for campaigns.",
+      "D-04 design gate before production code."
+    ],
+    "assumptions": [
+      "Sponsor remains available for GW selection approval where not automated (D-08).",
+      "Third-party APIs (Pipedrive, Sevdesk, Stripe) remain available with acceptable terms during build.",
+      "Flamingo historical CF7 data may remain Phase 0 quick win separate from main build (D-10) unless merged."
+    ]
+  },
+  "project_proposal_inputs": {
+    "problem_statement": "Same as PRD.json product_identity.problem_statement — fragmented toolchain and Zapier dependency before 2026-07-31.",
+    "proposed_solution": "Greenfield platform with persisted workflow engine mirroring documented state semantics (see PRD.json prototype_state_machine as rehearsal only), server-enforced rules, integration layer, and phased communications unification.",
+    "benefits": [
+      "Reduced manual error and revenue leakage across pricing, installments, and payout gates.",
+      "Auditable operator actions aligned to GW SOPs and German business rules.",
+      "Defensible integration architecture preserving CRM and accounting SoT.",
+      "Path to international expansion architecturally without blocking MVP (D-13)."
+    ],
+    "stakeholder_benefits": {
+      "sponsor_ops": "Single console for order spine, pipeline, disputes, Friday batch.",
+      "ghostwriters": "Clear claim, submission, extension, and payout rules.",
+      "customers": "Thin portal; consistent comms proxy patterns.",
+      "finance": "Sevdesk/Stripe alignment and installment correctness."
+    },
+    "costs_and_resources": {
+      "development_roles_from_prd": [
+        "Backend/Integration (MY)",
+        "Backend/Architecture (IN)",
+        "Research/Requirements (OA)",
+        "UI/UX (MMG)",
+        "Automation/WhatsApp prototypes (MS, Yusuf)"
+      ],
+      "financial_estimate": null,
+      "proposal_action": "Insert person-days or fixed-price phases mapped to M1–M3; list recurring SaaS fees and upgrade triggers (Pipedrive 5000 cap)."
+    },
+    "timeline_proposal_view": [
+      {
+        "phase": "M1 — Scope, contracts, design lock",
+        "outcome": "Charter-ready baseline; blockers closed or waived with dates; Figma sign-off; integration contracts documented."
+      },
+      {
+        "phase": "M2 — Integrated platform build",
+        "outcome": "Staging E2E; Zapier parity on intake and CRM writes; core GW/admin/customer/QA flows."
+      },
+      {
+        "phase": "M3 — Communications, cutover, hypercare",
+        "outcome": "Production comms paths as approved; Zapier decommissioned by 2026-07-31; observability and runbooks."
+      }
+    ],
+    "management_approach": {
+      "requirements_authority": "docs/*.md per TC-04; PRD.json for backlog and traceability.",
+      "quality_and_security": "QA integration stance per PRD risks; webhook signature verification; read-only SQL or template BI if E-11 ships.",
+      "change_control": "Explorations E-* require graduation to decisions_log before binding scope changes."
+    },
+    "competitive_or_alternatives_note": "TBD for external proposal — describe build vs buy vs continued Zapier ops with quantified risk/cost if needed."
+  },
+  "stakeholders_and_raci_placeholder": {
+    "identified_stakeholders": {
+      "sponsor_business_owner": "Berat Özdemir",
+      "tech_lead": "Ferhat Çatak",
+      "core_team_roles": "As listed in PRD.json stakeholders.core_team_roles"
+    },
+    "raci_matrix": {
+      "status": "template_required",
+      "rows_suggested": [
+        "MVP scope sign-off",
+        "Figma / UX sign-off (D-04)",
+        "Pipedrive stage mapping",
+        "Sevdesk template + API ownership",
+        "Cutover / Zapier decommission",
+        "Security review webhooks + BI",
+        "Hypercare on-call"
+      ],
+      "columns": [
+        "Responsible",
+        "Accountable",
+        "Consulted",
+        "Informed"
+      ],
+      "action": "Fill names; default Accountable for product scope = sponsor; technical delivery = tech lead unless PM named."
+    }
+  },
+  "external_dependencies_summary": [
+    {
+      "system": "Pipedrive",
+      "role": "CRM + campaigns"
+    },
+    {
+      "system": "Sevdesk",
+      "role": "Quotes, invoices, tax accounting"
+    },
+    {
+      "system": "Stripe",
+      "role": "Card/Klarna/PayPal + installments"
+    },
+    {
+      "system": "Cloudflare",
+      "role": "Inbound email Worker → backend"
+    },
+    {
+      "system": "WordPress + CF7 + Flamingo",
+      "role": "Current intake and historical data (D-10)"
+    }
+  ],
+  "blocking_questions_for_sign_off": {
+    "source": "PRD.json blocking_and_high_priority_questions.blocking_red",
+    "items": [
+      "P-01 GW rate determination (30–60%)",
+      "P-02 deadline <72h multiplier",
+      "A-01 MVP day-one definition",
+      "A-02 proposal auto-send vs admin approval",
+      "A-03 outgoing proposal sender email identity",
+      "I18N-01 target countries/languages",
+      "PM-01 cash in v1 yes/no"
+    ],
+    "charter_implication": "Charter and scope statement should either resolve these before baseline or explicitly list them as dated waivers with risk acceptance (per M1 exit_criteria)."
+  },
+  "risks_register_summary": "See PRD.json risks array — eight tracked items with mitigations; add commercial/legal risks as sponsor sees fit.",
+  "success_metrics_kpis": "See PRD.json success_metrics — intake without Zapier, unified payment path, assignment SLA, SOP executability.",
+  "decisions_register_digest": {
+    "count": 20,
+    "ids": "D-01 through D-20",
+    "full_text": "PRD.json confirmed_decisions_register.binding"
+  },
+  "documentation_index_for_appendices": "PRD.json documentation_map lists all integration and exploration paths for charter appendices."
+}
