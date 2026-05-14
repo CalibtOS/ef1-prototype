@@ -1,7 +1,7 @@
 // Named business actions. All entity writes should go through here.
 //
 // Plumbing (patchEntity/upsertEntity/selector shortcuts/toast) lives in
-// `_internals.js`. Notifications live in `notifications.js`. Threads/messaging
+// `internals.js`. Notifications live in `notifications.js`. Threads/messaging
 // lives in `threads.js`. This file is the order-lifecycle state machine:
 // claim → assign → submit → QA → customer accept → payment release, plus
 // admin resolution paths (extension/delay/dispute/violation).
