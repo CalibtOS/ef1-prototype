@@ -28,9 +28,14 @@ function selectSubmissionsForOrder(state, orderId) {
   return selectAllSubmissions(state).filter(s => Number(s.orderId) === Number(orderId));
 }
 
+function selectDisplaySubmissionsForOrder(state, orderId) {
+  const order = selectOrder(state, orderId);
+  return W.deriveSubmissions(order, selectSubmissionsForOrder(state, orderId));
+}
+
 function selectQaQueue(state) {
   return selectAllSubmissions(state).filter(s =>
-    W.isQaReviewKind(s.kind) && (s.qaStatus === 'pending' || s.aiScore > 50 || s.flagged)
+    W.isQaReviewKind(s.kind) && s.qaStatus === 'pending'
   );
 }
 
@@ -81,6 +86,36 @@ function selectNotifications(state, role) {
     .sort((a, b) => new Date(b.at || 0) - new Date(a.at || 0));
 }
 
+function selectAllNotifications(state) {
+  return tableItems(state.entities.notifications);
+}
+
+function selectOrderEvents(state, orderId) {
+  const order = selectOrder(state, orderId);
+  if (!order) return [];
+  return W.buildOrderEvents(order, {
+    submissions: selectSubmissionsForOrder(state, orderId),
+    thread: selectThreadByOrder(state, orderId),
+    notifications: selectAllNotifications(state).filter(n => String(n.title || '').includes(`#${orderId}`) || String(n.body || '').includes(`#${orderId}`)),
+    customer: selectCustomer(state, order.customerId),
+    gw: selectGhostwriter(state, order.gwId),
+  });
+}
+
+function selectQaHistory(state) {
+  return selectAllOrders(state)
+    .flatMap(order => selectDisplaySubmissionsForOrder(state, order.id)
+      .filter(s => W.isQaReviewKind(s.kind))
+      .filter(s =>
+        (s.qaStatus && s.qaStatus !== 'pending') ||
+        s.flagged ||
+        order.status === 'ai_violation_review' ||
+        order.status === 'plagiarism_violation_review'
+      )
+      .map(s => ({ order, submission: s })))
+    .sort((a, b) => new Date((b.submission.reviewedAt || b.submission.forwardedAt || b.submission.submittedAt || 0)) - new Date((a.submission.reviewedAt || a.submission.forwardedAt || a.submission.submittedAt || 0)));
+}
+
 function selectKpis(state) {
   const orders = selectAllOrders(state);
   const submissions = selectAllSubmissions(state);
@@ -126,6 +161,7 @@ window.EFSelectors = {
   selectOrder,
   selectAllSubmissions,
   selectSubmissionsForOrder,
+  selectDisplaySubmissionsForOrder,
   selectQaQueue,
   selectAllCustomers,
   selectCustomer,
@@ -137,6 +173,9 @@ window.EFSelectors = {
   selectThread,
   selectThreadByOrder,
   selectNotifications,
+  selectAllNotifications,
+  selectOrderEvents,
+  selectQaHistory,
   selectKpis,
   selectFridayBatch,
 };

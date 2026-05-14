@@ -180,6 +180,7 @@ function OrderDetail({ orderId, navigate, toast, initialTab }) {
   // Store-backed read so newly-created orders resolve across all role views.
   const order = window.EFHooks.useOrder(orderId);
   const submissions = window.EFHooks.useSubmissions({ orderId });
+  const orderEvents = window.EFHooks.useOrderEvents(orderId);
   if (!order) return <div className="page">Order not found.</div>;
   const cust = D.customer(order.customerId);
   const gw = D.gw(order.gwId);
@@ -205,6 +206,10 @@ function OrderDetail({ orderId, navigate, toast, initialTab }) {
         : order.status === 'qualified'
           ? 1
           : 0;
+  const pipedriveEvents = orderEvents
+    .filter(e => ['sales', 'proposal', 'payment'].includes(e.domain))
+    .slice(0, 4);
+  const lastPipedriveEvent = pipedriveEvents[0];
 
   // Release gate — canonical 5-condition check from D.releaseGates() (PRD friday_payment_batch).
   // All five must be green AND release happens via the Friday batch screen, not directly here.
@@ -392,7 +397,7 @@ function OrderDetail({ orderId, navigate, toast, initialTab }) {
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 360px', gap: 16 }}>
           <div className="flex-col gap-3">
             <div className="card">
-              <div className="card-head"><div className="card-title">Customer</div><span className="text-faint fs-11">Pipedrive synced · {U.relTime('2026-05-07T13:42:00')}</span></div>
+              <div className="card-head"><div className="card-title">Customer</div><span className="text-faint fs-11">Pipedrive synced · {lastPipedriveEvent ? U.relTime(lastPipedriveEvent.at) : 'not yet'}</span></div>
               <div className="card-pad flex items-center gap-3">
                 <Avatar initials={cust.initials} size={44} tone="blue"/>
                 <div className="flex-col" style={{ flex: 1 }}>
@@ -587,6 +592,19 @@ function OrderDetail({ orderId, navigate, toast, initialTab }) {
                   <span>Deal #{order.id}</span>
                   <a style={{ color: 'var(--blue)' }} className="flex items-center gap-1">Open in Pipedrive <Icon name="external-link" size={11}/></a>
                 </div>
+                <div className="timeline mt-3" style={{ borderTop: '1px solid var(--border)', paddingTop: 10 }}>
+                  {pipedriveEvents.length === 0 ? (
+                    <EmptyState compact icon="git-branch" title="No CRM events yet" body="The stage bar will fill as sales/payment events are recorded."/>
+                  ) : pipedriveEvents.map(e => (
+                    <div key={`${e.key}-${e.at}`} className="timeline-item">
+                      <div className={`timeline-dot ${e.dot || ''}`}><Icon name={e.icon || 'dot'} size={10}/></div>
+                      <div className="timeline-content">
+                        <div className="timeline-title">{e.title}</div>
+                        <div className="timeline-meta mono">{U.fmtDateTime(e.at)}</div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </div>
             </div>
 
@@ -719,7 +737,7 @@ function OrderDetail({ orderId, navigate, toast, initialTab }) {
         <AssignmentTab order={order} navigate={navigate} toast={toast}/>
       )}
       {activeTab === 'audit' && (
-        <AuditTab order={order} />
+        <AuditTab order={order} events={orderEvents} />
       )}
     </div>
   );
@@ -1007,6 +1025,7 @@ function OfferTab({ order, toast, setTab }) {
   const baseGross = pages * Number(pageRate || 0);
   const totalGross = Math.max(0, Math.round(baseGross * (1 - (Number(discount) || 0) / 100) * 100) / 100);
   const alreadySent = order.status === 'offer_sent' || order.status === 'invoice_sent' || !!order.offerSentAt;
+  const offerSentDisplayAt = order.offerSentAt || W.lifecycleDates(order, []).offerAt;
   const canCreateOffer = order.status === 'qualified' && !alreadySent;
   const offerStatusCopy = order.status === 'qualified'
     ? 'This order is qualified. The next realistic step is creating and sending the Sevdesk offer.'
@@ -1109,7 +1128,7 @@ function OfferTab({ order, toast, setTab }) {
         <div className="card">
           <div className="card-head">
             <div className="card-title flex items-center gap-2"><Icon name="zap" size={14}/> Automated send run</div>
-            {alreadySent && <span className="pill pill-green">Sent {U.fmtDateTime(order.offerSentAt || '2026-05-07T14:41:00')}</span>}
+            {alreadySent && <span className="pill pill-green">Sent {U.fmtDateTime(offerSentDisplayAt)}</span>}
           </div>
           <div className="card-pad flex-col gap-3">
             <div className="timeline">
@@ -1163,7 +1182,7 @@ function OfferTab({ order, toast, setTab }) {
 }
 
 function SubmissionsTab({ order }) {
-  const subs = window.EFHooks.useSubmissions({ orderId: order.id });
+  const subs = window.EFHooks.useDisplaySubmissions(order.id);
   return (
     <div className="card">
       <div className="card-head"><div className="card-title">Submissions</div><span className="text-faint fs-11">interim · final · invoices</span></div>
@@ -1171,29 +1190,38 @@ function SubmissionsTab({ order }) {
         {subs.length === 0 && <div className="text-faint fs-12">No submissions yet — GW will upload via /gw/submit.</div>}
         {subs.map(s => {
           const isInterim = W.isInterimKind(s.kind);
+          const isInvoice = s.kind === 'gw_invoice' || s.kind === 'final_invoice';
           return (
           <div key={s.id} className="card-pad" style={{ border: '1px solid var(--border)', borderRadius: 8 }}>
             <div className="flex items-center gap-3">
               <div className="action-icon" style={{ background: 'var(--blue-soft)', color: 'var(--blue)' }}><Icon name="file-text" size={16}/></div>
               <div style={{ flex: 1 }}>
                 <div className="strong fs-12">{s.fileName}</div>
-                <div className="fs-11 text-faint">{(s.size/1024/1024).toFixed(2)} MB · {s.kind.replace('_',' ')} · round {s.round} · submitted {U.relTime(s.submittedAt)}</div>
+                <div className="fs-11 text-faint">{(s.size/1024/1024).toFixed(2)} MB · {s.kind.replace('_',' ')} · round {s.round || 1} · submitted {U.relTime(s.submittedAt)}{s.synthetic ? ' · imported history' : ''}</div>
               </div>
               {isInterim && <span className="pill pill-blue"><Icon name="send" size={10}/> Auto-forwarded to customer</span>}
-              {!isInterim && s.qaStatus === 'passed' && <span className="pill pill-green"><Icon name="check" size={10}/> QA passed · forwarded</span>}
-              {!isInterim && s.qaStatus === 'pending' && <span className="pill pill-pink">QA pending</span>}
+              {isInvoice && <span className="pill pill-slate">Archived invoice</span>}
+              {!isInterim && !isInvoice && s.qaStatus === 'passed' && <span className="pill pill-green"><Icon name="check" size={10}/> QA passed · forwarded</span>}
+              {!isInterim && !isInvoice && s.qaStatus === 'pending' && <span className="pill pill-pink">QA pending</span>}
+              {!isInterim && !isInvoice && s.qaStatus === 'revision_requested' && <span className="pill pill-orange">Revision requested</span>}
+              {!isInterim && !isInvoice && (s.qaStatus === 'flagged' || s.flagged) && <span className="pill pill-red">QA flag</span>}
               <NotReady className="btn btn-sm" feature="submission-download" ariaLabel="Download submission"><Icon name="download" size={12}/></NotReady>
               <NotReady className="btn btn-sm" feature="submission-preview" ariaLabel="Preview submission"><Icon name="eye" size={12}/></NotReady>
             </div>
-            {!isInterim ? (
+            {!isInterim && !isInvoice ? (
               <div className="flex gap-3 mt-3" style={{ flexWrap: 'wrap' }}>
-                <ScoreBar value={s.plagiarismScore} label="Plagiarism" />
-                <ScoreBar value={s.aiScore} label="AI detection" />
+                {s.plagiarismScore != null ? <ScoreBar value={s.plagiarismScore} label="Plagiarism" /> : <span className="text-faint fs-11">Plagiarism score unavailable in imported history.</span>}
+                {s.aiScore != null ? <ScoreBar value={s.aiScore} label="AI detection" /> : <span className="text-faint fs-11">AI score unavailable in imported history.</span>}
               </div>
-            ) : (
+            ) : isInterim ? (
               <div className="banner info mt-3" style={{ fontSize: 11.5 }}>
                 <Icon name="send" size={12}/>
                 <span>Interim submissions bypass manual QA and are sent to the customer immediately after upload per SOP 2.</span>
+              </div>
+            ) : (
+              <div className="banner info mt-3" style={{ fontSize: 11.5 }}>
+                <Icon name="file-text" size={12}/>
+                <span>GW invoice is stored for Friday-batch payout checks; it is not a QA submission.</span>
               </div>
             )}
           </div>
@@ -1360,6 +1388,7 @@ function CommsTab({ order, toast }) {
 
 function AssignmentTab({ order, navigate, toast }) {
   const gw = D.gw(order.gwId);
+  const assignmentEvents = window.EFHooks.useOrderEvents(order.id).filter(e => e.domain === 'assignment');
   // Per PRD order_lifecycle: assignment can happen only after the offer/invoice has been paid
   // (state ≥ "paid"/"available"). Earlier states must complete the offer→invoice→payment path
   // first. Self-assign goes straight to active without posting to the board.
@@ -1434,35 +1463,54 @@ function AssignmentTab({ order, navigate, toast }) {
           <div className="banner info" style={{ fontSize: 11 }}><Icon name="zap" size={12}/><span>Both emails fire simultaneously on 'Approve & notify'.</span></div>
         </div>
       </div>
+      <div className="card" style={{ gridColumn: '1 / -1' }}>
+        <div className="card-head"><div className="card-title">Assignment history</div><span className="text-faint fs-11">{assignmentEvents.length} event(s)</span></div>
+        <div className="card-pad">
+          {assignmentEvents.length === 0 ? (
+            <EmptyState compact icon="briefcase" title="Assignment not reached" body={blockReason || 'The order has no job-board or GW assignment events yet.'}/>
+          ) : (
+            <div className="timeline">
+              {assignmentEvents.map(e => (
+                <div key={`${e.key}-${e.at}`} className="timeline-item">
+                  <div className={`timeline-dot ${e.dot || ''}`}><Icon name={e.icon || 'dot'} size={10}/></div>
+                  <div className="timeline-content">
+                    <div className="timeline-title">{e.title}</div>
+                    {e.detail && <div className="timeline-meta">{e.detail}</div>}
+                    <div className="timeline-meta mono">{U.fmtDateTime(e.at)}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   );
 }
 
-function AuditTab({ order }) {
+function AuditTab({ order, events }) {
+  const fallbackRows = window.EFHooks.useOrderEvents(order.id);
+  const rows = events || fallbackRows;
   return (
     <div className="card">
-      <div className="card-head"><div className="card-title">Audit log</div></div>
+      <div className="card-head"><div className="card-title">Audit log</div><span className="text-faint fs-11">{rows.length} synchronized event(s)</span></div>
       <div className="card-pad">
-        <div className="timeline">
-          {[
-            { t: 'Order created from public form', at: order.acceptedAt || '2026-05-06T10:00:00', dot: 'blue', icon: 'plus' },
-            order.offerPdfPreviewedAt && { t: 'Sevdesk PDF preview visualized before sending', at: order.offerPdfPreviewedAt, dot: 'blue', icon: 'eye' },
-            order.offerSentAt && { t: 'Offer ' + offerNoFor(order) + ' generated and sent', at: order.offerSentAt, dot: 'blue', icon: 'file-text' },
-            ...(order.offerEmails || []).map(e => ({ t: 'Outlook email sent from ' + e.from + ' · ' + e.subject, at: e.sentAt, dot: 'green', icon: 'mail' })),
-            order.invoiceSentAt && { t: 'Sevdesk invoice ' + invoiceNoFor(order) + ' generated and emailed', at: order.invoiceSentAt, dot: '', icon: 'file-text' },
-            order.paymentConfirmedAt && { t: 'Stripe/bank payment confirmed · ' + U.EUR(order.installments?.[0]?.amt || order.grossEur), at: order.paymentConfirmedAt, dot: 'green', icon: 'check' },
-            (order.pipedriveStage === 'Won' || order.paymentConfirmedAt) && { t: 'Pipedrive deal moved to Won', at: order.paymentConfirmedAt || order.installments?.[0]?.date, dot: '', icon: 'git-branch' },
-            order.gwId && { t: 'GW '+D.gw(order.gwId)?.name+' assigned', at: order.acceptedAt, dot: 'blue', icon: 'feather' },
-          ].filter(Boolean).map((e, i) => (
-            <div key={i} className="timeline-item">
-              <div className={`timeline-dot ${e.dot}`}><Icon name={e.icon} size={10}/></div>
+        {rows.length === 0 ? (
+          <EmptyState compact icon="history" title="No audit events" body="This order has no lifecycle events yet."/>
+        ) : (
+          <div className="timeline">
+            {rows.map(e => (
+            <div key={`${e.key}-${e.at}`} className="timeline-item">
+              <div className={`timeline-dot ${e.dot || ''}`}><Icon name={e.icon || 'dot'} size={10}/></div>
               <div className="timeline-content">
-                <div className="timeline-title">{e.t}</div>
+                <div className="timeline-title">{e.title} <span className="pill pill-slate" style={{ fontSize: 9, marginLeft: 6 }}>{e.domain}</span></div>
+                {e.detail && <div className="timeline-meta">{e.detail}</div>}
                 <div className="timeline-meta mono">{U.fmtDateTime(e.at)}</div>
               </div>
             </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );

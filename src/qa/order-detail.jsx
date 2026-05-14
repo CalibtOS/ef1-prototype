@@ -4,20 +4,32 @@ const { useState: useStateA, useEffect: useEffectA, useMemo: useMemoA } = React;
 const { Icon, StatusPill, Avatar, Money, Bi, ScoreBar, CrumbBar, NotReady, PlannedTag, EmptyState, Skeleton, ChatNotice, ChatMessage } = window;
 const U = window.EFU;
 const D = window.EF;
+const W = window.EFWorkflow;
 
 function QAOrderDetail({ orderId, navigate, toast }) {
   const [tab, setTab] = useStateA('overview');
   const order = window.EFHooks.useOrder(orderId);
-  const subs = window.EFHooks.useSubmissions({ orderId });
+  const actualSubs = window.EFHooks.useSubmissions({ orderId });
+  const displaySubs = window.EFHooks.useDisplaySubmissions(orderId);
+  const thread = window.EFHooks.useThreadByOrder(orderId);
   if (!order) return <div className="page">Order not found.</div>;
   const cust = D.customer(order.customerId);
   const gw = D.gw(order.gwId);
   const dm = U.deadlineMeta(order.finalDeadline);
-  const latest = subs.sort((a,b) => new Date(b.submittedAt) - new Date(a.submittedAt))[0];
+  const latest = displaySubs
+    .filter(s => W.isQaReviewKind(s.kind))
+    .sort((a,b) => new Date(b.submittedAt || 0) - new Date(a.submittedAt || 0))[0];
+  const latestActionable = latest && actualSubs.find(s => s.id === latest.id && W.isQaReviewKind(s.kind));
+  const canReviewLatest = !!(latestActionable && latestActionable.qaStatus === 'pending');
+  const specAttachments = [order.outlineAttachment, order.exposeAttachment].filter(Boolean);
+  const qaMessages = [...(thread?.messages || [])]
+    .filter(m => !/preis|kosten|rabatt|nachlass|raten|geld|honorar|bezahl|rechnung|euro|€/i.test(m.body || ''))
+    .slice(-6);
 
   const goToQueue = () => navigate('qa-queue');
   const requestRevision = () => {
-    if (latest) window.EFActions.qa.requestRevision(latest.id);
+    if (!canReviewLatest) return;
+    window.EFActions.qa.requestRevision(latestActionable.id);
     toast({
       tone: 'info',
       transition: { entity: `Order #${orderId}`, from: 'QA Review', to: 'Revision Required' },
@@ -25,8 +37,9 @@ function QAOrderDetail({ orderId, navigate, toast }) {
     });
   };
   const passToCustomer = () => {
-    const isFinal = latest?.kind === 'final_work';
-    if (latest) window.EFActions.qa.pass(latest.id);
+    if (!canReviewLatest) return;
+    const isFinal = latestActionable.kind === 'final_work';
+    window.EFActions.qa.pass(latestActionable.id);
     toast({
       tone: 'success',
       transition: { entity: `Order #${orderId}`, from: 'QA Review', to: isFinal ? 'Delivered' : 'Customer Review' },
@@ -65,7 +78,7 @@ function QAOrderDetail({ orderId, navigate, toast }) {
         {['overview','submissions','communications'].map(t => (
           <div key={t} className={`tab ${tab===t?'active':''}`} onClick={() => setTab(t)} style={{ textTransform: 'capitalize' }}>
             {t}
-            {t === 'submissions' && subs.length > 0 && <span className="pill pill-pink">{subs.length}</span>}
+            {t === 'submissions' && displaySubs.length > 0 && <span className="pill pill-pink">{displaySubs.length}</span>}
           </div>
         ))}
       </div>
@@ -92,7 +105,7 @@ function QAOrderDetail({ orderId, navigate, toast }) {
                   <div className="kv-row"><dt>Field of study</dt><dd>{order.field}</dd></div>
                   <div className="kv-row"><dt>Pages</dt><dd className="mono">{order.pages || '—'}</dd></div>
                   <div className="kv-row"><dt>Paper title</dt><dd style={{ maxWidth: 360, textAlign: 'right' }}>{order.titleTBD ? <em className="text-faint">folgt — awaiting customer</em> : order.title}</dd></div>
-                  <div className="kv-row"><dt>Outline</dt><dd><a className="flex items-center gap-1" style={{ color: 'var(--blue)' }}><Icon name="paperclip" size={12}/>Outline_v2.pdf · 412 KB</a></dd></div>
+                  <div className="kv-row"><dt>Attachments</dt><dd>{specAttachments.length ? specAttachments.map((a, i) => <a key={i} className="flex items-center gap-1" style={{ color: 'var(--blue)' }}><Icon name="paperclip" size={12}/>{a.name || a}</a>) : <span className="text-faint">No outline/exposé uploaded yet</span>}</dd></div>
                   <div className="kv-row"><dt><Bi de="Weitere Notiz" en="Note to GW"/></dt><dd>{order.note || '—'}</dd></div>
                 </div>
               </div>
@@ -134,7 +147,9 @@ function QAOrderDetail({ orderId, navigate, toast }) {
             {order.disputeOpen && (
               <div className="card" style={{ borderColor: 'color-mix(in oklab, var(--amber) 35%, var(--border))' }}>
                 <div className="card-head"><div className="card-title">Customer feedback (round {order.revisionRounds || 1})</div></div>
-                <div className="card-pad fs-12 text-muted">Customer requested revisions on §3 (methodology) and §5 (conclusion). GW notified · awaiting resubmission.</div>
+                <div className="card-pad fs-12 text-muted">
+                  {order.customerRevisionNote || order.feedbackText || order.disputeReason || 'Customer feedback is open. GW notified · awaiting resubmission.'}
+                </div>
               </div>
             )}
           </div>
@@ -158,9 +173,9 @@ function QAOrderDetail({ orderId, navigate, toast }) {
               <div className="card">
                 <div className="card-head"><div className="card-title">Latest submission scores</div></div>
                 <div className="card-pad flex-col gap-3">
-                  <ScoreBar value={latest.plagiarismScore} label="Plagiarism (PlagScan)"/>
-                  <ScoreBar value={latest.aiScore} label="AI detection (GPTZero)"/>
-                  <div className="fs-11 text-muted">{latest.kind.replace('_',' ')} · round {latest.round} · {U.relTime(latest.submittedAt)}</div>
+                  {latest.plagiarismScore != null ? <ScoreBar value={latest.plagiarismScore} label="Plagiarism (PlagScan)"/> : <span className="text-faint fs-11">Plagiarism score unavailable in imported history.</span>}
+                  {latest.aiScore != null ? <ScoreBar value={latest.aiScore} label="AI detection (GPTZero)"/> : <span className="text-faint fs-11">AI score unavailable in imported history.</span>}
+                  <div className="fs-11 text-muted">{latest.kind.replace('_',' ')} · round {latest.round || 1} · {U.relTime(latest.submittedAt)}{latest.synthetic ? ' · imported history' : ''}</div>
                 </div>
               </div>
             )}
@@ -168,10 +183,10 @@ function QAOrderDetail({ orderId, navigate, toast }) {
             <div className="card">
               <div className="card-head"><div className="card-title">QA actions</div></div>
               <div className="card-pad flex-col gap-2">
-                <button type="button" className="btn btn-success w-full" disabled={!latest || latest.qaStatus !== 'pending'} onClick={passToCustomer} style={{ justifyContent: 'center' }}>
+                <button type="button" className="btn btn-success w-full" disabled={!canReviewLatest} onClick={passToCustomer} style={{ justifyContent: 'center' }}>
                   <Icon name="check-circle" size={14}/> Pass · forward to customer
                 </button>
-                <button type="button" className="btn w-full" disabled={!latest} onClick={requestRevision} style={{ justifyContent: 'center' }}>
+                <button type="button" className="btn w-full" disabled={!canReviewLatest} onClick={requestRevision} style={{ justifyContent: 'center' }}>
                   <Icon name="alert-triangle" size={14}/> Request revision
                 </button>
                 <button type="button" className="btn w-full" onClick={goToQueue} style={{ justifyContent: 'center' }}>
@@ -200,22 +215,27 @@ function QAOrderDetail({ orderId, navigate, toast }) {
             Threads containing pricing/payment keywords are auto-redirected to <code>kundenservice@efactory1.de</code> and not visible to QA.
           </ChatNotice>
           <div className="chat-stream" style={{ maxHeight: 520 }}>
-            {[
-              { from: 'GW', sender: gw?.name || 'GW', initials: gw?.initials || 'GW', text: 'Anbei der Zwischenstand für Kapitel 3. Bitte um Rückmeldung.', at: '2026-05-06T16:42:00', attachments: [{ name: 'Zwischenstand_Kapitel_3.pdf', meta: '812 KB', icon: 'file-text' }] },
-              { from: 'Customer', sender: cust?.name || 'Customer', initials: cust?.initials || 'CU', text: 'Inhaltlich gut, aber §3 fehlt die Methodendiskussion.', at: '2026-05-07T09:14:00' },
-            ].map((m, i) => (
-              <ChatMessage
-                key={i}
-                mine={m.from === 'GW'}
-                sender={m.sender}
-                initials={m.initials}
-                at={m.at}
-                attachments={m.attachments}
-                channel="platform"
-              >
-                {m.text}
-              </ChatMessage>
-            ))}
+            {qaMessages.length === 0 && (
+              <EmptyState compact icon="message-square" title="No QA-visible messages" body="Financial or missing threads are hidden from QA."/>
+            )}
+            {qaMessages.map((m, i) => {
+              const sender = m.from === 'gw' ? (gw?.name || 'GW') : m.from === 'customer' ? (cust?.name || 'Customer') : m.from === 'admin' ? 'efactory1' : 'System';
+              const initials = m.from === 'gw' ? (gw?.initials || 'GW') : m.from === 'customer' ? (cust?.initials || 'CU') : 'EF';
+              return (
+                <ChatMessage
+                  key={m.id || i}
+                  mine={m.from === 'gw'}
+                  system={m.from === 'system' || m.system}
+                  sender={sender}
+                  initials={initials}
+                  at={m.at}
+                  attachments={m.attachments}
+                  channel={m.origin_channel || m.delivery_channel || 'platform'}
+                >
+                  {m.body}
+                </ChatMessage>
+              );
+            })}
           </div>
         </div>
       )}

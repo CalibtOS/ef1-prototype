@@ -13,7 +13,7 @@ function DisputesPage({ navigate }) {
   const summarizeOrder = (o) => {
     if (o.status === 'ai_violation_review') {
       const sub = allSubmissions.find(s => s.orderId === o.id);
-      return { category: 'ai_use', raisedBy: 'admin', blocksPayment: true, status: 'investigating', summary: `AI score ${sub?.aiScore || '—'}% — payment frozen pending QA verdict`, daysOpen: 1 };
+      return { category: 'ai_use', raisedBy: 'qa', blocksPayment: true, status: 'investigating', summary: `AI score ${sub?.aiScore || '—'}% — QA flag routed to admin decision`, daysOpen: 1 };
     }
     if (o.disputeOpen) {
       return { category: 'quality', raisedBy: 'customer', blocksPayment: true, status: o.status === 'revision_required' ? 'revision_in_progress' : 'investigating', summary: `Customer feedback open · revision round ${o.revisionRounds || 1}`, daysOpen: 6 };
@@ -114,7 +114,5 @@ function DisputesPage({ navigate }) {
     </div>
   );
 }
-window.DisputesPage = DisputesPage;
-
 window.DisputesPage = DisputesPage;
 })();

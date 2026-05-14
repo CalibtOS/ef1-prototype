@@ -4,6 +4,7 @@ const { useState: useStateA, useEffect: useEffectA, useMemo: useMemoA } = React;
 const { Icon, StatusPill, Avatar, Money, Bi, ScoreBar, CrumbBar, NotReady, PlannedTag, EmptyState, Skeleton, ChatNotice, ChatMessage } = window;
 const U = window.EFU;
 const D = window.EF;
+const W = window.EFWorkflow;
 
 // ============ GW ASSIGNMENT DETAIL (privacy-respecting view for GW) ============
 // IMPORTANT: GWs may NOT see gross price, VAT, Berat's margin, release gate,
@@ -11,6 +12,8 @@ const D = window.EF;
 // Per PRD: GW sees only job spec, customer name (after approval), their own
 // honorarium, submission tiles, messages, templates, deadlines.
 function GWAssignmentDetail({ orderId, navigate, toast }) {
+  const thread = window.EFHooks.useThreadByOrder(orderId);
+  const displaySubs = window.EFHooks.useDisplaySubmissions(orderId);
   const order = D.liveOrder(orderId);
   if (!order) return <div className="page">Assignment not found.</div>;
   // Ownership guard — a GW may only view assignments where they are the assigned writer
@@ -43,8 +46,15 @@ function GWAssignmentDetail({ orderId, navigate, toast }) {
   const isPending = order.status === 'claimed_pending_approval';
   const isApproved = !isPending && !['available','qualified','offer_sent','invoice_sent','paid','lead'].includes(order.status);
   const isRevision = order.status === 'revision_required';
+  const specAttachments = [order.outlineAttachment, order.exposeAttachment].filter(Boolean);
+  const hasGwContact = (thread?.messages || []).some(m => m.from === 'gw' || m.from === 'customer');
+  const latestCustomerMessage = [...(thread?.messages || [])].reverse().find(m => m.from === 'customer');
+  const revisionAt = order.lastFeedbackAt || order.lastCustomerFeedbackAt || latestCustomerMessage?.at;
+  const visibleMessages = [...(thread?.messages || [])]
+    .filter(m => !/preis|kosten|rabatt|nachlass|raten|geld|honorar|bezahl|rechnung|euro|€/i.test(m.body || ''))
+    .slice(-3);
   // First-contact wizard surfaces only after approval, before any submission, and once per assignment.
-  const showFirstContact = isApproved && order.status === 'active' && !order.firstContactDone;
+  const showFirstContact = isApproved && order.status === 'active' && !order.firstContactDone && !hasGwContact;
 
   const stages = [
     { id: 'pending', label: 'Pending Approval', done: !isPending },
@@ -103,7 +113,7 @@ function GWAssignmentDetail({ orderId, navigate, toast }) {
             <div className="card-title flex items-center gap-2">
               <Icon name="alert-triangle" size={14} style={{ color: 'var(--orange)' }}/> Customer feedback — revision required (round {(order.revisionRounds || 1)})
             </div>
-            <span className="text-faint fs-11">received {order.lastFeedbackAt ? U.relTime(order.lastFeedbackAt) : '6h ago'}</span>
+            <span className="text-faint fs-11">received {revisionAt ? U.relTime(revisionAt) : 'date not recorded'}</span>
           </div>
           <div className="card-pad">
             <div className="kv" style={{ fontSize: 12, marginBottom: 12 }}>
@@ -112,7 +122,7 @@ function GWAssignmentDetail({ orderId, navigate, toast }) {
               <div className="kv-row"><dt>Payment impact</dt><dd>Blocked until the revision is accepted</dd></div>
             </div>
             <div style={{ padding: 12, background: 'var(--surface-2)', borderRadius: 8, fontSize: 12, lineHeight: 1.5 }}>
-              {order.feedbackText || `Die Methodik in Kapitel 3 ist mir noch zu oberflächlich — bitte mit zusätzlichen empirischen Beispielen ergänzen. Quellenlage in §5 wirkt zu schmal (nur 4 Quellen für die Konklusion). Sonst passt der Stil sehr gut, danke!`}
+              {order.feedbackText || order.customerRevisionNote || latestCustomerMessage?.body || 'Revision feedback is open. Check the customer thread or ask efactory1 for clarification before resubmitting.'}
             </div>
             <div className="flex gap-2 mt-3" style={{ flexWrap: 'wrap' }}>
               <button className="btn btn-primary btn-sm" onClick={() => navigate('gw-submit', { id: order.id, kind: 'revision' })}>
@@ -154,7 +164,7 @@ function GWAssignmentDetail({ orderId, navigate, toast }) {
                 <div className="kv-row"><dt>Field of study</dt><dd>{order.field}</dd></div>
                 <div className="kv-row"><dt>Pages</dt><dd className="mono">{order.pages || '—'}</dd></div>
                 <div className="kv-row"><dt>Topic</dt><dd style={{ maxWidth: 360, textAlign: 'right' }}>{order.titleTBD ? <em className="text-faint">folgt — awaiting customer</em> : order.title}</dd></div>
-                <div className="kv-row"><dt>Outline (briefing)</dt><dd><a className="flex items-center gap-1" style={{ color: 'var(--blue)' }}><Icon name="paperclip" size={12}/>Outline_v2.pdf · 412 KB</a></dd></div>
+                <div className="kv-row"><dt>Attachments</dt><dd>{specAttachments.length ? specAttachments.map((a, i) => <a key={i} className="flex items-center gap-1" style={{ color: 'var(--blue)' }}><Icon name="paperclip" size={12}/>{a.name || a}</a>) : <span className="text-faint">No outline/exposé uploaded yet</span>}</dd></div>
                 {order.note && <div className="kv-row"><dt>Note from efactory1</dt><dd className="text-muted" style={{ maxWidth: 360, textAlign: 'right' }}>{order.note}</dd></div>}
               </div>
             </div>
@@ -163,12 +173,16 @@ function GWAssignmentDetail({ orderId, navigate, toast }) {
           {/* Submission tiles — gated by current order state so impossible uploads are disabled. */}
           {(() => {
             const s = order.status;
+            const hasInterim1 = displaySubs.some(sub => sub.kind === 'interim_1');
+            const hasInterim2 = displaySubs.some(sub => sub.kind === 'interim_2');
+            const hasFinal = displaySubs.some(sub => W.isQaReviewKind(sub.kind));
             // Interim 1 is allowed only while the order is "active" (i.e. before any interim has been sent).
-            const interim1Allowed = isApproved && s === 'active';
+            const interim1Allowed = isApproved && s === 'active' && !!order.interimDeadline && !hasInterim1;
             // Interim 2 is allowed once the customer has reviewed/approved interim 1 and we're back to active.
-            const interim2Allowed = isApproved && s === 'active';
+            const interim2Allowed = isApproved && s === 'active' && !!order.interim2Deadline && hasInterim1 && !hasInterim2;
             // Final is allowed only after both interims (if any) and while still active.
-            const finalAllowed   = isApproved && s === 'active';
+            const interimsComplete = (!order.interimDeadline || hasInterim1) && (!order.interim2Deadline || hasInterim2);
+            const finalAllowed   = isApproved && s === 'active' && interimsComplete && !hasFinal;
             // Revision upload (re-routed to the GWSubmit kind=final flow with revisionRounds++).
             const revisionMode   = isApproved && s === 'revision_required';
             const finalAlreadySubmitted = ['final_submitted','qa_review','delivered','payment_pending','completed'].includes(s);
@@ -190,7 +204,7 @@ function GWAssignmentDetail({ orderId, navigate, toast }) {
               ai_violation_review: 'AI violation flagged — admin review',
               plagiarism_violation_review: 'Plagiarism flagged — admin review',
             };
-            const stateReason = reasonFor[s] || 'Awaiting approval';
+            const stateReason = reasonFor[s] || (!interimsComplete ? 'Required interim submissions must be uploaded first' : 'Awaiting approval');
             return (
           <div className="card">
             <div className="card-head"><div className="card-title">Submissions</div><span className="text-faint fs-11">cutoff 18:00 the day BEFORE due</span></div>
@@ -254,9 +268,22 @@ function GWAssignmentDetail({ orderId, navigate, toast }) {
               ) : (
                 <div className="chat-shell chat-shell-soft" style={{ minHeight: 0 }}>
                   <div className="chat-stream" style={{ padding: 12, maxHeight: 170 }}>
-                    <ChatMessage sender="Customer" initials={D.customer(order.customerId)?.initials || 'CU'} at="2026-05-07T10:34:00">
-                      Vielen Dank für die schnelle Rückmeldung — passt so!
-                    </ChatMessage>
+                    {visibleMessages.length === 0 && (
+                      <EmptyState compact icon="message-square" title="No customer thread yet" body="The first-contact wizard starts the shared order thread after approval."/>
+                    )}
+                    {visibleMessages.map((m, i) => (
+                      <ChatMessage
+                        key={m.id || i}
+                        mine={m.from === 'gw'}
+                        system={m.from === 'system' || m.system}
+                        sender={m.from === 'gw' ? 'You' : m.from === 'customer' ? (D.customer(order.customerId)?.name || 'Customer') : 'efactory1'}
+                        initials={m.from === 'customer' ? (D.customer(order.customerId)?.initials || 'CU') : m.from === 'gw' ? me.initials : 'EF'}
+                        at={m.at}
+                        attachments={m.attachments}
+                      >
+                        {m.body}
+                      </ChatMessage>
+                    ))}
                   </div>
                   <ChatNotice compact>Auto-CC kundenservice@efactory1.de · financial keywords intercepted.</ChatNotice>
                 </div>
@@ -349,7 +376,5 @@ function GWAssignmentDetail({ orderId, navigate, toast }) {
     </div>
   );
 }
-window.GWAssignmentDetail = GWAssignmentDetail;
-
 window.GWAssignmentDetail = GWAssignmentDetail;
 })();

@@ -310,16 +310,21 @@ function CustOrdersList({ openOrder }) {
 function CustOrderStatus({ o }) {
   const progress = custProgress(o);
   const meta = custStatusMeta(o);
+  const dates = W.lifecycleDates(o, []);
+  const rank = W.statusRank(o);
 
   const milestones = [
-    { id: 'placed',  label: 'Auftrag platziert',          date: o.acceptedAt || '2026-04-01', icon: 'package' },
-    { id: 'paid1',   label: 'Anzahlung erhalten',         date: o.installments?.[0]?.status === 'paid' ? o.installments?.[0]?.date : null, icon: 'wallet' },
-    { id: 'gw',      label: 'Ghostwriter zugewiesen',     date: custGwLabel(o) ? (o.assignedAt || o.acceptedAt) : null, icon: 'user' },
-    { id: 'interim', label: 'Zwischenstand 1',            date: o.interimDeadline, icon: 'upload-cloud', deadline: true },
+    { id: 'inquiry', label: 'Anfrage eingegangen',        date: dates.leadAt, icon: 'inbox' },
+    { id: 'qualified', label: 'Anfrage geprüft',          date: rank >= 1 ? dates.qualifiedAt : null, icon: 'check' },
+    { id: 'offer',   label: 'Angebot versendet',          date: W.canShowMoney(o) ? dates.offerAt : null, icon: 'file-text' },
+    { id: 'invoice', label: 'Rechnung versendet',         date: W.canShowReceivable(o) ? dates.invoiceAt : null, icon: 'file-text' },
+    { id: 'paid1',   label: 'Zahlung erhalten',           date: o.installments?.[0]?.status === 'paid' ? dates.paymentAt || o.installments?.[0]?.date : null, icon: 'wallet' },
+    { id: 'gw',      label: 'Ghostwriter zugewiesen',     date: custGwLabel(o) ? dates.assignedAt : null, icon: 'user' },
+    { id: 'interim', label: 'Zwischenstand 1',            date: dates.interimAt || o.interimDeadline, icon: 'upload-cloud', deadline: !dates.interimAt },
     o.interim2Deadline ? { id: 'interim2', label: 'Zwischenstand 2', date: o.interim2Deadline, icon: 'upload-cloud', deadline: true } : null,
-    { id: 'final',   label: 'Endabgabe',                  date: o.finalDeadline, icon: 'shield-check', deadline: true },
-    { id: 'qa',      label: 'efactory1 Qualitätsprüfung', date: null, icon: 'shield' },
-    { id: 'done',    label: 'Geliefert',                  date: o.completedAt, icon: 'check-circle' },
+    { id: 'final',   label: 'Endabgabe',                  date: dates.deliveredAt || dates.finalSubmittedAt || o.finalDeadline, icon: 'shield-check', deadline: !(dates.deliveredAt || dates.finalSubmittedAt) },
+    { id: 'qa',      label: 'efactory1 Qualitätsprüfung', date: dates.qaReviewedAt, icon: 'shield' },
+    { id: 'done',    label: 'Geliefert',                  date: dates.finalAcceptedAt || dates.completedAt, icon: 'check-circle' },
   ].filter(Boolean);
 
   const stepIndex = (() => {
@@ -331,7 +336,10 @@ function CustOrderStatus({ o }) {
     if (o.status === 'available' || o.status === 'claimed_pending_approval') return milestones.findIndex(m => m.id === 'gw');
     if (custGwLabel(o)) return milestones.findIndex(m => m.id === 'interim');
     if (o.installments?.[0]?.status === 'paid') return milestones.findIndex(m => m.id === 'gw');
-    return 1;
+    if (o.status === 'invoice_sent') return milestones.findIndex(m => m.id === 'paid1');
+    if (o.status === 'offer_sent') return milestones.findIndex(m => m.id === 'invoice');
+    if (o.status === 'qualified') return milestones.findIndex(m => m.id === 'offer');
+    return milestones.findIndex(m => m.id === 'qualified');
   })();
 
   return (
@@ -426,18 +434,19 @@ function CustOrderChat({ o, toast }) {
   const [text, setText] = useStateA('');
   const [draftFlag, setDraftFlag] = useStateA(null);
   const thread = window.EFHooks.useThreadByOrder(o.id);
+  const dates = W.lifecycleDates(o, []);
 
   // Pre-GW / pre-payment status messages — synthetic system entries for stages
   // where no thread exists yet because the order has no GW.
   const syntheticConv = (() => {
     if (o.status === 'qualified' || o.status === 'offer_sent') {
-      return [{ from: 'system', at: '2026-05-05T14:00:00', body: 'Ihre Anfrage ist eingegangen. Wir bereiten Ihr Angebot vor.' }];
+      return [{ from: 'system', at: dates.qualifiedAt || dates.leadAt, body: o.status === 'offer_sent' ? 'Ihr Angebot wurde versendet. Sobald Sie es annehmen, erstellen wir die Rechnung.' : 'Ihre Anfrage ist eingegangen. Wir bereiten Ihr Angebot vor.' }];
     }
     if (o.status === 'invoice_sent') {
-      return [{ from: 'system', at: '2026-05-05T14:00:00', body: 'Rechnung versendet · Sobald Ihre Zahlung eingegangen ist, starten wir die Ghostwriter-Suche.' }];
+      return [{ from: 'system', at: dates.invoiceAt, body: 'Rechnung versendet · Sobald Ihre Zahlung eingegangen ist, starten wir die Ghostwriter-Suche.' }];
     }
     if (o.status === 'available' || o.status === 'claimed_pending_approval') {
-      return [{ from: 'system', at: o.acceptedAt || '2026-05-05T14:00:00', body: 'Zahlung erhalten · Ghostwriter-Suche gestartet · Sie werden benachrichtigt sobald ein passender GW zugewiesen ist.' }];
+      return [{ from: 'system', at: dates.paymentAt || dates.boardAt, body: 'Zahlung erhalten · Ghostwriter-Suche gestartet · Sie werden benachrichtigt sobald ein passender GW zugewiesen ist.' }];
     }
     return null;
   })();
@@ -714,25 +723,82 @@ function CustFinalAcceptance({ o, toast }) {
   );
 }
 
+function customerVisibleFiles(o, displaySubs, thread) {
+  const dates = W.lifecycleDates(o, displaySubs || []);
+  const rank = W.statusRank(o);
+  const files = [];
+  if (dates.leadAt) {
+    files.push({
+      id: `intake-${o.id}`,
+      kind: 'briefing',
+      name: `Anfrage_${o.id}_Briefing.pdf`,
+      sizeLabel: 'intake record',
+      uploadedBy: 'customer',
+      at: dates.leadAt,
+      icon: 'file-text',
+    });
+  }
+  (thread?.messages || []).forEach((m, mi) => {
+    (m.attachments || []).forEach((a, ai) => {
+      files.push({
+        id: `thread-${m.id || mi}-${ai}`,
+        kind: 'briefing',
+        name: a.name,
+        sizeLabel: a.meta || 'attachment',
+        uploadedBy: m.from === 'gw' ? 'gw' : m.from === 'admin' ? 'platform' : 'customer',
+        at: m.at,
+        icon: a.icon || 'file-text',
+      });
+    });
+  });
+  (displaySubs || []).forEach(s => {
+    if (W.isInterimKind(s.kind)) {
+      files.push({
+        id: s.id,
+        kind: 'interim',
+        name: s.fileName,
+        size: s.size,
+        uploadedBy: 'gw',
+        at: s.forwardedAt || s.submittedAt,
+        icon: 'upload-cloud',
+        autoForwarded: true,
+      });
+    } else if (W.isQaReviewKind(s.kind) && (s.qaStatus === 'passed' || rank >= 13)) {
+      files.push({
+        id: s.id,
+        kind: 'final',
+        name: s.fileName,
+        size: s.size,
+        uploadedBy: 'gw',
+        at: s.forwardedAt || dates.deliveredAt || s.reviewedAt || s.submittedAt,
+        icon: 'shield-check',
+        qaPassed: true,
+      });
+    }
+  });
+  if (W.canShowReceivable(o) && dates.invoiceAt) {
+    files.push({
+      id: `invoice-${o.id}`,
+      kind: 'invoice',
+      name: `Rechnung_${o.id}.pdf`,
+      size: 84201,
+      uploadedBy: 'platform',
+      at: dates.invoiceAt,
+      icon: 'file-text',
+    });
+  }
+  return files
+    .filter(f => f && f.name && f.at)
+    .sort((a, b) => new Date(a.at) - new Date(b.at));
+}
+
 function CustOrderFiles({ o, toast }) {
-  const baseFiles = [
-    { id: 'f-brief', kind: 'briefing', name: `${o.workType}_Briefing.pdf`, size: 184021, uploadedBy: 'customer', at: o.acceptedAt || '2026-04-01', icon: 'file-text' },
-    { id: 'f-folien', kind: 'briefing', name: 'Vorlesungsfolien_Materialien.zip', size: 4182993, uploadedBy: 'customer', at: o.acceptedAt || '2026-04-01', icon: 'archive' },
-  ];
-  if (['active','interim_submitted','under_customer_review','revision_required','final_submitted','qa_review','completed'].includes(o.status)) {
-    baseFiles.push({ id: 'f-outline', kind: 'gw_doc', name: 'Outline_Gliederung_v2.docx', size: 92341, uploadedBy: 'gw', at: '2026-04-08T11:02:00', icon: 'file-text' });
-  }
-  if (['interim_submitted','under_customer_review','revision_required','final_submitted','qa_review','completed'].includes(o.status)) {
-    baseFiles.push({ id: 'f-int1', kind: 'interim', name: `Zwischenstand_1_${o.workType}.docx`, size: 1281022, uploadedBy: 'gw', at: '2026-05-06T15:30:00', icon: 'upload-cloud', autoForwarded: true });
-  }
-  if (['completed','payment_pending','delivered'].includes(o.status)) {
-    baseFiles.push(
-      { id: 'f-final', kind: 'final', name: `Endversion_${o.workType}_v1.pdf`, size: 2891044, uploadedBy: 'gw', at: '2026-04-10T18:00:00', icon: 'shield-check', qaPassed: true },
-      { id: 'f-invoice', kind: 'invoice', name: `Rechnung_${o.id}.pdf`, size: 84201, uploadedBy: 'platform', at: '2026-04-12T08:00:00', icon: 'file-text' }
-    );
-  }
+  const displaySubs = window.EFHooks.useDisplaySubmissions(o.id);
+  const thread = window.EFHooks.useThreadByOrder(o.id);
+  const baseFiles = customerVisibleFiles(o, displaySubs, thread);
 
   const formatSize = (bytes) => {
+    if (bytes == null) return '—';
     if (bytes < 1024) return bytes + ' B';
     if (bytes < 1048576) return (bytes/1024).toFixed(0) + ' KB';
     return (bytes/1048576).toFixed(1) + ' MB';
@@ -767,7 +833,7 @@ function CustOrderFiles({ o, toast }) {
                 </div>
                 <span className="text-faint fs-11">
                   {f.uploadedBy === 'customer' ? 'Sie' : f.uploadedBy === 'gw' ? gwLabel : 'efactory1'} ·
-                  {' '}{formatSize(f.size)} · {U.fmtDateTime(f.at)}
+                  {' '}{f.sizeLabel || formatSize(f.size)} · {U.fmtDateTime(f.at)}
                 </span>
               </div>
               <NotReady className="btn btn-sm" ariaLabel="Vorschau" feature="file-preview"><Icon name="eye" size={12}/></NotReady>
@@ -1148,23 +1214,17 @@ function CustInvoices() {
 }
 
 function CustDownloads({ toast }) {
+  const storeState = window.EFHooks.useStore(s => s);
   const orders = custOrders();
   const groups = orders.map(o => {
-    const files = [];
-    if (o.acceptedAt) {
-      files.push({ name: `${o.workType}_Briefing.pdf`, kind: 'briefing', size: '184 KB', uploadedBy: 'customer', at: o.acceptedAt });
-    }
-    if (o.gwId && ['interim_submitted','under_customer_review','revision_required','final_submitted','qa_review','delivered','payment_pending','completed'].includes(o.status)) {
-      files.push({ name: `Zwischenstand_1.docx`, kind: 'interim', size: '1.2 MB', uploadedBy: 'gw', at: '2026-05-06T15:30:00' });
-    }
-    if (['delivered','payment_pending','completed'].includes(o.status)) {
-      files.push(
-        { name: `Endversion_${o.workType}.pdf`, kind: 'final', size: '2.8 MB', uploadedBy: 'gw', at: '2026-04-10T18:00:00' }
-      );
-    }
-    if (W.canShowReceivable(o) && (o.invoiceSentAt || (o.installments || []).length > 0)) {
-      files.push({ name: `Rechnung_${o.id}.pdf`, kind: 'invoice', size: '84 KB', uploadedBy: 'platform', at: o.invoiceSentAt || o.acceptedAt || '2026-05-07T15:10:00' });
-    }
+    const files = customerVisibleFiles(
+      o,
+      window.EFSelectors.selectDisplaySubmissionsForOrder(storeState, o.id),
+      window.EFSelectors.selectThreadByOrder(storeState, o.id)
+    ).map(f => ({
+      ...f,
+      sizeText: f.sizeLabel || (f.size < 1048576 ? `${Math.round((f.size || 0) / 1024)} KB` : `${((f.size || 0) / 1048576).toFixed(1)} MB`),
+    }));
     return { o, files };
   }).filter(g => g.files.length > 0);
 
@@ -1204,7 +1264,7 @@ function CustDownloads({ toast }) {
                           <span className="fs-12.5" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{f.name}</span>
                           <span className={`pill pill-${kindPills[f.kind]}`} style={{ fontSize: 10 }}>{kindLabels[f.kind]}</span>
                         </div>
-                        <span className="text-faint fs-11">{f.size} · {U.fmtDate(f.at)}</span>
+                        <span className="text-faint fs-11">{f.sizeText} · {U.fmtDate(f.at)}</span>
                       </div>
                       <button type="button" className="btn btn-sm btn-primary" onClick={()=>toast&&toast({tone:'success',text:`${f.name} wird heruntergeladen.`})}>
                         <Icon name="download" size={11}/> Download

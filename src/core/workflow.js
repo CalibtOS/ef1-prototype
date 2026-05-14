@@ -19,6 +19,30 @@ const RELEASE_GATE_RELEVANT_STATES = [
   'delivered', 'payment_pending', 'completed', 'ai_violation_review', 'plagiarism_violation_review'
 ];
 const QA_REVIEW_KINDS = ['final_work', 'revision'];
+const STATUS_RANK = {
+  lead: 0,
+  qualified: 1,
+  offer_sent: 2,
+  invoice_sent: 3,
+  available: 4,
+  claimed_pending_approval: 5,
+  active: 6,
+  interim_submitted: 7,
+  under_customer_review: 8,
+  revision_required: 9,
+  final_submitted: 10,
+  qa_review: 11,
+  ai_violation_review: 12,
+  plagiarism_violation_review: 12,
+  delivered: 13,
+  payment_pending: 14,
+  completed: 15,
+  on_hold: 4,
+  delay_reported: 6,
+  extension_requested: 6,
+  cancelled: 0,
+  bye: 0,
+};
 
 const CLOSED_SUBMISSION_REASONS = {
   claimed_pending_approval: 'Awaiting admin approval',
@@ -230,6 +254,246 @@ function statusFor(order, role) {
   return base;
 }
 
+function statusRank(orderOrStatus) {
+  const status = typeof orderOrStatus === 'string' ? orderOrStatus : orderOrStatus?.status;
+  return STATUS_RANK[status] ?? 0;
+}
+
+function asIso(value, time) {
+  if (!value) return null;
+  const s = String(value);
+  if (s.indexOf('T') >= 0) return s;
+  return `${s}T${time || '10:00:00'}`;
+}
+
+function addHours(value, hours) {
+  const iso = asIso(value);
+  if (!iso) return null;
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return null;
+  d.setHours(d.getHours() + hours);
+  return d.toISOString();
+}
+
+function firstByDate(list, field) {
+  return [...(list || [])]
+    .filter(x => x && x[field])
+    .sort((a, b) => new Date(a[field]) - new Date(b[field]))[0] || null;
+}
+
+function lastByDate(list, field) {
+  return [...(list || [])]
+    .filter(x => x && x[field])
+    .sort((a, b) => new Date(b[field]) - new Date(a[field]))[0] || null;
+}
+
+function firstPaidInstallment(order) {
+  return firstByDate((order?.installments || []).filter(i => i.status === 'paid'), 'date');
+}
+
+function firstInstallment(order) {
+  return firstByDate(order?.installments || [], 'date');
+}
+
+function lifecycleDates(order, submissions) {
+  if (!order) return {};
+  const rank = statusRank(order);
+  const subs = submissions || [];
+  const latestSub = lastByDate(subs, 'submittedAt');
+  const latestInterim = lastByDate(subs.filter(s => isInterimKind(s.kind)), 'submittedAt');
+  const latestFinal = lastByDate(subs.filter(s => isQaReviewKind(s.kind)), 'submittedAt');
+  const firstPaid = firstPaidInstallment(order);
+  const firstInst = firstInstallment(order);
+  const anchor = order.createdAt || order.leadCreatedAt || order.acceptedAt || firstPaid?.date || firstInst?.date || latestSub?.submittedAt || '2026-05-07T10:00:00';
+  const leadAt = order.createdAt || order.leadCreatedAt || addHours(anchor, -72);
+  const qualifiedAt = order.qualifiedAt || (rank >= 1 ? addHours(leadAt, 2) : null);
+  const paymentAt = order.paymentConfirmedAt || ((order.paidEur || 0) > 0 || (rank >= 4 && order.status !== 'invoice_sent')
+    ? asIso(firstPaid?.date || order.acceptedAt || firstInst?.date, '12:20:00')
+    : null);
+  const offerAt = order.offerSentAt || (rank >= 2 || canShowMoney(order)
+    ? addHours(order.acceptedAt || paymentAt || qualifiedAt, -24)
+    : null);
+  const invoiceAt = order.invoiceSentAt || order.invoiceRequestAt || (rank >= 3 || (canShowReceivable(order) && ((order.installments || []).length || (order.outstandingEur || 0) > 0))
+    ? addHours(order.acceptedAt || paymentAt || firstInst?.date || offerAt, -2)
+    : null);
+  const acceptedAt = order.acceptedAt || (rank >= 3 ? addHours(invoiceAt || offerAt, 1) : null);
+  const boardAt = order.boardPublishedAt || (rank >= 4 ? addHours(paymentAt || acceptedAt || invoiceAt, 0.25) : null);
+  const claimedAt = order.claimedAt || (order.gwId && rank >= 5 ? addHours(boardAt, 0.5) : null);
+  const assignedAt = order.assignedAt || order.claimApprovedAt || (order.gwId && order.status !== 'claimed_pending_approval' && rank >= 6 ? addHours(claimedAt || boardAt || paymentAt, 1) : null);
+  const interimAt = latestInterim?.submittedAt || order.interimSubmittedAt || (rank >= 7 && order.interimDeadline ? asIso(order.interimDeadline, '17:50:00') : null);
+  const finalSubmittedAt = order.finalSubmittedAt || latestFinal?.submittedAt || (rank >= 10 ? addHours(order.finalDeadline, -3) : null);
+  const qaReviewedAt = latestFinal?.reviewedAt || order.qaReviewedAt || order.deliveredAt || ((order.qaPassed || rank >= 13) && finalSubmittedAt ? addHours(finalSubmittedAt, 2) : null);
+  const deliveredAt = order.deliveredAt || latestFinal?.forwardedAt || (rank >= 13 ? addHours(qaReviewedAt || finalSubmittedAt, 0.1) : null);
+  const finalAcceptedAt = order.finalAcceptedAt || ((order.customerSatisfied || rank >= 14) ? addHours(order.completedAt || deliveredAt, order.completedAt ? -24 : 24) : null);
+  const paidToGwAt = order.paidToGwAt || (order.gwPaymentStatus === 'paid' ? (order.completedAt || addHours(finalAcceptedAt, 48)) : null);
+  const completedAt = order.completedAt || (order.status === 'completed' ? paidToGwAt || finalAcceptedAt : null);
+  return {
+    leadAt, qualifiedAt, offerAt, invoiceAt, acceptedAt, paymentAt, boardAt,
+    claimedAt, assignedAt, interimAt, finalSubmittedAt, qaReviewedAt,
+    deliveredAt, finalAcceptedAt, paidToGwAt, completedAt,
+  };
+}
+
+function qaStatusForDerivedFinal(order) {
+  if (!order) return 'pending';
+  if (order.status === 'ai_violation_review' || order.status === 'plagiarism_violation_review' || order.flagged) return 'flagged';
+  if (order.status === 'revision_required' && !order.qaPassed) return 'revision_requested';
+  if (order.qaPassed || statusRank(order) >= 13) return 'passed';
+  return 'pending';
+}
+
+function deriveSubmissions(order, submissions) {
+  if (!order) return [];
+  const actual = [...(submissions || [])].map(s => ({ ...s, synthetic: false }));
+  const dates = lifecycleDates(order, actual);
+  const rows = [...actual];
+  const hasInterim = rows.some(s => isInterimKind(s.kind));
+  const hasFinal = rows.some(s => isQaReviewKind(s.kind));
+  const hasInvoice = rows.some(s => s.kind === 'final_invoice' || s.kind === 'gw_invoice' || s.invoiceFileName);
+
+  if (!hasInterim && dates.interimAt) {
+    rows.push({
+      id: `derived-interim-${order.id}`,
+      orderId: order.id,
+      kind: order.interim2Deadline && statusRank(order) >= 8 ? 'interim_2' : 'interim_1',
+      round: 1,
+      gwId: order.gwId,
+      fileName: `${order.id}_Zwischenstand_${order.interim2Deadline && statusRank(order) >= 8 ? '2' : '1'}.docx`,
+      size: 1100000,
+      plagiarismScore: null,
+      aiScore: null,
+      qaStatus: 'auto_forwarded',
+      submittedAt: dates.interimAt,
+      forwardedAt: dates.interimAt,
+      synthetic: true,
+    });
+  }
+
+  if (!hasFinal && dates.finalSubmittedAt) {
+    rows.push({
+      id: `derived-final-${order.id}`,
+      orderId: order.id,
+      kind: order.status === 'revision_required' ? 'revision' : 'final_work',
+      round: Math.max(1, order.revisionRounds || 1),
+      gwId: order.gwId,
+      fileName: `${order.id}_${order.status === 'revision_required' ? 'Revision' : 'Final'}.docx`,
+      size: 2100000,
+      plagiarismScore: order.plagiarismScore ?? null,
+      aiScore: order.aiScore ?? null,
+      qaStatus: qaStatusForDerivedFinal(order),
+      submittedAt: dates.finalSubmittedAt,
+      reviewedAt: dates.qaReviewedAt,
+      forwardedAt: dates.deliveredAt,
+      synthetic: true,
+    });
+  }
+
+  if (!hasInvoice && order.gwId && (order.gwPaymentStatus === 'invoice_received' || order.gwPaymentStatus === 'paid')) {
+    rows.push({
+      id: `derived-gw-invoice-${order.id}`,
+      orderId: order.id,
+      kind: 'gw_invoice',
+      round: 1,
+      gwId: order.gwId,
+      fileName: `Honorarrechnung_${order.id}.pdf`,
+      size: 90000,
+      qaStatus: 'archived',
+      submittedAt: dates.finalSubmittedAt || dates.deliveredAt || dates.finalAcceptedAt,
+      synthetic: true,
+    });
+  }
+
+  return rows.sort((a, b) => new Date(b.submittedAt || 0) - new Date(a.submittedAt || 0));
+}
+
+function event(key, at, title, opts) {
+  if (!at || !title) return null;
+  return { key, at, title, icon: 'dot', dot: '', domain: 'workflow', ...(opts || {}) };
+}
+
+function addEvent(list, item) {
+  if (!item) return;
+  const id = `${item.key || item.title}-${item.at}`;
+  if (list.some(e => `${e.key || e.title}-${e.at}` === id)) return;
+  list.push(item);
+}
+
+function bodyPreview(text) {
+  if (!text) return '';
+  const s = String(text).replace(/\s+/g, ' ').trim();
+  return s.length > 96 ? s.slice(0, 96) + '...' : s;
+}
+
+function buildOrderEvents(order, context) {
+  if (!order) return [];
+  const ctx = context || {};
+  const submissions = deriveSubmissions(order, ctx.submissions || []);
+  const thread = ctx.thread || null;
+  const D = window.EF || {};
+  const gw = ctx.gw || (D.gw && order.gwId ? D.gw(order.gwId) : null);
+  const cust = ctx.customer || (D.customer ? D.customer(order.customerId) : null);
+  const dates = lifecycleDates(order, submissions);
+  const events = [];
+  const rank = statusRank(order);
+
+  addEvent(events, event('lead.created', dates.leadAt, 'Inquiry captured in Pipedrive', { icon: 'inbox', dot: 'blue', domain: 'sales', detail: `Lead source: ${order.leadSource || cust?.leadSource || 'unknown'}` }));
+  if (rank >= 1) addEvent(events, event('lead.qualified', dates.qualifiedAt, 'Lead qualified for ghostwriting', { icon: 'check', dot: 'blue', domain: 'sales', detail: 'No customer price is exposed before Proposal.' }));
+  if (order.offerPdfPreviewedAt) addEvent(events, event('offer.preview', order.offerPdfPreviewedAt, 'Sevdesk proposal PDF preview reviewed', { icon: 'eye', dot: 'blue', domain: 'proposal' }));
+  if (dates.offerAt) addEvent(events, event('offer.sent', dates.offerAt, `Proposal ${order.sevdeskOfferNo || ''}`.trim() || 'Proposal created and sent', { icon: 'file-text', dot: 'blue', domain: 'proposal', detail: order.offerSentAt ? 'Sent via Sevdesk/Outlook workflow.' : 'Imported from legacy Pipedrive/Sevdesk snapshot.' }));
+  (order.offerEmails || []).forEach((m, i) => addEvent(events, event(`offer.email.${i}`, m.sentAt, `Offer email sent from ${m.from}`, { icon: 'mail', dot: 'green', domain: 'communications', detail: m.subject })));
+  if (dates.invoiceAt) addEvent(events, event('invoice.sent', dates.invoiceAt, `Customer accepted proposal; invoice ${order.sevdeskInvoiceNo || ''}`.trim() || 'Customer accepted proposal; invoice issued', { icon: 'file-text', dot: 'blue', domain: 'payment', detail: 'Payment plan and receivable start here.' }));
+  (order.installments || []).forEach(i => {
+    if (i.status === 'paid') addEvent(events, event(`installment.${i.n}.paid`, asIso(i.date, '12:20:00'), `Installment ${i.n}/${order.installments.length} paid`, { icon: 'wallet', dot: 'green', domain: 'payment', detail: `${i.method || 'payment'} · ${i.amt != null ? 'customer payment recorded' : ''}` }));
+    if (i.status === 'overdue') addEvent(events, event(`installment.${i.n}.overdue`, asIso(i.date, '18:01:00'), `Installment ${i.n}/${order.installments.length} became overdue`, { icon: 'alert-triangle', dot: 'red', domain: 'payment', detail: 'Blocks GW Friday release until resolved.' }));
+  });
+  if (dates.paymentAt && rank >= 4) addEvent(events, event('pipedrive.won', dates.paymentAt, 'Pipedrive deal moved to Won', { icon: 'git-branch', dot: 'green', domain: 'sales', detail: 'Payment confirmed; operational fulfillment can start.' }));
+  if (dates.boardAt && rank >= 4 && !order.selfAssigned) addEvent(events, event('jobboard.published', dates.boardAt, 'Order published to GW job board', { icon: 'briefcase', dot: 'blue', domain: 'assignment' }));
+  if (dates.claimedAt && order.gwId && !order.selfAssigned) addEvent(events, event('gw.claimed', dates.claimedAt, `${gw?.name || 'GW'} claimed the assignment`, { icon: 'feather', dot: order.status === 'claimed_pending_approval' ? 'amber' : 'blue', domain: 'assignment', detail: order.status === 'claimed_pending_approval' ? 'Awaiting admin approval.' : 'Claim approved later by admin.' }));
+  if (dates.assignedAt && order.gwId) addEvent(events, event('gw.assigned', dates.assignedAt, order.selfAssigned ? 'Self-assigned to Berat' : `${gw?.name || 'GW'} assigned and customer intro sent`, { icon: 'user', dot: 'green', domain: 'assignment', detail: order.selfAssigned ? 'Hidden from GW board; no external GW payout.' : 'GW briefing and customer intro emails are part of the assignment event.' }));
+
+  submissions.forEach(s => {
+    if (isInterimKind(s.kind)) {
+      addEvent(events, event(`submission.${s.id}.interim`, s.submittedAt, `Interim ${s.kind === 'interim_2' ? '2' : '1'} uploaded and auto-forwarded`, { icon: 'send', dot: 'blue', domain: 'submission', detail: s.fileName }));
+      return;
+    }
+    if (s.kind === 'gw_invoice' || s.kind === 'final_invoice') {
+      addEvent(events, event(`submission.${s.id}.invoice`, s.submittedAt, 'GW invoice received', { icon: 'file-text', dot: 'blue', domain: 'payment', detail: s.fileName }));
+      return;
+    }
+    addEvent(events, event(`submission.${s.id}.uploaded`, s.submittedAt, `${s.kind === 'revision' ? 'Revision' : 'Final work'} uploaded to efactory1`, { icon: 'upload-cloud', dot: 'blue', domain: 'submission', detail: s.fileName }));
+    if (s.qaStatus === 'pending') addEvent(events, event(`submission.${s.id}.qa.pending`, s.submittedAt, 'Submission queued for QA', { icon: 'shield', dot: 'amber', domain: 'qa' }));
+    if (s.qaStatus === 'passed') addEvent(events, event(`submission.${s.id}.qa.passed`, s.reviewedAt || s.forwardedAt || dates.qaReviewedAt, 'QA passed; final forwarded to customer', { icon: 'shield-check', dot: 'green', domain: 'qa', detail: `Plagiarism ${s.plagiarismScore ?? '-'}% · AI ${s.aiScore ?? '-'}%` }));
+    if (s.qaStatus === 'revision_requested') addEvent(events, event(`submission.${s.id}.qa.revision`, s.reviewedAt || dates.qaReviewedAt || s.submittedAt, 'QA requested a revision', { icon: 'rotate-ccw', dot: 'amber', domain: 'qa' }));
+    if (s.qaStatus === 'flagged' || s.flagged) addEvent(events, event(`submission.${s.id}.qa.flagged`, s.reviewedAt || order.qaFlaggedAt || s.submittedAt, order.status === 'plagiarism_violation_review' ? 'QA flagged plagiarism for admin review' : 'QA flagged AI use for admin review', { icon: 'alert-triangle', dot: 'red', domain: 'qa', detail: `Plagiarism ${s.plagiarismScore ?? '-'}% · AI ${s.aiScore ?? '-'}%` }));
+  });
+
+  if (order.lastCustomerFeedbackAt && order.status === 'revision_required') addEvent(events, event('customer.revision', order.lastCustomerFeedbackAt, 'Customer requested revision', { icon: 'message-square', dot: 'amber', domain: 'customer', detail: bodyPreview(order.customerRevisionNote) }));
+  if (order.disputeOpen || order.lastDisputeAt) addEvent(events, event('customer.dispute', order.lastDisputeAt || order.lastCustomerFeedbackAt || dates.deliveredAt || dates.interimAt, 'Customer dispute opened', { icon: 'alert-triangle', dot: 'amber', domain: 'customer', detail: 'Blocks payout until resolved.' }));
+  if (dates.finalAcceptedAt) addEvent(events, event('customer.final.accepted', dates.finalAcceptedAt, 'Customer accepted final delivery', { icon: 'check-circle', dot: 'green', domain: 'customer' }));
+  if (order.delayReportedAt) addEvent(events, event('gw.delay', order.delayReportedAt, 'GW reported a delivery delay', { icon: 'clock', dot: 'amber', domain: 'assignment', detail: order.delayReason || null }));
+  if (order.extensionPending?.requestedAt) addEvent(events, event('gw.extension', order.extensionPending.requestedAt, 'GW requested scope extension', { icon: 'plus', dot: 'amber', domain: 'assignment', detail: order.extensionPending.description || null }));
+  if (order.status === 'on_hold') addEvent(events, event('order.hold', order.holdAt || dates.paymentAt || dates.invoiceAt, 'Order placed on hold', { icon: 'pause-circle', dot: 'amber', domain: 'workflow', detail: order.holdReason || null }));
+  if (order.status === 'cancelled') addEvent(events, event('order.cancelled', order.cancelledAt || order.acceptedAt || dates.leadAt, 'Order cancelled', { icon: 'x', dot: 'red', domain: 'workflow', detail: order.cancelReason || order.title }));
+  if (order.gwPaymentStatus === 'invoice_received' || order.gwPaymentStatus === 'paid') addEvent(events, event('gw.invoice.received', dates.finalSubmittedAt || dates.deliveredAt || dates.finalAcceptedAt, 'GW invoice is on file', { icon: 'file-text', dot: 'blue', domain: 'payment', detail: order.lastInvoiceFile || 'Required for Friday batch.' }));
+  if (order.status === 'payment_pending') addEvent(events, event('release.gate', dates.finalAcceptedAt, releaseGates(order).releasable ? 'Friday release gates clear' : 'Friday release gate evaluated with blockers', { icon: 'shield-check', dot: releaseGates(order).releasable ? 'green' : 'amber', domain: 'payment', detail: releaseGates(order).reasons.filter(r => r !== 'Order is not awaiting Friday release').join(' · ') }));
+  if (dates.paidToGwAt || dates.completedAt) addEvent(events, event('gw.paid', dates.paidToGwAt || dates.completedAt, 'Friday batch released GW honorarium', { icon: 'wallet', dot: 'green', domain: 'payment' }));
+
+  (thread?.messages || []).forEach(m => {
+    const sender = m.from === 'customer' ? (cust?.name || 'Customer') : m.from === 'gw' ? (gw?.name || 'GW') : m.from === 'admin' ? 'efactory1' : 'System';
+    addEvent(events, event(`message.${m.id}`, m.at, `${sender} message`, { icon: m.from === 'system' ? 'zap' : 'message-square', dot: m.from === 'system' ? 'amber' : '', domain: 'communications', detail: bodyPreview(m.body) }));
+  });
+  (ctx.notifications || []).forEach((n, i) => {
+    addEvent(events, event(`notification.${n.id || i}`, n.at, `Notification sent: ${n.title}`, {
+      icon: 'bell',
+      dot: n.urgent ? 'red' : 'blue',
+      domain: 'notification',
+      detail: bodyPreview(n.body),
+    }));
+  });
+
+  return events.sort((a, b) => new Date(b.at || 0) - new Date(a.at || 0));
+}
+
 window.EFWorkflow = {
   ORDER_STATES,
   TRANSITIONS,
@@ -251,6 +515,12 @@ window.EFWorkflow = {
   canAssign,
   releaseGates,
   statusFor,
+  statusRank,
+  asIso,
+  addHours,
+  lifecycleDates,
+  deriveSubmissions,
+  buildOrderEvents,
   allInstallmentsPaid,
 };
 })();

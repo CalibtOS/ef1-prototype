@@ -60,6 +60,20 @@ function useSubmissions(opts = {}) {
   return useStore(selector, shallowEqual);
 }
 
+function useDisplaySubmissions(orderId) {
+  const selector = React.useMemo(() => (state) => S.selectDisplaySubmissionsForOrder(state, orderId), [orderId]);
+  return useStore(selector, shallowEqual);
+}
+
+function useOrderEvents(orderId) {
+  const selector = React.useMemo(() => (state) => S.selectOrderEvents(state, orderId), [orderId]);
+  return useStore(selector, shallowEqual);
+}
+
+function useQaHistory() {
+  return useStore(S.selectQaHistory, shallowEqual);
+}
+
 function useKpis() {
   return useStore(S.selectKpis, shallowEqual);
 }
@@ -127,6 +141,9 @@ window.EFHooks = {
   useOrders,
   useOrder,
   useSubmissions,
+  useDisplaySubmissions,
+  useOrderEvents,
+  useQaHistory,
   useKpis,
   useReleaseGate,
   useGw,
