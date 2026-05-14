@@ -177,6 +177,9 @@ function OrderDetail({ orderId, navigate, toast, initialTab }) {
   const [tab, setTab] = useStateA(initialTab || 'overview');
   const [showRateSlider, setShowRateSlider] = useStateA(false);
   const [approving, setApproving] = useStateA(null);
+  useEffectA(() => {
+    setTab(initialTab || 'overview');
+  }, [orderId, initialTab]);
   // Store-backed read so newly-created orders resolve across all role views.
   const order = window.EFHooks.useOrder(orderId);
   const submissions = window.EFHooks.useSubmissions({ orderId });
@@ -189,7 +192,8 @@ function OrderDetail({ orderId, navigate, toast, initialTab }) {
   const isClaim = order.status === 'claimed_pending_approval';
   const hasOfferHistory = !!(order.sevdeskOfferNo || order.offerSentAt || order.sevdeskInvoiceNo || order.invoiceSentAt);
   const showOfferTab = ['qualified','offer_sent','invoice_sent'].includes(order.status) || hasOfferHistory;
-  const activeTab = tab === 'offer' && !showOfferTab ? 'overview' : tab;
+  const normalizedTab = tab === 'communication' ? 'communications' : tab;
+  const activeTab = normalizedTab === 'offer' && !showOfferTab ? 'overview' : normalizedTab;
   const showMoney = W.canShowMoney(order);
   const showReceivable = W.canShowReceivable(order);
   const releaseGateRelevant = W.isReleaseGateRelevant(order);
@@ -692,33 +696,63 @@ function OrderDetail({ orderId, navigate, toast, initialTab }) {
               )}
             </div>
           </div>
-          <div className="card">
-            <div className="card-head"><div className="card-title">Stripe webhook log</div></div>
-            <div className="card-pad flex-col gap-2">
-              {!showMoney ? (
-                <EmptyState compact icon="lock" title="No payment events yet" body="Stripe/SEPA events start after an invoice exists."/>
-              ) : !showReceivable ? (
-                <EmptyState compact icon="wallet" title="No invoice event yet" body="The customer has a proposal, but no invoice/payment link exists until they accept it."/>
-              ) : paidStripeInstallments.length === 0 ? (
-                <EmptyState compact icon="wallet" title="No Stripe payment events" body="SEPA/manual payments are tracked in the installment plan."/>
-              ) : paidStripeInstallments.map((i, idx) => {
-                // Deterministic id derived from order + installment so it never reshuffles between renders
-                const seed = (Number(order.id) * 1009 + i.n * 31 + idx).toString(36).slice(-10).padStart(10, '0');
-                return (
-                  <div key={idx} className="flex items-start gap-2 fs-11">
-                    <div className="timeline-dot green" style={{ width: 16, height: 16 }}><Icon name="check" size={9}/></div>
-                    <div style={{ flex: 1 }}>
-                      <div className="mono">payment_intent.succeeded</div>
-                      <div className="text-faint">pi_3Q{seed} · {U.fmtDate(i.date)} · {U.EUR(i.amt)}</div>
+          <div className="flex-col gap-3">
+            <div className="card">
+              <div className="card-head"><div className="card-title">Stripe webhook log</div></div>
+              <div className="card-pad flex-col gap-2">
+                {!showMoney ? (
+                  <EmptyState compact icon="lock" title="No payment events yet" body="Stripe/SEPA events start after an invoice exists."/>
+                ) : !showReceivable ? (
+                  <EmptyState compact icon="wallet" title="No invoice event yet" body="The customer has a proposal, but no invoice/payment link exists until they accept it."/>
+                ) : paidStripeInstallments.length === 0 ? (
+                  <EmptyState compact icon="wallet" title="No Stripe payment events" body="SEPA/manual payments are tracked in the installment plan."/>
+                ) : paidStripeInstallments.map((i, idx) => {
+                  // Deterministic id derived from order + installment so it never reshuffles between renders
+                  const seed = (Number(order.id) * 1009 + i.n * 31 + idx).toString(36).slice(-10).padStart(10, '0');
+                  return (
+                    <div key={idx} className="flex items-start gap-2 fs-11">
+                      <div className="timeline-dot green" style={{ width: 16, height: 16 }}><Icon name="check" size={9}/></div>
+                      <div style={{ flex: 1 }}>
+                        <div className="mono">payment_intent.succeeded</div>
+                        <div className="text-faint">pi_3Q{seed} · {U.fmtDate(i.date)} · {U.EUR(i.amt)}</div>
+                      </div>
                     </div>
-                  </div>
-                );
-              })}
-              {showReceivable && <div className="banner info" style={{ marginTop: 8, fontSize: 11.5 }}>
-                <Icon name="zap" size={14}/>
-                <span><code>confirmPayment()</code> auto-fires Pipedrive 'Won' + Sevdesk mark-paid + GW assignment kickoff.</span>
-              </div>}
+                  );
+                })}
+                {showReceivable && <div className="banner info" style={{ marginTop: 8, fontSize: 11.5 }}>
+                  <Icon name="zap" size={14}/>
+                  <span><code>confirmPayment()</code> auto-fires Pipedrive 'Won' + Sevdesk mark-paid + GW assignment kickoff.</span>
+                </div>}
+              </div>
             </div>
+
+            {releaseGateRelevant && (
+              <div className="card">
+                <div className="card-head">
+                  <div className="card-title">GW payout gate</div>
+                  <span className="text-faint fs-11 mono">{U.EUR(order.netHonorarium)}</span>
+                </div>
+                <div className="card-pad flex-col gap-2">
+                  {gateChecks.map(c => (
+                    <div key={c.key} className="flex items-start gap-2 fs-11">
+                      <div className={`gate-check-icon ${c.state}`} style={{ marginTop: 1 }}>
+                        {c.state === 'pass' && <Icon name="check" size={11}/>}
+                        {c.state === 'fail' && <Icon name="x" size={11}/>}
+                        {c.state === 'pending' && <Icon name="dot" size={8}/>}
+                      </div>
+                      <div style={{ flex: 1 }}>
+                        <div>{c.label}</div>
+                        {c.detail && <div className="text-faint">{c.detail}</div>}
+                      </div>
+                    </div>
+                  ))}
+                  <div className={`banner ${gateAllPass ? 'info' : 'warn'}`} style={{ marginTop: 6, fontSize: 11.5 }}>
+                    <Icon name={gateAllPass ? 'check-circle' : 'lock'} size={14}/>
+                    <span>{gateAllPass ? 'All gates are clear for the next Friday batch.' : (_gates.reasons.find(r => r !== 'Order is not awaiting Friday release') || _gates.reasons[0] || 'Resolve the blocked gate before Friday release.')}</span>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}

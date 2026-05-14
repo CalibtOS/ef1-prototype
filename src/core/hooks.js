@@ -136,6 +136,22 @@ function useFridayBatch() {
   return useStore(S.selectFridayBatch, shallowEqual);
 }
 
+function useRevenueAtRisk() {
+  return useStore(S.selectRevenueAtRisk, shallowEqual);
+}
+
+function useNeedsDecision() {
+  return useStore(S.selectNeedsDecision, shallowEqual);
+}
+
+function useSlaOperational() {
+  return useStore(S.selectSlaOperational, shallowEqual);
+}
+
+function useCashFriday() {
+  return useStore(S.selectCashFriday, shallowEqual);
+}
+
 window.EFHooks = {
   useStore,
   useOrders,
@@ -158,5 +174,9 @@ window.EFHooks = {
   useNavigation,
   useToast,
   useFridayBatch,
+  useRevenueAtRisk,
+  useNeedsDecision,
+  useSlaOperational,
+  useCashFriday,
 };
 })();

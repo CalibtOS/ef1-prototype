@@ -9,9 +9,30 @@ const W = window.EFWorkflow;
 function OrdersTable({ navigate, route }) {
   const [search, setSearch] = useStateA('');
   const [statusFilter, setStatusFilter] = useStateA('all');
-  const [view, setView] = useStateA('all');
+  const initialView = route?.params?.view || 'all';
+  const [view, setView] = useStateA(initialView);
+  useEffectA(() => {
+    const incoming = route?.params?.view || 'all';
+    setView(prev => prev === incoming ? prev : incoming);
+  }, [route?.params?.view]);
   const orders = window.EFHooks.useOrders();
-  const needsOffer = (o) => o.status === 'qualified' && !o.sevdeskOfferNo && !o.offerSentAt;
+  // Dashboard queues — reused so list and dashboard cannot drift.
+  const riskItems = window.EFHooks.useRevenueAtRisk();
+  const slaItems = window.EFHooks.useSlaOperational();
+  const decisionItems = window.EFHooks.useNeedsDecision();
+  const cash = window.EFHooks.useCashFriday();
+  const ridSet = (arr) => new Set(arr.map(it => it.orderId || it.order?.id).filter(Boolean));
+  const riskIds = useMemoA(() => ridSet(riskItems), [riskItems]);
+  const slaIds = useMemoA(() => ridSet(slaItems), [slaItems]);
+  const overdueInterimIds = useMemoA(() => ridSet(slaItems.filter(it => it.kind === 'interim_missed')), [slaItems]);
+  const decisionIds = useMemoA(() => ridSet(decisionItems), [decisionItems]);
+  const cashIds = useMemoA(() => new Set([
+    ...cash.blocked.map(b => b.order.id),
+    ...cash.missingInvoice.map(o => o.id),
+    ...cash.refundPending.map(o => o.id),
+  ]), [cash]);
+
+  const needsOffer = (o) => o.status === 'qualified' && !o.sevdeskOfferNo && !o.offerSentAt && !o.titleTBD;
   const needsOfferCount = orders.filter(needsOffer).length;
 
   // Deep link: if navigated with { id }, open the detail view directly.
@@ -22,11 +43,15 @@ function OrdersTable({ navigate, route }) {
 
   let filtered = orders;
   if (view === 'friday') filtered = filtered.filter(o => o.status === 'payment_pending');
-  if (view === 'overdue') filtered = filtered.filter(o => o.interimDeadline && U.daysTo(o.interimDeadline) < 0 && !['completed','cancelled','payment_pending'].includes(o.status));
-  if (view === 'ai') filtered = filtered.filter(o => o.status === 'ai_violation_review');
-  if (view === 'needs_offer') filtered = filtered.filter(needsOffer);
-  if (view === 'self') filtered = filtered.filter(o => o.selfAssigned);
-  if (view === 'nogw') filtered = filtered.filter(o => !o.gwId && W.canAssign(o).ok);
+  else if (view === 'overdue') filtered = filtered.filter(o => overdueInterimIds.has(o.id));
+  else if (view === 'ai') filtered = filtered.filter(o => o.status === 'ai_violation_review');
+  else if (view === 'needs_offer') filtered = filtered.filter(needsOffer);
+  else if (view === 'self') filtered = filtered.filter(o => o.selfAssigned);
+  else if (view === 'nogw') filtered = filtered.filter(o => !o.gwId && W.canAssign(o).ok);
+  else if (view === 'at_risk') filtered = filtered.filter(o => riskIds.has(o.id));
+  else if (view === 'sla') filtered = filtered.filter(o => slaIds.has(o.id));
+  else if (view === 'decision') filtered = filtered.filter(o => decisionIds.has(o.id));
+  else if (view === 'cash') filtered = filtered.filter(o => cashIds.has(o.id));
   if (statusFilter !== 'all') filtered = filtered.filter(o => o.status === statusFilter);
   if (search) {
     const s = search.toLowerCase();
@@ -54,7 +79,19 @@ function OrdersTable({ navigate, route }) {
         <div className="tbl-toolbar">
           <input type="text" placeholder="Search ID, customer, paper title…" value={search} onChange={e => setSearch(e.target.value)} />
           <div className="saved-views">
-            {[['all','All'],['needs_offer',`Needs offer${needsOfferCount ? ` ${needsOfferCount}` : ''}`],['friday','Friday batch'],['overdue','Overdue interim'],['ai','AI flagged'],['self','Self-assigned'],['nogw','Without GW']].map(([k,l]) => (
+            {[
+              ['all','All'],
+              ['at_risk',`Revenue at risk${riskIds.size ? ' ' + riskIds.size : ''}`],
+              ['sla',`SLA breach${slaIds.size ? ' ' + slaIds.size : ''}`],
+              ['decision',`Needs decision${decisionIds.size ? ' ' + decisionIds.size : ''}`],
+              ['cash',`Cash & Friday${cashIds.size ? ' ' + cashIds.size : ''}`],
+              ['needs_offer',`Needs offer${needsOfferCount ? ` ${needsOfferCount}` : ''}`],
+              ['friday','Friday batch'],
+              ['overdue',`Overdue interim${overdueInterimIds.size ? ' ' + overdueInterimIds.size : ''}`],
+              ['ai','AI flagged'],
+              ['self','Self-assigned'],
+              ['nogw','Without GW'],
+            ].map(([k,l]) => (
               <span key={k} className={`chip ${view===k?'active':''}`} onClick={() => setView(k)}>{l}</span>
             ))}
           </div>

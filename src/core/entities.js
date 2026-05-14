@@ -132,6 +132,23 @@ const THREAD_MESSAGE_SEEDS = {
   tg1: [
     { from: 'gw', at: '2026-05-07T08:45:00', body: 'Hallo Berat, leider bin ich nächste Woche krank. Ich wollte dich kurz informieren, damit wir ggf. meine aktuellen Aufträge umplanen können.' },
   ],
+  // Stale offer / pre-payment threads — customers sitting on proposals
+  t12: [
+    { from: 'admin',    at: '2026-05-04T11:02:00', body: 'Sehr geehrter Herr Weber, anbei unser Angebot AN-2026-3562 für Ihre Doktorarbeit zum Thema Federated Learning. Bitte um kurze Rückmeldung bis Mitte nächster Woche.', attachments: [{ name: 'AN-2026-3562.pdf', meta: '184 KB', icon: 'file-text' }] },
+    { from: 'customer', at: '2026-05-06T18:42:00', body: 'Hallo, vielen Dank für das Angebot. Wir besprechen das intern — könnten Sie mir kurz erläutern, wie das mit den Zwischenständen für eine Doktorarbeit dieser Größe konkret funktioniert?' },
+  ],
+  t13: [
+    { from: 'admin',    at: '2026-05-01T15:35:00', body: 'Sehr geehrter Herr Kaiser, anbei AN-2026-3563 für Ihre Bachelorarbeit. Bei Fragen melden Sie sich gerne.' },
+  ],
+  // Extension request thread — GW asking for scope change
+  t14: [
+    { from: 'gw',       at: '2026-05-07T10:30:00', body: 'Hallo Berat, Frau Frey möchte ein zusätzliches Kapitel zur EU-Taxonomie aufnehmen — das wären +5 Seiten und voraussichtlich neuer Endtermin 02.06. Bitte um Freigabe.' },
+  ],
+  // Delay thread — GW reporting illness
+  t15: [
+    { from: 'gw',       at: '2026-05-06T16:25:00', body: 'Hallo Berat, ich bin seit gestern krank (Grippe, Attest liegt vor) und brauche voraussichtlich 3 Tage Verlängerung. Neuer Termin 15.05. statt 12.05.' },
+    { from: 'gw',       at: '2026-05-06T16:30:00', body: 'Attest folgt per WhatsApp.', attachments: [{ name: 'Attest.pdf', meta: '92 KB', icon: 'file-text' }] },
+  ],
   // Demo spine — Antigone Berisha ↔ Isabel Walter ↔ Berat ↔ Lina (via QA)
   t8: [
     { from: 'gw',       at: '2026-04-02T09:14:00', body: 'Guten Tag Frau Berisha, vielen Dank für den Auftrag — ich freue mich auf die Zusammenarbeit. Senden Sie mir gerne das Briefing.' },
@@ -156,6 +173,10 @@ const THREAD_UNREAD_SEEDS = {
   t6: { admin: 1, gw: 0, customer: 0 },
   t7: { admin: 0, gw: 0, customer: 0 },
   t8: { admin: 0, gw: 0, customer: 1 },
+  t12: { admin: 1, gw: 0, customer: 0 },
+  t13: { admin: 0, gw: 0, customer: 0 },
+  t14: { admin: 1, gw: 0, customer: 0 },
+  t15: { admin: 2, gw: 0, customer: 0 },
   tl1: { admin: 1, gw: 0, customer: 0 },
   tl2: { admin: 1, gw: 0, customer: 0 },
   tg1: { admin: 1, gw: 0, customer: 0 },

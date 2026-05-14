@@ -128,15 +128,18 @@ function FridayBatch({ navigate, toast }) {
             {blocked.map(({ order: o, gates }) => {
               const gw = D.gw(o.gwId);
               const mainReason = gates.reasons.find(r => r !== 'Order is not awaiting Friday release') || gates.reasons[0];
+              const reasonKey = String(mainReason || '').toLowerCase();
               const reasonLabel = o.status === 'ai_violation_review'
                 ? 'AI violation'
                 : o.status === 'plagiarism_violation_review'
                   ? 'Plagiarism flag'
-                  : mainReason?.includes('installment')
+                  : reasonKey.includes('installment')
                     ? 'Installment blocked'
-                    : mainReason?.includes('Customer')
+                    : reasonKey.includes('gw invoice')
+                      ? 'GW invoice missing'
+                    : reasonKey.includes('customer')
                       ? 'Customer gate'
-                      : mainReason?.includes('Quality')
+                      : reasonKey.includes('quality')
                         ? 'QA gate'
                         : 'Release blocked';
               return (

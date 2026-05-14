@@ -59,34 +59,34 @@ function AdminDashboard({ navigate, openFridayBatch }) {
       </div>
 
       <div className="kpi-grid mb-4">
+        <div className={`kpi ${k.eurAtRisk > 0 ? 'danger' : ''}`} onClick={() => navigate('orders', { view: 'at_risk' })} style={{ cursor: 'pointer' }}>
+          <div className="kpi-label"><Icon name="alert-triangle" size={13}/> Revenue at risk</div>
+          <div className="kpi-value">{U.EUR(k.eurAtRisk)}</div>
+          <div className={`kpi-delta ${k.riskItemCount > 0 ? 'danger' : ''}`}>{k.riskItemCount} item{k.riskItemCount === 1 ? '' : 's'} across offer · invoice · installments</div>
+          <div className="kpi-icon-bg"><Icon name="alert-triangle" size={14}/></div>
+        </div>
         <div className="kpi">
           <div className="kpi-label"><Icon name="euro" size={13}/> Open Receivables</div>
           <div className="kpi-value">{U.EUR(k.openReceivables)}</div>
-          <div className="kpi-delta"><Icon name="arrow-up-right" size={12}/> +{U.EUR(4120)} this week</div>
+          <div className="kpi-delta"><Icon name="arrow-up-right" size={12}/> {U.EUR(k.agedReceivables)} aged · {U.EUR(k.newReceivables7d)} new 7d</div>
           <div className="kpi-icon-bg"><Icon name="euro" size={14}/></div>
         </div>
-        <div className="kpi">
-          <div className="kpi-label"><Icon name="package" size={13}/> Active Orders</div>
-          <div className="kpi-value">{k.activeOrders}</div>
-          <div className="kpi-delta"><Icon name="arrow-up-right" size={12}/> +18 this week</div>
-          <div className="kpi-icon-bg"><Icon name="package" size={14}/></div>
-        </div>
-        <div className="kpi" style={{ borderColor: 'color-mix(in oklab, var(--green) 30%, var(--border))' }}>
+        <div className="kpi" style={{ borderColor: 'color-mix(in oklab, var(--green) 30%, var(--border))', cursor: 'pointer' }} onClick={openFridayBatch}>
           <div className="kpi-label"><Icon name="wallet" size={13}/> Friday Releasable</div>
           <div className="kpi-value">{k.fridayCount} · {U.EUR(k.fridayEur)}</div>
-          <div className="kpi-cta" onClick={openFridayBatch}>Open Friday batch →</div>
+          <div className="kpi-cta">Open Friday batch →</div>
           <div className="kpi-icon-bg"><Icon name="wallet" size={14}/></div>
         </div>
-        <div className="kpi warn">
+        <div className="kpi warn" onClick={() => navigate('qa')} style={{ cursor: 'pointer' }}>
           <div className="kpi-label"><Icon name="shield-check" size={13}/> QA Queue</div>
           <div className="kpi-value">{k.qaPending}</div>
           <div className="kpi-delta danger"><Icon name="flame" size={12}/> {k.aiFlagged} AI flagged</div>
           <div className="kpi-icon-bg"><Icon name="shield-check" size={14}/></div>
         </div>
-        <div className={`kpi ${k.overdueInterim > 0 ? 'danger' : ''}`}>
+        <div className={`kpi ${k.overdueInterim > 0 ? 'danger' : ''}`} onClick={() => navigate('orders', { view: 'overdue' })} style={{ cursor: 'pointer' }}>
           <div className="kpi-label"><Icon name="clock" size={13}/> Overdue Interim</div>
           <div className="kpi-value">{k.overdueInterim}</div>
-          <div className={`kpi-delta ${k.overdueInterim > 0 ? 'danger' : ''}`}><Icon name="arrow-up-right" size={12}/> derived from active orders</div>
+          <div className={`kpi-delta ${k.overdueInterim > 0 ? 'danger' : ''}`}><Icon name="arrow-up-right" size={12}/> active orders past interim date</div>
           <div className="kpi-icon-bg"><Icon name="clock" size={14}/></div>
         </div>
         <div className="kpi warn">
@@ -98,7 +98,16 @@ function AdminDashboard({ navigate, openFridayBatch }) {
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 16 }}>
+        <RevenueAtRisk navigate={navigate}/>
         <NeedsYourDecision navigate={navigate}/>
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 16 }}>
+        <SlaOperational navigate={navigate}/>
+        <CashAndFriday navigate={navigate} openFridayBatch={openFridayBatch}/>
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 16, marginBottom: 16 }}>
         <TodaysDeadlines navigate={navigate}/>
       </div>
 
@@ -145,190 +154,323 @@ function AdminDashboard({ navigate, openFridayBatch }) {
   );
 }
 
-// ===== Needs Your Decision (derived) =====
-// Pulls action items live from the store. Replaces five hardcoded buttons that
-// went stale after any user action. Items are ranked by urgency:
-//   1. AI / plagiarism violations (red)
-//   2. Pending GW claim approvals
-//   3. Extension / delay requests awaiting admin
-//   4. Disputes open
-//   5. Payment-release blocked (gates fail on payment_pending order)
-//   6. Threads with financial auto-flag
-function buildDecisionItems(orders, submissions, threads) {
-  const items = [];
-  const seen = new Set();
-  const D = window.EF;
+// =============================================================================
+// Four dashboard queues. Every item below is derived live from the store by a
+// shared selector (src/core/selectors.js). The dashboard never duplicates rule
+// logic — it only renders. This guarantees counts, KPIs, and orders-list deep
+// links cannot drift apart.
+// =============================================================================
 
-  // 1. AI / plagiarism violations
-  orders.forEach(o => {
-    if (o.status === 'ai_violation_review' || o.status === 'plagiarism_violation_review') {
-      items.push({
-        kind: 'violation',
-        urgency: 1,
-        orderId: o.id,
-        title: o.status === 'ai_violation_review' ? '🚨 AI Violation' : '🚨 Plagiarism Flag',
-        body: `Order #${o.id} — ${o.title}`,
-        meta: `GW ${D.gw(o.gwId)?.name || 'unknown'} · ${o.qaFlagReason || 'flagged for admin review'}`,
-        cta: 'Review',
-        ctaTone: 'red',
-        navigate: ['order-detail', { id: o.id }],
-      });
-      seen.add(o.id);
-    }
-  });
-
-  // 2. Claim approvals
-  orders.forEach(o => {
-    if (o.status === 'claimed_pending_approval') {
-      const claimer = D.gw(o.gwId);
-      items.push({
-        kind: 'claim',
-        urgency: 2,
-        orderId: o.id,
-        title: `${claimer?.name || 'GW'} claimed Order #${o.id} — approve to start`,
-        body: `${D.WORK_TYPE_LABELS[o.workType] || o.workType} · ${o.title}`,
-        meta: `${o.pages || '—'} pages · ${o.netHonorarium ? window.EFU.EUR(o.netHonorarium) : ''} · ${o.claimedAt ? window.EFU.relTime(o.claimedAt) : ''}`,
-        cta: 'Review',
-        ctaTone: 'blue',
-        navigate: ['order-detail', { id: o.id }],
-      });
-      seen.add(o.id);
-    }
-  });
-
-  // 3. Extension / delay
-  orders.forEach(o => {
-    if (o.status === 'extension_requested' || o.status === 'delay_reported') {
-      const isExt = o.status === 'extension_requested';
-      items.push({
-        kind: 'extension',
-        urgency: 3,
-        orderId: o.id,
-        title: `${isExt ? 'Extension requested' : 'Delay reported'} · #${o.id}`,
-        body: o.title,
-        meta: isExt
-          ? `${o.extensionPending?.extraPages ? o.extensionPending.extraPages + ' extra pages · ' : ''}${o.extensionPending?.requestedAt ? window.EFU.relTime(o.extensionPending.requestedAt) : ''}`
-          : `Reason: ${o.delayReason || 'unspecified'} · proposed ${o.proposedNewDeadline ? window.EFU.fmtDate(o.proposedNewDeadline) : 'TBD'}`,
-        cta: 'Decide',
-        ctaTone: 'amber',
-        navigate: ['order-detail', { id: o.id }],
-      });
-      seen.add(o.id);
-    }
-  });
-
-  // 4. Open disputes
-  orders.forEach(o => {
-    if (o.disputeOpen && !seen.has(o.id)) {
-      items.push({
-        kind: 'dispute',
-        urgency: 4,
-        orderId: o.id,
-        title: `Dispute open · #${o.id}`,
-        body: o.title,
-        meta: `${D.customer(o.customerId)?.name || ''} · revision round ${o.revisionRounds || 0}`,
-        cta: 'Open',
-        ctaTone: 'orange',
-        navigate: ['order-detail', { id: o.id }],
-      });
-      seen.add(o.id);
-    }
-  });
-
-  // 5. Friday batch blocked (payment_pending but not all gates green)
-  const W = window.EFWorkflow;
-  orders.forEach(o => {
-    if (o.status !== 'payment_pending' || seen.has(o.id)) return;
-    const gates = W.releaseGates(o);
-    if (gates.releasable) return;
-    const reason = gates.reasons[0] || 'release blocked';
-    items.push({
-      kind: 'release_blocked',
-      urgency: 5,
-      orderId: o.id,
-      title: `Order #${o.id} ready for payment release — gate blocked`,
-      body: `${D.customer(o.customerId)?.name || ''} · GW ${D.gw(o.gwId)?.name || ''}`,
-      meta: reason,
-      cta: 'Open',
-      ctaTone: 'amber',
-      navigate: ['order-detail', { id: o.id }],
-    });
-    seen.add(o.id);
-  });
-
-  // 6. Threads flagged financial / follow-up
-  threads.forEach(t => {
-    if (t.flagged === 'financial' || t.followUp) {
-      items.push({
-        kind: 'thread_flag',
-        urgency: 6,
-        orderId: t.orderId,
-        title: t.flagged === 'financial' ? `Customer #${t.orderId} asked about pricing — auto-redirected` : `Thread flagged for follow-up · #${t.orderId}`,
-        body: t.subject,
-        meta: window.EFU.relTime(t.lastAt),
-        cta: 'Open inbox',
-        ctaTone: 'blue',
-        navigate: ['inbox'],
-      });
-    }
-  });
-
-  items.sort((a, b) => a.urgency - b.urgency);
-  return items;
-}
-
-function NeedsYourDecision({ navigate }) {
-  const orders = window.EFHooks.useOrders();
-  const submissions = window.EFHooks.useSubmissions();
-  const threads = window.EFHooks.useThreads();
-  const items = buildDecisionItems(orders, submissions, threads).slice(0, 6);
-
-  const iconFor = (k) => k === 'violation' ? 'alert-triangle'
-    : k === 'claim' ? 'feather'
-    : k === 'extension' ? 'clock'
-    : k === 'dispute' ? 'alert-triangle'
-    : k === 'release_blocked' ? 'wallet'
-    : 'message-square';
-  const iconColor = (tone) => tone === 'red' ? { bg: 'var(--red-soft)', fg: 'var(--red)' }
-    : tone === 'blue' ? { bg: 'color-mix(in oklab, var(--blue) 14%, transparent)', fg: 'var(--blue)' }
-    : tone === 'amber' ? { bg: 'var(--amber-soft)', fg: '#B45309' }
-    : tone === 'orange' ? { bg: 'color-mix(in oklab, var(--orange) 14%, transparent)', fg: 'var(--orange)' }
-    : { bg: 'var(--surface-2)', fg: 'var(--text-2)' };
-
+function QueueCard({ title, subtitle, items, emptyText, renderItem, headerCta, limit = 6 }) {
+  const visible = items.slice(0, limit);
   return (
     <div className="card">
       <div className="card-head">
-        <div className="card-title">Needs your decision</div>
-        <span className="text-faint fs-11">{items.length} item{items.length === 1 ? '' : 's'}</span>
+        <div className="card-title">{title}</div>
+        <div className="flex items-center gap-2">
+          {subtitle && <span className="text-faint fs-11">{subtitle}</span>}
+          {headerCta}
+        </div>
       </div>
       <div className="card-pad flex-col gap-2">
         {items.length === 0 && (
           <div className="text-faint fs-12" style={{ padding: '24px 12px', textAlign: 'center' }}>
             <Icon name="check-circle" size={18} className="mb-2" style={{ color: 'var(--green)' }}/>
-            <div>0 actions — all clear.</div>
+            <div>{emptyText || '0 items — all clear.'}</div>
           </div>
         )}
-        {items.map((it, i) => {
-          const c = iconColor(it.ctaTone);
+        {visible.map((it, i) => renderItem(it, i))}
+        {items.length > limit && (
+          <div className="text-faint fs-11" style={{ textAlign: 'center', paddingTop: 4 }}>
+            +{items.length - limit} more · scroll Orders for full list
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function ActionRow({ icon, iconTone, title, body, meta, cta, ctaTone, onClick, dangerLeft }) {
+  const tones = {
+    red:    { bg: 'var(--red-soft)', fg: 'var(--red)' },
+    blue:   { bg: 'color-mix(in oklab, var(--blue) 14%, transparent)', fg: 'var(--blue)' },
+    amber:  { bg: 'var(--amber-soft)', fg: '#B45309' },
+    orange: { bg: 'color-mix(in oklab, var(--orange) 14%, transparent)', fg: 'var(--orange)' },
+    green:  { bg: 'color-mix(in oklab, var(--green) 14%, transparent)', fg: 'var(--green)' },
+    slate:  { bg: 'var(--surface-2)', fg: 'var(--text-2)' },
+  };
+  const c = tones[iconTone || 'slate'];
+  return (
+    <button type="button" className="action-row" onClick={onClick} style={dangerLeft ? { borderLeft: '3px solid var(--red)' } : null}>
+      <div className="action-icon" style={{ background: c.bg, color: c.fg }}>
+        <Icon name={icon} size={16}/>
+      </div>
+      <div style={{ flex: 1, textAlign: 'left', minWidth: 0 }}>
+        <div className="text-strong fs-12" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{title}</div>
+        {body && <div className="text-muted fs-11" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{body}{meta ? ' · ' + meta : ''}</div>}
+      </div>
+      {cta && <span className={`btn btn-sm ${ctaTone === 'blue' ? 'btn-blue' : ''}`}>{cta}</span>}
+    </button>
+  );
+}
+
+function fmtAge(days) {
+  if (days == null) return '';
+  if (days < 1) return Math.max(1, Math.round(days * 24)) + 'h';
+  if (days < 7) return Math.round(days) + 'd';
+  return Math.round(days) + 'd';
+}
+
+// ===== Revenue at risk =====
+function RevenueAtRisk({ navigate }) {
+  const items = window.EFHooks.useRevenueAtRisk();
+  const totalEur = items.reduce((s, it) => s + (it.atRiskEur || 0), 0);
+  const subtitle = items.length
+    ? `${items.length} item${items.length === 1 ? '' : 's'} · ${U.EUR(totalEur)} at risk`
+    : 'All clear';
+
+  return (
+    <QueueCard
+      title="Revenue at risk"
+      subtitle={subtitle}
+      items={items}
+      emptyText="No revenue blocking inactivity — funnel healthy."
+      renderItem={(it, i) => {
+        const o = it.order;
+        const cust = D.customer(o.customerId);
+        const label = it.kind === 'needs_offer' ? 'Needs offer'
+          : it.kind === 'stale_offer' ? `Offer ${fmtAge(it.ageDays)} stale`
+          : it.kind === 'stale_invoice' ? `Invoice ${fmtAge(it.ageDays)} unpaid`
+          : it.kind === 'installment_overdue' ? `${it.overdueCount}× installment overdue`
+          : it.kind === 'cancellation_risk' ? `Idle ${fmtAge(it.ageDays)}`
+          : it.kind;
+        const icon = it.kind === 'needs_offer' ? 'file-text'
+          : it.kind === 'stale_offer' ? 'clock'
+          : it.kind === 'stale_invoice' ? 'mail'
+          : it.kind === 'installment_overdue' ? 'wallet'
+          : 'alert-triangle';
+        const tone = it.kind === 'installment_overdue' || it.urgency === 1 ? 'red'
+          : it.kind === 'cancellation_risk' ? 'amber'
+          : it.kind === 'needs_offer' ? 'blue'
+          : 'orange';
+        const cta = it.kind === 'needs_offer' ? 'Create offer'
+          : it.kind === 'stale_offer' ? 'Follow up'
+          : it.kind === 'stale_invoice' ? 'Chase payment'
+          : it.kind === 'installment_overdue' ? 'Open order'
+          : 'Decide';
+        return (
+          <ActionRow
+            key={`${it.kind}-${o.id}-${i}`}
+            icon={icon}
+            iconTone={tone}
+            title={`${label} · #${o.id}`}
+            body={cust?.name + (o.titleTBD ? '' : ' · ' + o.title)}
+            meta={`${U.EUR(it.atRiskEur || 0)}`}
+            cta={cta}
+            onClick={() => navigate('order-detail', {
+              id: o.id,
+              tab: it.kind === 'needs_offer' ? 'offer'
+                : it.kind === 'stale_invoice' || it.kind === 'installment_overdue' ? 'payments'
+                : 'communications',
+            })}
+          />
+        );
+      }}
+      headerCta={items.length ? <button type="button" className="btn btn-sm" onClick={() => navigate('orders', { view: 'at_risk' })}>View all</button> : null}
+    />
+  );
+}
+
+// ===== Needs your decision =====
+function NeedsYourDecision({ navigate }) {
+  const items = window.EFHooks.useNeedsDecision();
+  return (
+    <QueueCard
+      title="Needs your decision"
+      subtitle={`${items.length} item${items.length === 1 ? '' : 's'}`}
+      items={items}
+      emptyText="0 decisions — all clear."
+      renderItem={(it, i) => {
+        const o = it.order;
+        const cust = o ? D.customer(o.customerId) : null;
+        const labels = {
+          ai_violation: { title: o ? `🚨 AI Violation · #${o.id}` : 'AI violation', tone: 'red', icon: 'alert-triangle', cta: 'Review' },
+          plagiarism_violation: { title: o ? `🚨 Plagiarism · #${o.id}` : 'Plagiarism', tone: 'red', icon: 'alert-triangle', cta: 'Review' },
+          claim_approval: { title: `${it.claimerName || 'GW'} claimed #${o?.id} — approve to start`, tone: 'blue', icon: 'feather', cta: 'Approve' },
+          extension: { title: `Extension requested · #${o?.id}`, tone: 'amber', icon: 'plus', cta: 'Decide' },
+          delay: { title: `Delay reported · #${o?.id}`, tone: 'amber', icon: 'clock', cta: 'Decide' },
+          dispute: { title: `Dispute open · #${o?.id}`, tone: 'orange', icon: 'alert-triangle', cta: 'Open' },
+          thread_flag: { title: it.subject ? `Flagged thread · ${o ? '#' + o.id : 'lead'}` : 'Flagged thread', tone: 'blue', icon: 'message-square', cta: 'Inbox' },
+        };
+        const L = labels[it.kind] || { title: it.kind, tone: 'slate', icon: 'help-circle', cta: 'Open' };
+        const body = it.kind === 'thread_flag'
+          ? it.subject + ' · ' + (it.lastAt ? U.relTime(it.lastAt) : '')
+          : it.kind === 'ai_violation' || it.kind === 'plagiarism_violation' ? `${o?.title} · GW ${D.gw(o?.gwId)?.name || 'unknown'} · ${it.reason || ''}`
+          : it.kind === 'extension' && o?.extensionPending ? `${o.extensionPending.extraPages ? '+' + o.extensionPending.extraPages + 'p · ' : ''}${o.extensionPending.requestedAt ? U.relTime(o.extensionPending.requestedAt) : ''}`
+          : it.kind === 'delay' && o ? `${o.delayReason || ''}${o.proposedNewDeadline ? ' · new ' + U.fmtDate(o.proposedNewDeadline) : ''}`
+          : it.kind === 'dispute' && o ? `${cust?.name || ''} · revision round ${o.revisionRounds || 0}`
+          : it.kind === 'claim_approval' && o ? `${D.WORK_TYPE_LABELS[o.workType] || o.workType} · ${o.pages || '—'}p · ${o.netHonorarium ? U.EUR(o.netHonorarium) : ''}${o.claimedAt ? ' · ' + U.relTime(o.claimedAt) : ''}` : '';
+        return (
+          <ActionRow
+            key={`${it.kind}-${o ? o.id : it.threadId}-${i}`}
+            icon={L.icon}
+            iconTone={L.tone}
+            title={L.title}
+            body={body}
+            cta={L.cta}
+            ctaTone={L.tone === 'red' ? 'red' : L.tone === 'blue' ? 'blue' : null}
+            onClick={() => it.kind === 'thread_flag' ? navigate('inbox', it.threadId ? { thread: it.threadId } : {}) : navigate('order-detail', { id: o.id })}
+            dangerLeft={L.tone === 'red'}
+          />
+        );
+      }}
+      headerCta={items.length ? <button type="button" className="btn btn-sm" onClick={() => navigate('orders', { view: 'decision' })}>View all</button> : null}
+    />
+  );
+}
+
+// ===== SLA & operational =====
+function SlaOperational({ navigate }) {
+  const items = window.EFHooks.useSlaOperational();
+  return (
+    <QueueCard
+      title="SLA & operational"
+      subtitle={`${items.length} item${items.length === 1 ? '' : 's'}`}
+      items={items}
+      emptyText="All operational SLAs are green."
+      renderItem={(it, i) => {
+        const o = it.order;
+        const cust = D.customer(o.customerId);
+        const gw = D.gw(o.gwId);
+        const labels = {
+          paid_no_gw: { title: `Paid ${Math.round(it.hours)}h ago, no GW · #${o.id}`, tone: it.hours >= 48 ? 'red' : 'amber', icon: 'briefcase', cta: 'Assign' },
+          no_intro: { title: `GW assigned, no customer intro · #${o.id}`, tone: 'red', icon: 'mail', cta: 'Ping GW' },
+          interim_missed: { title: `Interim missed ${it.daysPast || 0}d · #${o.id}`, tone: 'red', icon: 'clock', cta: 'Contact GW' },
+          final_qa: { title: `Final awaiting your QA · #${o.id}`, tone: 'amber', icon: 'shield', cta: 'QA review' },
+          folgt_stale: { title: `"folgt" topic ${fmtAge(it.ageDays)} · #${o.id}`, tone: 'amber', icon: 'help-circle', cta: 'Chase' },
+        };
+        const L = labels[it.kind] || { title: it.kind, tone: 'slate', icon: 'help-circle', cta: 'Open' };
+        const body = `${cust?.name || ''}${gw ? ' · GW ' + gw.name : ''} · ${D.WORK_TYPE_LABELS[o.workType] || o.workType}`;
+        const destTab = it.kind === 'paid_no_gw' ? 'assignment'
+          : it.kind === 'no_intro' || it.kind === 'interim_missed' || it.kind === 'folgt_stale' ? 'communications'
+          : it.kind === 'final_qa' ? 'submissions'
+          : undefined;
+        return (
+          <ActionRow
+            key={`${it.kind}-${o.id}-${i}`}
+            icon={L.icon}
+            iconTone={L.tone}
+            title={L.title}
+            body={body}
+            cta={L.cta}
+            onClick={() => navigate('order-detail', { id: o.id, tab: destTab })}
+          />
+        );
+      }}
+      headerCta={items.length ? <button type="button" className="btn btn-sm" onClick={() => navigate('orders', { view: 'sla' })}>View all</button> : null}
+    />
+  );
+}
+
+// ===== Cash & Friday =====
+function CashAndFriday({ navigate, openFridayBatch }) {
+  const cash = window.EFHooks.useCashFriday();
+  const releasableEur = cash.releaseable.reduce((s, o) => s + (o.netHonorarium || 0), 0);
+  const blockedEur = cash.blocked.reduce((s, b) => s + (b.order.netHonorarium || 0), 0);
+
+  // Compose a single list of rows in priority order: blocked > refund/storno.
+  // Missing invoices are already included in blocked via releaseGates(), and
+  // are also counted separately in the small metric because they are data-fixable.
+  const rows = [];
+  cash.blocked.forEach(b => {
+    const reason = b.gates.reasons.filter(r => r !== 'Order is not awaiting Friday release')[0] || 'gates blocked';
+    rows.push({ kind: reason === 'GW invoice not received' ? 'missing_invoice' : 'blocked', order: b.order, reason });
+  });
+  cash.refundPending.forEach(o => rows.push({ kind: 'refund', order: o }));
+
+  return (
+    <div className="card">
+      <div className="card-head">
+        <div className="card-title">Cash &amp; Friday</div>
+        <div className="flex items-center gap-2">
+          <button type="button" className="btn btn-sm" onClick={() => navigate('orders', { view: 'cash' })}>View orders</button>
+          <button type="button" className="btn btn-sm" onClick={openFridayBatch}><Icon name="wallet" size={11}/> Open batch</button>
+        </div>
+      </div>
+      <div className="card-pad flex-col gap-2">
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
+          <button type="button" onClick={openFridayBatch} style={{ padding: 10, textAlign: 'left', background: 'color-mix(in oklab, var(--green) 6%, var(--surface))', border: '1px solid color-mix(in oklab, var(--green) 30%, var(--border))', borderRadius: 8, cursor: 'pointer', color: 'inherit', font: 'inherit' }}>
+            <div className="text-faint fs-11">Releasable tomorrow</div>
+            <div className="mono strong" style={{ fontSize: 18, color: 'var(--green)' }}>{cash.releaseable.length}</div>
+            <div className="text-muted fs-11">{U.EUR(releasableEur)}</div>
+          </button>
+          <button type="button" onClick={openFridayBatch} style={{ padding: 10, textAlign: 'left', background: cash.blocked.length ? 'var(--amber-soft)' : 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: 8, cursor: 'pointer', color: 'inherit', font: 'inherit' }}>
+            <div className="text-faint fs-11">Friday blocked</div>
+            <div className="mono strong" style={{ fontSize: 18, color: cash.blocked.length ? '#B45309' : 'var(--text-2)' }}>{cash.blocked.length}</div>
+            <div className="text-muted fs-11">{U.EUR(blockedEur)}</div>
+          </button>
+          <button type="button" onClick={() => navigate('orders', { view: 'cash' })} style={{ padding: 10, textAlign: 'left', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8, cursor: 'pointer', color: 'inherit', font: 'inherit' }}>
+            <div className="text-faint fs-11">GW invoice missing</div>
+            <div className="mono strong" style={{ fontSize: 18, color: cash.missingInvoice.length ? 'var(--orange)' : 'var(--text-2)' }}>{cash.missingInvoice.length}</div>
+            <div className="text-muted fs-11">payment_pending</div>
+          </button>
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 6, fontSize: 11, marginTop: 4 }}>
+          <div className="text-faint">Aging receivables</div>
+          <div className="mono"><span className="text-faint">0–30 </span>{U.EUR(cash.aged['0_30'])}</div>
+          <div className="mono"><span className="text-faint">30–60 </span>{U.EUR(cash.aged['30_60'])}</div>
+          <div className="mono"><span className="text-faint">60+ </span><span style={{ color: cash.aged['60_plus'] > 0 ? 'var(--red)' : 'var(--text-2)' }}>{U.EUR(cash.aged['60_plus'])}</span></div>
+        </div>
+        {rows.length === 0 && (
+          <div className="text-faint fs-12" style={{ padding: '12px 0', textAlign: 'center' }}>
+            <Icon name="check-circle" size={16} style={{ color: 'var(--green)', marginRight: 6 }}/>
+            All clear — no blocked, missing-invoice, or refund items.
+          </div>
+        )}
+        {rows.slice(0, 5).map((r, i) => {
+          const o = r.order;
+          const cust = D.customer(o.customerId);
+          if (r.kind === 'blocked') {
+            const destTab = r.reason?.includes('Installments') ? 'payments'
+              : r.reason?.includes('Quality') ? 'submissions'
+              : undefined;
+            return (
+              <ActionRow
+                key={`blocked-${o.id}-${i}`}
+                icon="shield"
+                iconTone="amber"
+                title={`Friday gate blocked · #${o.id}`}
+                body={`${cust?.name || ''} · ${U.EUR(o.netHonorarium || 0)}`}
+                meta={r.reason}
+                cta="Resolve"
+                onClick={() => navigate('order-detail', { id: o.id, tab: destTab })}
+              />
+            );
+          }
+          if (r.kind === 'missing_invoice') {
+            return (
+              <ActionRow
+                key={`mi-${o.id}-${i}`}
+                icon="file-text"
+                iconTone="orange"
+                title={`GW invoice missing · #${o.id}`}
+                body={`GW ${D.gw(o.gwId)?.name || ''} · ${U.EUR(o.netHonorarium || 0)}`}
+                meta={r.reason || 'blocks Friday'}
+                cta="Open"
+                onClick={() => navigate('order-detail', { id: o.id, tab: 'payments' })}
+              />
+            );
+          }
           return (
-            <button key={`${it.kind}-${it.orderId}-${i}`} type="button" className="action-row" onClick={() => navigate(...it.navigate)}>
-              <div className="action-icon" style={{ background: c.bg, color: c.fg }}>
-                <Icon name={iconFor(it.kind)} size={16}/>
-              </div>
-              <div style={{ flex: 1, textAlign: 'left' }}>
-                <div className="text-strong fs-12">
-                  {it.kind === 'violation' && <span className="pill pill-red" style={{ marginRight: 6 }}>{it.title.replace('🚨 ', '🚨 ')}</span>}
-                  {it.kind !== 'violation' && it.title}
-                  {it.kind === 'violation' && <span>{it.body}</span>}
-                </div>
-                <div className="text-muted fs-11">
-                  {it.kind === 'violation' ? it.meta : <>{it.body}{it.meta ? ' · ' + it.meta : ''}</>}
-                </div>
-              </div>
-              {it.cta === 'Review' || it.cta === 'Open' || it.cta === 'Decide' || it.cta === 'Open inbox'
-                ? <span className={`btn btn-sm ${it.ctaTone === 'blue' ? 'btn-blue' : ''}`}>{it.cta}</span>
-                : <Icon name="chevron-right" size={16} className="text-faint"/>}
-            </button>
+            <ActionRow
+              key={`r-${o.id}-${i}`}
+              icon="rotate-ccw"
+              iconTone="red"
+              title={`Refund pending · #${o.id}`}
+              body={`${cust?.name || ''} · ${U.EUR(o.paidEur || 0)} paid before storno`}
+              cta="Refund"
+              onClick={() => navigate('order-detail', { id: o.id, tab: 'payments' })}
+            />
           );
         })}
       </div>
@@ -619,16 +761,43 @@ function FunnelChart() {
 }
 
 function Heatmap() {
+  const orders = window.EFHooks.useOrders();
+  const ghostwriters = window.EFHooks.useGhostwriters();
   const days = Array.from({length: 14}, (_, i) => {
     const d = new Date('2026-05-08');
     d.setDate(d.getDate() + i);
-    return { d: d.getDate(), label: ['So','Mo','Di','Mi','Do','Fr','Sa'][d.getDay()] };
+    const start = new Date(d); start.setHours(0, 0, 0, 0);
+    const end = new Date(d); end.setHours(23, 59, 59, 999);
+    return { d: d.getDate(), date: d, start, end, label: ['So','Mo','Di','Mi','Do','Fr','Sa'][d.getDay()] };
   });
-  const gws = D.GHOSTWRITERS.filter(g => !g.isOwner).slice(0, 11);
-  const heat = (gw, dayIdx) => {
-    const seed = (gw.id.charCodeAt(3) + dayIdx) * 7 % 6;
-    if (gw.banned) return 0;
-    return seed;
+  const gws = ghostwriters.filter(g => !g.isOwner).slice(0, 11);
+  const openStatuses = new Set(window.EFSelectors.ACTIVE_GW_ORDER_STATUSES);
+  const sameDay = (iso, day) => {
+    if (!iso) return false;
+    const d = new Date(iso);
+    return d >= day.start && d <= day.end;
+  };
+  const activeOnDay = (order, day) => {
+    if (!openStatuses.has(order.status)) return false;
+    const start = new Date(order.assignedAt || order.claimApprovedAt || order.acceptedAt || order.claimedAt || order.leadCreatedAt || '2026-05-07T00:00:00');
+    if (start > day.end) return false;
+    const final = order.finalDeadline ? new Date(order.finalDeadline) : null;
+    if (!final) return true;
+    return final >= day.start || ['revision_required','final_submitted','qa_review','delay_reported','extension_requested'].includes(order.status);
+  };
+  const loadFor = (gw, day) => {
+    if (gw.banned) return { value: 0, active: 0, due: 0 };
+    const assigned = orders.filter(o => o.gwId === gw.id && activeOnDay(o, day));
+    const due = assigned.filter(o =>
+      sameDay(o.interimDeadline, day) ||
+      sameDay(o.interim2Deadline, day) ||
+      sameDay(o.finalDeadline, day)
+    );
+    return {
+      value: Math.min(5, assigned.length + due.length),
+      active: assigned.length,
+      due: due.length,
+    };
   };
   return (
     <div style={{ display: 'inline-grid', gridTemplateColumns: 'auto repeat(14, 28px)', gap: 3, fontSize: 11 }}>
@@ -647,8 +816,8 @@ function Heatmap() {
             {gw.banned && <Icon name="eye" size={11} className="text-faint" />}
           </div>
           {days.map((_, i) => {
-            const v = heat(gw, i);
-            return <div key={i} className={`heat-cell heat-${v}`} title={`${gw.name} · day ${i+1}: ${v} active`} />;
+            const load = loadFor(gw, days[i]);
+            return <div key={i} className={`heat-cell heat-${load.value}`} title={`${gw.name} · ${load.active} active assignment${load.active === 1 ? '' : 's'} · ${load.due} deadline${load.due === 1 ? '' : 's'}`} />;
           })}
         </React.Fragment>
       ))}
