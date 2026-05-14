@@ -9,13 +9,11 @@ const D = window.EF;
 // GW — First-contact wizard (SOP D)
 // ====================================================================
 function GWFirstContact({ orderId, navigate, toast }) {
-  const order = D.order(orderId);
-  if (!order) return <div className="page">Assignment not found.</div>;
-  const cust = D.customer(order.customerId);
-  const [step, setStep] = useStateA(1);
-  const [confirmed, setConfirmed] = useStateA(false);
-  const baseSubject = `Auftrag #${orderId} · ${D.WORK_TYPE_LABELS[order.workType]} — Erstkontakt`;
-  const baseBody = `Hallo ${cust?.name?.split(' ')[0] || ''},
+  const order = window.EFHooks.useOrder(orderId);
+  const cust = order ? D.customer(order.customerId) : null;
+  const receiptAlreadyConfirmed = !!order?.firstContactReceiptConfirmedAt;
+  const baseSubject = order ? `Auftrag #${orderId} · ${D.WORK_TYPE_LABELS[order.workType]} — Erstkontakt` : '';
+  const baseBody = order ? `Hallo ${cust?.name?.split(' ')[0] || ''},
 
 ich freue mich, dass ich Ihren Auftrag übernehmen darf. Kurz zur Bestätigung:
 
@@ -34,15 +32,81 @@ Wichtig — Bitte beachten:
 • Antwortzeit von meiner Seite: i. d. R. innerhalb von 24 Stunden, Mo–Fr 18–23 Uhr.
 
 Beste Grüße
-Isabel Walter`;
+Isabel Walter` : '';
+  const [step, setStep] = useStateA(receiptAlreadyConfirmed ? 2 : 1);
+  const [confirmed, setConfirmed] = useStateA(receiptAlreadyConfirmed);
   const [subject, setSubject] = useStateA(baseSubject);
   const [body, setBody] = useStateA(baseBody);
+  const [sending, setSending] = useStateA(false);
 
-  const finishConfirm = () => { setConfirmed(true); setStep(2); toast({ text: 'Receipt confirmed to efactory1 · proceed to customer email', tone: 'success' }); };
+  useEffectA(() => {
+    if (!order) return;
+    setSubject(baseSubject);
+    setBody(baseBody);
+  }, [order?.id]);
+
+  useEffectA(() => {
+    if (!receiptAlreadyConfirmed) return;
+    setConfirmed(true);
+    setStep(s => Math.max(s, 2));
+  }, [receiptAlreadyConfirmed]);
+
+  if (!order) return <div className="page">Assignment not found.</div>;
+
+  const finishConfirm = () => {
+    const ok = window.EFActions.gw.confirmFirstContactReceipt(order.id);
+    if (!ok) return;
+    setConfirmed(true);
+    setStep(2);
+    toast && toast({ text: 'Receipt confirmed to efactory1 · proceed to customer email', tone: 'success' });
+  };
   const sendEmail = () => {
-    toast({ text: `Email sent to ${cust?.name} · CC kundenservice@efactory1.de`, tone: 'success' });
+    if (sending) return;
+    setSending(true);
+    const msg = window.EFActions.gw.completeFirstContact(order.id, { subject, body });
+    if (!msg) {
+      setSending(false);
+      return;
+    }
+    toast && toast({
+      text: `Email sent to ${cust?.name} · CC kundenservice@efactory1.de`,
+      tone: 'success',
+    });
     setTimeout(() => navigate('order-detail', { id: orderId }), 600);
   };
+
+  if (order.firstContactDone) {
+    return (
+      <div className="page" style={{ maxWidth: 720, margin: '0 auto' }}>
+        <div className="page-header">
+          <div>
+            <CrumbBar trail={['Ghostwriter', 'My Assignments', `#${orderId}`, 'First contact']}/>
+            <h1 className="page-title" style={{ marginTop: 6 }}>First contact complete · #{orderId}</h1>
+            <div className="page-subtitle">The intro email is recorded on the shared order thread.</div>
+          </div>
+          <div className="page-actions">
+            <button type="button" className="btn" onClick={() => navigate('order-detail', { id: orderId })}><Icon name="chevron-left" size={14}/> Back</button>
+          </div>
+        </div>
+        <div className="card">
+          <div className="card-pad flex-col gap-3">
+            <div className="banner success">
+              <Icon name="check-circle" size={14}/>
+              <span>Receipt confirmed and first customer contact sent · efactory1 is in CC.</span>
+            </div>
+            <div className="kv" style={{ fontSize: 12 }}>
+              <div className="kv-row"><dt>Receipt confirmed</dt><dd>{order.firstContactReceiptConfirmedAt ? U.relTime(order.firstContactReceiptConfirmedAt) : 'Recorded'}</dd></div>
+              <div className="kv-row"><dt>Intro email</dt><dd>{order.firstContactDoneAt ? U.relTime(order.firstContactDoneAt) : 'Sent'}</dd></div>
+              <div className="kv-row"><dt>Thread</dt><dd className="mono">{order.firstContactThreadId || 'shared order thread'}</dd></div>
+            </div>
+            <button type="button" className="btn btn-primary" onClick={() => navigate('order-detail', { id: orderId })} style={{ alignSelf: 'flex-start' }}>
+              <Icon name="chevron-left" size={14}/> Back to assignment
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="page" style={{ maxWidth: 820, margin: '0 auto' }}>
@@ -104,13 +168,11 @@ Isabel Walter`;
             <textarea value={body} onChange={e => setBody(e.target.value)} style={{ width: '100%', minHeight: 320, border: '1px solid var(--border)', borderRadius: 8, padding: 10, fontFamily: 'inherit', fontSize: 12, resize: 'vertical', background: 'var(--surface)', lineHeight: 1.55 }}/>
             <div className="text-faint fs-11 mt-1">Template includes: topic confirmation, scope, deadlines, file-flow rule, financial firewall, response SLA.</div>
           </div>
-          <button type="button" className="btn btn-primary" onClick={sendEmail} style={{ alignSelf: 'flex-start' }}><Icon name="send" size={14}/> Send email · CC kundenservice@efactory1.de</button>
+          <button type="button" className="btn btn-primary" onClick={sendEmail} disabled={sending || !body.trim()} style={{ alignSelf: 'flex-start' }}><Icon name="send" size={14}/> {sending ? 'Sending…' : 'Send email · CC kundenservice@efactory1.de'}</button>
         </div></div>
       )}
     </div>
   );
 }
-window.GWFirstContact = GWFirstContact;
-
 window.GWFirstContact = GWFirstContact;
 })();

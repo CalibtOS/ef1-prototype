@@ -14,7 +14,7 @@ const W = window.EFWorkflow;
 function GWAssignmentDetail({ orderId, navigate, toast }) {
   const thread = window.EFHooks.useThreadByOrder(orderId);
   const displaySubs = window.EFHooks.useDisplaySubmissions(orderId);
-  const order = D.liveOrder(orderId);
+  const order = window.EFHooks.useOrder(orderId);
   if (!order) return <div className="page">Assignment not found.</div>;
   // Ownership guard — a GW may only view assignments where they are the assigned writer
   // OR the order is on the public job board. Otherwise no leakage of customer/order data.
@@ -48,13 +48,20 @@ function GWAssignmentDetail({ orderId, navigate, toast }) {
   const isRevision = order.status === 'revision_required';
   const specAttachments = [order.outlineAttachment, order.exposeAttachment].filter(Boolean);
   const hasGwContact = (thread?.messages || []).some(m => m.from === 'gw' || m.from === 'customer');
+  const hasFirstContactThread = !!(
+    order.firstContactDone ||
+    order.firstContactDoneAt ||
+    order.firstContactMessageId ||
+    order.firstContactThreadId ||
+    (thread?.messages || []).some(m => m.policy_exemption === 'sop_first_contact_template' || m.origin_channel === 'first_contact_wizard')
+  );
   const latestCustomerMessage = [...(thread?.messages || [])].reverse().find(m => m.from === 'customer');
   const revisionAt = order.lastFeedbackAt || order.lastCustomerFeedbackAt || latestCustomerMessage?.at;
   const visibleMessages = [...(thread?.messages || [])]
-    .filter(m => !/preis|kosten|rabatt|nachlass|raten|geld|honorar|bezahl|rechnung|euro|€/i.test(m.body || ''))
+    .filter(m => m.policy_exemption === 'sop_first_contact_template' || !/preis|kosten|rabatt|nachlass|raten|geld|honorar|bezahl|rechnung|euro|€/i.test(m.body || ''))
     .slice(-3);
   // First-contact wizard surfaces only after approval, before any submission, and once per assignment.
-  const showFirstContact = isApproved && order.status === 'active' && !order.firstContactDone && !hasGwContact;
+  const showFirstContact = isApproved && order.status === 'active' && !hasFirstContactThread && !hasGwContact;
 
   const stages = [
     { id: 'pending', label: 'Pending Approval', done: !isPending },

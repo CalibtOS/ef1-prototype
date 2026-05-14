@@ -1,61 +1,27 @@
 // Named business actions. All entity writes should go through here.
+//
+// Plumbing (patchEntity/upsertEntity/selector shortcuts/toast) lives in
+// `_internals.js`. Notifications live in `notifications.js`. Threads/messaging
+// lives in `threads.js`. This file is the order-lifecycle state machine:
+// claim → assign → submit → QA → customer accept → payment release, plus
+// admin resolution paths (extension/delay/dispute/violation).
 ;(function(){
 const store = window.EFStore;
 const S = window.EFSelectors;
 const W = window.EFWorkflow;
+const I = window.EFInternals;
+const N = window.EFNotifications;
+const T = window.EFThreads;
 
-function nowIso() {
-  return new Date().toISOString();
-}
-
-function updateTable(kind, updater, label) {
-  store.setState(prev => ({
-    ...prev,
-    entities: { ...prev.entities, [kind]: updater(prev.entities[kind]) },
-  }), label);
-}
-
-function patchEntity(kind, id, patch, label) {
-  updateTable(kind, table => store.tablePatch(table, id, patch), label || `${kind}.patch`);
-}
-
-function upsertEntity(kind, item, label) {
-  updateTable(kind, table => store.tableUpsert(table, item), label || `${kind}.upsert`);
-}
-
-function order(id) {
-  return S.selectOrder(store.getState(), id);
-}
-
-function gw(id) {
-  return S.selectGhostwriter(store.getState(), id);
-}
-
-function customer(id) {
-  return S.selectCustomer(store.getState(), id);
-}
-
-function toast(payload) {
-  if (window.efToast) window.efToast(payload);
-}
-
-function notify(payload) {
-  const targets = Array.isArray(payload.to) ? payload.to : [payload.to || 'admin'];
-  const id = payload.id || ('n-live-' + Date.now() + '-' + Math.random().toString(36).slice(2, 7));
-  const note = {
-    id,
-    to: targets,
-    kind: payload.kind || 'event',
-    title: payload.title || 'Notification',
-    body: payload.body || '',
-    urgent: !!payload.urgent,
-    read: false,
-    at: payload.at || nowIso(),
-  };
-  upsertEntity('notifications', note, 'notifications.add');
-  try { window.dispatchEvent(new CustomEvent('efactory:notify', { detail: note })); } catch(e) {}
-  return note;
-}
+const nowIso = I.nowIso;
+const updateTable = I.updateTable;
+const patchEntity = I.patchEntity;
+const upsertEntity = I.upsertEntity;
+const order = I.order;
+const gw = I.gw;
+const customer = I.customer;
+const toast = I.toast;
+const notify = N.notify;
 
 function patchOrder(id, patch) {
   patchEntity('orders', id, prev => ({ ...prev, ...(typeof patch === 'function' ? patch(prev) : patch) }), 'orders.patch');
@@ -153,6 +119,71 @@ function claimJob(orderId, gwId) {
   const g = gw(actualGwId);
   notify({ to: 'admin', kind: 'claim_pending_your_approval', title: `Claim awaiting approval · #${orderId}`, body: `${g?.name || 'GW'} claimed this job · 6 acknowledgements signed` });
   return true;
+}
+
+function confirmFirstContactReceipt(orderId) {
+  const o = order(orderId);
+  if (!o) return false;
+  const currentGwId = store.getState().session.gwId;
+  if (o.gwId !== currentGwId) {
+    toast({ text: 'This assignment is not assigned to your account.', tone: 'danger' });
+    return false;
+  }
+  if (o.status !== 'active') {
+    toast({ text: 'First contact is only available while the assignment is active.', tone: 'danger' });
+    return false;
+  }
+  if (o.firstContactReceiptConfirmedAt) return true;
+  const at = nowIso();
+  patchOrder(orderId, {
+    firstContactReceiptConfirmedAt: at,
+    firstContactReceiptConfirmedBy: currentGwId,
+  });
+  notify({
+    to: 'admin',
+    kind: 'first_contact_receipt_confirmed',
+    title: `Receipt confirmed · #${orderId}`,
+    body: `${gw(currentGwId)?.name || 'GW'} confirmed the assignment email and is preparing first customer contact.`,
+  });
+  return true;
+}
+
+function completeFirstContact(orderId, payload = {}) {
+  const o = order(orderId);
+  if (!o) return null;
+  if (!confirmFirstContactReceipt(orderId)) return null;
+
+  const beforeThread = T.selectThreadByOrder(store.getState(), orderId);
+  const msg = T.send({
+    orderId,
+    role: 'gw',
+    body: payload.body || '',
+    origin_channel: 'first_contact_wizard',
+    delivery_channel: 'email',
+    external_ref: `first-contact-${orderId}`,
+    financialPolicyExempt: true,
+    policy_exemption: 'sop_first_contact_template',
+  });
+  if (!msg) {
+    toast({ text: 'Intro email body is empty.', tone: 'danger' });
+    return null;
+  }
+
+  const subject = (payload.subject || '').trim();
+  if (!beforeThread && subject) {
+    patchEntity('threads', msg.threadId, prev => ({ ...prev, subject }), 'threads.firstContact.subject');
+  }
+  patchOrder(orderId, prev => ({
+    ...prev,
+    firstContactDone: true,
+    firstContactDoneAt: prev.firstContactDoneAt || msg.at,
+    firstContactMessageId: msg.id,
+    firstContactThreadId: msg.threadId,
+    firstContactSubject: subject || prev.firstContactSubject || null,
+    firstContactReceiptConfirmedAt: prev.firstContactReceiptConfirmedAt || msg.at,
+    firstContactReceiptConfirmedBy: prev.firstContactReceiptConfirmedBy || store.getState().session.gwId,
+  }));
+  return msg;
 }
 
 function submitWork(orderId, payload = {}) {
@@ -475,250 +506,12 @@ function shadowBan(gwId, payload = {}) {
   return true;
 }
 
-function markAllNotificationsRead(role) {
-  updateTable('notifications', table => {
-    const byId = { ...table.byId };
-    table.allIds.forEach(id => {
-      const n = byId[id];
-      const targets = Array.isArray(n.to) ? n.to : [n.to || 'admin'];
-      if (targets.includes(role) || targets.includes('all')) byId[id] = { ...n, read: true };
-    });
-    return { ...table, byId };
-  }, 'notifications.markAllRead');
-}
-
 function setRole(role) {
   store.setState(prev => ({ ...prev, session: { ...prev.session, role } }), 'session.setRole');
 }
 
 function setRoute(route) {
   store.setState(prev => ({ ...prev, ui: { ...prev.ui, route } }), 'ui.setRoute');
-}
-
-// ============ THREADS / MESSAGING (A1) ============
-//
-// Threads live in state.entities.threads with shape:
-//   { id, orderId, customerId, gwId, subject, channel, sentiment, lastAt,
-//     flagged, followUp, snoozeUntil, lastInboundAt, lastOutboundAt,
-//     unread: { admin: N, gw: N, customer: N },
-//     messages: [{ id, threadId, from, body, at, origin_channel, delivery_channel,
-//       external_ref?, attachments?, autoflag?, system? }] }
-//
-// All composer surfaces (admin/inbox.jsx, gw/messages.jsx, customer/view.jsx)
-// route through `threads.send` so a message sent in one persona is visible to
-// the others on role switch.
-const FINANCIAL_KEYWORD_RE = /preis|kosten|rabatt|nachlass|raten|geld|honorar|bezahl|rechnung|euro|€/i;
-
-function selectThread(state, threadId) {
-  return S.byId(state.entities.threads, threadId);
-}
-
-function selectThreadByOrder(state, orderId) {
-  const threads = state.entities.threads;
-  const id = (threads.allIds || []).find(tid => Number(threads.byId[tid]?.orderId) === Number(orderId));
-  return id ? threads.byId[id] : null;
-}
-
-function newMessageId(threadId) {
-  return `${threadId}-m-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 5)}`;
-}
-
-function normalizeChannel(value) {
-  if (value === 'email_proxy') return 'email';
-  if (value === 'whatsapp_proxy') return 'whatsapp';
-  if (value === 'platform_chat') return 'platform';
-  if (value === 'voice_metadata') return 'voice';
-  if (value === 'multi_channel') return 'multi';
-  return value || 'platform';
-}
-
-function ensureThreadForOrder(orderId, sender) {
-  const state = store.getState();
-  const existing = selectThreadByOrder(state, orderId);
-  if (existing) return existing;
-  const o = order(orderId);
-  if (!o) return null;
-  const id = `t-live-${orderId}`;
-  const thread = {
-    id,
-    orderId: Number(orderId),
-    customerId: o.customerId,
-    gwId: o.gwId || null,
-    subject: o.title || `Auftrag #${orderId}`,
-    channel: 'multi_channel',
-    sentiment: 'neutral',
-    lastAt: nowIso(),
-    lastInboundAt: null,
-    lastOutboundAt: null,
-    flagged: false,
-    followUp: false,
-    snoozeUntil: null,
-    unread: { admin: 0, gw: 0, customer: 0 },
-    messages: [],
-  };
-  upsertEntity('threads', thread, 'threads.create');
-  return thread;
-}
-
-function appendMessage(threadId, message, label) {
-  patchEntity('threads', threadId, prev => {
-    const messages = [...(prev.messages || []), message];
-    return {
-      ...prev,
-      messages,
-      lastAt: message.at,
-      lastInboundAt: (message.from === 'customer' || message.from === 'gw') ? message.at : (prev.lastInboundAt || null),
-      lastOutboundAt: message.from === 'admin' ? message.at : (prev.lastOutboundAt || null),
-    };
-  }, label || 'threads.appendMessage');
-}
-
-function bumpUnread(threadId, recipientRoles) {
-  patchEntity('threads', threadId, prev => {
-    const unread = { admin: 0, gw: 0, customer: 0, ...(prev.unread || {}) };
-    recipientRoles.forEach(r => { unread[r] = (unread[r] || 0) + 1; });
-    return { ...prev, unread };
-  }, 'threads.bumpUnread');
-}
-
-function recipientsForThread(thread, senderRole) {
-  // Admin always observes (CC). The other side of the conversation gets a ping.
-  const all = ['admin', 'gw', 'customer'];
-  return all.filter(r => r !== senderRole);
-}
-
-function sendMessage(payload = {}) {
-  const role = payload.role || store.getState().session.role || 'admin';
-  const orderId = payload.orderId;
-  let threadId = payload.threadId;
-  let thread = threadId
-    ? selectThread(store.getState(), threadId)
-    : (orderId != null ? selectThreadByOrder(store.getState(), orderId) : null);
-
-  if (!thread && orderId != null) {
-    thread = ensureThreadForOrder(orderId, role);
-  }
-  if (!thread) {
-    toast({ text: 'Thread not found', tone: 'danger' });
-    return null;
-  }
-  threadId = thread.id;
-
-  const body = (payload.body || '').trim();
-  if (!body && !(payload.attachments && payload.attachments.length)) return null;
-
-  const at = nowIso();
-  const isFinancial = role !== 'admin' && FINANCIAL_KEYWORD_RE.test(body);
-  const threadDefaultChannel = normalizeChannel(thread.channel);
-  const defaultDelivery = threadDefaultChannel === 'voice' || threadDefaultChannel === 'multi' ? 'email' : threadDefaultChannel;
-  const message = {
-    id: newMessageId(threadId),
-    threadId,
-    from: role,
-    body,
-    at,
-    origin_channel: payload.origin_channel || (role === 'admin' ? 'admin' : 'platform'),
-    delivery_channel: payload.delivery_channel || payload.channel || defaultDelivery,
-    external_ref: payload.external_ref || null,
-    autoflag: isFinancial ? 'financial' : null,
-    system: false,
-  };
-  if (payload.attachments && payload.attachments.length) message.attachments = payload.attachments;
-  appendMessage(threadId, message, 'threads.send');
-
-  // Always bump unread for non-sender roles. The financial system message
-  // (below) bumps admin again so the redirect is unmistakable in the bell.
-  bumpUnread(threadId, recipientsForThread(thread, role));
-
-  if (isFinancial) {
-    const sysMsg = {
-      id: newMessageId(threadId) + '-sys',
-      threadId,
-      from: 'system',
-      body: 'Finanzbezug erkannt — Anfrage automatisch an kundenservice@efactory1.de weitergeleitet. Der Ghostwriter darf finanzielle Themen nicht besprechen.',
-      at: nowIso(),
-      origin_channel: 'system',
-      delivery_channel: 'internal',
-      external_ref: null,
-      system: true,
-      autoflag: 'financial',
-    };
-    appendMessage(threadId, sysMsg, 'threads.financialRedirect');
-    patchEntity('threads', threadId, { flagged: 'financial' }, 'threads.flagFinancial');
-    notify({
-      to: 'admin',
-      kind: 'message_redirected',
-      title: `Finanzfrage umgeleitet · #${thread.orderId}`,
-      body: 'Customer fragte nach Preisen/Raten. Auto-Redirect an kundenservice@efactory1.de.',
-      urgent: false,
-    });
-  }
-
-  // Notify the other participants. Skip admin notification if it's the financial
-  // path (already covered above) and skip self.
-  const senderName = role === 'gw'
-    ? (gw(thread.gwId)?.name || 'Ghostwriter')
-    : role === 'customer'
-      ? (customer(thread.customerId)?.name || 'Kunde')
-      : 'efactory1';
-  const previewBody = body.length > 90 ? body.slice(0, 90) + '…' : body;
-  const recipients = recipientsForThread(thread, role)
-    .filter(r => !(isFinancial && r === 'admin'));
-  if (recipients.length) {
-    notify({
-      to: recipients,
-      kind: 'message_received',
-      title: `Neue Nachricht · #${thread.orderId}`,
-      body: `${senderName}: ${previewBody}`,
-      urgent: false,
-    });
-  }
-
-  return message;
-}
-
-function markThreadRead(threadId, role) {
-  if (!threadId || !role) return false;
-  patchEntity('threads', threadId, prev => {
-    const unread = { admin: 0, gw: 0, customer: 0, ...(prev.unread || {}) };
-    unread[role] = 0;
-    return { ...prev, unread };
-  }, 'threads.markRead');
-  return true;
-}
-
-function redirectThread(threadId) {
-  const thread = selectThread(store.getState(), threadId);
-  if (!thread) return false;
-  const sysMsg = {
-    id: newMessageId(threadId) + '-redir',
-    threadId,
-    from: 'system',
-    body: 'Admin hat diesen Thread an kundenservice@efactory1.de weitergeleitet. Bitte alle Finanzfragen dort fortführen.',
-    at: nowIso(),
-    system: true,
-    autoflag: 'financial',
-  };
-  appendMessage(threadId, sysMsg, 'threads.redirect');
-  patchEntity('threads', threadId, { flagged: 'financial' }, 'threads.flagFinancial');
-  notify({
-    to: 'customer',
-    kind: 'message_redirected',
-    title: `Anfrage an Kundenservice weitergeleitet · #${thread.orderId}`,
-    body: 'Wir kümmern uns von dort um Ihre Frage.',
-  });
-  return true;
-}
-
-function flagThreadFollowUp(threadId) {
-  patchEntity('threads', threadId, prev => ({ ...prev, followUp: !prev.followUp }), 'threads.followUp');
-  return true;
-}
-
-function snoozeThread(threadId, hours = 4) {
-  const ms = Date.now() + hours * 3600 * 1000;
-  patchEntity('threads', threadId, { snoozeUntil: new Date(ms).toISOString() }, 'threads.snooze');
-  return true;
 }
 
 const actions = {
@@ -743,6 +536,8 @@ const actions = {
   },
   gw: {
     claimJob,
+    confirmFirstContactReceipt,
+    completeFirstContact,
     submit: submitWork,
     reportDelay,
     requestExtension,
@@ -761,18 +556,15 @@ const actions = {
   },
   payments: { releaseBatch },
   gws: { shadowBan },
-  notifications: { markAllRead: markAllNotificationsRead },
+  notifications: { markAllRead: N.markAllRead },
   threads: {
-    send: sendMessage,
-    markRead: markThreadRead,
-    redirect: redirectThread,
-    flagFollowUp: flagThreadFollowUp,
-    snooze: snoozeThread,
+    send: T.send,
+    markRead: T.markRead,
+    redirect: T.redirect,
+    flagFollowUp: T.flagFollowUp,
+    snooze: T.snooze,
   },
 };
 
 window.EFActions = actions;
-
-// Backward-compatible shims for any not-yet-migrated demo hooks.
-window.efNotify = notify;
 })();

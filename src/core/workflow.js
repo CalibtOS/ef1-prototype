@@ -450,6 +450,8 @@ function buildOrderEvents(order, context) {
   if (dates.boardAt && rank >= 4 && !order.selfAssigned) addEvent(events, event('jobboard.published', dates.boardAt, 'Order published to GW job board', { icon: 'briefcase', dot: 'blue', domain: 'assignment' }));
   if (dates.claimedAt && order.gwId && !order.selfAssigned) addEvent(events, event('gw.claimed', dates.claimedAt, `${gw?.name || 'GW'} claimed the assignment`, { icon: 'feather', dot: order.status === 'claimed_pending_approval' ? 'amber' : 'blue', domain: 'assignment', detail: order.status === 'claimed_pending_approval' ? 'Awaiting admin approval.' : 'Claim approved later by admin.' }));
   if (dates.assignedAt && order.gwId) addEvent(events, event('gw.assigned', dates.assignedAt, order.selfAssigned ? 'Self-assigned to Berat' : `${gw?.name || 'GW'} assigned and customer intro sent`, { icon: 'user', dot: 'green', domain: 'assignment', detail: order.selfAssigned ? 'Hidden from GW board; no external GW payout.' : 'GW briefing and customer intro emails are part of the assignment event.' }));
+  if (order.firstContactReceiptConfirmedAt) addEvent(events, event('gw.first_contact.receipt', order.firstContactReceiptConfirmedAt, 'GW confirmed assignment receipt to efactory1', { icon: 'check', dot: 'green', domain: 'assignment', detail: gw?.name || null }));
+  if (order.firstContactDoneAt) addEvent(events, event('gw.first_contact.sent', order.firstContactDoneAt, 'First customer contact sent', { icon: 'mail', dot: 'green', domain: 'communications', detail: order.firstContactSubject || 'efactory1 in CC' }));
 
   submissions.forEach(s => {
     if (isInterimKind(s.kind)) {
