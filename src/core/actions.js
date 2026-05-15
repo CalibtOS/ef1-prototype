@@ -5,13 +5,12 @@
 // lives in `threads.js`. This file is the order-lifecycle state machine:
 // claim → assign → submit → QA → customer accept → payment release, plus
 // admin resolution paths (extension/delay/dispute/violation).
-;(function(){
-const store = window.EFStore;
-const S = window.EFSelectors;
-const W = window.EFWorkflow;
-const I = window.EFInternals;
-const N = window.EFNotifications;
-const T = window.EFThreads;
+import store from './store.js';
+import * as S from './selectors.js';
+import * as W from './workflow.js';
+import * as I from './internals.js';
+import * as N from './notifications.js';
+import * as T from './threads.js';
 
 const nowIso = I.nowIso;
 const updateTable = I.updateTable;
@@ -708,5 +707,4 @@ const actions = {
   },
 };
 
-window.EFActions = actions;
-})();
+export default actions;

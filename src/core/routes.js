@@ -1,5 +1,7 @@
 // Central route names, hash parsing/building, defaults, and sidebar nav metadata.
-;(function(){
+import * as S from './selectors.js';
+import * as W from './workflow.js';
+
 const ROUTES = {
   ADMIN_DASHBOARD: 'admin-dashboard',
   ORDERS: 'orders',
@@ -101,8 +103,6 @@ const NAV_ROUTE_MAP = {
 };
 
 function navItems(role, state) {
-  const S = window.EFSelectors;
-  const W = window.EFWorkflow;
   const orders = S.selectAllOrders(state);
   const submissions = S.selectAllSubmissions(state);
   if (role === 'admin') {
@@ -159,5 +159,4 @@ function navItems(role, state) {
   ];
 }
 
-window.EFRoutes = { ROUTES, NAV_ROUTE_MAP, defaultRouteFor, parseHash, buildHash, navItems };
-})();
+export { ROUTES, NAV_ROUTE_MAP, defaultRouteFor, parseHash, buildHash, navItems };

@@ -10,11 +10,10 @@
 // All composer surfaces (admin/inbox.jsx, gw/messages.jsx, customer/view.jsx)
 // route through `send` so a message sent in one persona is visible to the
 // others on role switch.
-;(function(){
-const store = window.EFStore;
-const S = window.EFSelectors;
-const I = window.EFInternals;
-const N = window.EFNotifications;
+import store from './store.js';
+import * as S from './selectors.js';
+import * as I from './internals.js';
+import * as N from './notifications.js';
 
 const FINANCIAL_KEYWORD_RE = /preis|kosten|rabatt|nachlass|raten|geld|honorar|bezahl|rechnung|euro|€/i;
 
@@ -251,7 +250,7 @@ function snooze(threadId, hours = 4) {
   return true;
 }
 
-window.EFThreads = {
+export {
   send,
   markRead,
   redirect,
@@ -261,4 +260,3 @@ window.EFThreads = {
   selectThreadByOrder,
   ensureThreadForOrder,
 };
-})();

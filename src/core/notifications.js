@@ -1,8 +1,8 @@
 // Notification fan-out. Every action that wants to ping a role bell goes
 // through `notify` here — it owns the entity write + the `efactory:notify`
 // DOM event for live listeners.
-;(function(){
-const I = window.EFInternals;
+import * as I from './internals.js';
+import store from './store.js';
 
 function inferOrderId(payload) {
   if (payload.orderId != null) return Number(payload.orderId);
@@ -12,7 +12,7 @@ function inferOrderId(payload) {
 }
 
 function matchesSessionAudience(note, role) {
-  const state = window.EFStore?.getState?.();
+  const state = store.getState?.();
   if (!state || !role) return true;
   if (role === 'gw' && note.gwId && note.gwId !== state.session.gwId) return false;
   if (role === 'customer' && note.customerId && note.customerId !== state.session.customerId) return false;
@@ -73,8 +73,4 @@ function markRead(id, role) {
   }, 'notifications.markRead');
 }
 
-window.EFNotifications = { notify, markAllRead, markRead };
-
-// Backward-compatible shim for any not-yet-migrated demo hooks.
-window.efNotify = notify;
-})();
+export { notify, markAllRead, markRead };

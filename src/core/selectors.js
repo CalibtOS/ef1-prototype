@@ -1,6 +1,6 @@
 // Derived reads. Components should prefer hooks that wrap these selectors.
-;(function(){
-const W = window.EFWorkflow;
+import * as W from './workflow.js';
+import { liveNow } from '../../data.js';
 
 function tableItems(table) {
   return (table?.allIds || []).map(id => table.byId[id]).filter(Boolean);
@@ -216,7 +216,7 @@ function hasCustomerThreadActivityAfter(state, orderId, iso) {
 // Anything where money is leaking (or about to) from inaction at the top of the funnel.
 function selectRevenueAtRisk(state) {
   const orders = selectAllOrders(state);
-  const now = window.EF?.DEMO_NOW || new Date();
+  const now = liveNow();
   const items = [];
   const seen = new Set();
   const push = (kind, order, opts) => {
@@ -293,7 +293,7 @@ function selectNeedsDecision(state) {
     else if (o.status === 'plagiarism_violation_review') push('plagiarism_violation', 1, o, { reason: o.qaFlagReason || `Plagiarism ${o.plagiarismScore || '—'}%` });
   });
   orders.forEach(o => {
-    if (o.status === 'claimed_pending_approval') push('claim_approval', 2, o, { claimerName: window.EF?.gw?.(o.gwId)?.name });
+    if (o.status === 'claimed_pending_approval') push('claim_approval', 2, o, { claimerName: selectGhostwriter(state, o.gwId)?.name });
   });
   orders.forEach(o => {
     if (o.status === 'extension_requested') push('extension', 3, o);
@@ -319,7 +319,7 @@ function selectNeedsDecision(state) {
 function selectSlaOperational(state) {
   const orders = selectAllOrders(state);
   const submissions = state.entities.submissions ? tableItems(state.entities.submissions) : [];
-  const now = window.EF?.DEMO_NOW || new Date();
+  const now = liveNow();
   const items = [];
   const seen = new Set();
   const push = (kind, order, opts) => {
@@ -388,7 +388,7 @@ function selectSlaOperational(state) {
 //
 function selectCashFriday(state) {
   const orders = selectAllOrders(state);
-  const now = window.EF?.DEMO_NOW || new Date();
+  const now = liveNow();
   const fridayConsidered = orders.filter(o =>
     o.status === 'payment_pending' ||
     o.status === 'ai_violation_review' ||
@@ -446,7 +446,7 @@ function selectKpis(state) {
   const submissions = selectAllSubmissions(state);
   const friday = orders.filter(o => W.releaseGates(o).releasable);
   const fridayEur = friday.reduce((s, o) => s + (o.netHonorarium || 0), 0);
-  const now = window.EF?.DEMO_NOW || new Date();
+  const now = liveNow();
   const risk = selectRevenueAtRisk(state);
   const sla = selectSlaOperational(state);
   const eurAtRisk = risk.reduce((s, it) => s + (it.atRiskEur || 0), 0);
@@ -491,7 +491,7 @@ function selectFridayBatch(state) {
   };
 }
 
-window.EFSelectors = {
+export {
   tableItems,
   byId,
   selectAllOrders,
@@ -522,4 +522,3 @@ window.EFSelectors = {
   QUEUE_THRESHOLDS,
   ACTIVE_GW_ORDER_STATUSES,
 };
-})();

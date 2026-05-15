@@ -8,7 +8,9 @@
 //                                   ChatNotice, ChatMessage, ChatComposer, ChatThreadRow.
 //   Helpers: window.efToast({text, tone, transition}), window.efNotify({to, title, body, urgent}).
 //   Feature flags: window.EF.FEATURE_FLAGS — single source of truth for "what's planned vs. live".
-;(function(){
+import React from 'react';
+import { STATUS_PILLS, featureStatus } from './data.js';
+
 const EUR = (n) => {
   if (n == null || isNaN(n)) return '—';
   return '€' + Number(n).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -191,7 +193,7 @@ const Icon = ({ name, size = 16, className = '', strokeWidth = 1.5 }) => {
 
 // Status pill
 const StatusPill = ({ status }) => {
-  const m = window.EF.STATUS_PILLS[status] || { color: 'slate', label: status };
+  const m = STATUS_PILLS[status] || { color: 'slate', label: status };
   return <span className={`pill pill-${m.color}`}>{m.label}</span>;
 };
 
@@ -228,7 +230,7 @@ const PlannedTag = ({ status = 'planned' }) => {
 //     <Icon name="download" size={12}/> Export CSV
 //   </NotReady>
 const NotReady = ({ children, className = 'btn', feature, label, tooltip, ariaLabel, style }) => {
-  const flag = feature ? (window.EF?.featureStatus?.(feature)) : null;
+  const flag = feature ? featureStatus(feature) : null;
   const effectiveLabel = label || flag?.label || (typeof children === 'string' ? children : 'This feature');
   const status = flag?.status === 'beta' ? 'beta' : 'planned';
   const title = tooltip || (status === 'beta'
@@ -400,14 +402,17 @@ const ScoreBar = ({ value, label }) => {
   );
 };
 
-window.EFU = { EUR, fmtDate, fmtDateTime, fmtTime, now, useNow, fmtClock, fmtWeekdayDate, greetingFor, fridayBatchLabel, relTime, daysTo, deadlineMeta, Icon, StatusPill, Avatar, Money, Bi, ScoreBar, NotReady, PlannedTag, EmptyState, Skeleton, ChatNotice, ChatMessage, ChatComposer, ChatThreadRow };
-// Also expose at top-level for cross-script use
-Object.assign(window, { Icon, StatusPill, Avatar, Money, Bi, ScoreBar, NotReady, PlannedTag, EmptyState, Skeleton, ChatNotice, ChatMessage, ChatComposer, ChatThreadRow });
+export {
+  EUR, fmtDate, fmtDateTime, fmtTime, now, useNow, fmtClock, fmtWeekdayDate,
+  greetingFor, fridayBatchLabel, relTime, daysTo, deadlineMeta,
+  Icon, StatusPill, Avatar, Money, Bi, ScoreBar, NotReady, PlannedTag,
+  EmptyState, Skeleton, ChatNotice, ChatMessage, ChatComposer, ChatThreadRow,
+};
 
 // EFDS — design system surface: components + tokens reference.
 // Tokens are CSS variables (see :root in styles.css); EFDS.tokens documents the canonical names
 // so future code can read them via getComputedStyle() or simply consult this map.
-window.EFDS = {
+export const EFDS = {
   components: { Icon, StatusPill, Avatar, Money, Bi, ScoreBar, NotReady, PlannedTag, EmptyState, Skeleton, ChatNotice, ChatMessage, ChatComposer, ChatThreadRow },
   tokens: {
     color: {
@@ -450,4 +455,3 @@ window.EFDS = {
     },
   },
 };
-})();

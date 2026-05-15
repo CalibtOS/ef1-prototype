@@ -1,29 +1,12 @@
-// Vite entry point. Loads all legacy IIFE modules in the same order as the
-// old <script> tags in index.html, then mounts the App component.
-//
-// During Phase 1 the imports below are side-effect-only: each file publishes
-// its exports onto window (e.g. window.EFStore, window.OrderDetail). Later
-// phases will replace these with real ES imports.
+// Vite entry point. The core layer is now real ES modules; feature files
+// still read from window.EF*, so `expose-globals.js` runs the core modules
+// and re-exposes their exports onto window before any feature file loads.
+// Phase 3 will delete `expose-globals.js` and use direct imports everywhere.
 
 import './setup-globals.js'
+import './expose-globals.js'
 
-// Foundation: data, core layer, shell
-import '../data.js'
-import './core/workflow.js'
-import './core/entities.js'
-import './core/store.js'
-import './core/selectors.js'
-import './core/internals.js'
-import './core/notifications.js'
-import './core/threads.js'
-import './core/actions.js'
-import './core/hooks.js'
-import './core/routes.js'
-import './core/compat.js'
-import '../utils.jsx'
-import '../shell.jsx'
-
-// Admin role
+// Feature files (still IIFE-wrapped, still reading window.EF*).
 import './admin/dashboard.jsx'
 import './admin/orders-list.jsx'
 import './admin/order-detail.jsx'
@@ -41,7 +24,6 @@ import './admin/bi.jsx'
 import './admin/inbox.jsx'
 import './admin/friday-batch.jsx'
 
-// Ghostwriter role
 import './gw/dashboard.jsx'
 import './gw/job-board.jsx'
 import './gw/active-jobs.jsx'
@@ -57,26 +39,26 @@ import './gw/first-contact.jsx'
 import './gw/report-delay.jsx'
 import './gw/extension-request.jsx'
 
-// QA role (queue must load before order-detail because qa/order-detail
-// uses SubmissionsTab from admin/order-detail)
 import './qa/queue.jsx'
 import './qa/order-detail.jsx'
 import './qa/plagiarism.jsx'
 import './qa/ai-detection.jsx'
 import './qa/history.jsx'
 
-// Customer role
 import './customer/view.jsx'
 
-// Dev tools
 import './dev/tweaks-panel.jsx'
 
 import React, { useState, useEffect, useCallback } from 'react'
 import { createRoot } from 'react-dom/client'
+import EFActions from './core/actions.js'
+import * as EFHooks from './core/hooks.js'
+import * as EFRoutes from './core/routes.js'
+import * as EFShell from '../shell.jsx'
 
-// Components published to window by the IIFE-wrapped files above.
+// Components published to window by the IIFE-wrapped feature files.
 const {
-  Sidebar, Topbar, ToastStack, TweaksPanel,
+  TweaksPanel,
   AdminDashboard, OrdersTable, OrderDetail,
   FridayBatch, QAQueue, Inbox, AIBIDashboard,
   GhostwritersList, PipelineKanban,
@@ -86,8 +68,9 @@ const {
   GWReportDelay, GWExtensionRequest, GWFirstContact, GWOnboarding,
   QAPlagiarismReports, QAAIDetection, QAHistory, QAOrderDetail,
   OrderNewWizard, OffersPage, CustomerDetail, GhostwriterDetail,
-  AdminGlobalBanners,
 } = window
+
+const { Sidebar, Topbar, ToastStack, AdminGlobalBanners } = EFShell
 
 const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
   "theme": "light",
@@ -98,12 +81,8 @@ const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
   "animateCounters": false
 }/*EDITMODE-END*/
 
-function parseHash() {
-  return window.EFRoutes.parseHash()
-}
-function buildHash(role, name, params) {
-  return window.EFRoutes.buildHash(role, name, params)
-}
+function parseHash() { return EFRoutes.parseHash() }
+function buildHash(role, name, params) { return EFRoutes.buildHash(role, name, params) }
 
 function App() {
   const init = parseHash()
@@ -112,11 +91,11 @@ function App() {
   const [tweaks, setTweaksState] = useState(TWEAK_DEFAULTS)
   const [tweakOpen, setTweakOpen] = useState(false)
   const [toasts, setToasts] = useState([])
-  window.EFHooks.useStore(s => s.meta.version)
+  EFHooks.useStore(s => s.meta.version)
 
   useEffect(() => {
-    window.EFActions.session.setRole(role)
-    window.EFActions.session.setRoute(route)
+    EFActions.session.setRole(role)
+    EFActions.session.setRoute(route)
   }, [role, route.name, route.params])
 
   useEffect(() => {
@@ -124,8 +103,8 @@ function App() {
       const next = parseHash()
       setRoleState(next.role)
       setRoute({ name: next.name, params: next.params })
-      window.EFActions.session.setRole(next.role)
-      window.EFActions.session.setRoute({ name: next.name, params: next.params })
+      EFActions.session.setRole(next.role)
+      EFActions.session.setRoute({ name: next.name, params: next.params })
       if (scroll) window.scrollTo(0, 0)
     }
 
@@ -179,8 +158,8 @@ function App() {
     }
     setRoleState(nextRole)
     setRoute(nextRoute)
-    window.EFActions.session.setRole(nextRole)
-    window.EFActions.session.setRoute(nextRoute)
+    EFActions.session.setRole(nextRole)
+    EFActions.session.setRoute(nextRoute)
     if (options.scroll !== false) window.scrollTo(0, 0)
   }, [])
 
@@ -189,7 +168,7 @@ function App() {
   }, [applyRoute, role])
 
   const setRole = useCallback((nextRole) => {
-    const nextName = window.EFRoutes.defaultRouteFor(nextRole)
+    const nextName = EFRoutes.defaultRouteFor(nextRole)
     applyRoute(nextRole, nextName)
   }, [applyRoute])
 

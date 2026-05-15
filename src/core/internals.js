@@ -1,8 +1,7 @@
 // Shared plumbing for action modules. No business rules live here — just
 // store helpers, selector shortcuts, and the toast bridge.
-;(function(){
-const store = window.EFStore;
-const S = window.EFSelectors;
+import store from './store.js';
+import * as S from './selectors.js';
 
 function nowIso() {
   return new Date().toISOString();
@@ -39,7 +38,7 @@ function toast(payload) {
   if (window.efToast) window.efToast(payload);
 }
 
-window.EFInternals = {
+export {
   nowIso,
   updateTable,
   patchEntity,
@@ -49,4 +48,3 @@ window.EFInternals = {
   customer,
   toast,
 };
-})();

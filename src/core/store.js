@@ -1,6 +1,7 @@
-// Tiny observable store. Browser-global by design: this app has no build step.
-;(function(){
-const entities = window.EFEntities.hydrate();
+// Tiny observable store.
+import { hydrate } from './entities.js';
+
+const entities = hydrate();
 
 const initialState = {
   entities,
@@ -69,6 +70,5 @@ function replaceEntityTable(kind, table) {
 }
 
 const store = { getState, setState, subscribe, tableUpsert, tablePatch, replaceEntityTable };
-window.EFStore = store;
-window.__store = store;
-})();
+export default store;
+export { getState, setState, subscribe, tableUpsert, tablePatch, replaceEntityTable };

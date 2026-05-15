@@ -1,6 +1,5 @@
 // Core workflow rules for eFactory One.
 // Pure business logic only: no React, no DOM writes, no side effects.
-;(function(){
 const ORDER_STATES = [
   'lead','qualified','offer_sent','invoice_sent','available','claimed_pending_approval',
   'active','interim_submitted','under_customer_review','revision_required',
@@ -496,7 +495,7 @@ function buildOrderEvents(order, context) {
   return events.sort((a, b) => new Date(b.at || 0) - new Date(a.at || 0));
 }
 
-window.EFWorkflow = {
+export {
   ORDER_STATES,
   TRANSITIONS,
   CLOSED_SUBMISSION_REASONS,
@@ -525,4 +524,3 @@ window.EFWorkflow = {
   buildOrderEvents,
   allInstallmentsPaid,
 };
-})();

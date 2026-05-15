@@ -1,5 +1,9 @@
 // Entity hydration and normalization.
-;(function(){
+import {
+  ORDERS, GW_DEMO_ASSIGNMENTS, SUBMISSIONS, CUSTOMERS, GHOSTWRITERS,
+  INBOX_THREADS, NOTIFICATIONS,
+} from '../../data.js';
+
 function clone(value) {
   return value == null ? value : JSON.parse(JSON.stringify(value));
 }
@@ -236,14 +240,14 @@ function hydrateThread(t) {
   };
 }
 
-function buildThreads(D) {
-  const baseThreads = [...(D.INBOX_THREADS || [])];
+function buildThreads() {
+  const baseThreads = [...(INBOX_THREADS || [])];
   if (!baseThreads.some(t => t.id === 't8')) baseThreads.push(demoSpineThread());
   return baseThreads.map(hydrateThread);
 }
 
-function roleSeedNotifications(D) {
-  const admin = (D.NOTIFICATIONS || []).map(n => ({ ...n, to: n.to || 'admin' }));
+function roleSeedNotifications() {
+  const admin = (NOTIFICATIONS || []).map(n => ({ ...n, to: n.to || 'admin' }));
 	return [
 	  ...admin,
 	  { id: 'qn1', to: 'qa', kind: 'final_uploaded', orderId: 3530, customerId: 'c-ni', gwId: 'gw-fb', submissionId: 's1', title: 'New submission · #3530', body: 'Felix Becker · final work · pending', at: '2026-05-07T09:14:00', urgent: false, read: false },
@@ -258,22 +262,20 @@ function roleSeedNotifications(D) {
 }
 
 function hydrate() {
-  const D = window.EF || {};
   const baseOrders = [
-    ...(D.ORDERS || []),
-    ...(D.GW_DEMO_ASSIGNMENTS || []),
+    ...(ORDERS || []),
+    ...(GW_DEMO_ASSIGNMENTS || []),
   ];
   if (!baseOrders.some(o => Number(o.id) === 3518)) baseOrders.push(customerDemoOrder());
 
   return {
     orders: normalize(baseOrders),
-    submissions: normalize(D.SUBMISSIONS || []),
-    customers: normalize(D.CUSTOMERS || []),
-    ghostwriters: normalize(D.GHOSTWRITERS || []),
-    threads: normalize(buildThreads(D)),
-    notifications: normalize(roleSeedNotifications(D)),
+    submissions: normalize(SUBMISSIONS || []),
+    customers: normalize(CUSTOMERS || []),
+    ghostwriters: normalize(GHOSTWRITERS || []),
+    threads: normalize(buildThreads()),
+    notifications: normalize(roleSeedNotifications()),
   };
 }
 
-window.EFEntities = { hydrate, normalize, clone };
-})();
+export { hydrate, normalize, clone };

@@ -1,7 +1,14 @@
 // Shell — sidebar, topbar, role switcher, toast host, notifications
-;(function(){
-const { useState, useEffect, useRef, useMemo, createContext, useContext } = React;
-const { Icon, StatusPill, Avatar, Money, Bi, EUR, fmtDate, fmtDateTime, fmtTime, relTime, daysTo, deadlineMeta, ScoreBar, useNow, fmtClock, fmtWeekdayDate, fridayBatchLabel } = window.EFU;
+import React, { useState, useEffect, useRef, useMemo, createContext, useContext } from 'react';
+import {
+  Icon, StatusPill, Avatar, Money, Bi, EUR, fmtDate, fmtDateTime, fmtTime,
+  relTime, daysTo, deadlineMeta, ScoreBar, useNow, fmtClock, fmtWeekdayDate,
+  fridayBatchLabel,
+} from './utils.jsx';
+import * as EFRoutes from './src/core/routes.js';
+import store from './src/core/store.js';
+import * as EFHooks from './src/core/hooks.js';
+import EFActions from './src/core/actions.js';
 
 // App-wide context
 const AppCtx = createContext(null);
@@ -16,15 +23,15 @@ const ROLES = [
 
 // Build nav lazily so badges reflect current ORDERS / SUBMISSIONS data.
 function buildNav(role) {
-  return window.EFRoutes.navItems(role, window.EFStore.getState());
+  return EFRoutes.navItems(role, store.getState());
 }
 
 function Sidebar({ role, route, navigate, collapsed, setCollapsed }) {
-  window.EFHooks.useStore(s => s.meta.version);
+  EFHooks.useStore(s => s.meta.version);
   const nav = buildNav(role);
   const roleMeta = ROLES.find(r => r.id === role) || ROLES[0];
   // Map nav item ids to internal route names
-  const routeMap = window.EFRoutes.NAV_ROUTE_MAP;
+  const routeMap = EFRoutes.NAV_ROUTE_MAP;
   const activeId = Object.entries(routeMap).find(([, v]) => v === route?.name)?.[0] || route?.name;
   return (
     <aside className={`sidebar ${collapsed ? 'collapsed' : ''}`}>
@@ -205,7 +212,7 @@ function NotifBell({ notifications, onMark, onOpen, role }) {
 
   const unread = notifications.filter(n => !n.read).length;
   const handleOpen = (n) => {
-    window.EFActions?.notifications?.markRead?.(n.id, role);
+    EFActions?.notifications?.markRead?.(n.id, role);
     if (onOpen) onOpen(n);
     setOpen(false);
   };
@@ -256,13 +263,13 @@ function TopbarClock() {
 
 function FridayWidget({ onClick }) {
   // Derive counts from the shared store so the widget never lies.
-  const k = window.EFHooks.useKpis();
+  const k = EFHooks.useKpis();
   const now = useNow(60000);
   return (
     <button type="button" className="friday-widget" onClick={onClick} title="Open Friday batch">
       <span className="friday-dot" />
       <span className="text-strong">Friday batch {fridayBatchLabel(now)}</span>
-      <span className="text-faint" style={{ fontFamily: 'JetBrains Mono, monospace' }}>· {k.fridayCount} releasable · {window.EFU ? window.EFU.EUR(k.fridayEur) : ('€' + k.fridayEur.toLocaleString('de-DE'))}</span>
+      <span className="text-faint" style={{ fontFamily: 'JetBrains Mono, monospace' }}>· {k.fridayCount} releasable · {EUR(k.fridayEur)}</span>
     </button>
   );
 }
@@ -298,7 +305,7 @@ function CrumbBar({ trail }) {
 // Persistent admin-only banner: Pipedrive subscriber limit warning
 function AdminGlobalBanners({ navigate }) {
   const [dismissed, setDismissed] = useState(false);
-  const subs = window.EFHooks.useKpis().pipedriveSubs || '4,159 / 5,000';
+  const subs = EFHooks.useKpis().pipedriveSubs || '4,159 / 5,000';
   if (dismissed) return null;
   return (
     <div style={{ background: 'color-mix(in oklab, var(--amber) 10%, var(--surface))', borderBottom: '1px solid color-mix(in oklab, var(--amber) 30%, var(--border))', padding: '6px 16px', display: 'flex', alignItems: 'center', gap: 10, fontSize: 12 }}>
@@ -314,7 +321,7 @@ function AdminGlobalBanners({ navigate }) {
 // Topbar
 function Topbar({ role, setRole, navigate, toast }) {
   const isAdmin = role === 'admin';
-  const notifs = window.EFHooks.useNotifications(role);
+  const notifs = EFHooks.useNotifications(role);
   const openNotification = (n) => {
     const target = resolveNotificationTarget(n, role);
     if (target?.name) navigate(target.name, target.params || {});
@@ -327,7 +334,7 @@ function Topbar({ role, setRole, navigate, toast }) {
       <NotifBell
         role={role}
         notifications={notifs}
-        onMark={() => window.EFActions.notifications.markAllRead(role)}
+        onMark={() => EFActions.notifications.markAllRead(role)}
         onOpen={openNotification}
       />
       <RoleSwitcher role={role} setRole={setRole}/>
@@ -365,12 +372,8 @@ function ToastStack({ toasts, onDismiss }) {
   );
 }
 
-// Helper: anywhere in the app, push a real-time notification:
-//   window.efNotify({ to: 'admin' | 'gw' | 'qa' | 'customer' | [array], title, body, urgent })
-window.efNotify = window.EFActions?.notify || function(payload) {
-  try { window.dispatchEvent(new CustomEvent('efactory:notify', { detail: payload || {} })); } catch (e) {}
+export {
+  Sidebar, RoleSwitcher, NotifBell, FridayWidget, TopbarClock, ToastHost,
+  CrumbBar, Topbar, ToastStack, AppCtx, useApp, ROLES, buildNav,
+  AdminGlobalBanners, resolveNotificationTarget, notificationOrderId,
 };
-
-window.EFShell = { Sidebar, RoleSwitcher, NotifBell, FridayWidget, TopbarClock, ToastHost, CrumbBar, Topbar, ToastStack, AppCtx, useApp, ROLES, buildNav, AdminGlobalBanners, resolveNotificationTarget, notificationOrderId };
-Object.assign(window, { Sidebar, Topbar, ToastStack, CrumbBar, RoleSwitcher, NotifBell, FridayWidget, TopbarClock, AdminGlobalBanners });
-})();

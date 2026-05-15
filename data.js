@@ -1,6 +1,5 @@
 // eFactory One — seed data
 // Demo data stays seeded, but the app clock is the user's live local time.
-;(function(){
 const liveNow = () => new Date();
 
 // ---- Ghostwriters (12) ----
@@ -300,12 +299,13 @@ const GW_ME = GHOSTWRITERS.find(g => g.id === 'gw-iw') || {
   name: 'Isabel Walter', initials: 'IW', email: 'isabel.walter@gw.efactory1.de'
 };
 
-window.EF = {
-  get NOW() { return liveNow(); },
-  get DEMO_NOW() { return liveNow(); },
-  GHOSTWRITERS, CUSTOMERS, ORDERS, GW_DEMO_ASSIGNMENTS, SUBMISSIONS, FRIDAY_BATCH, INBOX_THREADS, NOTIFICATIONS,
+// Seed exports. Live-store-backed accessors (live ORDERS, NOTIFICATIONS, etc.)
+// are layered on in main.jsx via the compat shim.
+export {
+  liveNow,
+  GHOSTWRITERS, CUSTOMERS, ORDERS, GW_DEMO_ASSIGNMENTS, SUBMISSIONS,
+  FRIDAY_BATCH, INBOX_THREADS, NOTIFICATIONS,
   WORK_TYPE_LABELS, STATUS_PILLS, FEATURE_FLAGS,
   featureStatus, isFeatureLive,
   GW_ME,
 };
-})();

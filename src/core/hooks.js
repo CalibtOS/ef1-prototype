@@ -1,8 +1,9 @@
-// React hooks over EFStore/selectors.
-;(function(){
-const store = window.EFStore;
-const S = window.EFSelectors;
-const A = window.EFActions;
+// React hooks over the store/selectors.
+import React from 'react';
+import store from './store.js';
+import * as S from './selectors.js';
+import * as W from './workflow.js';
+import A from './actions.js';
 
 function shallowEqual(a, b) {
   if (Object.is(a, b)) return true;
@@ -79,7 +80,7 @@ function useKpis() {
 }
 
 function useReleaseGate(id) {
-  const selector = React.useMemo(() => (state) => window.EFWorkflow.releaseGates(S.selectOrder(state, id)), [id]);
+  const selector = React.useMemo(() => (state) => W.releaseGates(S.selectOrder(state, id)), [id]);
   return useStore(selector, shallowEqual);
 }
 
@@ -152,7 +153,7 @@ function useCashFriday() {
   return useStore(S.selectCashFriday, shallowEqual);
 }
 
-window.EFHooks = {
+export {
   useStore,
   useOrders,
   useOrder,
@@ -179,4 +180,3 @@ window.EFHooks = {
   useSlaOperational,
   useCashFriday,
 };
-})();
