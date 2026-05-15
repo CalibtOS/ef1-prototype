@@ -1,16 +1,14 @@
 // Admin · AI Business Intelligence dashboard — natural-language analytics + funnel.
-import React, { useState as useStateA, useEffect as useEffectA, useMemo as useMemoA } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import * as U from '../../utils.jsx';
 import { Icon, StatusPill, Avatar, Money, Bi, ScoreBar, NotReady, PlannedTag, EmptyState, Skeleton } from '../../utils.jsx';
 import { CrumbBar } from '../../shell.jsx';
-import EF from '../core/ef.js';
-const D = EF;
 
 // ============ AI BI DASHBOARD ============
 function AIBIDashboard() {
-  const [prompt, setPrompt] = useStateA('');
-  const [activePrompt, setActivePrompt] = useStateA(null);
-  const [running, setRunning] = useStateA(false);
+  const [prompt, setPrompt] = useState('');
+  const [activePrompt, setActivePrompt] = useState(null);
+  const [running, setRunning] = useState(false);
 
   const cannedPrompts = [
     {

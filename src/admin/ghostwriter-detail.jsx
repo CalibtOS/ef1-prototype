@@ -1,7 +1,7 @@
 // Admin · Ghostwriter detail — assignments, ratings, AGB, payments.
 
 // ====================================================================
-import React, { useState as useStateA, useEffect as useEffectA, useMemo as useMemoA } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Icon, StatusPill, Avatar, Money, Bi, ScoreBar, NotReady, PlannedTag, EmptyState, Skeleton } from '../../utils.jsx';
 import * as U from '../../utils.jsx';
 import { CrumbBar } from '../../shell.jsx';
@@ -22,8 +22,8 @@ function GhostwriterDetail({ gwId, navigate, toast }) {
   const releasableOrders = orders.filter(o => W.releaseGates(o).releasable);
   const releasable = releasableOrders.reduce((s, o) => s + (o.netHonorarium || 0), 0);
 
-  const [shadowToggle, setShadowToggle] = useStateA(g.banned || false);
-  const [reason, setReason] = useStateA(g.banReason || '');
+  const [shadowToggle, setShadowToggle] = useState(g.banned || false);
+  const [reason, setReason] = useState(g.banReason || '');
   const applyShadowBan = () => {
     EFActions.gws.shadowBan(gwId, { banned: shadowToggle, reason: reason || 'Quality concerns' });
     toast && toast({ text: shadowToggle ? `${g.name} shadow-banned · email alerts paused` : `${g.name} reinstated · email alerts resumed`, tone: shadowToggle ? 'danger' : 'success' });

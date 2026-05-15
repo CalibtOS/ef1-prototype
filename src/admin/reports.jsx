@@ -1,7 +1,7 @@
 // Admin · Reports — revenue, GW honoraria ledger, KPI widgets.
 
 // ============ REPORTS (minimal — 3 widgets) ============
-import React, { useState as useStateA, useEffect as useEffectA, useMemo as useMemoA } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Icon, StatusPill, Avatar, Money, Bi, ScoreBar, NotReady, PlannedTag, EmptyState, Skeleton } from '../../utils.jsx';
 import * as U from '../../utils.jsx';
 import { CrumbBar } from '../../shell.jsx';
@@ -9,7 +9,7 @@ import EF from '../core/ef.js';
 const D = EF;
 
 function ReportsPage({ navigate }) {
-  const [period, setPeriod] = useStateA('apr2026');
+  const [period, setPeriod] = useState('apr2026');
   const periods = [
     { id: 'apr2026', label: 'April 2026' },
     { id: 'mar2026', label: 'March 2026' },

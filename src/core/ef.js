@@ -1,9 +1,14 @@
-// EF — legacy data shape, now importable directly.
+// EF — bundle accessor that mirrors the original `window.EF` API as a regular
+// import. Static fields are pass-throughs from `data.js`. Reactive fields
+// (ORDERS, NOTIFICATIONS, KPI, …) are getters so each read pulls from the
+// current store.
 //
-// Most fields are static data exported from `data.js`. The ones that need to
-// reflect live store state (ORDERS, NOTIFICATIONS, KPI, etc.) are defined as
-// getters so reads always reflect the current store. Feature files import this
-// module directly.
+// Prefer importing the underlying modules directly in new code:
+//   - static data → `data.js`
+//   - reactive reads → `core/selectors.js` (or the matching `core/hooks.js`)
+//   - workflow helpers → `core/workflow.js`
+// This object exists so feature files migrated from `window.EF` keep working
+// while we incrementally swap them over.
 import * as Data from '../../data.js';
 import store from './store.js';
 import * as S from './selectors.js';

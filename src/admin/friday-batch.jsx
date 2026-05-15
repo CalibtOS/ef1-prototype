@@ -1,7 +1,7 @@
 // Admin · Friday payout batch — gates eligible orders and runs DATEV export.
 
 // ============ FRIDAY BATCH ============
-import React, { useState as useStateA, useEffect as useEffectA, useMemo as useMemoA } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Icon, StatusPill, Avatar, Money, Bi, ScoreBar, NotReady, PlannedTag, EmptyState, Skeleton } from '../../utils.jsx';
 import * as U from '../../utils.jsx';
 import { CrumbBar } from '../../shell.jsx';
@@ -14,15 +14,15 @@ function FridayBatch({ navigate, toast }) {
   const batch = EFHooks.useFridayBatch();
   const releaseable = batch.releaseable;
   const blocked = batch.blocked;
-  const [selected, setSelected] = useStateA(() => new Set(releaseable.map(o => o.id)));
-  const [running, setRunning] = useStateA(false);
-  const [done, setDoneState] = useStateA(false);
+  const [selected, setSelected] = useState(() => new Set(releaseable.map(o => o.id)));
+  const [running, setRunning] = useState(false);
+  const [done, setDoneState] = useState(false);
   // Snapshot the batch the moment it's released, so the audit preview keeps
   // showing what was actually released even after orders move to 'completed'.
-  const [releasedSnapshot, setReleasedSnapshot] = useStateA([]);
-  const [runningTargets, setRunningTargets] = useStateA([]);
+  const [releasedSnapshot, setReleasedSnapshot] = useState([]);
+  const [runningTargets, setRunningTargets] = useState([]);
   // Per-row payout state for cascade animation: 'sending' | 'paid'
-  const [rowState, setRowState] = useStateA({});
+  const [rowState, setRowState] = useState({});
 
   const total = releaseable.filter(o => selected.has(o.id)).reduce((s,o) => s + o.netHonorarium, 0);
   const visibleReleaseable = (running || done) ? runningTargets : releaseable;

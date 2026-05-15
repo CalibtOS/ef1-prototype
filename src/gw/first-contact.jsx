@@ -3,7 +3,7 @@
 // ====================================================================
 // GW — First-contact wizard (SOP D)
 // ====================================================================
-import React, { useState as useStateA, useEffect as useEffectA, useMemo as useMemoA } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Icon, StatusPill, Avatar, Money, Bi, ScoreBar, NotReady, PlannedTag, EmptyState, Skeleton } from '../../utils.jsx';
 import * as U from '../../utils.jsx';
 import { CrumbBar } from '../../shell.jsx';
@@ -37,19 +37,19 @@ Wichtig — Bitte beachten:
 
 Beste Grüße
 Isabel Walter` : '';
-  const [step, setStep] = useStateA(receiptAlreadyConfirmed ? 2 : 1);
-  const [confirmed, setConfirmed] = useStateA(receiptAlreadyConfirmed);
-  const [subject, setSubject] = useStateA(baseSubject);
-  const [body, setBody] = useStateA(baseBody);
-  const [sending, setSending] = useStateA(false);
+  const [step, setStep] = useState(receiptAlreadyConfirmed ? 2 : 1);
+  const [confirmed, setConfirmed] = useState(receiptAlreadyConfirmed);
+  const [subject, setSubject] = useState(baseSubject);
+  const [body, setBody] = useState(baseBody);
+  const [sending, setSending] = useState(false);
 
-  useEffectA(() => {
+  useEffect(() => {
     if (!order) return;
     setSubject(baseSubject);
     setBody(baseBody);
   }, [order?.id]);
 
-  useEffectA(() => {
+  useEffect(() => {
     if (!receiptAlreadyConfirmed) return;
     setConfirmed(true);
     setStep(s => Math.max(s, 2));

@@ -3,7 +3,7 @@
 // ====================================================================
 // GW — Extension Request (SOP 6)
 // ====================================================================
-import React, { useState as useStateA, useEffect as useEffectA, useMemo as useMemoA } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Icon, StatusPill, Avatar, Money, Bi, ScoreBar, NotReady, PlannedTag, EmptyState, Skeleton } from '../../utils.jsx';
 import * as U from '../../utils.jsx';
 import { CrumbBar } from '../../shell.jsx';
@@ -14,10 +14,10 @@ const D = EF;
 function GWExtensionRequest({ orderId, navigate, toast }) {
   const order = D.order(orderId);
   if (!order) return <div className="page">Assignment not found.</div>;
-  const [desc, setDesc] = useStateA('');
-  const [extraPages, setExtraPages] = useStateA(5);
-  const [extraFee, setExtraFee] = useStateA(150);
-  const [phase, setPhase] = useStateA('form');
+  const [desc, setDesc] = useState('');
+  const [extraPages, setExtraPages] = useState(5);
+  const [extraFee, setExtraFee] = useState(150);
+  const [phase, setPhase] = useState('form');
 
   const valid = desc.trim().length > 15 && extraPages > 0 && extraFee >= 0;
 

@@ -1,24 +1,25 @@
 // GW · Messages — anonymized customer threads (admin always CC).
 
 // ============ GW MESSAGES ============
-import React, { useState as useStateA, useEffect as useEffectA, useMemo as useMemoA } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Icon, Avatar, NotReady, EmptyState, ChatNotice, ChatMessage, ChatComposer, ChatThreadRow } from '../../utils.jsx';
 import * as U from '../../utils.jsx';
 import * as EFHooks from '../core/hooks.js';
 import EFActions from '../core/actions.js';
+import { showToast } from '../core/toast.js';
 import EF from '../core/ef.js';
 const D = EF;
 
 function GWMessages({ navigate }) {
-  const [reply, setReply] = useStateA('');
+  const [reply, setReply] = useState('');
   const allThreads = EFHooks.useThreads();
   // Only threads tied to my (Isabel's) assignments are visible.
-  const myThreads = useMemoA(() => allThreads.filter(t => t.gwId === D.GW_ME.id), [allThreads]);
-  const [activeId, setActiveId] = useStateA(myThreads[0]?.id || null);
+  const myThreads = useMemo(() => allThreads.filter(t => t.gwId === D.GW_ME.id), [allThreads]);
+  const [activeId, setActiveId] = useState(myThreads[0]?.id || null);
   const active = myThreads.find(t => t.id === activeId) || myThreads[0] || null;
 
   // Mark as read when a thread is opened.
-  useEffectA(() => {
+  useEffect(() => {
     if (active?.id && (active.unread?.gw || 0) > 0) {
       EFActions.threads.markRead(active.id, 'gw');
     }
@@ -33,7 +34,7 @@ function GWMessages({ navigate }) {
       body: reply,
     });
     if (msg) {
-      window.efToast && window.efToast({
+      showToast({
         text: msg.autoflag === 'financial'
           ? 'Finanzbezug erkannt — Anfrage wurde an Kundenservice umgeleitet.'
           : `Nachricht an ${D.customer(active.customerId)?.name || 'Kunde'} gesendet · CC kundenservice@efactory1.de`,

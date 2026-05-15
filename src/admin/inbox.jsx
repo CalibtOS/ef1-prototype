@@ -1,7 +1,7 @@
 // Admin · Inbox — customer & GW threads with reply, redirect-to-kundenservice.
 
 // ============ INBOX ============
-import React, { useState as useStateA, useEffect as useEffectA, useMemo as useMemoA, useRef as useRefA } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Icon, StatusPill, Avatar, Money, Bi, ScoreBar, NotReady, PlannedTag, EmptyState, Skeleton, ChatNotice, ChatMessage, ChatComposer, ChatThreadRow } from '../../utils.jsx';
 import * as U from '../../utils.jsx';
 import { CrumbBar } from '../../shell.jsx';
@@ -11,12 +11,12 @@ import EF from '../core/ef.js';
 const D = EF;
 
 function Inbox({ toast, route }) {
-  const [activeId, setActiveId] = useStateA('t1');
-  const [tab, setTab] = useStateA('All');
-  const [channelFilter, setChannelFilter] = useStateA('all');
-  const [deliveryRail, setDeliveryRail] = useStateA('email');
-  const [reply, setReply] = useStateA('');
-  const appliedRouteTarget = useRefA(null);
+  const [activeId, setActiveId] = useState('t1');
+  const [tab, setTab] = useState('All');
+  const [channelFilter, setChannelFilter] = useState('all');
+  const [deliveryRail, setDeliveryRail] = useState('email');
+  const [reply, setReply] = useState('');
+  const appliedRouteTarget = useRef(null);
   const _toast = toast || (m => console.log(m));
   const rawThreads = EFHooks.useThreads();
   const threads = rawThreads.map(t => {
@@ -76,7 +76,7 @@ function Inbox({ toast, route }) {
     route?.params?.orderId || route?.params?.id || '',
   ].join('|');
 
-  useEffectA(() => {
+  useEffect(() => {
     if (routeTargetKey === '|') {
       appliedRouteTarget.current = null;
       return;
@@ -104,7 +104,7 @@ function Inbox({ toast, route }) {
   const active = filteredThreads.find(t => t.id === activeId) || filteredThreads[0] || threads[0];
 
   // Mark the active thread read for admin once it's open. Effect runs on selection change.
-  useEffectA(() => {
+  useEffect(() => {
     if (active?.id && active.unread > 0) {
       EFActions.threads.markRead(active.id, 'admin');
     }
@@ -190,7 +190,7 @@ function Inbox({ toast, route }) {
     const ch = displayChannel(m);
     return channelLabel(ch);
   };
-  const enrichedMessages = useMemoA(() => {
+  const enrichedMessages = useMemo(() => {
     return [...(active?.messages || [])]
       .map(m => ({
         ...m,

@@ -1,6 +1,6 @@
 // Admin · Orders list — top-level orders table with filters, KPIs and saved views.
 
-import React, { useState as useStateA, useEffect as useEffectA, useMemo as useMemoA } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Icon, StatusPill, Avatar, Money, Bi, ScoreBar, NotReady, PlannedTag, EmptyState, Skeleton } from '../../utils.jsx';
 import * as U from '../../utils.jsx';
 import { CrumbBar } from '../../shell.jsx';
@@ -10,11 +10,11 @@ import EF from '../core/ef.js';
 const D = EF;
 
 function OrdersTable({ navigate, route }) {
-  const [search, setSearch] = useStateA('');
-  const [statusFilter, setStatusFilter] = useStateA('all');
+  const [search, setSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState('all');
   const initialView = route?.params?.view || 'all';
-  const [view, setView] = useStateA(initialView);
-  useEffectA(() => {
+  const [view, setView] = useState(initialView);
+  useEffect(() => {
     const incoming = route?.params?.view || 'all';
     setView(prev => prev === incoming ? prev : incoming);
   }, [route?.params?.view]);
@@ -25,11 +25,11 @@ function OrdersTable({ navigate, route }) {
   const decisionItems = EFHooks.useNeedsDecision();
   const cash = EFHooks.useCashFriday();
   const ridSet = (arr) => new Set(arr.map(it => it.orderId || it.order?.id).filter(Boolean));
-  const riskIds = useMemoA(() => ridSet(riskItems), [riskItems]);
-  const slaIds = useMemoA(() => ridSet(slaItems), [slaItems]);
-  const overdueInterimIds = useMemoA(() => ridSet(slaItems.filter(it => it.kind === 'interim_missed')), [slaItems]);
-  const decisionIds = useMemoA(() => ridSet(decisionItems), [decisionItems]);
-  const cashIds = useMemoA(() => new Set([
+  const riskIds = useMemo(() => ridSet(riskItems), [riskItems]);
+  const slaIds = useMemo(() => ridSet(slaItems), [slaItems]);
+  const overdueInterimIds = useMemo(() => ridSet(slaItems.filter(it => it.kind === 'interim_missed')), [slaItems]);
+  const decisionIds = useMemo(() => ridSet(decisionItems), [decisionItems]);
+  const cashIds = useMemo(() => new Set([
     ...cash.blocked.map(b => b.order.id),
     ...cash.missingInvoice.map(o => o.id),
     ...cash.refundPending.map(o => o.id),
@@ -39,7 +39,7 @@ function OrdersTable({ navigate, route }) {
   const needsOfferCount = orders.filter(needsOffer).length;
 
   // Deep link: if navigated with { id }, open the detail view directly.
-  useEffectA(() => {
+  useEffect(() => {
     const id = route?.params?.id;
     if (id) navigate('order-detail', { id });
   }, [route?.params?.id]);

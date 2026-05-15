@@ -4,12 +4,10 @@
 // Q-05: deterministic per-paragraph AI risk distribution.
 // High overall score → cluster of high-risk paragraphs at the offending sections;
 // review-tier scores get a few amber outliers; clean docs stay green with mild noise.
-import React, { useState as useStateA, useEffect as useEffectA, useMemo as useMemoA } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Icon, StatusPill, Avatar, Money, Bi, ScoreBar, NotReady, PlannedTag, EmptyState, Skeleton } from '../../utils.jsx';
 import * as U from '../../utils.jsx';
 import { CrumbBar } from '../../shell.jsx';
-import EF from '../core/ef.js';
-const D = EF;
 
 function buildParaRisks(detection) {
   const total = detection.totalParas;
@@ -55,9 +53,9 @@ function QAAIDetection({ navigate }) {
     { id: 'a6', orderId: 3540, gwName: 'Isabel Walter', gwInitials: 'IW', kind: 'final_work', score: 12, status: 'passed', flaggedParas: 2, totalParas: 12, scannedAt: '2026-04-26T15:32:00' },
   ];
 
-  const [expandedId, setExpandedId] = useStateA('a1');
-  const [rescanning, setRescanning] = useStateA(false);
-  const [rescanProgress, setRescanProgress] = useStateA(0);
+  const [expandedId, setExpandedId] = useState('a1');
+  const [rescanning, setRescanning] = useState(false);
+  const [rescanProgress, setRescanProgress] = useState(0);
 
   const rescan = () => {
     if (rescanning) return;

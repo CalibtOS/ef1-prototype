@@ -1,6 +1,6 @@
 // QA · Order detail — restricted view (no financials per PRD qa.permissions).
 
-import React, { useState as useStateA, useEffect as useEffectA, useMemo as useMemoA } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Icon, StatusPill, Avatar, Money, Bi, ScoreBar, NotReady, PlannedTag, EmptyState, Skeleton, ChatNotice, ChatMessage } from '../../utils.jsx';
 import * as U from '../../utils.jsx';
 import { CrumbBar } from '../../shell.jsx';
@@ -12,7 +12,7 @@ import { SubmissionsTab } from '../admin/order-detail.jsx';
 const D = EF;
 
 function QAOrderDetail({ orderId, navigate, toast }) {
-  const [tab, setTab] = useStateA('overview');
+  const [tab, setTab] = useState('overview');
   const order = EFHooks.useOrder(orderId);
   const actualSubs = EFHooks.useSubmissions({ orderId });
   const displaySubs = EFHooks.useDisplaySubmissions(orderId);

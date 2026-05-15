@@ -1,15 +1,13 @@
 // Admin · Settings — team, AGB versions, integrations, locales, templates.
 
 // ============ SETTINGS ============
-import React, { useState as useStateA, useEffect as useEffectA, useMemo as useMemoA } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Icon, StatusPill, Avatar, Money, Bi, ScoreBar, NotReady, PlannedTag, EmptyState, Skeleton } from '../../utils.jsx';
 import * as U from '../../utils.jsx';
 import { CrumbBar } from '../../shell.jsx';
-import EF from '../core/ef.js';
-const D = EF;
 
 function SettingsPage({ navigate, toast }) {
-  const [section, setSection] = useStateA('integrations');
+  const [section, setSection] = useState('integrations');
   const sections = [
     { id: 'integrations', label: 'Integrations', icon: 'git-branch' },
     { id: 'email_routing', label: 'Email Routing', icon: 'mail' },

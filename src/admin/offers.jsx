@@ -1,7 +1,7 @@
 // Admin · Offers / Sevdesk — generate offers and invoices.
 
 // ====================================================================
-import React, { useState as useStateA, useEffect as useEffectA, useMemo as useMemoA } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Icon, StatusPill, Avatar, Money, Bi, ScoreBar, NotReady, PlannedTag, EmptyState, Skeleton } from '../../utils.jsx';
 import * as U from '../../utils.jsx';
 import { CrumbBar } from '../../shell.jsx';
@@ -11,8 +11,8 @@ import EF from '../core/ef.js';
 const D = EF;
 
 function OffersPage({ navigate, toast }) {
-  const [tab, setTab] = useStateA('all');
-  const [genFor, setGenFor] = useStateA(null); // order id while wizard open
+  const [tab, setTab] = useState('all');
+  const [genFor, setGenFor] = useState(null); // order id while wizard open
 
   // Source: every order with status qualified | offer_sent | invoice_sent | paid+
   const allEffective = EFHooks.useOrders();
@@ -149,8 +149,8 @@ function OffersPage({ navigate, toast }) {
 function GenerateOfferModal({ orderId, toast, onClose }) {
   const order = EFHooks.useOrder(orderId);
   const cust = D.customer(order.customerId);
-  const [phase, setPhase] = useStateA('preview'); // preview → sending → sent
-  const [progress, setProgress] = useStateA([
+  const [phase, setPhase] = useState('preview'); // preview → sending → sent
+  const [progress, setProgress] = useState([
     { label: 'Verifying Sevdesk Contact', done: false, running: false },
     { label: 'POST /Order/Factory/saveOrder · pricing engine', done: false, running: false },
     { label: 'Generating PDF', done: false, running: false },

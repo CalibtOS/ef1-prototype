@@ -4,7 +4,10 @@
 import * as I from './internals.js';
 import store from './store.js';
 
+// Extract an order id from any notification-shaped payload — prefer the
+// explicit `orderId` field, fall back to scanning `title`/`body` for `#NNNN`.
 function inferOrderId(payload) {
+  if (!payload) return null;
   if (payload.orderId != null) return Number(payload.orderId);
   const text = [payload.title, payload.body].filter(Boolean).join(' ');
   const match = text.match(/(?:#|order\s*#?|auftrag\s*#?)(\d{3,})/i);
@@ -73,4 +76,4 @@ function markRead(id, role) {
   }, 'notifications.markRead');
 }
 
-export { notify, markAllRead, markRead };
+export { notify, markAllRead, markRead, inferOrderId };

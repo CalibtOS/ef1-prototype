@@ -235,9 +235,9 @@ const STATUS_PILLS = {
   plagiarism_violation_review: { color: 'red', label: '🚨 Plagiarism Flag' },
 };
 
-// KPI is derived live by EFSelectors.selectKpis (src/core/selectors.js) and exposed
-// as EF.KPI via src/core/compat.js, so dashboards always see post-mutation counts.
-// Lifetime totals (645 active, 3,359 completed, 3,522 total) live in selectors.
+// KPI is derived live by selectKpis in src/core/selectors.js so dashboards
+// always see post-mutation counts. Lifetime totals (645 active, 3,359
+// completed, 3,522 total) live in that selector.
 
 // Feature flags — single source of truth for "what is real vs. planned" in the prototype.
 // Status: 'live' (wired through), 'beta' (partial), 'planned' (UI present but inert).
@@ -292,15 +292,13 @@ const featureStatus = (key) => FEATURE_FLAGS[key] || null;
 const isFeatureLive = (key) => (FEATURE_FLAGS[key]?.status === 'live');
 
 // Persona constant for the GW persona we ship in the demo — Isabel Walter.
-// Live order/customer/gw/release-gate accessors live in src/core/compat.js
-// (EF.liveOrders, EF.liveOrder, EF.releaseGates, EF.gw, EF.customer, EF.order,
-// EF.myAssignments) so they always read the reactive store.
+// Live, store-backed accessors (orders, customers, ghostwriters,
+// notifications) live in src/core/selectors.js. This module only exports
+// the seed snapshots that hydrate the store on boot.
 const GW_ME = GHOSTWRITERS.find(g => g.id === 'gw-iw') || {
   name: 'Isabel Walter', initials: 'IW', email: 'isabel.walter@gw.efactory1.de'
 };
 
-// Seed exports. Live-store-backed accessors (live ORDERS, NOTIFICATIONS, etc.)
-// are layered on in main.jsx via the compat shim.
 export {
   liveNow,
   GHOSTWRITERS, CUSTOMERS, ORDERS, GW_DEMO_ASSIGNMENTS, SUBMISSIONS,

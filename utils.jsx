@@ -3,13 +3,15 @@
 // DESIGN SYSTEM:
 //   Colors live as CSS variables in styles.css (`:root` and `[data-theme="dark"]`).
 //   Status semantics:  blue=in-progress · yellow=pending · green=done · red=violation/error · orange=overdue · gray=on-hold
-//   Components published to window: Icon, StatusPill, Avatar, Money, Bi, ScoreBar,
-//                                   NotReady, PlannedTag, EmptyState, Skeleton,
-//                                   ChatNotice, ChatMessage, ChatComposer, ChatThreadRow.
-//   Helpers: window.efToast({text, tone, transition}), window.efNotify({to, title, body, urgent}).
+//   Components exported: Icon, StatusPill, Avatar, Money, Bi, ScoreBar, NotReady,
+//                        PlannedTag, EmptyState, Skeleton, ChatNotice, ChatMessage,
+//                        ChatComposer, ChatThreadRow.
+//   Toasts:   import { showToast } from './src/core/toast.js'
+//   Notify:   import EFActions and call EFActions.notify({to, title, body, urgent})
 //   Feature flags live in data.js — single source of truth for "what's planned vs. live".
 import React from 'react';
 import { STATUS_PILLS, featureStatus } from './data.js';
+import { showToast } from './src/core/toast.js';
 
 const WORK_TYPE_TONES = {
   hausarbeit: 'blue',
@@ -251,8 +253,7 @@ const NotReady = ({ children, className = 'btn', feature, label, tooltip, ariaLa
   const onClick = (e) => {
     e.preventDefault();
     e.stopPropagation();
-    const fn = window.efToast;
-    if (fn) fn({
+    showToast({
       tone: 'info',
       text: status === 'beta'
         ? `${effectiveLabel} is in beta — not yet wired in this prototype.`

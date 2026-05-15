@@ -1,6 +1,6 @@
 // GW · Submission flow — interim/final/revision upload with QA preview pipeline.
 
-import React, { useState as useStateA, useEffect as useEffectA, useMemo as useMemoA, useRef as useRefA } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Icon, StatusPill, Avatar, Money, Bi, ScoreBar, NotReady, PlannedTag, EmptyState, Skeleton } from '../../utils.jsx';
 import * as U from '../../utils.jsx';
 import { CrumbBar } from '../../shell.jsx';
@@ -99,19 +99,19 @@ function GWSubmit({ orderId, kind, navigate, toast }) {
   // ---- self-check state ----
   const baseChecks = { spelling: false, grammar: false, plagiarism: false, requirements: false, noAi: false, ready: false };
   const finalExtras = { individual: false };
-  const [checks, setChecks] = useStateA({ ...baseChecks, ...((isFinal || isRevision) ? finalExtras : {}) });
+  const [checks, setChecks] = useState({ ...baseChecks, ...((isFinal || isRevision) ? finalExtras : {}) });
   const allChecksDone = Object.values(checks).every(Boolean);
 
   // ---- file state ----
-  const [workFile, setWorkFile] = useStateA(null);
-  const [invoiceFile, setInvoiceFile] = useStateA(null);
-  const [workErr, setWorkErr] = useStateA(null);
-  const [invoiceErr, setInvoiceErr] = useStateA(null);
-  const workInputRef = useRefA(null);
-  const invoiceInputRef = useRefA(null);
+  const [workFile, setWorkFile] = useState(null);
+  const [invoiceFile, setInvoiceFile] = useState(null);
+  const [workErr, setWorkErr] = useState(null);
+  const [invoiceErr, setInvoiceErr] = useState(null);
+  const workInputRef = useRef(null);
+  const invoiceInputRef = useRef(null);
 
   // ---- pipeline state ----
-  const [step, setStep] = useStateA(0); // 0 idle, 1 upload, 2 plag, 3 ai, 4 qa, 5 done
+  const [step, setStep] = useState(0); // 0 idle, 1 upload, 2 plag, 3 ai, 4 qa, 5 done
 
   const MAX_BYTES = 5 * 1024 * 1024;
   // PRD: .doc, .docx, .pdf, .xls, .xlsx — max 5 MB
@@ -205,7 +205,7 @@ function GWSubmit({ orderId, kind, navigate, toast }) {
   );
 
   const FilePicker = ({ label, current, err, onPicked, accept, allowedExt, inputRef, hint }) => {
-    const [drag, setDrag] = useStateA(false);
+    const [drag, setDrag] = useState(false);
     const onChange = (e) => { const f = e.target.files?.[0]; if (f) onPicked(f); e.target.value = ''; };
     const onDrop = (e) => { e.preventDefault(); e.stopPropagation(); setDrag(false); const f = e.dataTransfer?.files?.[0]; if (f) onPicked(f); };
     return (

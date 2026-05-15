@@ -3,7 +3,7 @@
 // ============ QA DOCUMENT PREVIEW (inline) ============
 // Q-04: replaces the old "Open document viewer" toast with an inline mock preview.
 // Shows a synthetic first page derived from the order title so QA can see what they're judging.
-import React, { useState as useStateA, useEffect as useEffectA, useMemo as useMemoA } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Icon, StatusPill, Avatar, Money, Bi, ScoreBar, NotReady, PlannedTag, EmptyState, Skeleton } from '../../utils.jsx';
 import * as U from '../../utils.jsx';
 import { CrumbBar } from '../../shell.jsx';
@@ -360,7 +360,7 @@ function AIDetectionRunner({ submission }) {
 }
 
 function QAQueue({ navigate, toast }) {
-  const [activeId, setActiveId] = useStateA(3517);
+  const [activeId, setActiveId] = useState(3517);
   const subs = EFHooks.useSubmissions({ qaQueue: true });
   const active = subs.find(s => s.orderId === activeId) || subs[0];
   const order = active && D.order(active.orderId);
@@ -368,14 +368,14 @@ function QAQueue({ navigate, toast }) {
   const gw = order && D.gw(order.gwId);
   const aiFlaggedCount = subs.filter(s => s.aiScore >= 70 || s.flagged).length;
 
-  const [verdict, setVerdict] = useStateA(null);
-  const [previewOpen, setPreviewOpen] = useStateA(false);
-  const [compareOpen, setCompareOpen] = useStateA(false);
-  const [plagOpen, setPlagOpen] = useStateA(false);
-  const [aiOpen, setAiOpen] = useStateA(false);
+  const [verdict, setVerdict] = useState(null);
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const [compareOpen, setCompareOpen] = useState(false);
+  const [plagOpen, setPlagOpen] = useState(false);
+  const [aiOpen, setAiOpen] = useState(false);
 
   // Reset detail panels when switching submissions
-  useEffectA(() => { setPreviewOpen(false); setCompareOpen(false); setPlagOpen(false); setAiOpen(false); setVerdict(null); }, [active?.id]);
+  useEffect(() => { setPreviewOpen(false); setCompareOpen(false); setPlagOpen(false); setAiOpen(false); setVerdict(null); }, [active?.id]);
 
   const decide = (kind) => {
     setVerdict(kind);

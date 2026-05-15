@@ -1,10 +1,11 @@
 // Admin dashboard
 
 // ----- Sparkline -----
-import React, { useState as useStateA, useEffect as useEffectA, useMemo as useMemoA } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Icon, StatusPill, Avatar, Money, Bi, ScoreBar } from '../../utils.jsx';
 import * as U from '../../utils.jsx';
 import { CrumbBar } from '../../shell.jsx';
+import { liveNow } from '../../data.js';
 import * as W from '../core/workflow.js';
 import * as EFHooks from '../core/hooks.js';
 import * as EFSelectors from '../core/selectors.js';
@@ -497,8 +498,7 @@ function CashAndFriday({ navigate, openFridayBatch }) {
 // the panel immediately on role-switch.
 function TodaysDeadlines({ navigate }) {
   const orders = EFHooks.useOrders();
-  const D = EF;
-  const NOW = D.DEMO_NOW || new Date();
+  const NOW = liveNow();
   const closedStates = new Set(['completed','cancelled','payment_pending','delivered']);
   const items = [];
   orders.forEach(o => {

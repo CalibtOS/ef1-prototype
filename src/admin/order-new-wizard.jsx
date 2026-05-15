@@ -1,6 +1,6 @@
 // Admin · New-order wizard — guided order creation across 4 steps.
 
-import React, { useState as useStateA, useEffect as useEffectA, useMemo as useMemoA } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Icon, StatusPill, Avatar, Money, Bi, ScoreBar, NotReady, PlannedTag, EmptyState, Skeleton } from '../../utils.jsx';
 import * as U from '../../utils.jsx';
 import { CrumbBar } from '../../shell.jsx';
@@ -17,8 +17,8 @@ function initialsFor(name, email) {
 
 // ====================================================================
 function OrderNewWizard({ navigate, toast }) {
-  const [step, setStep] = useStateA(0);
-  const [draft, setDraft] = useStateA({
+  const [step, setStep] = useState(0);
+  const [draft, setDraft] = useState({
     customerId: null,
     customerName: '', customerEmail: '', customerPhone: '', country: 'DE',
     workType: 'hausarbeit', field: '', pages: 14, paperTitle: '',

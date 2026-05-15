@@ -5,7 +5,7 @@
 // ROLES (Antigona Berisha · c-ab). Demo orders now live in the shared store
 // so customer/admin/GW/QA views all see the same lifecycle state.
 
-import React, { useState as useStateA, useEffect as useEffectA, useMemo as useMemoA } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Icon, StatusPill, Avatar, Money, Bi, ScoreBar, NotReady, PlannedTag, EmptyState, Skeleton, ChatNotice, ChatMessage, ChatComposer, ChatThreadRow } from '../../utils.jsx';
 import * as U from '../../utils.jsx';
 import { CrumbBar } from '../../shell.jsx';
@@ -98,7 +98,7 @@ function custGwContact(o) {
 }
 
 function CustHeader({ tab, setTab, role, setRole, onOpenNotification }) {
-  const [open, setOpen] = useStateA(false);
+  const [open, setOpen] = useState(false);
   const NotifBell = EFShell.NotifBell;
   const customerNotifs = EFHooks.useNotifications('customer');
   const tabs = [
@@ -439,8 +439,8 @@ function CustOrderStatus({ o }) {
 }
 
 function CustOrderChat({ o, toast }) {
-  const [text, setText] = useStateA('');
-  const [draftFlag, setDraftFlag] = useStateA(null);
+  const [text, setText] = useState('');
+  const [draftFlag, setDraftFlag] = useState(null);
   const thread = EFHooks.useThreadByOrder(o.id);
   const dates = W.lifecycleDates(o, []);
 
@@ -462,7 +462,7 @@ function CustOrderChat({ o, toast }) {
   const messages = syntheticConv ? syntheticConv : (thread?.messages || []);
 
   // Mark unread customer messages as read once the chat is opened.
-  useEffectA(() => {
+  useEffect(() => {
     if (thread?.id && (thread.unread?.customer || 0) > 0) {
       EFActions.threads.markRead(thread.id, 'customer');
     }
@@ -591,8 +591,8 @@ function CustOrderChat({ o, toast }) {
 }
 
 function CustInterimFeedback({ o, toast }) {
-  const [mode, setMode] = useStateA(null); // null | 'approve' | 'revision'
-  const [note, setNote] = useStateA('');
+  const [mode, setMode] = useState(null); // null | 'approve' | 'revision'
+  const [note, setNote] = useState('');
 
   if (mode === 'approve') {
     return (
@@ -664,8 +664,8 @@ function CustInterimFeedback({ o, toast }) {
 // customer_satisfied). Without this UI no live order can ever reach
 // payment_pending and the GW honorarium would stay stuck behind the gate.
 function CustFinalAcceptance({ o, toast }) {
-  const [mode, setMode] = useStateA(null); // null | 'accept' | 'revision'
-  const [note, setNote] = useStateA('');
+  const [mode, setMode] = useState(null); // null | 'accept' | 'revision'
+  const [note, setNote] = useState('');
 
   if (mode === 'accept') {
     return (
@@ -984,7 +984,7 @@ function CustOrderPayments({ o }) {
 }
 
 function CustOrderDetail({ orderId, initialTab, onBack, toast }) {
-  const [tab, setTab] = useStateA(initialTab || 'status');
+  const [tab, setTab] = useState(initialTab || 'status');
   const all = custOrders();
   const o = all.find(x => x.id === orderId);
   if (!o) {
@@ -1059,7 +1059,7 @@ function CustOrderDetail({ orderId, initialTab, onBack, toast }) {
 function CustMessagesList({ openOrder }) {
   const orders = custOrders().filter(o => o.gwId);
   const allThreads = EFHooks.useThreads();
-  const threadsByOrder = useMemoA(() => {
+  const threadsByOrder = useMemo(() => {
     const m = {};
     allThreads.forEach(t => { m[t.orderId] = t; });
     return m;
@@ -1298,7 +1298,7 @@ function CustProfile({ toast }) {
   const activeCount    = orders.length - completedCount;
   const ltv = orders.reduce((s, o) => s + (o.paidEur || 0), 0);
 
-  const [notif, setNotif] = useStateA({ email: true, sms: false, milestones: true, marketing: false });
+  const [notif, setNotif] = useState({ email: true, sms: false, milestones: true, marketing: false });
 
   return (
     <div>
@@ -1394,8 +1394,8 @@ function CustProfile({ toast }) {
 // for the active tab. Clicking an internal tab navigates so the URL/sidebar stay in sync.
 function CustomerView({ role, setRole, toast, section, navigate }) {
   const tab = section || 'orders';
-  const [openOrderId, setOpenOrderId] = useStateA(null);
-  const [openOrderTab, setOpenOrderTab] = useStateA('status');
+  const [openOrderId, setOpenOrderId] = useState(null);
+  const [openOrderTab, setOpenOrderTab] = useState('status');
 
   const openOrder = (id, subTab = 'status') => {
     setOpenOrderId(id);

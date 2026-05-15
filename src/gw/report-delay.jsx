@@ -1,6 +1,6 @@
 // GW · Report delay — request a deadline shift before D-2.
 
-import React, { useState as useStateA, useEffect as useEffectA, useMemo as useMemoA } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Icon, StatusPill, Avatar, Money, Bi, ScoreBar, NotReady, PlannedTag, EmptyState, Skeleton } from '../../utils.jsx';
 import * as U from '../../utils.jsx';
 import { CrumbBar } from '../../shell.jsx';
@@ -12,12 +12,12 @@ function GWReportDelay({ orderId, navigate, toast }) {
   const order = D.order(orderId);
   if (!order) return <div className="page">Assignment not found.</div>;
   const cust = D.customer(order.customerId);
-  const [reason, setReason] = useStateA('');
-  const [reasonKind, setReasonKind] = useStateA('illness');
-  const [newDate, setNewDate] = useStateA('');
-  const [customerInformed, setCustomerInformed] = useStateA(false);
-  const [phase, setPhase] = useStateA('form'); // form | sending | sent
-  const [sentSteps, setSentSteps] = useStateA({ customer: false, kundenservice: false });
+  const [reason, setReason] = useState('');
+  const [reasonKind, setReasonKind] = useState('illness');
+  const [newDate, setNewDate] = useState('');
+  const [customerInformed, setCustomerInformed] = useState(false);
+  const [phase, setPhase] = useState('form'); // form | sending | sent
+  const [sentSteps, setSentSteps] = useState({ customer: false, kundenservice: false });
 
   const valid = reason.trim().length > 10 && newDate;
 

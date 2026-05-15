@@ -2,7 +2,7 @@
 
 // ============ GW JOB BOARD ============
 // Same surface, two perspectives: GW claims, admin manages (no Claim button).
-import React, { useState as useStateA, useEffect as useEffectA, useMemo as useMemoA } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Icon, StatusPill, Avatar, Money, Bi, ScoreBar, NotReady, PlannedTag, EmptyState, Skeleton } from '../../utils.jsx';
 import * as U from '../../utils.jsx';
 import { CrumbBar } from '../../shell.jsx';
@@ -13,8 +13,8 @@ const D = EF;
 
 function GWJobBoard({ navigate, toast, role = 'gw' }) {
   const isAdmin = role === 'admin';
-  const [filter, setFilter] = useStateA('all');
-  const [claimingId, setClaimingId] = useStateA(null);
+  const [filter, setFilter] = useState('all');
+  const [claimingId, setClaimingId] = useState(null);
   // Source of truth: ORDERS where status === 'available' AND no GW assigned.
   const unclaimed = EFHooks.useOrders({ filter: 'available' })
     .filter(o => o.status === 'available' && !o.gwId)
@@ -144,8 +144,8 @@ function GWJobBoard({ navigate, toast, role = 'gw' }) {
 }
 
 function ClaimModal({ job, onClose, toast, navigate }) {
-  const [step, setStep] = useStateA(1);
-  const [acks, setAcks] = useStateA({ agb: false, ai: false, gdpr: false, deadline: false, fee: false, individual: false });
+  const [step, setStep] = useState(1);
+  const [acks, setAcks] = useState({ agb: false, ai: false, gdpr: false, deadline: false, fee: false, individual: false });
   const allAcked = Object.values(acks).every(Boolean);
   const submit = () => {
     // Stateful transition: order moves to claimed_pending_approval and is bound

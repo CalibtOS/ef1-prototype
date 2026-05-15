@@ -1,12 +1,6 @@
 // Dev · Tweaks panel — debug overlay for theme/density/locale/accent tweaks.
-
-// ============ TWEAKS PANEL ============
-import React, { useState as useStateA, useEffect as useEffectA, useMemo as useMemoA } from 'react';
-import { Icon, StatusPill, Avatar, Money, Bi, ScoreBar, NotReady, PlannedTag, EmptyState, Skeleton } from '../../utils.jsx';
-import * as U from '../../utils.jsx';
-import { CrumbBar } from '../../shell.jsx';
-import EF from '../core/ef.js';
-const D = EF;
+import React from 'react';
+import { Icon } from '../../utils.jsx';
 
 function TweaksPanel({ tweaks, setTweak, onClose }) {
   return (

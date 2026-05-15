@@ -1,7 +1,7 @@
 // GW · Active Jobs — assignments-in-progress view with deadlines and submissions.
 
 // ============ GW ACTIVE JOBS ============
-import React, { useState as useStateA, useEffect as useEffectA, useMemo as useMemoA } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Icon, StatusPill, Avatar, Money, Bi, ScoreBar, NotReady, PlannedTag, EmptyState, Skeleton } from '../../utils.jsx';
 import * as U from '../../utils.jsx';
 import { CrumbBar } from '../../shell.jsx';
@@ -10,7 +10,7 @@ import EF from '../core/ef.js';
 const D = EF;
 
 function GWActiveJobs({ navigate }) {
-  const [filter, setFilter] = useStateA('all');
+  const [filter, setFilter] = useState('all');
 
   // The list and the detail route must read the same live order source.
   const realMine = EFHooks.useOrders({ gwId: D.GW_ME.id });

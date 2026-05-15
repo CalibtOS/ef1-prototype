@@ -1,7 +1,7 @@
 // Admin · Customers list (CustomerDetail lives in customer-detail.jsx).
 
 // ============ CUSTOMERS (minimal) ============
-import React, { useState as useStateA, useEffect as useEffectA, useMemo as useMemoA } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Icon, StatusPill, Avatar, Money, Bi, ScoreBar, NotReady, PlannedTag, EmptyState, Skeleton } from '../../utils.jsx';
 import * as U from '../../utils.jsx';
 import { CrumbBar } from '../../shell.jsx';
@@ -10,8 +10,8 @@ import EF from '../core/ef.js';
 const D = EF;
 
 function CustomersPage({ navigate }) {
-  const [search, setSearch] = useStateA('');
-  const [filter, setFilter] = useStateA('all');
+  const [search, setSearch] = useState('');
+  const [filter, setFilter] = useState('all');
 
   const liveOrders = D.liveOrders();
   const customersWithStats = D.CUSTOMERS.map(c => {

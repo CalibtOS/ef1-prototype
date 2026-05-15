@@ -1,14 +1,13 @@
-// Vite entry point. Everything is real ES modules now — no globals, no IIFEs,
-// no `window.*` reads. The remaining `expose-globals.js` only sets
-// `window.efNotify` for ad-hoc demo scripts.
-
-import './expose-globals.js'
+// Vite entry point. Everything is a real ES module — no globals, no IIFEs,
+// no `window.*` bridges. Action handlers reach the toast queue through
+// `core/toast.js`, which is wired here.
 
 import React, { useState, useEffect, useCallback } from 'react'
 import { createRoot } from 'react-dom/client'
 import EFActions from './core/actions.js'
 import * as EFHooks from './core/hooks.js'
 import * as EFRoutes from './core/routes.js'
+import { setEmitter as setToastEmitter } from './core/toast.js'
 import { Sidebar, Topbar, ToastStack, AdminGlobalBanners } from '../shell.jsx'
 
 // Admin role
@@ -164,7 +163,10 @@ function App() {
     setTimeout(() => setToasts(t => t.filter(x => x.id !== id)), 5000)
   }, [])
 
-  useEffect(() => { window.efToast = toast; return () => { if (window.efToast === toast) delete window.efToast } }, [toast])
+  useEffect(() => {
+    setToastEmitter(toast)
+    return () => setToastEmitter(null)
+  }, [toast])
 
   const dismiss = (id) => setToasts(t => t.filter(x => x.id !== id))
 

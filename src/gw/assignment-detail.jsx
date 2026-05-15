@@ -5,7 +5,7 @@
 // Pipedrive funnel, Sevdesk invoice details, customer email/phone/LTV/lead source.
 // Per PRD: GW sees only job spec, customer name (after approval), their own
 // honorarium, submission tiles, messages, templates, deadlines.
-import React, { useState as useStateA, useEffect as useEffectA, useMemo as useMemoA } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Icon, StatusPill, Avatar, Money, Bi, ScoreBar, NotReady, PlannedTag, EmptyState, Skeleton, ChatNotice, ChatMessage } from '../../utils.jsx';
 import * as U from '../../utils.jsx';
 import { CrumbBar } from '../../shell.jsx';

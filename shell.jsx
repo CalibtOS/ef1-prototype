@@ -9,6 +9,7 @@ import * as EFRoutes from './src/core/routes.js';
 import store from './src/core/store.js';
 import * as EFHooks from './src/core/hooks.js';
 import EFActions from './src/core/actions.js';
+import { inferOrderId as notificationOrderId } from './src/core/notifications.js';
 
 // App-wide context
 const AppCtx = createContext(null);
@@ -115,14 +116,6 @@ function RoleSwitcher({ role, setRole }) {
       )}
     </div>
   );
-}
-
-function notificationOrderId(n) {
-  if (!n) return null;
-  if (n.orderId != null) return Number(n.orderId);
-  const text = [n.title, n.body].filter(Boolean).join(' ');
-  const match = text.match(/(?:#|order\s*#?|auftrag\s*#?)(\d{3,})/i);
-  return match ? Number(match[1]) : null;
 }
 
 function adminNotificationTab(kind) {

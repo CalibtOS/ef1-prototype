@@ -1,9 +1,10 @@
 // Admin · Order detail — overview, payments, submissions, comms, assignment, audit tabs.
 
-import React, { useState as useStateA, useEffect as useEffectA, useMemo as useMemoA } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Icon, StatusPill, Avatar, Money, Bi, ScoreBar, NotReady, PlannedTag, EmptyState, Skeleton, ChatNotice, ChatMessage, ChatComposer } from '../../utils.jsx';
 import * as U from '../../utils.jsx';
 import { CrumbBar } from '../../shell.jsx';
+import { liveNow } from '../../data.js';
 import * as W from '../core/workflow.js';
 import * as EFHooks from '../core/hooks.js';
 import EFActions from '../core/actions.js';
@@ -43,8 +44,8 @@ function fallbackCustomer(order) {
 
 function ExtensionResolutionPanel({ order, toast }) {
   const ext = order.extensionPending || {};
-  const [overrideDeadline, setOverrideDeadline] = useStateA('');
-  const [rejectReason, setRejectReason] = useStateA('');
+  const [overrideDeadline, setOverrideDeadline] = useState('');
+  const [rejectReason, setRejectReason] = useState('');
   const onApprove = () => {
     EFActions.orders.approveExtension(order.id, overrideDeadline ? { newDeadline: overrideDeadline + 'T18:00:00' } : {});
     toast && toast({ tone: 'success', transition: { entity: `Order #${order.id}`, from: 'Extension Requested', to: 'Active' }, text: 'Extension approved · GW + customer notified' });
@@ -81,7 +82,7 @@ function ExtensionResolutionPanel({ order, toast }) {
 }
 
 function DelayResolutionPanel({ order, toast }) {
-  const [counter, setCounter] = useStateA('');
+  const [counter, setCounter] = useState('');
   const onAccept = () => {
     EFActions.orders.acceptDelay(order.id, {});
     toast && toast({ tone: 'success', transition: { entity: `Order #${order.id}`, from: 'Delay Reported', to: 'Active' }, text: 'New deadline confirmed · customer + GW notified' });
@@ -116,7 +117,7 @@ function DelayResolutionPanel({ order, toast }) {
 }
 
 function DisputeResolutionPanel({ order, toast }) {
-  const [resolution, setResolution] = useStateA('');
+  const [resolution, setResolution] = useState('');
   const canSubmit = resolution.trim().length >= 10;
   const onClose = () => {
     EFActions.orders.closeDispute(order.id, resolution);
@@ -201,10 +202,10 @@ function ViolationResolutionPanel({ order, submissions, toast }) {
 }
 
 function OrderDetail({ orderId, navigate, toast, initialTab }) {
-  const [tab, setTab] = useStateA(initialTab || 'overview');
-  const [showRateSlider, setShowRateSlider] = useStateA(false);
-  const [approving, setApproving] = useStateA(null);
-  useEffectA(() => {
+  const [tab, setTab] = useState(initialTab || 'overview');
+  const [showRateSlider, setShowRateSlider] = useState(false);
+  const [approving, setApproving] = useState(null);
+  useEffect(() => {
     setTab(initialTab || 'overview');
   }, [orderId, initialTab]);
   // Store-backed read so newly-created orders resolve across all role views.
@@ -822,7 +823,7 @@ function dateInputValue(iso) {
 }
 
 function midpointDate(finalIso) {
-  const now = new Date(EF.DEMO_NOW || '2026-05-07T14:32:00');
+  const now = liveNow();
   const final = new Date(finalIso || now);
   const mid = new Date(now.getTime() + ((final.getTime() - now.getTime()) / 2));
   return mid.toISOString().slice(0, 10);
@@ -904,7 +905,7 @@ function SevdeskPdfPreview({ order, cust, offerNo, pageRate, discount, totalGros
             </div>
             <div className="offer-pdf-facts">
               <div><span>Angebots-Nr.</span><strong>{offerNo}</strong></div>
-              <div><span>Datum</span><strong>{U.fmtDate(EF.DEMO_NOW)}</strong></div>
+              <div><span>Datum</span><strong>{U.fmtDate(liveNow().toISOString())}</strong></div>
               <div><span>Ihr Ansprechpartner</span><strong>Berat Özdemir</strong></div>
             </div>
           </div>
@@ -985,9 +986,9 @@ function OfferEmailCard({ email, status }) {
 }
 
 function InvoiceAutomationPanel({ order, cust, totalGross, toast }) {
-  const [method, setMethod] = useStateA(order.paymentMethodChoice || 'stripe_card');
-  const [phase, setPhase] = useStateA(null);
-  const [paying, setPaying] = useStateA(false);
+  const [method, setMethod] = useState(order.paymentMethodChoice || 'stripe_card');
+  const [phase, setPhase] = useState(null);
+  const [paying, setPaying] = useState(false);
   const offerSent = ['offer_sent','invoice_sent'].includes(order.status) || order.offerSentAt;
   const invoiceSent = order.status === 'invoice_sent' || order.invoiceSentAt;
   const invoiceNo = invoiceNoFor(order);
@@ -1073,14 +1074,14 @@ function InvoiceAutomationPanel({ order, cust, totalGross, toast }) {
 function OfferTab({ order, toast, setTab }) {
   const cust = D.customer(order.customerId);
   const defaultRate = order.pages ? Math.round((order.grossEur || 0) / order.pages) : 49;
-  const [pageRate, setPageRate] = useStateA(order.offerPageRate || defaultRate || 49);
-  const [discount, setDiscount] = useStateA(order.discountPct || 0);
-  const [interimDate, setInterimDate] = useStateA(dateInputValue(order.interimDeadline) || midpointDate(order.finalDeadline));
-  const [finalDate, setFinalDate] = useStateA(dateInputValue(order.finalDeadline));
-  const [customNote, setCustomNote] = useStateA(order.offerNote || '');
-  const [pdfReviewed, setPdfReviewed] = useStateA(!!order.offerPdfPreviewedAt);
-  const [phaseIndex, setPhaseIndex] = useStateA(-1);
-  const [sending, setSending] = useStateA(false);
+  const [pageRate, setPageRate] = useState(order.offerPageRate || defaultRate || 49);
+  const [discount, setDiscount] = useState(order.discountPct || 0);
+  const [interimDate, setInterimDate] = useState(dateInputValue(order.interimDeadline) || midpointDate(order.finalDeadline));
+  const [finalDate, setFinalDate] = useState(dateInputValue(order.finalDeadline));
+  const [customNote, setCustomNote] = useState(order.offerNote || '');
+  const [pdfReviewed, setPdfReviewed] = useState(!!order.offerPdfPreviewedAt);
+  const [phaseIndex, setPhaseIndex] = useState(-1);
+  const [sending, setSending] = useState(false);
   const offerNo = offerNoFor(order);
   const pages = Number(order.pages) || 0;
   const baseGross = pages * Number(pageRate || 0);
@@ -1294,9 +1295,9 @@ function SubmissionsTab({ order }) {
 }
 
 function CommsTab({ order, toast }) {
-  const [channelFilter, setChannelFilter] = useStateA('all');
-  const [reply, setReply] = useStateA('');
-  const [deliveryRail, setDeliveryRail] = useStateA('email');
+  const [channelFilter, setChannelFilter] = useState('all');
+  const [reply, setReply] = useState('');
+  const [deliveryRail, setDeliveryRail] = useState('email');
   const cust = D.customer(order.customerId);
   const gw = D.gw(order.gwId);
   const customerInitials = cust?.initials || 'CU';
@@ -1312,7 +1313,7 @@ function CommsTab({ order, toast }) {
     return value || 'platform';
   };
   const fallbackOrigin = normalizeLegacyChannel(thread?.channel);
-  const enriched = useMemoA(() => {
+  const enriched = useMemo(() => {
     return [...(thread?.messages || [])]
       .map(m => ({
         ...m,

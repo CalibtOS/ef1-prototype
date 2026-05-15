@@ -2,6 +2,7 @@
 // store helpers, selector shortcuts, and the toast bridge.
 import store from './store.js';
 import * as S from './selectors.js';
+import { showToast } from './toast.js';
 
 function nowIso() {
   return new Date().toISOString();
@@ -35,7 +36,7 @@ function customer(id) {
 }
 
 function toast(payload) {
-  if (window.efToast) window.efToast(payload);
+  showToast(payload);
 }
 
 export {

@@ -3,16 +3,14 @@
 // ====================================================================
 // GW — Onboarding wizard (form 7880 → platform)
 // ====================================================================
-import React, { useState as useStateA, useEffect as useEffectA, useMemo as useMemoA } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Icon, StatusPill, Avatar, Money, Bi, ScoreBar, NotReady, PlannedTag, EmptyState, Skeleton } from '../../utils.jsx';
 import * as U from '../../utils.jsx';
 import { CrumbBar } from '../../shell.jsx';
-import EF from '../core/ef.js';
-const D = EF;
 
 function GWOnboarding({ navigate, toast }) {
-  const [step, setStep] = useStateA(0);
-  const [draft, setDraft] = useStateA({
+  const [step, setStep] = useState(0);
+  const [draft, setDraft] = useState({
     firstName: 'Isabel', lastName: 'Walter',
     phone: '+49 ', email: 'isabel.walter@gw.efactory1.de',
     expertise: ['Wirtschaftsinformatik', 'BWL'],
