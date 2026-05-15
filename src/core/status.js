@@ -47,10 +47,20 @@ export const QA_VERDICT = Object.freeze({
   REVISION_REQUIRED: 'revision_required',
 });
 
+// Per-submission QA status. Written by actions.js / workflow.js.
+// PENDING        — final-style submission queued for QA review
+// AUTO_FORWARDED — interim draft, skipped QA and went straight to the customer
+// PASSED         — QA approved; forwarded to customer
+// REVISION_REQUESTED — QA asked GW to revise
+// FLAGGED        — QA escalated (AI / plagiarism) to admin review
+// ARCHIVED       — superseded by a newer round
 export const QA_STATUS = Object.freeze({
   PENDING: 'pending',
-  APPROVED: 'approved',
-  REJECTED: 'rejected',
+  AUTO_FORWARDED: 'auto_forwarded',
+  PASSED: 'passed',
+  REVISION_REQUESTED: 'revision_requested',
+  FLAGGED: 'flagged',
+  ARCHIVED: 'archived',
 });
 
 // ---- Roles ----

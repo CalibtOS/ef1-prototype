@@ -9,6 +9,7 @@ import * as W from '../core/workflow.js';
 import * as EFHooks from '../core/hooks.js';
 import EFActions from '../core/actions.js';
 import EF from '../core/ef.js';
+import { QA_STATUS } from '../core/status.js';
 const D = EF;
 
 function initialsFor(name, email) {
@@ -1263,10 +1264,10 @@ function SubmissionsTab({ order }) {
               </div>
               {isInterim && <span className="pill pill-blue"><Icon name="send" size={10}/> Auto-forwarded to customer</span>}
               {isInvoice && <span className="pill pill-slate">Archived invoice</span>}
-              {!isInterim && !isInvoice && s.qaStatus === 'passed' && <span className="pill pill-green"><Icon name="check" size={10}/> QA passed · forwarded</span>}
-              {!isInterim && !isInvoice && s.qaStatus === 'pending' && <span className="pill pill-pink">QA pending</span>}
-              {!isInterim && !isInvoice && s.qaStatus === 'revision_requested' && <span className="pill pill-orange">Revision requested</span>}
-              {!isInterim && !isInvoice && (s.qaStatus === 'flagged' || s.flagged) && <span className="pill pill-red">QA flag</span>}
+              {!isInterim && !isInvoice && s.qaStatus === QA_STATUS.PASSED && <span className="pill pill-green"><Icon name="check" size={10}/> QA passed · forwarded</span>}
+              {!isInterim && !isInvoice && s.qaStatus === QA_STATUS.PENDING && <span className="pill pill-pink">QA pending</span>}
+              {!isInterim && !isInvoice && s.qaStatus === QA_STATUS.REVISION_REQUESTED && <span className="pill pill-orange">Revision requested</span>}
+              {!isInterim && !isInvoice && (s.qaStatus === QA_STATUS.FLAGGED || s.flagged) && <span className="pill pill-red">QA flag</span>}
               <NotReady className="btn btn-sm" feature="submission-download" ariaLabel="Download submission"><Icon name="download" size={12}/></NotReady>
               <NotReady className="btn btn-sm" feature="submission-preview" ariaLabel="Preview submission"><Icon name="eye" size={12}/></NotReady>
             </div>

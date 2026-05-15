@@ -1,6 +1,7 @@
 // Core workflow rules for eFactory One.
 // Pure business logic only: no React, no DOM writes, no side effects.
 import { STATUS_PILLS } from '../../data.js';
+import { QA_STATUS } from './status.js';
 
 const ORDER_STATES = [
   'lead','qualified','offer_sent','invoice_sent','available','claimed_pending_approval',
@@ -335,11 +336,11 @@ function lifecycleDates(order, submissions) {
 }
 
 function qaStatusForDerivedFinal(order) {
-  if (!order) return 'pending';
-  if (order.status === 'ai_violation_review' || order.status === 'plagiarism_violation_review' || order.flagged) return 'flagged';
-  if (order.status === 'revision_required' && !order.qaPassed) return 'revision_requested';
-  if (order.qaPassed || statusRank(order) >= 13) return 'passed';
-  return 'pending';
+  if (!order) return QA_STATUS.PENDING;
+  if (order.status === 'ai_violation_review' || order.status === 'plagiarism_violation_review' || order.flagged) return QA_STATUS.FLAGGED;
+  if (order.status === 'revision_required' && !order.qaPassed) return QA_STATUS.REVISION_REQUESTED;
+  if (order.qaPassed || statusRank(order) >= 13) return QA_STATUS.PASSED;
+  return QA_STATUS.PENDING;
 }
 
 function deriveSubmissions(order, submissions) {
@@ -362,7 +363,7 @@ function deriveSubmissions(order, submissions) {
       size: 1100000,
       plagiarismScore: null,
       aiScore: null,
-      qaStatus: 'auto_forwarded',
+      qaStatus: QA_STATUS.AUTO_FORWARDED,
       submittedAt: dates.interimAt,
       forwardedAt: dates.interimAt,
       synthetic: true,
@@ -397,7 +398,7 @@ function deriveSubmissions(order, submissions) {
       gwId: order.gwId,
       fileName: `Honorarrechnung_${order.id}.pdf`,
       size: 90000,
-      qaStatus: 'archived',
+      qaStatus: QA_STATUS.ARCHIVED,
       submittedAt: dates.finalSubmittedAt || dates.deliveredAt || dates.finalAcceptedAt,
       synthetic: true,
     });
@@ -462,10 +463,10 @@ function buildOrderEvents(order, context) {
       return;
     }
     addEvent(events, event(`submission.${s.id}.uploaded`, s.submittedAt, `${s.kind === 'revision' ? 'Revision' : 'Final work'} uploaded to efactory1`, { icon: 'upload-cloud', dot: 'blue', domain: 'submission', detail: s.fileName }));
-    if (s.qaStatus === 'pending') addEvent(events, event(`submission.${s.id}.qa.pending`, s.submittedAt, 'Submission queued for QA', { icon: 'shield', dot: 'amber', domain: 'qa' }));
-    if (s.qaStatus === 'passed') addEvent(events, event(`submission.${s.id}.qa.passed`, s.reviewedAt || s.forwardedAt || dates.qaReviewedAt, 'QA passed; final forwarded to customer', { icon: 'shield-check', dot: 'green', domain: 'qa', detail: `Plagiarism ${s.plagiarismScore ?? '-'}% · AI ${s.aiScore ?? '-'}%` }));
-    if (s.qaStatus === 'revision_requested') addEvent(events, event(`submission.${s.id}.qa.revision`, s.reviewedAt || dates.qaReviewedAt || s.submittedAt, 'QA requested a revision', { icon: 'rotate-ccw', dot: 'amber', domain: 'qa' }));
-    if (s.qaStatus === 'flagged' || s.flagged) addEvent(events, event(`submission.${s.id}.qa.flagged`, s.reviewedAt || order.qaFlaggedAt || s.submittedAt, order.status === 'plagiarism_violation_review' ? 'QA flagged plagiarism for admin review' : 'QA flagged AI use for admin review', { icon: 'alert-triangle', dot: 'red', domain: 'qa', detail: `Plagiarism ${s.plagiarismScore ?? '-'}% · AI ${s.aiScore ?? '-'}%` }));
+    if (s.qaStatus === QA_STATUS.PENDING) addEvent(events, event(`submission.${s.id}.qa.pending`, s.submittedAt, 'Submission queued for QA', { icon: 'shield', dot: 'amber', domain: 'qa' }));
+    if (s.qaStatus === QA_STATUS.PASSED) addEvent(events, event(`submission.${s.id}.qa.passed`, s.reviewedAt || s.forwardedAt || dates.qaReviewedAt, 'QA passed; final forwarded to customer', { icon: 'shield-check', dot: 'green', domain: 'qa', detail: `Plagiarism ${s.plagiarismScore ?? '-'}% · AI ${s.aiScore ?? '-'}%` }));
+    if (s.qaStatus === QA_STATUS.REVISION_REQUESTED) addEvent(events, event(`submission.${s.id}.qa.revision`, s.reviewedAt || dates.qaReviewedAt || s.submittedAt, 'QA requested a revision', { icon: 'rotate-ccw', dot: 'amber', domain: 'qa' }));
+    if (s.qaStatus === QA_STATUS.FLAGGED || s.flagged) addEvent(events, event(`submission.${s.id}.qa.flagged`, s.reviewedAt || order.qaFlaggedAt || s.submittedAt, order.status === 'plagiarism_violation_review' ? 'QA flagged plagiarism for admin review' : 'QA flagged AI use for admin review', { icon: 'alert-triangle', dot: 'red', domain: 'qa', detail: `Plagiarism ${s.plagiarismScore ?? '-'}% · AI ${s.aiScore ?? '-'}%` }));
   });
 
   if (order.lastCustomerFeedbackAt && order.status === 'revision_required') addEvent(events, event('customer.revision', order.lastCustomerFeedbackAt, 'Customer requested revision', { icon: 'message-square', dot: 'amber', domain: 'customer', detail: bodyPreview(order.customerRevisionNote) }));

@@ -11,6 +11,7 @@ import * as W from './workflow.js';
 import * as I from './internals.js';
 import * as N from './notifications.js';
 import * as T from './threads.js';
+import { QA_STATUS } from './status.js';
 
 const nowIso = I.nowIso;
 const updateTable = I.updateTable;
@@ -336,7 +337,7 @@ function submitWork(orderId, payload = {}) {
     size: payload.size || payload.workFile?.size || 1200000,
     plagiarismScore: payload.plagiarismScore ?? 4,
     aiScore: payload.aiScore ?? 8,
-    qaStatus: isInterim ? 'auto_forwarded' : 'pending',
+    qaStatus: isInterim ? QA_STATUS.AUTO_FORWARDED : QA_STATUS.PENDING,
     submittedAt: nowIso(),
     forwardedAt: isInterim ? nowIso() : null,
     selfChecks: payload.selfChecks || { noAi: true, ready: true, individual: true, spelling: true, grammar: true, plagiarism: true, requirements: true },
@@ -370,7 +371,7 @@ function qaPass(submissionId) {
   if (!sub) return false;
   const o = order(sub.orderId);
   const isFinal = sub.kind === 'final_work' || sub.kind === 'revision';
-  patchEntity('submissions', submissionId, { qaStatus: 'passed', reviewedAt: nowIso(), reviewer: 'qa@efactory1.de' }, 'qa.pass.submission');
+  patchEntity('submissions', submissionId, { qaStatus: QA_STATUS.PASSED, reviewedAt: nowIso(), reviewer: 'qa@efactory1.de' }, 'qa.pass.submission');
   patchOrder(sub.orderId, {
     status: isFinal ? 'delivered' : 'under_customer_review',
     qaPassed: true,
@@ -387,7 +388,7 @@ function qaRequestRevision(submissionId) {
   const sub = S.byId(store.getState().entities.submissions, submissionId);
   if (!sub) return false;
   const o = order(sub.orderId);
-  patchEntity('submissions', submissionId, { qaStatus: 'revision_requested', reviewedAt: nowIso() }, 'qa.revision.submission');
+  patchEntity('submissions', submissionId, { qaStatus: QA_STATUS.REVISION_REQUESTED, reviewedAt: nowIso() }, 'qa.revision.submission');
   patchOrder(sub.orderId, {
     status: 'revision_required',
     revisionRounds: (o.revisionRounds || 0) + 1,
@@ -404,7 +405,7 @@ function qaFlag(submissionId, type) {
   const o = order(sub.orderId);
   const status = type === 'plagiarism' ? 'plagiarism_violation_review' : 'ai_violation_review';
   const reason = type === 'plagiarism' ? 'Plagiarism suspected' : 'AI use suspected';
-  patchEntity('submissions', submissionId, { qaStatus: 'flagged', flagged: true, flagType: type, reviewedAt: nowIso() }, `qa.flag.${type}.submission`);
+  patchEntity('submissions', submissionId, { qaStatus: QA_STATUS.FLAGGED, flagged: true, flagType: type, reviewedAt: nowIso() }, `qa.flag.${type}.submission`);
   patchOrder(sub.orderId, {
     status,
     flagged: true,
