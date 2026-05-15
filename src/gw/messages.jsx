@@ -163,4 +163,4 @@ function GWMessages({ navigate }) {
   );
 }
 
-window.GWMessages = GWMessages;
+export { GWMessages };

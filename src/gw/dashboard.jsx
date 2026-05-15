@@ -124,6 +124,5 @@ function GWDashboard({ navigate }) {
     </div>
   );
 }
-window.GWDashboard = GWDashboard;
 
-window.GWDashboard = GWDashboard;
+export { GWDashboard };

@@ -442,5 +442,4 @@ function Inbox({ toast, route }) {
   );
 }
 
-
-window.Inbox = Inbox;
+export { Inbox };

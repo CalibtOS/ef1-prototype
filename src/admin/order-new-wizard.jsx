@@ -390,6 +390,5 @@ function OrderNewWizard({ navigate, toast }) {
     </div>
   );
 }
-window.OrderNewWizard = OrderNewWizard;
 
-window.OrderNewWizard = OrderNewWizard;
+export { OrderNewWizard };

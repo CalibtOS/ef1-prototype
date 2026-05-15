@@ -8,6 +8,7 @@ import * as W from '../core/workflow.js';
 import * as EFHooks from '../core/hooks.js';
 import EFActions from '../core/actions.js';
 import EF from '../core/ef.js';
+import { SubmissionsTab } from '../admin/order-detail.jsx';
 const D = EF;
 
 function QAOrderDetail({ orderId, navigate, toast }) {
@@ -247,5 +248,4 @@ function QAOrderDetail({ orderId, navigate, toast }) {
   );
 }
 
-
-window.QAOrderDetail = QAOrderDetail;
+export { QAOrderDetail };

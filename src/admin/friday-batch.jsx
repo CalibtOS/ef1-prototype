@@ -187,4 +187,4 @@ function FridayBatch({ navigate, toast }) {
   );
 }
 
-window.FridayBatch = FridayBatch;
+export { FridayBatch };

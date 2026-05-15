@@ -137,6 +137,5 @@ function CustomerDetail({ customerId, navigate }) {
     </div>
   );
 }
-window.CustomerDetail = CustomerDetail;
 
-window.CustomerDetail = CustomerDetail;
+export { CustomerDetail };

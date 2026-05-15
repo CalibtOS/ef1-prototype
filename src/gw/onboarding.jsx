@@ -160,6 +160,5 @@ function GWOnboarding({ navigate, toast }) {
     </div>
   );
 }
-window.GWOnboarding = GWOnboarding;
 
-window.GWOnboarding = GWOnboarding;
+export { GWOnboarding };

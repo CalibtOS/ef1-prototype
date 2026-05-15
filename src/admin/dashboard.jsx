@@ -837,6 +837,4 @@ function Heatmap() {
   );
 }
 
-window.AdminDashboard = AdminDashboard;
-window.Spark = Spark;
-window.MiniBars = MiniBars;
+export { AdminDashboard, Spark, MiniBars };

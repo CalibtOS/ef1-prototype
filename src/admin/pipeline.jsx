@@ -117,4 +117,5 @@ function PipelineKanban({ navigate }) {
     </div>
   );
 }
-window.PipelineKanban = PipelineKanban;
+
+export { PipelineKanban };

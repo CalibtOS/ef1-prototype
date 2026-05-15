@@ -223,6 +223,5 @@ function QAAIDetection({ navigate }) {
     </div>
   );
 }
-window.QAAIDetection = QAAIDetection;
 
-window.QAAIDetection = QAAIDetection;
+export { QAAIDetection };

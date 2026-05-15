@@ -209,4 +209,4 @@ function OrdersTable({ navigate, route }) {
 
 // ============ ORDER DETAIL ============
 
-window.OrdersTable = OrdersTable;
+export { OrdersTable };

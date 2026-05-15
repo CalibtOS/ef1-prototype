@@ -535,4 +535,4 @@ function GWSubmitPicker({ navigate }) {
   );
 }
 
-window.GWSubmit = GWSubmit;
+export { GWSubmit };

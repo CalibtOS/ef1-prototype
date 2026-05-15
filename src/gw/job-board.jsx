@@ -219,4 +219,4 @@ function ClaimModal({ job, onClose, toast, navigate }) {
   );
 }
 
-window.GWJobBoard = GWJobBoard;
+export { GWJobBoard };

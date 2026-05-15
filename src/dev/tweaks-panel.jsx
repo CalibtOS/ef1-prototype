@@ -74,5 +74,4 @@ function TweaksPanel({ tweaks, setTweak, onClose }) {
   );
 }
 
-
-window.TweaksPanel = TweaksPanel;
+export { TweaksPanel };

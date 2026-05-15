@@ -561,4 +561,4 @@ function QAQueue({ navigate, toast }) {
   );
 }
 
-window.QAQueue = QAQueue;
+export { QAQueue };

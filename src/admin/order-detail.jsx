@@ -1582,8 +1582,4 @@ function AuditTab({ order, events }) {
 // invoice numbers, lifetime value, or rate sliders. PRD `qa.permissions` = review/approve/reject + orders.read.
 // This component renders only QA-relevant fields and submission scores.
 
-window.OrderDetail = OrderDetail;
-window.SubmissionsTab = SubmissionsTab;
-window.CommsTab = CommsTab;
-window.AssignmentTab = AssignmentTab;
-window.AuditTab = AuditTab;
+export { OrderDetail, SubmissionsTab, CommsTab, AssignmentTab, AuditTab };

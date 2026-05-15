@@ -1,73 +1,62 @@
-// Vite entry point. Core and feature files use direct imports now; page
-// components still publish to window until the Phase 4 export sweep.
+// Vite entry point. Everything is real ES modules now — no globals, no IIFEs,
+// no `window.*` reads. The remaining `expose-globals.js` only sets
+// `window.efNotify` for ad-hoc demo scripts.
 
 import './expose-globals.js'
-
-// Feature files still publish their route components to window until Phase 4.
-import './admin/dashboard.jsx'
-import './admin/orders-list.jsx'
-import './admin/order-detail.jsx'
-import './admin/order-new-wizard.jsx'
-import './admin/customers.jsx'
-import './admin/customer-detail.jsx'
-import './admin/ghostwriters.jsx'
-import './admin/ghostwriter-detail.jsx'
-import './admin/pipeline.jsx'
-import './admin/disputes.jsx'
-import './admin/offers.jsx'
-import './admin/reports.jsx'
-import './admin/settings.jsx'
-import './admin/bi.jsx'
-import './admin/inbox.jsx'
-import './admin/friday-batch.jsx'
-
-import './gw/dashboard.jsx'
-import './gw/job-board.jsx'
-import './gw/active-jobs.jsx'
-import './gw/submit.jsx'
-import './gw/assignment-detail.jsx'
-import './gw/submissions-list.jsx'
-import './gw/payments.jsx'
-import './gw/messages.jsx'
-import './gw/templates.jsx'
-import './gw/profile.jsx'
-import './gw/onboarding.jsx'
-import './gw/first-contact.jsx'
-import './gw/report-delay.jsx'
-import './gw/extension-request.jsx'
-
-import './qa/queue.jsx'
-import './qa/order-detail.jsx'
-import './qa/plagiarism.jsx'
-import './qa/ai-detection.jsx'
-import './qa/history.jsx'
-
-import './customer/view.jsx'
-
-import './dev/tweaks-panel.jsx'
 
 import React, { useState, useEffect, useCallback } from 'react'
 import { createRoot } from 'react-dom/client'
 import EFActions from './core/actions.js'
 import * as EFHooks from './core/hooks.js'
 import * as EFRoutes from './core/routes.js'
-import * as EFShell from '../shell.jsx'
+import { Sidebar, Topbar, ToastStack, AdminGlobalBanners } from '../shell.jsx'
 
-// Components published to window by the IIFE-wrapped feature files.
-const {
-  TweaksPanel,
-  AdminDashboard, OrdersTable, OrderDetail,
-  FridayBatch, QAQueue, Inbox, AIBIDashboard,
-  GhostwritersList, PipelineKanban,
-  CustomersPage, DisputesPage, ReportsPage, SettingsPage,
-  GWJobBoard, GWActiveJobs, GWSubmit, CustomerView,
-  GWDashboard, GWPayments, GWTemplates, GWMessages, GWProfile, GWSubmissionsList, GWAssignmentDetail,
-  GWReportDelay, GWExtensionRequest, GWFirstContact, GWOnboarding,
-  QAPlagiarismReports, QAAIDetection, QAHistory, QAOrderDetail,
-  OrderNewWizard, OffersPage, CustomerDetail, GhostwriterDetail,
-} = window
+// Admin role
+import { AdminDashboard } from './admin/dashboard.jsx'
+import { OrdersTable } from './admin/orders-list.jsx'
+import { OrderDetail } from './admin/order-detail.jsx'
+import { OrderNewWizard } from './admin/order-new-wizard.jsx'
+import { CustomersPage } from './admin/customers.jsx'
+import { CustomerDetail } from './admin/customer-detail.jsx'
+import { GhostwritersList } from './admin/ghostwriters.jsx'
+import { GhostwriterDetail } from './admin/ghostwriter-detail.jsx'
+import { PipelineKanban } from './admin/pipeline.jsx'
+import { DisputesPage } from './admin/disputes.jsx'
+import { OffersPage } from './admin/offers.jsx'
+import { ReportsPage } from './admin/reports.jsx'
+import { SettingsPage } from './admin/settings.jsx'
+import { AIBIDashboard } from './admin/bi.jsx'
+import { Inbox } from './admin/inbox.jsx'
+import { FridayBatch } from './admin/friday-batch.jsx'
 
-const { Sidebar, Topbar, ToastStack, AdminGlobalBanners } = EFShell
+// Ghostwriter role
+import { GWDashboard } from './gw/dashboard.jsx'
+import { GWJobBoard } from './gw/job-board.jsx'
+import { GWActiveJobs } from './gw/active-jobs.jsx'
+import { GWSubmit } from './gw/submit.jsx'
+import { GWAssignmentDetail } from './gw/assignment-detail.jsx'
+import { GWSubmissionsList } from './gw/submissions-list.jsx'
+import { GWPayments } from './gw/payments.jsx'
+import { GWMessages } from './gw/messages.jsx'
+import { GWTemplates } from './gw/templates.jsx'
+import { GWProfile } from './gw/profile.jsx'
+import { GWOnboarding } from './gw/onboarding.jsx'
+import { GWFirstContact } from './gw/first-contact.jsx'
+import { GWReportDelay } from './gw/report-delay.jsx'
+import { GWExtensionRequest } from './gw/extension-request.jsx'
+
+// QA role
+import { QAQueue } from './qa/queue.jsx'
+import { QAOrderDetail } from './qa/order-detail.jsx'
+import { QAPlagiarismReports } from './qa/plagiarism.jsx'
+import { QAAIDetection } from './qa/ai-detection.jsx'
+import { QAHistory } from './qa/history.jsx'
+
+// Customer role
+import { CustomerView } from './customer/view.jsx'
+
+// Dev tools
+import { TweaksPanel } from './dev/tweaks-panel.jsx'
 
 const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
   "theme": "light",

@@ -1448,5 +1448,4 @@ function CustomerView({ role, setRole, toast, section, navigate }) {
   );
 }
 
-
-window.CustomerView = CustomerView;
+export { CustomerView };

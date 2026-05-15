@@ -178,4 +178,5 @@ Isabel Walter` : '';
     </div>
   );
 }
-window.GWFirstContact = GWFirstContact;
+
+export { GWFirstContact };

@@ -105,6 +105,5 @@ function GWPayments({ navigate }) {
     </div>
   );
 }
-window.GWPayments = GWPayments;
 
-window.GWPayments = GWPayments;
+export { GWPayments };

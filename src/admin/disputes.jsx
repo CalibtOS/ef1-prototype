@@ -117,4 +117,5 @@ function DisputesPage({ navigate }) {
     </div>
   );
 }
-window.DisputesPage = DisputesPage;
+
+export { DisputesPage };

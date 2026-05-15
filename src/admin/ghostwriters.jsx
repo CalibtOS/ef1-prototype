@@ -132,6 +132,4 @@ function GhostwritersList({ navigate }) {
   );
 }
 
-window.GhostwritersList = GhostwritersList;
-
-window.GhostwritersList = GhostwritersList;
+export { GhostwritersList };

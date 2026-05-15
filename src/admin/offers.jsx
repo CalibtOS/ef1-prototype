@@ -145,7 +145,6 @@ function OffersPage({ navigate, toast }) {
     </div>
   );
 }
-window.OffersPage = OffersPage;
 
 function GenerateOfferModal({ orderId, toast, onClose }) {
   const order = EFHooks.useOrder(orderId);
@@ -239,7 +238,5 @@ function GenerateOfferModal({ orderId, toast, onClose }) {
     </div>
   );
 }
-window.GenerateOfferModal = GenerateOfferModal;
 
-window.OffersPage = OffersPage;
-window.GenerateOfferModal = GenerateOfferModal;
+export { OffersPage, GenerateOfferModal };

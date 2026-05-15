@@ -53,6 +53,5 @@ function GWTemplates() {
     </div>
   );
 }
-window.GWTemplates = GWTemplates;
 
-window.GWTemplates = GWTemplates;
+export { GWTemplates };

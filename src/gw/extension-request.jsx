@@ -89,6 +89,5 @@ function GWExtensionRequest({ orderId, navigate, toast }) {
     </div>
   );
 }
-window.GWExtensionRequest = GWExtensionRequest;
 
-window.GWExtensionRequest = GWExtensionRequest;
+export { GWExtensionRequest };

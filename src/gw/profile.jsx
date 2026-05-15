@@ -81,6 +81,5 @@ function GWProfile() {
     </div>
   );
 }
-window.GWProfile = GWProfile;
 
-window.GWProfile = GWProfile;
+export { GWProfile };

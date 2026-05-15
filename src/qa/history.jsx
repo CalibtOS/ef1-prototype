@@ -133,4 +133,5 @@ function QAHistory({ navigate }) {
     </div>
   );
 }
-window.QAHistory = QAHistory;
+
+export { QAHistory };

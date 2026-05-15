@@ -94,6 +94,5 @@ function QAPlagiarismReports({ navigate }) {
     </div>
   );
 }
-window.QAPlagiarismReports = QAPlagiarismReports;
 
-window.QAPlagiarismReports = QAPlagiarismReports;
+export { QAPlagiarismReports };

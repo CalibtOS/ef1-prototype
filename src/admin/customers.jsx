@@ -119,6 +119,5 @@ function CustomersPage({ navigate }) {
     </div>
   );
 }
-window.CustomersPage = CustomersPage;
 
-window.CustomersPage = CustomersPage;
+export { CustomersPage };

@@ -214,4 +214,4 @@ function FunnelDropoff() {
   );
 }
 
-window.AIBIDashboard = AIBIDashboard;
+export { AIBIDashboard };

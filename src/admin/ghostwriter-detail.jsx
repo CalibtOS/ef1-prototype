@@ -145,6 +145,5 @@ function GhostwriterDetail({ gwId, navigate, toast }) {
     </div>
   );
 }
-window.GhostwriterDetail = GhostwriterDetail;
 
-window.GhostwriterDetail = GhostwriterDetail;
+export { GhostwriterDetail };

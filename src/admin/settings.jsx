@@ -305,6 +305,5 @@ function SettingsPage({ navigate, toast }) {
     </div>
   );
 }
-window.SettingsPage = SettingsPage;
 
-window.SettingsPage = SettingsPage;
+export { SettingsPage };

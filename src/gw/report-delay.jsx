@@ -134,6 +134,5 @@ function GWReportDelay({ orderId, navigate, toast }) {
     </div>
   );
 }
-window.GWReportDelay = GWReportDelay;
 
-window.GWReportDelay = GWReportDelay;
+export { GWReportDelay };

@@ -193,4 +193,4 @@ function GWActiveJobs({ navigate }) {
   );
 }
 
-window.GWActiveJobs = GWActiveJobs;
+export { GWActiveJobs };

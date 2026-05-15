@@ -174,6 +174,5 @@ function ReportsPage({ navigate }) {
     </div>
   );
 }
-window.ReportsPage = ReportsPage;
 
-window.ReportsPage = ReportsPage;
+export { ReportsPage };

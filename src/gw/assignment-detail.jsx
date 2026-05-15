@@ -386,4 +386,5 @@ function GWAssignmentDetail({ orderId, navigate, toast }) {
     </div>
   );
 }
-window.GWAssignmentDetail = GWAssignmentDetail;
+
+export { GWAssignmentDetail };

@@ -139,6 +139,5 @@ function GWSubmissionsList({ navigate }) {
     </div>
   );
 }
-window.GWSubmissionsList = GWSubmissionsList;
 
-window.GWSubmissionsList = GWSubmissionsList;
+export { GWSubmissionsList };
