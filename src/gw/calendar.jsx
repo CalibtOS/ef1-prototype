@@ -4,7 +4,10 @@ import React, { useState, useMemo } from 'react';
 import { Icon } from '../../utils.jsx';
 import * as U from '../../utils.jsx';
 import * as EFHooks from '../core/hooks.js';
+import { ACTIVE_GW_ORDER_STATUSES } from '../core/selectors.js';
 import EF from '../core/ef.js';
+
+const ACTIVE_STATUS_SET = new Set(ACTIVE_GW_ORDER_STATUSES);
 
 const WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
@@ -43,6 +46,7 @@ function GWCalendar({ navigate }) {
       map[key].push({ orderId, title, type, meta: U.deadlineMeta(iso), iso });
     };
     mine.forEach(o => {
+      if (!ACTIVE_STATUS_SET.has(o.status)) return;
       const title = o.titleTBD ? `#${o.id} (title TBD)` : o.title;
       add(o.interimDeadline, o.id, title, 'I1');
       add(o.interim2Deadline, o.id, title, 'I2');

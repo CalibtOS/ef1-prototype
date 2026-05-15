@@ -4,6 +4,8 @@ import React, { useMemo } from 'react';
 import { Icon, StatusPill } from '../../utils.jsx';
 import * as U from '../../utils.jsx';
 import * as EFHooks from '../core/hooks.js';
+import * as W from '../core/workflow.js';
+import { QA_STATUS } from '../core/status.js';
 import EF from '../core/ef.js';
 const D = EF;
 
@@ -12,6 +14,7 @@ const KIND_LABEL = {
   interim_2: 'Zwischenstand 2',
   final_work: 'Final work',
   final_invoice: 'Honorarrechnung',
+  gw_invoice: 'Honorarrechnung',
   extension_invoice: 'Zusatzrechnung',
   revision: 'Revision',
 };
@@ -21,20 +24,22 @@ const KIND_PILL = {
   interim_2: 'pill-indigo',
   final_work: 'pill-emerald',
   final_invoice: 'pill-slate',
+  gw_invoice: 'pill-slate',
   extension_invoice: 'pill-slate',
   revision: 'pill-orange',
 };
 
+const INVOICE_KINDS = new Set(['final_invoice', 'gw_invoice', 'extension_invoice']);
+
 const fmtSize = (b) => b > 1e6 ? (b / 1e6).toFixed(1) + ' MB' : Math.round(b / 1024) + ' KB';
-const seedHash = (n) => Math.abs(((n * 2654435761) | 0));
 
 function QAPill({ status }) {
-  if (status === 'auto_forwarded') return <span className="pill pill-blue"><Icon name="send" size={10}/> Auto-forwarded</span>;
-  if (status === 'passed')         return <span className="pill pill-green"><Icon name="check" size={10}/> Passed</span>;
-  if (status === 'pending')        return <span className="pill pill-amber">Pending</span>;
-  if (status === 'archived')       return <span className="pill pill-slate">Archived</span>;
-  if (status === 'failed_revision_required') return <span className="pill pill-orange">Revision req.</span>;
-  if (status === 'ai_violation')   return <span className="pill pill-red">AI violation</span>;
+  if (status === QA_STATUS.AUTO_FORWARDED)     return <span className="pill pill-blue"><Icon name="send" size={10}/> Auto-forwarded</span>;
+  if (status === QA_STATUS.PASSED)             return <span className="pill pill-green"><Icon name="check" size={10}/> Passed</span>;
+  if (status === QA_STATUS.PENDING)            return <span className="pill pill-amber">Pending</span>;
+  if (status === QA_STATUS.REVISION_REQUESTED) return <span className="pill pill-orange">Revision req.</span>;
+  if (status === QA_STATUS.FLAGGED)            return <span className="pill pill-red">QA flag</span>;
+  if (status === QA_STATUS.ARCHIVED)           return <span className="pill pill-slate">Archived</span>;
   return null;
 }
 
@@ -54,74 +59,29 @@ function GWSubmissionsList({ navigate }) {
   const myAssignments = EFHooks.useOrders({ gwId: D.GW_ME.id });
 
   const groups = useMemo(() => {
-    // Explicit submissions belonging to this GW
-    const explicit = allSubmissions.filter(s => {
-      const o = D.order(s.orderId);
-      return o && o.gwId === D.GW_ME.id;
-    }).map(s => ({
-      id: s.id, orderId: s.orderId, kind: s.kind, round: s.round,
-      fileName: s.fileName, size: s.size,
-      qaStatus: s.qaStatus, plagScore: s.plagiarismScore, aiScore: s.aiScore,
-      submittedAt: s.submittedAt,
-    }));
-
-    // Derived submissions synthesised from assignment state
-    const derived = [];
-    myAssignments.forEach(o => {
-      const h = seedHash(o.id);
-      const submitted = ['interim_submitted','under_customer_review','revision_required','final_submitted','qa_review','delivered','payment_pending','completed'].includes(o.status);
-      if (!submitted) return;
-      if (o.interimDeadline) {
-        derived.push({
-          id: 'derived-i1-' + o.id, orderId: o.id, kind: 'interim_1', round: 1,
-          fileName: `${D.WORK_TYPE_LABELS[o.workType] || 'Arbeit'}_${o.id}_Zwischenstand1.docx`,
-          size: 380000 + (h % 700000), qaStatus: 'auto_forwarded',
-          plagScore: 4 + (h % 9), aiScore: 3 + (h % 12),
-          submittedAt: o.interimDeadline,
-        });
-      }
-      if (['final_submitted','qa_review','delivered','payment_pending','completed'].includes(o.status)) {
-        derived.push(
-          {
-            id: 'derived-final-' + o.id, orderId: o.id, kind: 'final_work', round: (o.revisionRounds || 0) + 1,
-            fileName: `Final_${o.id}_${D.WORK_TYPE_LABELS[o.workType] || ''}.docx`,
-            size: 1100000 + (h % 1900000),
-            qaStatus: o.status === 'completed' || o.qaPassed ? 'passed' : 'pending',
-            plagScore: 5 + (h % 10), aiScore: 4 + (h % 13),
-            submittedAt: o.finalDeadline,
-          },
-          {
-            id: 'derived-inv-' + o.id, orderId: o.id, kind: 'final_invoice', round: 1,
-            fileName: `Honorarrechnung_IW-2026-${String(o.id).padStart(3,'0')}.pdf`,
-            size: 80000 + (h % 25000), qaStatus: 'archived',
-            submittedAt: o.finalDeadline,
-          }
-        );
-      }
-    });
-
-    const seen = new Set(explicit.map(s => `${s.orderId}-${s.kind}-${s.round}`));
-    const all = [
-      ...explicit,
-      ...derived.filter(d => !seen.has(`${d.orderId}-${d.kind}-${d.round}`)),
-    ].sort((a, b) => (b.submittedAt || '').localeCompare(a.submittedAt || ''));
-
-    // Group by order, preserving most-recent-first order
     const byOrder = new Map();
-    all.forEach(s => {
-      if (!byOrder.has(s.orderId)) byOrder.set(s.orderId, []);
-      byOrder.get(s.orderId).push(s);
+    allSubmissions.forEach(s => {
+      const list = byOrder.get(s.orderId) || [];
+      list.push(s);
+      byOrder.set(s.orderId, list);
     });
 
-    return Array.from(byOrder.entries()).map(([orderId, subs]) => ({
-      order: D.order(Number(orderId)),
-      submissions: subs,
-    }));
+    return myAssignments
+      .map(order => ({
+        order,
+        submissions: W.deriveSubmissions(order, byOrder.get(order.id) || []),
+      }))
+      .filter(g => g.submissions.length > 0)
+      .sort((a, b) =>
+        new Date(b.submissions[0]?.submittedAt || 0) - new Date(a.submissions[0]?.submittedAt || 0)
+      );
   }, [allSubmissions, myAssignments]);
 
-  const totalSubs = groups.reduce((n, g) => n + g.submissions.length, 0);
-  const passed    = groups.reduce((n, g) => n + g.submissions.filter(s => s.qaStatus === 'passed').length, 0);
-  const pending   = groups.reduce((n, g) => n + g.submissions.filter(s => s.qaStatus === 'pending').length, 0);
+  const totalSubs    = groups.reduce((n, g) => n + g.submissions.length, 0);
+  const passed       = groups.reduce((n, g) => n + g.submissions.filter(s => s.qaStatus === QA_STATUS.PASSED).length, 0);
+  const needsAction  = groups.reduce((n, g) => n + g.submissions.filter(s =>
+    s.qaStatus === QA_STATUS.PENDING || s.qaStatus === QA_STATUS.REVISION_REQUESTED || s.qaStatus === QA_STATUS.FLAGGED
+  ).length, 0);
 
   return (
     <div className="page">
@@ -149,9 +109,9 @@ function GWSubmissionsList({ navigate }) {
           <div className="text-faint fs-11">QA passed</div>
           <div className="mono strong" style={{ fontSize: 20, color: passed > 0 ? 'var(--green)' : 'var(--text)', marginTop: 2 }}>{passed}</div>
         </div>
-        <div className="card" style={{ padding: 14, border: pending > 0 ? '1px solid color-mix(in oklab, var(--amber) 30%, var(--border))' : undefined }}>
-          <div className="text-faint fs-11">Pending QA review</div>
-          <div className="mono strong" style={{ fontSize: 20, color: pending > 0 ? 'var(--amber)' : 'var(--text)', marginTop: 2 }}>{pending}</div>
+        <div className="card" style={{ padding: 14, border: needsAction > 0 ? '1px solid color-mix(in oklab, var(--amber) 30%, var(--border))' : undefined }}>
+          <div className="text-faint fs-11">Needs QA attention</div>
+          <div className="mono strong" style={{ fontSize: 20, color: needsAction > 0 ? 'var(--amber)' : 'var(--text)', marginTop: 2 }}>{needsAction}</div>
         </div>
       </div>
 
@@ -203,11 +163,11 @@ function GWSubmissionsList({ navigate }) {
                   {/* File icon */}
                   <div style={{
                     width: 30, height: 30, borderRadius: 6, flexShrink: 0,
-                    background: s.kind === 'final_invoice' ? 'var(--surface-2)' : 'var(--blue-soft)',
-                    color: s.kind === 'final_invoice' ? 'var(--text-3)' : 'var(--blue)',
+                    background: INVOICE_KINDS.has(s.kind) ? 'var(--surface-2)' : 'var(--blue-soft)',
+                    color: INVOICE_KINDS.has(s.kind) ? 'var(--text-3)' : 'var(--blue)',
                     display: 'grid', placeItems: 'center',
                   }}>
-                    <Icon name={s.kind === 'final_invoice' || s.kind === 'extension_invoice' ? 'receipt' : 'file-text'} size={14}/>
+                    <Icon name={INVOICE_KINDS.has(s.kind) ? 'receipt' : 'file-text'} size={14}/>
                   </div>
 
                   {/* Kind + filename */}
@@ -226,7 +186,7 @@ function GWSubmissionsList({ navigate }) {
 
                   {/* Scores */}
                   <div className="flex items-center gap-4" style={{ flexShrink: 0 }}>
-                    <ScoreCell value={s.plagScore} label="plag"/>
+                    <ScoreCell value={s.plagiarismScore} label="plag"/>
                     <ScoreCell value={s.aiScore} label="AI"/>
                   </div>
 

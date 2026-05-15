@@ -15,6 +15,7 @@ import * as EFHooks from '../core/hooks.js';
 import EFActions from '../core/actions.js';
 import * as EFSelectors from '../core/selectors.js';
 import EF from '../core/ef.js';
+import { QA_STATUS } from '../core/status.js';
 const D = EF;
 
 const CUST_PERSONA = (EFShell?.ROLES || []).find(r => r.id === 'customer') ||
@@ -771,7 +772,7 @@ function customerVisibleFiles(o, displaySubs, thread) {
         icon: 'upload-cloud',
         autoForwarded: true,
       });
-    } else if (W.isQaReviewKind(s.kind) && (s.qaStatus === 'passed' || rank >= 13)) {
+    } else if (W.isQaReviewKind(s.kind) && (s.qaStatus === QA_STATUS.PASSED || rank >= 13)) {
       files.push({
         id: s.id,
         kind: 'final',

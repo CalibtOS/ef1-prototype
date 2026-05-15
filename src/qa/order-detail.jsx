@@ -8,6 +8,7 @@ import * as W from '../core/workflow.js';
 import * as EFHooks from '../core/hooks.js';
 import EFActions from '../core/actions.js';
 import EF from '../core/ef.js';
+import { QA_STATUS } from '../core/status.js';
 import { SubmissionsTab } from '../admin/order-detail.jsx';
 const D = EF;
 
@@ -25,7 +26,7 @@ function QAOrderDetail({ orderId, navigate, toast }) {
     .filter(s => W.isQaReviewKind(s.kind))
     .sort((a,b) => new Date(b.submittedAt || 0) - new Date(a.submittedAt || 0))[0];
   const latestActionable = latest && actualSubs.find(s => s.id === latest.id && W.isQaReviewKind(s.kind));
-  const canReviewLatest = !!(latestActionable && latestActionable.qaStatus === 'pending');
+  const canReviewLatest = !!(latestActionable && latestActionable.qaStatus === QA_STATUS.PENDING);
   const specAttachments = [order.outlineAttachment, order.exposeAttachment].filter(Boolean);
   const qaMessages = [...(thread?.messages || [])]
     .filter(m => !/preis|kosten|rabatt|nachlass|raten|geld|honorar|bezahl|rechnung|euro|€/i.test(m.body || ''))

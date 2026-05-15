@@ -7,6 +7,7 @@ import * as U from '../../utils.jsx';
 import { CrumbBar } from '../../shell.jsx';
 import * as EFHooks from '../core/hooks.js';
 import EF from '../core/ef.js';
+import { QA_STATUS } from '../core/status.js';
 const D = EF;
 
 function QAHistory({ navigate }) {
@@ -21,9 +22,9 @@ function QAHistory({ navigate }) {
   const history = reviewRows.map(({ order, submission }) => {
     const gw = D.gw(submission.gwId || order.gwId);
     const reviewer = submission.reviewer || 'Lina Hoffmann';
-    const action = submission.qaStatus === 'passed'
+    const action = submission.qaStatus === QA_STATUS.PASSED
       ? 'approved'
-      : submission.qaStatus === 'revision_requested'
+      : submission.qaStatus === QA_STATUS.REVISION_REQUESTED
         ? 'revision'
         : (submission.flagType === 'plagiarism' || order.status === 'plagiarism_violation_review' ? 'plag_violation' : 'ai_violation');
     const at = submission.reviewedAt || submission.forwardedAt || order.qaFlaggedAt || submission.submittedAt;

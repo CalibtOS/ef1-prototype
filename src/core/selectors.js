@@ -1,5 +1,6 @@
 // Derived reads. Components should prefer hooks that wrap these selectors.
 import * as W from './workflow.js';
+import { QA_STATUS } from './status.js';
 import { liveNow } from '../../data.js';
 
 function tableItems(table) {
@@ -35,7 +36,7 @@ function selectDisplaySubmissionsForOrder(state, orderId) {
 
 function selectQaQueue(state) {
   return selectAllSubmissions(state).filter(s =>
-    W.isQaReviewKind(s.kind) && s.qaStatus === 'pending'
+    W.isQaReviewKind(s.kind) && s.qaStatus === QA_STATUS.PENDING
   );
 }
 
@@ -146,7 +147,7 @@ function selectQaHistory(state) {
     .flatMap(order => selectDisplaySubmissionsForOrder(state, order.id)
       .filter(s => W.isQaReviewKind(s.kind))
       .filter(s =>
-        (s.qaStatus && s.qaStatus !== 'pending') ||
+        (s.qaStatus && s.qaStatus !== QA_STATUS.PENDING) ||
         s.flagged ||
         order.status === 'ai_violation_review' ||
         order.status === 'plagiarism_violation_review'
@@ -364,7 +365,7 @@ function selectSlaOperational(state) {
       const pendingFinal = submissions.some(s =>
         Number(s.orderId) === Number(o.id) &&
         W.isQaReviewKind(s.kind) &&
-        s.qaStatus === 'pending'
+        s.qaStatus === QA_STATUS.PENDING
       );
       if (pendingFinal) push('final_qa', o, { urgency: 2 });
     }
@@ -466,7 +467,7 @@ function selectKpis(state) {
     totalLifetime: 3522,
     fridayCount: friday.length,
     fridayEur: Math.round(fridayEur * 100) / 100,
-    qaPending: submissions.filter(s => W.isQaReviewKind(s.kind) && s.qaStatus === 'pending').length,
+    qaPending: submissions.filter(s => W.isQaReviewKind(s.kind) && s.qaStatus === QA_STATUS.PENDING).length,
     overdueInterim: sla.filter(it => it.kind === 'interim_missed').length,
     aiFlagged: submissions.filter(s => s.aiScore >= 70 || s.flagged).length,
     disputesOpen: orders.filter(o => o.disputeOpen).length,

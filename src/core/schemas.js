@@ -73,7 +73,7 @@
  * @property {string} [filename]
  * @property {number} [aiScore]
  * @property {number} [plagiarismScore]
- * @property {'pending'|'approved'|'rejected'} qaStatus
+ * @property {'pending'|'auto_forwarded'|'passed'|'revision_requested'|'flagged'|'archived'} qaStatus
  * @property {string} [qaNote]
  */
 

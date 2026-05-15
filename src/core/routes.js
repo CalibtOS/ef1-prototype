@@ -1,6 +1,7 @@
 // Central route names, hash parsing/building, defaults, and sidebar nav metadata.
 import * as S from './selectors.js';
 import * as W from './workflow.js';
+import { QA_STATUS } from './status.js';
 
 const ROUTES = {
   ADMIN_DASHBOARD: 'admin-dashboard',
@@ -108,7 +109,7 @@ function navItems(role, state) {
   const orders = S.selectAllOrders(state);
   const submissions = S.selectAllSubmissions(state);
   if (role === 'admin') {
-    const qaPending = submissions.filter(s => W.isQaReviewKind(s.kind) && s.qaStatus === 'pending').length;
+    const qaPending = submissions.filter(s => W.isQaReviewKind(s.kind) && s.qaStatus === QA_STATUS.PENDING).length;
     const friday = orders.filter(o => W.releaseGates(o).releasable).length;
     const disputes = orders.filter(o => o.disputeOpen).length;
     return [
@@ -139,12 +140,12 @@ function navItems(role, state) {
       { id: 'gw-templates', label: 'Templates', icon: 'folder' },
       { id: 'gw-payments', label: 'Payments', icon: 'wallet' },
       { id: 'gw-messages', label: 'Messages', icon: 'message-square' },
-      { id: 'gw-calendar', label: 'Calendar', icon: 'calendar-days' },
+      { id: 'gw-calendar', label: 'Calendar', icon: 'calendar' },
       { id: 'gw-profile', label: 'Profile', icon: 'user' },
     ];
   }
   if (role === 'qa') {
-    const pend = submissions.filter(s => W.isQaReviewKind(s.kind) && s.qaStatus === 'pending').length;
+    const pend = submissions.filter(s => W.isQaReviewKind(s.kind) && s.qaStatus === QA_STATUS.PENDING).length;
     const ai = submissions.filter(s => s.aiScore >= 70 || s.flagged).length;
     return [
       { id: 'qa-queue', label: 'Review Queue', icon: 'shield-check', badge: pend ? String(pend) : null, badgeTone: 'warn' },
