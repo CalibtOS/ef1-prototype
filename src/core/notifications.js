@@ -11,6 +11,14 @@ function inferOrderId(payload) {
   return match ? Number(match[1]) : null;
 }
 
+function matchesSessionAudience(note, role) {
+  const state = window.EFStore?.getState?.();
+  if (!state || !role) return true;
+  if (role === 'gw' && note.gwId && note.gwId !== state.session.gwId) return false;
+  if (role === 'customer' && note.customerId && note.customerId !== state.session.customerId) return false;
+  return true;
+}
+
 function notify(payload) {
   const targets = Array.isArray(payload.to) ? payload.to : [payload.to || 'admin'];
   const id = payload.id || ('n-live-' + Date.now() + '-' + Math.random().toString(36).slice(2, 7));
@@ -44,7 +52,7 @@ function markAllRead(role) {
     table.allIds.forEach(id => {
       const n = byId[id];
       const targets = Array.isArray(n.to) ? n.to : [n.to || 'admin'];
-      if (targets.includes(role) || targets.includes('all')) byId[id] = { ...n, read: true };
+      if ((targets.includes(role) || targets.includes('all')) && matchesSessionAudience(n, role)) byId[id] = { ...n, read: true };
     });
     return { ...table, byId };
   }, 'notifications.markAllRead');
@@ -57,6 +65,7 @@ function markRead(id, role) {
     if (!note) return table;
     const targets = Array.isArray(note.to) ? note.to : [note.to || 'admin'];
     if (role && !targets.includes(role) && !targets.includes('all')) return table;
+    if (!matchesSessionAudience(note, role)) return table;
     return {
       ...table,
       byId: { ...table.byId, [id]: { ...note, read: true } },

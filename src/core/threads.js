@@ -50,6 +50,7 @@ function ensureThreadForOrder(orderId) {
   const id = `t-live-${orderId}`;
   const thread = {
     id,
+    threadType: 'order',
     orderId: Number(orderId),
     customerId: o.customerId,
     gwId: o.gwId || null,
@@ -94,7 +95,7 @@ function recipientsForThread(thread, senderRole) {
   // Admin observes every operational thread. Customer/GW bells only exist when
   // that role is an actual participant; lead-only threads stay in the admin inbox.
   const all = ['admin'];
-  if (thread?.threadType === 'order') {
+  if (thread?.threadType === 'order' || thread?.orderId != null) {
     if (thread.customerId) all.push('customer');
     if (thread.gwId) all.push('gw');
   } else if (thread?.threadType === 'gw_direct') {
