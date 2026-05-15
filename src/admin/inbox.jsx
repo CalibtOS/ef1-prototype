@@ -388,7 +388,7 @@ function Inbox({ toast, route }) {
                 ))}
               </div>
               <NotReady className="chat-icon-action" ariaLabel="Attach file" feature="attach-file"><Icon name="paperclip" size={15}/></NotReady>
-              <span className="chip">DE -> EN</span>
+              <span className="chip">DE → EN</span>
               <span className="chip">CC active</span>
             </>}
           />
