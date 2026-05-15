@@ -34,6 +34,7 @@ const ROUTES = {
   GW_MESSAGES: 'gw-messages',
   GW_PROFILE: 'gw-profile',
   GW_ASSIGNMENT_DETAIL: 'gw-assignment-detail',
+  GW_CALENDAR: 'gw-calendar',
   QA_QUEUE: 'qa-queue',
   QA_PLAGIARISM: 'qa-plagiarism',
   QA_AI: 'qa-ai',
@@ -96,6 +97,7 @@ const NAV_ROUTE_MAP = {
   'gw-payments': ROUTES.GW_PAYMENTS,
   'gw-messages': ROUTES.GW_MESSAGES,
   'gw-profile': ROUTES.GW_PROFILE,
+  'gw-calendar': ROUTES.GW_CALENDAR,
   'qa-queue': ROUTES.QA_QUEUE,
   'qa-plagiarism': ROUTES.QA_PLAGIARISM,
   'qa-ai': ROUTES.QA_AI,
@@ -137,6 +139,7 @@ function navItems(role, state) {
       { id: 'gw-templates', label: 'Templates', icon: 'folder' },
       { id: 'gw-payments', label: 'Payments', icon: 'wallet' },
       { id: 'gw-messages', label: 'Messages', icon: 'message-square' },
+      { id: 'gw-calendar', label: 'Calendar', icon: 'calendar-days' },
       { id: 'gw-profile', label: 'Profile', icon: 'user' },
     ];
   }
