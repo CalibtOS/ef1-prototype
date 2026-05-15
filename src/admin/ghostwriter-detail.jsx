@@ -1,15 +1,19 @@
 // Admin · Ghostwriter detail — assignments, ratings, AGB, payments.
-;(function(){
-const { useState: useStateA, useEffect: useEffectA, useMemo: useMemoA } = React;
-const { Icon, StatusPill, Avatar, Money, Bi, ScoreBar, CrumbBar, NotReady, PlannedTag, EmptyState, Skeleton } = window;
-const U = window.EFU;
-const D = window.EF;
-const W = window.EFWorkflow;
 
 // ====================================================================
+import React, { useState as useStateA, useEffect as useEffectA, useMemo as useMemoA } from 'react';
+import { Icon, StatusPill, Avatar, Money, Bi, ScoreBar, NotReady, PlannedTag, EmptyState, Skeleton } from '../../utils.jsx';
+import * as U from '../../utils.jsx';
+import { CrumbBar } from '../../shell.jsx';
+import * as W from '../core/workflow.js';
+import * as EFHooks from '../core/hooks.js';
+import EFActions from '../core/actions.js';
+import EF from '../core/ef.js';
+const D = EF;
+
 function GhostwriterDetail({ gwId, navigate, toast }) {
-  const g = window.EFHooks.useGw(gwId);
-  const allOrders = window.EFHooks.useOrders({ gwId });
+  const g = EFHooks.useGw(gwId);
+  const allOrders = EFHooks.useOrders({ gwId });
   if (!g) return <div className="page">Ghostwriter not found.</div>;
   const orders = allOrders.filter(o => o.gwId === gwId);
   const active = orders.filter(o => !['completed','cancelled','bye'].includes(o.status));
@@ -21,7 +25,7 @@ function GhostwriterDetail({ gwId, navigate, toast }) {
   const [shadowToggle, setShadowToggle] = useStateA(g.banned || false);
   const [reason, setReason] = useStateA(g.banReason || '');
   const applyShadowBan = () => {
-    window.EFActions.gws.shadowBan(gwId, { banned: shadowToggle, reason: reason || 'Quality concerns' });
+    EFActions.gws.shadowBan(gwId, { banned: shadowToggle, reason: reason || 'Quality concerns' });
     toast && toast({ text: shadowToggle ? `${g.name} shadow-banned · email alerts paused` : `${g.name} reinstated · email alerts resumed`, tone: shadowToggle ? 'danger' : 'success' });
   };
 
@@ -144,4 +148,3 @@ function GhostwriterDetail({ gwId, navigate, toast }) {
 window.GhostwriterDetail = GhostwriterDetail;
 
 window.GhostwriterDetail = GhostwriterDetail;
-})();

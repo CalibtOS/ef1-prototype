@@ -1,12 +1,14 @@
 // Admin · Sales pipeline kanban — Pipedrive mirror.
-;(function(){
-const { useState: useStateA, useEffect: useEffectA, useMemo: useMemoA } = React;
-const { Icon, StatusPill, Avatar, Money, Bi, ScoreBar, CrumbBar, NotReady, PlannedTag, EmptyState, Skeleton } = window;
-const U = window.EFU;
-const D = window.EF;
-const W = window.EFWorkflow;
 
 // ============ PIPELINE (Pipedrive kanban mirror) ============
+import React, { useState as useStateA, useEffect as useEffectA, useMemo as useMemoA } from 'react';
+import { Icon, StatusPill, Avatar, Money, Bi, ScoreBar, NotReady, PlannedTag, EmptyState, Skeleton } from '../../utils.jsx';
+import * as U from '../../utils.jsx';
+import { CrumbBar } from '../../shell.jsx';
+import * as W from '../core/workflow.js';
+import EF from '../core/ef.js';
+const D = EF;
+
 function PipelineKanban({ navigate }) {
   const stageDefs = [
     { id: 'anfrage', label: 'Anfrage', sub: 'Inquiry', color: 'slate' },
@@ -116,4 +118,3 @@ function PipelineKanban({ navigate }) {
   );
 }
 window.PipelineKanban = PipelineKanban;
-})();

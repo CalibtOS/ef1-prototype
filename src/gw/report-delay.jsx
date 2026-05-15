@@ -1,9 +1,12 @@
 // GW · Report delay — request a deadline shift before D-2.
-;(function(){
-const { useState: useStateA, useEffect: useEffectA, useMemo: useMemoA } = React;
-const { Icon, StatusPill, Avatar, Money, Bi, ScoreBar, CrumbBar, NotReady, PlannedTag, EmptyState, Skeleton } = window;
-const U = window.EFU;
-const D = window.EF;
+
+import React, { useState as useStateA, useEffect as useEffectA, useMemo as useMemoA } from 'react';
+import { Icon, StatusPill, Avatar, Money, Bi, ScoreBar, NotReady, PlannedTag, EmptyState, Skeleton } from '../../utils.jsx';
+import * as U from '../../utils.jsx';
+import { CrumbBar } from '../../shell.jsx';
+import EFActions from '../core/actions.js';
+import EF from '../core/ef.js';
+const D = EF;
 
 function GWReportDelay({ orderId, navigate, toast }) {
   const order = D.order(orderId);
@@ -24,7 +27,7 @@ function GWReportDelay({ orderId, navigate, toast }) {
     setTimeout(() => setSentSteps({ customer: true, kundenservice: false }), 600);
     setTimeout(() => {
       setSentSteps({ customer: true, kundenservice: true });
-      window.EFActions.gw.reportDelay(orderId, { reasonKind, reason, newDate, customerInformed });
+      EFActions.gw.reportDelay(orderId, { reasonKind, reason, newDate, customerInformed });
       toast({
         tone: 'info',
         transition: { entity: `Order #${orderId}`, from: 'Active', to: 'Delay Reported' },
@@ -134,4 +137,3 @@ function GWReportDelay({ orderId, navigate, toast }) {
 window.GWReportDelay = GWReportDelay;
 
 window.GWReportDelay = GWReportDelay;
-})();

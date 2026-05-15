@@ -1,13 +1,15 @@
 // GW · Onboarding flow — IBAN, tax ID, AGB acceptance for new ghostwriters.
-;(function(){
-const { useState: useStateA, useEffect: useEffectA, useMemo: useMemoA } = React;
-const { Icon, StatusPill, Avatar, Money, Bi, ScoreBar, CrumbBar, NotReady, PlannedTag, EmptyState, Skeleton } = window;
-const U = window.EFU;
-const D = window.EF;
 
 // ====================================================================
 // GW — Onboarding wizard (form 7880 → platform)
 // ====================================================================
+import React, { useState as useStateA, useEffect as useEffectA, useMemo as useMemoA } from 'react';
+import { Icon, StatusPill, Avatar, Money, Bi, ScoreBar, NotReady, PlannedTag, EmptyState, Skeleton } from '../../utils.jsx';
+import * as U from '../../utils.jsx';
+import { CrumbBar } from '../../shell.jsx';
+import EF from '../core/ef.js';
+const D = EF;
+
 function GWOnboarding({ navigate, toast }) {
   const [step, setStep] = useStateA(0);
   const [draft, setDraft] = useStateA({
@@ -161,4 +163,3 @@ function GWOnboarding({ navigate, toast }) {
 window.GWOnboarding = GWOnboarding;
 
 window.GWOnboarding = GWOnboarding;
-})();

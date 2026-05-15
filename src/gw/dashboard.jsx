@@ -1,13 +1,16 @@
 // GW · Dashboard — at-a-glance assignments, on-time rate, rating, lifetime.
-;(function(){
-const { useState: useStateA, useEffect: useEffectA, useMemo: useMemoA } = React;
-const { Icon, StatusPill, Avatar, Money, Bi, ScoreBar, CrumbBar, NotReady, PlannedTag, EmptyState, Skeleton } = window;
-const U = window.EFU;
-const D = window.EF;
+
+import React, { useState as useStateA, useEffect as useEffectA, useMemo as useMemoA } from 'react';
+import { Icon, StatusPill, Avatar, Money, Bi, ScoreBar, NotReady, PlannedTag, EmptyState, Skeleton } from '../../utils.jsx';
+import * as U from '../../utils.jsx';
+import { CrumbBar } from '../../shell.jsx';
+import * as EFHooks from '../core/hooks.js';
+import EF from '../core/ef.js';
+const D = EF;
 
 function GWDashboard({ navigate }) {
   const GW_ME = D.GW_ME;
-  const mine = window.EFHooks.useOrders({ gwId: GW_ME.id });
+  const mine = EFHooks.useOrders({ gwId: GW_ME.id });
   const activeCount = mine.filter(o => ['active','interim_submitted','under_customer_review','revision_required','final_submitted','qa_review'].includes(o.status)).length;
   // Earnings split (G-10):
   //   paid this month → already in bank (gwPaymentStatus === 'paid')
@@ -24,7 +27,7 @@ function GWDashboard({ navigate }) {
     .sort((a,b) => new Date(a.date) - new Date(b.date))
     .slice(0, 5);
 
-  const previewJobs = window.EFHooks.useOrders({ filter: 'available' }).slice(0, 3).map(o => ({
+  const previewJobs = EFHooks.useOrders({ filter: 'available' }).slice(0, 3).map(o => ({
     id: o.id,
     title: o.titleTBD ? 'Titel folgt — Briefing nach Claim' : o.title,
     field: o.field,
@@ -124,4 +127,3 @@ function GWDashboard({ navigate }) {
 window.GWDashboard = GWDashboard;
 
 window.GWDashboard = GWDashboard;
-})();

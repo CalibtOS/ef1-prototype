@@ -1,13 +1,16 @@
 // GW · Extension request — formal extension to admin for approval.
-;(function(){
-const { useState: useStateA, useEffect: useEffectA, useMemo: useMemoA } = React;
-const { Icon, StatusPill, Avatar, Money, Bi, ScoreBar, CrumbBar, NotReady, PlannedTag, EmptyState, Skeleton } = window;
-const U = window.EFU;
-const D = window.EF;
 
 // ====================================================================
 // GW — Extension Request (SOP 6)
 // ====================================================================
+import React, { useState as useStateA, useEffect as useEffectA, useMemo as useMemoA } from 'react';
+import { Icon, StatusPill, Avatar, Money, Bi, ScoreBar, NotReady, PlannedTag, EmptyState, Skeleton } from '../../utils.jsx';
+import * as U from '../../utils.jsx';
+import { CrumbBar } from '../../shell.jsx';
+import EFActions from '../core/actions.js';
+import EF from '../core/ef.js';
+const D = EF;
+
 function GWExtensionRequest({ orderId, navigate, toast }) {
   const order = D.order(orderId);
   if (!order) return <div className="page">Assignment not found.</div>;
@@ -21,7 +24,7 @@ function GWExtensionRequest({ orderId, navigate, toast }) {
   const submit = () => {
     setPhase('sending');
     setTimeout(() => {
-      window.EFActions.gw.requestExtension(orderId, { description: desc, extraPages, extraFee });
+      EFActions.gw.requestExtension(orderId, { description: desc, extraPages, extraFee });
       toast({ text: `Extension request submitted · Berat will review and ask the customer · you'll be notified to proceed`, tone: 'info' });
       setPhase('sent');
     }, 1100);
@@ -89,4 +92,3 @@ function GWExtensionRequest({ orderId, navigate, toast }) {
 window.GWExtensionRequest = GWExtensionRequest;
 
 window.GWExtensionRequest = GWExtensionRequest;
-})();

@@ -1,13 +1,16 @@
 // GW · Payments — honorarium history, Friday batches, IBAN reference.
-;(function(){
-const { useState: useStateA, useEffect: useEffectA, useMemo: useMemoA } = React;
-const { Icon, StatusPill, Avatar, Money, Bi, ScoreBar, CrumbBar, NotReady, PlannedTag, EmptyState, Skeleton } = window;
-const U = window.EFU;
-const D = window.EF;
 
 // ============ GW PAYMENTS ============
+import React, { useState as useStateA, useEffect as useEffectA, useMemo as useMemoA } from 'react';
+import { Icon, StatusPill, Avatar, Money, Bi, ScoreBar, NotReady, PlannedTag, EmptyState, Skeleton } from '../../utils.jsx';
+import * as U from '../../utils.jsx';
+import { CrumbBar } from '../../shell.jsx';
+import * as EFHooks from '../core/hooks.js';
+import EF from '../core/ef.js';
+const D = EF;
+
 function GWPayments({ navigate }) {
-  const mine = window.EFHooks.useOrders({ gwId: D.GW_ME.id });
+  const mine = EFHooks.useOrders({ gwId: D.GW_ME.id });
   // Per business_rules §5: a GW payment is "releasable" only when ALL five gates pass —
   // not merely when the GW invoice is received. Splitting `invoice_received` into truly
   // releasable vs awaiting-gates makes it honest for the GW.
@@ -105,4 +108,3 @@ function GWPayments({ navigate }) {
 window.GWPayments = GWPayments;
 
 window.GWPayments = GWPayments;
-})();

@@ -1,11 +1,13 @@
 // GW · Templates — document & email templates for assignments.
-;(function(){
-const { useState: useStateA, useEffect: useEffectA, useMemo: useMemoA } = React;
-const { Icon, StatusPill, Avatar, Money, Bi, ScoreBar, CrumbBar, NotReady, PlannedTag, EmptyState, Skeleton } = window;
-const U = window.EFU;
-const D = window.EF;
 
 // ============ GW TEMPLATES ============
+import React, { useState as useStateA, useEffect as useEffectA, useMemo as useMemoA } from 'react';
+import { Icon, StatusPill, Avatar, Money, Bi, ScoreBar, NotReady, PlannedTag, EmptyState, Skeleton } from '../../utils.jsx';
+import * as U from '../../utils.jsx';
+import { CrumbBar } from '../../shell.jsx';
+import EF from '../core/ef.js';
+const D = EF;
+
 function GWTemplates() {
   const templates = [
     { name: 'Vorlage_Deckblatt_efactory1.de.docx', label: 'Cover page template', sub: 'Deckblatt für jede Arbeit · DE/EN', size: '184 KB', icon: 'file-text', tone: 'blue' },
@@ -54,4 +56,3 @@ function GWTemplates() {
 window.GWTemplates = GWTemplates;
 
 window.GWTemplates = GWTemplates;
-})();

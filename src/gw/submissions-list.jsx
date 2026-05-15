@@ -1,14 +1,17 @@
 // GW · Submissions list — all submissions across assignments with QA status.
-;(function(){
-const { useState: useStateA, useEffect: useEffectA, useMemo: useMemoA } = React;
-const { Icon, StatusPill, Avatar, Money, Bi, ScoreBar, CrumbBar, NotReady, PlannedTag, EmptyState, Skeleton } = window;
-const U = window.EFU;
-const D = window.EF;
 
 // ============ GW SUBMISSIONS LIST ============
+import React, { useState as useStateA, useEffect as useEffectA, useMemo as useMemoA } from 'react';
+import { Icon, StatusPill, Avatar, Money, Bi, ScoreBar, NotReady, PlannedTag, EmptyState, Skeleton } from '../../utils.jsx';
+import * as U from '../../utils.jsx';
+import { CrumbBar } from '../../shell.jsx';
+import * as EFHooks from '../core/hooks.js';
+import EF from '../core/ef.js';
+const D = EF;
+
 function GWSubmissionsList({ navigate }) {
-  const allSubmissions = window.EFHooks.useSubmissions();
-  const myAssignments = window.EFHooks.useOrders({ gwId: D.GW_ME.id });
+  const allSubmissions = EFHooks.useSubmissions();
+  const myAssignments = EFHooks.useOrders({ gwId: D.GW_ME.id });
   // Pull explicit SUBMISSIONS authored by this GW first.
   const explicit = allSubmissions.filter(s => {
     const o = D.order(s.orderId);
@@ -139,4 +142,3 @@ function GWSubmissionsList({ navigate }) {
 window.GWSubmissionsList = GWSubmissionsList;
 
 window.GWSubmissionsList = GWSubmissionsList;
-})();

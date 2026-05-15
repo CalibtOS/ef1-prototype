@@ -1,5 +1,7 @@
 // Core workflow rules for eFactory One.
 // Pure business logic only: no React, no DOM writes, no side effects.
+import { STATUS_PILLS } from '../../data.js';
+
 const ORDER_STATES = [
   'lead','qualified','offer_sent','invoice_sent','available','claimed_pending_approval',
   'active','interim_submitted','under_customer_review','revision_required',
@@ -225,8 +227,7 @@ function releaseGates(order) {
 }
 
 function statusFor(order, role) {
-  const D = window.EF || {};
-  const base = D.STATUS_PILLS?.[order?.status] || { color: 'slate', label: order?.status || 'Unknown' };
+  const base = STATUS_PILLS[order?.status] || { color: 'slate', label: order?.status || 'Unknown' };
   if (role === 'customer') {
     const map = {
       qualified: 'Angebot wird vorbereitet',
@@ -428,9 +429,8 @@ function buildOrderEvents(order, context) {
   const ctx = context || {};
   const submissions = deriveSubmissions(order, ctx.submissions || []);
   const thread = ctx.thread || null;
-  const D = window.EF || {};
-  const gw = ctx.gw || (D.gw && order.gwId ? D.gw(order.gwId) : null);
-  const cust = ctx.customer || (D.customer ? D.customer(order.customerId) : null);
+  const gw = ctx.gw || null;
+  const cust = ctx.customer || null;
   const dates = lifecycleDates(order, submissions);
   const events = [];
   const rank = statusRank(order);

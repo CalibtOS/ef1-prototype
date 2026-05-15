@@ -1,15 +1,18 @@
 // Admin · Ghostwriters list (GhostwriterDetail lives in ghostwriter-detail.jsx).
-;(function(){
-const { useState: useStateA, useEffect: useEffectA, useMemo: useMemoA } = React;
-const { Icon, StatusPill, Avatar, Money, Bi, ScoreBar, CrumbBar, NotReady, PlannedTag, EmptyState, Skeleton } = window;
-const U = window.EFU;
-const D = window.EF;
 
 // ============ GHOSTWRITERS REGISTRY ============
+import React, { useState as useStateA, useEffect as useEffectA, useMemo as useMemoA } from 'react';
+import { Icon, StatusPill, Avatar, Money, Bi, ScoreBar, NotReady, PlannedTag, EmptyState, Skeleton } from '../../utils.jsx';
+import * as U from '../../utils.jsx';
+import { CrumbBar } from '../../shell.jsx';
+import * as EFHooks from '../core/hooks.js';
+import EF from '../core/ef.js';
+const D = EF;
+
 function GhostwritersList({ navigate }) {
   const [search, setSearch] = useStateA('');
   const [filter, setFilter] = useStateA('all'); // all | active | banned | overloaded | free
-  const all = window.EFHooks.useGhostwriters();
+  const all = EFHooks.useGhostwriters();
 
   const filtered = all.filter(g => {
     if (filter === 'banned' && !g.banned) return false;
@@ -132,4 +135,3 @@ function GhostwritersList({ navigate }) {
 window.GhostwritersList = GhostwritersList;
 
 window.GhostwritersList = GhostwritersList;
-})();

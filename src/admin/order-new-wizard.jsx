@@ -1,9 +1,12 @@
 // Admin · New-order wizard — guided order creation across 4 steps.
-;(function(){
-const { useState: useStateA, useEffect: useEffectA, useMemo: useMemoA } = React;
-const { Icon, StatusPill, Avatar, Money, Bi, ScoreBar, CrumbBar, NotReady, PlannedTag, EmptyState, Skeleton } = window;
-const U = window.EFU;
-const D = window.EF;
+
+import React, { useState as useStateA, useEffect as useEffectA, useMemo as useMemoA } from 'react';
+import { Icon, StatusPill, Avatar, Money, Bi, ScoreBar, NotReady, PlannedTag, EmptyState, Skeleton } from '../../utils.jsx';
+import * as U from '../../utils.jsx';
+import { CrumbBar } from '../../shell.jsx';
+import EFActions from '../core/actions.js';
+import EF from '../core/ef.js';
+const D = EF;
 
 function initialsFor(name, email) {
   const text = String(name || email || '').trim();
@@ -109,7 +112,7 @@ function OrderNewWizard({ navigate, toast }) {
       note: draft.notes,
       _synthetic: true,
     };
-    window.EFActions.orders.create(newOrder);
+    EFActions.orders.create(newOrder);
     toast && toast({
       text: `Order #${newId} created · Pipedrive deal Qualifiziert · Sevdesk contact created`,
       tone: 'success',
@@ -390,4 +393,3 @@ function OrderNewWizard({ navigate, toast }) {
 window.OrderNewWizard = OrderNewWizard;
 
 window.OrderNewWizard = OrderNewWizard;
-})();

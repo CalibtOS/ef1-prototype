@@ -1,20 +1,23 @@
 // GW · Assignment detail — privacy-respecting order view (no financials).
-;(function(){
-const { useState: useStateA, useEffect: useEffectA, useMemo: useMemoA } = React;
-const { Icon, StatusPill, Avatar, Money, Bi, ScoreBar, CrumbBar, NotReady, PlannedTag, EmptyState, Skeleton, ChatNotice, ChatMessage } = window;
-const U = window.EFU;
-const D = window.EF;
-const W = window.EFWorkflow;
 
 // ============ GW ASSIGNMENT DETAIL (privacy-respecting view for GW) ============
 // IMPORTANT: GWs may NOT see gross price, VAT, Berat's margin, release gate,
 // Pipedrive funnel, Sevdesk invoice details, customer email/phone/LTV/lead source.
 // Per PRD: GW sees only job spec, customer name (after approval), their own
 // honorarium, submission tiles, messages, templates, deadlines.
+import React, { useState as useStateA, useEffect as useEffectA, useMemo as useMemoA } from 'react';
+import { Icon, StatusPill, Avatar, Money, Bi, ScoreBar, NotReady, PlannedTag, EmptyState, Skeleton, ChatNotice, ChatMessage } from '../../utils.jsx';
+import * as U from '../../utils.jsx';
+import { CrumbBar } from '../../shell.jsx';
+import * as W from '../core/workflow.js';
+import * as EFHooks from '../core/hooks.js';
+import EF from '../core/ef.js';
+const D = EF;
+
 function GWAssignmentDetail({ orderId, navigate, toast }) {
-  const thread = window.EFHooks.useThreadByOrder(orderId);
-  const displaySubs = window.EFHooks.useDisplaySubmissions(orderId);
-  const order = window.EFHooks.useOrder(orderId);
+  const thread = EFHooks.useThreadByOrder(orderId);
+  const displaySubs = EFHooks.useDisplaySubmissions(orderId);
+  const order = EFHooks.useOrder(orderId);
   if (!order) return <div className="page">Assignment not found.</div>;
   // Ownership guard — a GW may only view assignments where they are the assigned writer
   // OR the order is on the public job board. Otherwise no leakage of customer/order data.
@@ -384,4 +387,3 @@ function GWAssignmentDetail({ orderId, navigate, toast }) {
   );
 }
 window.GWAssignmentDetail = GWAssignmentDetail;
-})();

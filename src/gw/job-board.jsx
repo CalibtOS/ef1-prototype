@@ -1,18 +1,22 @@
 // GW · Job Board — claimable jobs with admin perspective toggle. Includes ClaimModal.
-;(function(){
-const { useState: useStateA, useEffect: useEffectA, useMemo: useMemoA } = React;
-const { Icon, StatusPill, Avatar, Money, Bi, ScoreBar, CrumbBar, NotReady, PlannedTag, EmptyState, Skeleton } = window;
-const U = window.EFU;
-const D = window.EF;
 
 // ============ GW JOB BOARD ============
 // Same surface, two perspectives: GW claims, admin manages (no Claim button).
+import React, { useState as useStateA, useEffect as useEffectA, useMemo as useMemoA } from 'react';
+import { Icon, StatusPill, Avatar, Money, Bi, ScoreBar, NotReady, PlannedTag, EmptyState, Skeleton } from '../../utils.jsx';
+import * as U from '../../utils.jsx';
+import { CrumbBar } from '../../shell.jsx';
+import * as EFHooks from '../core/hooks.js';
+import EFActions from '../core/actions.js';
+import EF from '../core/ef.js';
+const D = EF;
+
 function GWJobBoard({ navigate, toast, role = 'gw' }) {
   const isAdmin = role === 'admin';
   const [filter, setFilter] = useStateA('all');
   const [claimingId, setClaimingId] = useStateA(null);
   // Source of truth: ORDERS where status === 'available' AND no GW assigned.
-  const unclaimed = window.EFHooks.useOrders({ filter: 'available' })
+  const unclaimed = EFHooks.useOrders({ filter: 'available' })
     .filter(o => o.status === 'available' && !o.gwId)
     .map(o => ({
       id: o.id,
@@ -31,7 +35,7 @@ function GWJobBoard({ navigate, toast, role = 'gw' }) {
   const filtered = filter === 'all' ? unclaimed : unclaimed.filter(o => o.workType === filter);
 
   const onUnpublish = (id) => {
-    window.EFActions.orders.hold(id, 'Unpublished by admin');
+    EFActions.orders.hold(id, 'Unpublished by admin');
     toast && toast({
       tone: 'info',
       transition: { entity: `Order #${id}`, from: 'On Job Board', to: 'On Hold' },
@@ -146,7 +150,7 @@ function ClaimModal({ job, onClose, toast, navigate }) {
   const submit = () => {
     // Stateful transition: order moves to claimed_pending_approval and is bound
     // to the logged-in GW (Isabel Walter, gw-iw). Visible across all role views.
-    window.EFActions.gw.claimJob(job.id, 'gw-iw');
+    EFActions.gw.claimJob(job.id, 'gw-iw');
     onClose();
     toast({
       tone: 'info',
@@ -216,4 +220,3 @@ function ClaimModal({ job, onClose, toast, navigate }) {
 }
 
 window.GWJobBoard = GWJobBoard;
-})();

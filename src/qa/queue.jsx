@@ -1,13 +1,17 @@
 // QA · Review queue — submissions pending QA verdict. Includes plagiarism + AI runners and document preview/compare.
-;(function(){
-const { useState: useStateA, useEffect: useEffectA, useMemo: useMemoA } = React;
-const { Icon, StatusPill, Avatar, Money, Bi, ScoreBar, CrumbBar, NotReady, PlannedTag, EmptyState, Skeleton } = window;
-const U = window.EFU;
-const D = window.EF;
 
 // ============ QA DOCUMENT PREVIEW (inline) ============
 // Q-04: replaces the old "Open document viewer" toast with an inline mock preview.
 // Shows a synthetic first page derived from the order title so QA can see what they're judging.
+import React, { useState as useStateA, useEffect as useEffectA, useMemo as useMemoA } from 'react';
+import { Icon, StatusPill, Avatar, Money, Bi, ScoreBar, NotReady, PlannedTag, EmptyState, Skeleton } from '../../utils.jsx';
+import * as U from '../../utils.jsx';
+import { CrumbBar } from '../../shell.jsx';
+import * as EFHooks from '../core/hooks.js';
+import EFActions from '../core/actions.js';
+import EF from '../core/ef.js';
+const D = EF;
+
 function QADocumentPreview({ submission, order }) {
   const accent = submission.aiScore >= 70 ? 'var(--red)' : submission.aiScore >= 30 ? 'var(--amber)' : 'var(--green)';
   // Synthetic body — 8 paragraphs with seeded AI-risk rendering on the flagged ones.
@@ -96,7 +100,7 @@ function QADocumentPreview({ submission, order }) {
 // Q-03: side-by-side mock diff — final/revision submission vs prior interim from same order.
 function QACompareInterim({ submission, order }) {
   // Find prior interim submission for the same order; fall back to a synthesized stub.
-  const orderSubs = window.EFHooks.useSubmissions({ orderId: submission.orderId });
+  const orderSubs = EFHooks.useSubmissions({ orderId: submission.orderId });
   const priors = orderSubs
     .filter(s => s.id !== submission.id && (s.kind === 'interim_1' || s.kind === 'interim_2' || s.round < submission.round))
     .sort((a, b) => new Date(a.submittedAt) - new Date(b.submittedAt));
@@ -357,7 +361,7 @@ function AIDetectionRunner({ submission }) {
 
 function QAQueue({ navigate, toast }) {
   const [activeId, setActiveId] = useStateA(3517);
-  const subs = window.EFHooks.useSubmissions({ qaQueue: true });
+  const subs = EFHooks.useSubmissions({ qaQueue: true });
   const active = subs.find(s => s.orderId === activeId) || subs[0];
   const order = active && D.order(active.orderId);
   const cust = order && D.customer(order.customerId);
@@ -379,14 +383,14 @@ function QAQueue({ navigate, toast }) {
     // problems, but enforcement (shadow-ban, payment blocks, GW exclusion, reassignment,
     // contract/legal review) is admin-only. QA decisions therefore route to admin.
     if (kind === 'reject_ai') {
-      window.EFActions.qa.flagAi(active.id);
+      EFActions.qa.flagAi(active.id);
       toast({
         tone: 'danger',
         transition: { entity: `Order #${order.id}`, from: 'QA Review', to: '🚨 AI Violation — flagged for admin' },
         text: `Flag raised · ${gw.name} · awaiting admin decision`,
       });
     } else if (kind === 'flag_plagiarism') {
-      window.EFActions.qa.flagPlagiarism(active.id);
+      EFActions.qa.flagPlagiarism(active.id);
       toast({
         tone: 'danger',
         transition: { entity: `Order #${order.id}`, from: 'QA Review', to: '🚨 Plagiarism — flagged for admin' },
@@ -394,14 +398,14 @@ function QAQueue({ navigate, toast }) {
       });
     } else if (kind === 'pass') {
       // Stateful: forward to customer review, mark QA passed
-      window.EFActions.qa.pass(active.id);
+      EFActions.qa.pass(active.id);
       toast({
         tone: 'success',
         transition: { entity: `Order #${order.id}`, from: 'QA Review', to: (active.kind === 'final_work' || active.kind === 'revision') ? 'Delivered' : 'Customer Review' },
         text: `Forwarded to ${cust.name} · 14-day review timer started`,
       });
     } else if (kind === 'request_revision') {
-      window.EFActions.qa.requestRevision(active.id);
+      EFActions.qa.requestRevision(active.id);
       toast({
         tone: 'info',
         transition: { entity: `Order #${order.id}`, from: 'QA Review', to: 'Revision Required' },
@@ -558,4 +562,3 @@ function QAQueue({ navigate, toast }) {
 }
 
 window.QAQueue = QAQueue;
-})();

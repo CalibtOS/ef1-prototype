@@ -1,9 +1,13 @@
 // GW · Submission flow — interim/final/revision upload with QA preview pipeline.
-;(function(){
-const { useState: useStateA, useEffect: useEffectA, useMemo: useMemoA } = React;
-const { Icon, StatusPill, Avatar, Money, Bi, ScoreBar, CrumbBar, NotReady, PlannedTag, EmptyState, Skeleton } = window;
-const U = window.EFU;
-const D = window.EF;
+
+import React, { useState as useStateA, useEffect as useEffectA, useMemo as useMemoA, useRef as useRefA } from 'react';
+import { Icon, StatusPill, Avatar, Money, Bi, ScoreBar, NotReady, PlannedTag, EmptyState, Skeleton } from '../../utils.jsx';
+import * as U from '../../utils.jsx';
+import { CrumbBar } from '../../shell.jsx';
+import * as W from '../core/workflow.js';
+import EFActions from '../core/actions.js';
+import EF from '../core/ef.js';
+const D = EF;
 
 const CLOSED_SUBMISSION_REASONS = {
   claimed_pending_approval: 'Awaiting admin approval',
@@ -23,11 +27,11 @@ const CLOSED_SUBMISSION_REASONS = {
 };
 
 function allowedSubmissionKinds(order) {
-  return window.EFWorkflow.allowedSubmissionKinds(order, D.GW_ME.id);
+  return W.allowedSubmissionKinds(order, D.GW_ME.id);
 }
 
 function submissionClosedReason(order) {
-  return window.EFWorkflow.submissionClosedReason(order);
+  return W.submissionClosedReason(order);
 }
 
 // ============ GW SUBMIT ============
@@ -103,8 +107,8 @@ function GWSubmit({ orderId, kind, navigate, toast }) {
   const [invoiceFile, setInvoiceFile] = useStateA(null);
   const [workErr, setWorkErr] = useStateA(null);
   const [invoiceErr, setInvoiceErr] = useStateA(null);
-  const workInputRef = window.React.useRef(null);
-  const invoiceInputRef = window.React.useRef(null);
+  const workInputRef = useRefA(null);
+  const invoiceInputRef = useRefA(null);
 
   // ---- pipeline state ----
   const [step, setStep] = useStateA(0); // 0 idle, 1 upload, 2 plag, 3 ai, 4 qa, 5 done
@@ -156,7 +160,7 @@ function GWSubmit({ orderId, kind, navigate, toast }) {
     setTimeout(() => setStep(4), 3500);
     setTimeout(() => {
       setStep(5);
-      window.EFActions.gw.submit(order.id, {
+      EFActions.gw.submit(order.id, {
         kind: resolvedKind,
         workFile,
         invoiceFile,
@@ -532,4 +536,3 @@ function GWSubmitPicker({ navigate }) {
 }
 
 window.GWSubmit = GWSubmit;
-})();

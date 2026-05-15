@@ -1,12 +1,14 @@
 // Admin · Customers list (CustomerDetail lives in customer-detail.jsx).
-;(function(){
-const { useState: useStateA, useEffect: useEffectA, useMemo: useMemoA } = React;
-const { Icon, StatusPill, Avatar, Money, Bi, ScoreBar, CrumbBar, NotReady, PlannedTag, EmptyState, Skeleton } = window;
-const U = window.EFU;
-const D = window.EF;
-const W = window.EFWorkflow;
 
 // ============ CUSTOMERS (minimal) ============
+import React, { useState as useStateA, useEffect as useEffectA, useMemo as useMemoA } from 'react';
+import { Icon, StatusPill, Avatar, Money, Bi, ScoreBar, NotReady, PlannedTag, EmptyState, Skeleton } from '../../utils.jsx';
+import * as U from '../../utils.jsx';
+import { CrumbBar } from '../../shell.jsx';
+import * as W from '../core/workflow.js';
+import EF from '../core/ef.js';
+const D = EF;
+
 function CustomersPage({ navigate }) {
   const [search, setSearch] = useStateA('');
   const [filter, setFilter] = useStateA('all');
@@ -120,4 +122,3 @@ function CustomersPage({ navigate }) {
 window.CustomersPage = CustomersPage;
 
 window.CustomersPage = CustomersPage;
-})();

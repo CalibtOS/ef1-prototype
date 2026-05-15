@@ -1,10 +1,13 @@
 // Admin · Orders list — top-level orders table with filters, KPIs and saved views.
-;(function(){
-const { useState: useStateA, useEffect: useEffectA, useMemo: useMemoA } = React;
-const { Icon, StatusPill, Avatar, Money, Bi, ScoreBar, CrumbBar, NotReady, PlannedTag, EmptyState, Skeleton } = window;
-const U = window.EFU;
-const D = window.EF;
-const W = window.EFWorkflow;
+
+import React, { useState as useStateA, useEffect as useEffectA, useMemo as useMemoA } from 'react';
+import { Icon, StatusPill, Avatar, Money, Bi, ScoreBar, NotReady, PlannedTag, EmptyState, Skeleton } from '../../utils.jsx';
+import * as U from '../../utils.jsx';
+import { CrumbBar } from '../../shell.jsx';
+import * as W from '../core/workflow.js';
+import * as EFHooks from '../core/hooks.js';
+import EF from '../core/ef.js';
+const D = EF;
 
 function OrdersTable({ navigate, route }) {
   const [search, setSearch] = useStateA('');
@@ -15,12 +18,12 @@ function OrdersTable({ navigate, route }) {
     const incoming = route?.params?.view || 'all';
     setView(prev => prev === incoming ? prev : incoming);
   }, [route?.params?.view]);
-  const orders = window.EFHooks.useOrders();
+  const orders = EFHooks.useOrders();
   // Dashboard queues — reused so list and dashboard cannot drift.
-  const riskItems = window.EFHooks.useRevenueAtRisk();
-  const slaItems = window.EFHooks.useSlaOperational();
-  const decisionItems = window.EFHooks.useNeedsDecision();
-  const cash = window.EFHooks.useCashFriday();
+  const riskItems = EFHooks.useRevenueAtRisk();
+  const slaItems = EFHooks.useSlaOperational();
+  const decisionItems = EFHooks.useNeedsDecision();
+  const cash = EFHooks.useCashFriday();
   const ridSet = (arr) => new Set(arr.map(it => it.orderId || it.order?.id).filter(Boolean));
   const riskIds = useMemoA(() => ridSet(riskItems), [riskItems]);
   const slaIds = useMemoA(() => ridSet(slaItems), [slaItems]);
@@ -207,4 +210,3 @@ function OrdersTable({ navigate, route }) {
 // ============ ORDER DETAIL ============
 
 window.OrdersTable = OrdersTable;
-})();

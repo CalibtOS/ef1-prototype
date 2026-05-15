@@ -1,15 +1,27 @@
 // Shared utilities + design system primitives.
 //
-// DESIGN SYSTEM (window.EFDS):
+// DESIGN SYSTEM:
 //   Colors live as CSS variables in styles.css (`:root` and `[data-theme="dark"]`).
 //   Status semantics:  blue=in-progress · yellow=pending · green=done · red=violation/error · orange=overdue · gray=on-hold
 //   Components published to window: Icon, StatusPill, Avatar, Money, Bi, ScoreBar,
 //                                   NotReady, PlannedTag, EmptyState, Skeleton,
 //                                   ChatNotice, ChatMessage, ChatComposer, ChatThreadRow.
 //   Helpers: window.efToast({text, tone, transition}), window.efNotify({to, title, body, urgent}).
-//   Feature flags: window.EF.FEATURE_FLAGS — single source of truth for "what's planned vs. live".
+//   Feature flags live in data.js — single source of truth for "what's planned vs. live".
 import React from 'react';
 import { STATUS_PILLS, featureStatus } from './data.js';
+
+const WORK_TYPE_TONES = {
+  hausarbeit: 'blue',
+  seminararbeit: 'blue',
+  bachelorarbeit: 'purple',
+  masterarbeit: 'amber',
+  doktorarbeit: 'red',
+  lektorat: 'green',
+  expose: 'orange',
+  coaching: 'yellow',
+  sonstiges: 'slate',
+};
 
 const EUR = (n) => {
   if (n == null || isNaN(n)) return '—';
@@ -407,6 +419,7 @@ export {
   greetingFor, fridayBatchLabel, relTime, daysTo, deadlineMeta,
   Icon, StatusPill, Avatar, Money, Bi, ScoreBar, NotReady, PlannedTag,
   EmptyState, Skeleton, ChatNotice, ChatMessage, ChatComposer, ChatThreadRow,
+  WORK_TYPE_TONES,
 };
 
 // EFDS — design system surface: components + tokens reference.

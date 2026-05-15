@@ -1,12 +1,9 @@
-// Vite entry point. The core layer is now real ES modules; feature files
-// still read from window.EF*, so `expose-globals.js` runs the core modules
-// and re-exposes their exports onto window before any feature file loads.
-// Phase 3 will delete `expose-globals.js` and use direct imports everywhere.
+// Vite entry point. Core and feature files use direct imports now; page
+// components still publish to window until the Phase 4 export sweep.
 
-import './setup-globals.js'
 import './expose-globals.js'
 
-// Feature files (still IIFE-wrapped, still reading window.EF*).
+// Feature files still publish their route components to window until Phase 4.
 import './admin/dashboard.jsx'
 import './admin/orders-list.jsx'
 import './admin/order-detail.jsx'
@@ -283,4 +280,7 @@ function App() {
   )
 }
 
-createRoot(document.getElementById('root')).render(<App />)
+const rootElement = document.getElementById('root')
+const root = rootElement.__efRoot || createRoot(rootElement)
+rootElement.__efRoot = root
+root.render(<App />)

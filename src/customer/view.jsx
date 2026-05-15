@@ -1,17 +1,23 @@
 // Customer · Portal view — orders, messages, files, invoices, downloads, profile.
-;(function(){
-const { useState: useStateA, useEffect: useEffectA, useMemo: useMemoA } = React;
-const { Icon, StatusPill, Avatar, Money, Bi, ScoreBar, CrumbBar, NotReady, PlannedTag, EmptyState, Skeleton, ChatNotice, ChatMessage, ChatComposer, ChatThreadRow } = window;
-const U = window.EFU;
-const D = window.EF;
-const W = window.EFWorkflow;
 
 // ============ CUSTOMER PORTAL ============
 // B2C portal — centered, internal tab nav. Demo persona resolves from shell.jsx
 // ROLES (Antigona Berisha · c-ab). Demo orders now live in the shared store
 // so customer/admin/GW/QA views all see the same lifecycle state.
 
-const CUST_PERSONA = (window.EFShell?.ROLES || []).find(r => r.id === 'customer') ||
+import React, { useState as useStateA, useEffect as useEffectA, useMemo as useMemoA } from 'react';
+import { Icon, StatusPill, Avatar, Money, Bi, ScoreBar, NotReady, PlannedTag, EmptyState, Skeleton, ChatNotice, ChatMessage, ChatComposer, ChatThreadRow } from '../../utils.jsx';
+import * as U from '../../utils.jsx';
+import { CrumbBar } from '../../shell.jsx';
+import * as EFShell from '../../shell.jsx';
+import * as W from '../core/workflow.js';
+import * as EFHooks from '../core/hooks.js';
+import EFActions from '../core/actions.js';
+import * as EFSelectors from '../core/selectors.js';
+import EF from '../core/ef.js';
+const D = EF;
+
+const CUST_PERSONA = (EFShell?.ROLES || []).find(r => r.id === 'customer') ||
   { user: 'Antigona Berisha', initials: 'AB', email: 'antigona.berisha@example.com' };
 const CUST_ME = D.CUSTOMERS.find(c => c.initials === CUST_PERSONA.initials) ||
   { id: 'c-demo', name: CUST_PERSONA.user, initials: CUST_PERSONA.initials, email: CUST_PERSONA.email };
@@ -93,8 +99,8 @@ function custGwContact(o) {
 
 function CustHeader({ tab, setTab, role, setRole, onOpenNotification }) {
   const [open, setOpen] = useStateA(false);
-  const NotifBell = window.NotifBell;
-  const customerNotifs = window.EFHooks.useNotifications('customer');
+  const NotifBell = EFShell.NotifBell;
+  const customerNotifs = EFHooks.useNotifications('customer');
   const tabs = [
     { id: 'orders', label: 'Meine Aufträge', icon: 'package' },
     { id: 'messages', label: 'Nachrichten', icon: 'message-square' },
@@ -114,7 +120,7 @@ function CustHeader({ tab, setTab, role, setRole, onOpenNotification }) {
           <NotifBell
             role="customer"
             notifications={customerNotifs}
-            onMark={() => window.EFActions.notifications.markAllRead('customer')}
+            onMark={() => EFActions.notifications.markAllRead('customer')}
             onOpen={onOpenNotification}
           />
         )}
@@ -130,7 +136,7 @@ function CustHeader({ tab, setTab, role, setRole, onOpenNotification }) {
           {open && setRole && (
             <div style={{ position: 'absolute', top: 40, right: 0, width: 220, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10, boxShadow: 'var(--shadow-lg)', zIndex: 50, overflow: 'hidden' }}>
               <div style={{ padding: '8px 12px', fontSize: 11, color: 'var(--text-3)', fontWeight: 500, textTransform: 'uppercase', letterSpacing: '0.04em', borderBottom: '1px solid var(--border)' }}>Demo persona wechseln</div>
-              {(window.EFShell?.ROLES || []).map(r => (
+              {(EFShell?.ROLES || []).map(r => (
                 <div key={r.id} onClick={() => { setRole(r.id); setOpen(false); }} style={{ padding: '9px 12px', display: 'flex', gap: 10, alignItems: 'center', cursor: 'pointer', borderBottom: '1px solid var(--border)' }} onMouseEnter={(e)=>e.currentTarget.style.background='var(--surface-2)'} onMouseLeave={(e)=>e.currentTarget.style.background='transparent'}>
                   <Avatar initials={r.initials} size={24} tone={r.id === role ? 'blue' : 'neutral'}/>
                   <div className="flex-col" style={{ flex: 1, lineHeight: 1.2 }}>
@@ -435,7 +441,7 @@ function CustOrderStatus({ o }) {
 function CustOrderChat({ o, toast }) {
   const [text, setText] = useStateA('');
   const [draftFlag, setDraftFlag] = useStateA(null);
-  const thread = window.EFHooks.useThreadByOrder(o.id);
+  const thread = EFHooks.useThreadByOrder(o.id);
   const dates = W.lifecycleDates(o, []);
 
   // Pre-GW / pre-payment status messages — synthetic system entries for stages
@@ -458,7 +464,7 @@ function CustOrderChat({ o, toast }) {
   // Mark unread customer messages as read once the chat is opened.
   useEffectA(() => {
     if (thread?.id && (thread.unread?.customer || 0) > 0) {
-      window.EFActions.threads.markRead(thread.id, 'customer');
+      EFActions.threads.markRead(thread.id, 'customer');
     }
   }, [thread?.id]);
 
@@ -466,7 +472,7 @@ function CustOrderChat({ o, toast }) {
   const onChange = (v) => { setText(v); setDraftFlag(detectFinancial(v) ? 'financial' : null); };
   const onSend = () => {
     if (!text.trim()) return;
-    const msg = window.EFActions.threads.send({
+    const msg = EFActions.threads.send({
       orderId: o.id,
       role: 'customer',
       body: text,
@@ -598,7 +604,7 @@ function CustInterimFeedback({ o, toast }) {
         <div className="flex gap-2 mt-1">
           <button type="button" className="btn btn-sm" onClick={()=>setMode(null)}>Zurück</button>
           <button type="button" className="btn btn-sm btn-success" onClick={()=>{
-            window.EFActions.customer.approveInterim(o.id);
+            EFActions.customer.approveInterim(o.id);
             toast && toast({ tone: 'success', transition: { entity: `Auftrag #${o.id}`, from: 'Zwischenstand', to: 'In Bearbeitung' }, text: 'Zwischenstand freigegeben · GW arbeitet weiter' });
           }}>
             <Icon name="check" size={12}/> Freigabe bestätigen
@@ -622,7 +628,7 @@ function CustInterimFeedback({ o, toast }) {
         <div className="flex gap-2">
           <button type="button" className="btn btn-sm" onClick={()=>{setMode(null);setNote('');}}>Zurück</button>
           <button type="button" className="btn btn-sm btn-primary" disabled={!canSubmit} onClick={()=>{
-            window.EFActions.customer.requestRevision(o.id, note);
+            EFActions.customer.requestRevision(o.id, note);
             toast && toast({ tone: 'info', transition: { entity: `Auftrag #${o.id}`, from: 'Zwischenstand', to: 'Überarbeitung' }, text: 'Überarbeitungsanfrage gesendet' });
           }}>
             <Icon name="rotate-ccw" size={12}/> Überarbeitung anfordern
@@ -643,7 +649,7 @@ function CustInterimFeedback({ o, toast }) {
       </button>
       <hr style={{ border: 'none', borderTop: '1px solid var(--border)', margin: '4px 0' }}/>
       <button type="button" className="btn btn-sm btn-ghost" style={{ fontSize: 11.5, color: 'var(--text-3)' }} onClick={()=>{
-        window.EFActions.customer.escalate(o.id);
+        EFActions.customer.escalate(o.id);
         toast && toast({ tone: 'danger', text: 'Streitfall gemeldet · Berat prüft und meldet sich.' });
       }}>
         <Icon name="alert-triangle" size={11}/> Problem eskalieren
@@ -671,7 +677,7 @@ function CustFinalAcceptance({ o, toast }) {
         <div className="flex gap-2 mt-1">
           <button type="button" className="btn btn-sm" onClick={()=>setMode(null)}>Zurück</button>
           <button type="button" className="btn btn-sm btn-success" onClick={()=>{
-            const ok = window.EFActions.customer.acceptFinal(o.id);
+            const ok = EFActions.customer.acceptFinal(o.id);
             if (ok) toast && toast({ tone: 'success', transition: { entity: `Auftrag #${o.id}`, from: 'Endversion', to: 'Abgeschlossen' }, text: 'Endversion akzeptiert · Auftrag abgeschlossen' });
           }}>
             <Icon name="check" size={12}/> Endabgabe annehmen
@@ -695,7 +701,7 @@ function CustFinalAcceptance({ o, toast }) {
         <div className="flex gap-2">
           <button type="button" className="btn btn-sm" onClick={()=>{setMode(null);setNote('');}}>Zurück</button>
           <button type="button" className="btn btn-sm btn-primary" disabled={!canSubmit} onClick={()=>{
-            window.EFActions.customer.requestRevision(o.id, note);
+            EFActions.customer.requestRevision(o.id, note);
             toast && toast({ tone: 'info', transition: { entity: `Auftrag #${o.id}`, from: 'Endversion', to: 'Überarbeitung' }, text: 'Überarbeitungsanfrage gesendet' });
           }}>
             <Icon name="rotate-ccw" size={12}/> Überarbeitung anfordern
@@ -716,7 +722,7 @@ function CustFinalAcceptance({ o, toast }) {
       </button>
       <hr style={{ border: 'none', borderTop: '1px solid var(--border)', margin: '4px 0' }}/>
       <button type="button" className="btn btn-sm btn-ghost" style={{ fontSize: 11.5, color: 'var(--text-3)' }} onClick={()=>{
-        window.EFActions.customer.escalate(o.id);
+        EFActions.customer.escalate(o.id);
         toast && toast({ tone: 'danger', text: 'Streitfall gemeldet · Berat prüft und meldet sich.' });
       }}>
         <Icon name="alert-triangle" size={11}/> Problem eskalieren
@@ -795,8 +801,8 @@ function customerVisibleFiles(o, displaySubs, thread) {
 }
 
 function CustOrderFiles({ o, toast }) {
-  const displaySubs = window.EFHooks.useDisplaySubmissions(o.id);
-  const thread = window.EFHooks.useThreadByOrder(o.id);
+  const displaySubs = EFHooks.useDisplaySubmissions(o.id);
+  const thread = EFHooks.useThreadByOrder(o.id);
   const baseFiles = customerVisibleFiles(o, displaySubs, thread);
 
   const formatSize = (bytes) => {
@@ -1052,7 +1058,7 @@ function CustOrderDetail({ orderId, initialTab, onBack, toast }) {
 
 function CustMessagesList({ openOrder }) {
   const orders = custOrders().filter(o => o.gwId);
-  const allThreads = window.EFHooks.useThreads();
+  const allThreads = EFHooks.useThreads();
   const threadsByOrder = useMemoA(() => {
     const m = {};
     allThreads.forEach(t => { m[t.orderId] = t; });
@@ -1216,13 +1222,13 @@ function CustInvoices() {
 }
 
 function CustDownloads({ toast }) {
-  const storeState = window.EFHooks.useStore(s => s);
+  const storeState = EFHooks.useStore(s => s);
   const orders = custOrders();
   const groups = orders.map(o => {
     const files = customerVisibleFiles(
       o,
-      window.EFSelectors.selectDisplaySubmissionsForOrder(storeState, o.id),
-      window.EFSelectors.selectThreadByOrder(storeState, o.id)
+      EFSelectors.selectDisplaySubmissionsForOrder(storeState, o.id),
+      EFSelectors.selectThreadByOrder(storeState, o.id)
     ).map(f => ({
       ...f,
       sizeText: f.sizeLabel || (f.size < 1048576 ? `${Math.round((f.size || 0) / 1024)} KB` : `${((f.size || 0) / 1048576).toFixed(1)} MB`),
@@ -1408,7 +1414,7 @@ function CustomerView({ role, setRole, toast, section, navigate }) {
   };
 
   const openNotification = (n) => {
-    const target = window.EFShell?.resolveNotificationTarget?.(n, 'customer');
+    const target = EFShell?.resolveNotificationTarget?.(n, 'customer');
     if (target?.customerOrderId != null) {
       if (navigate) navigate(ROUTE_FOR_TAB.orders);
       openOrder(target.customerOrderId, target.tab || 'status');
@@ -1444,4 +1450,3 @@ function CustomerView({ role, setRole, toast, section, navigate }) {
 
 
 window.CustomerView = CustomerView;
-})();

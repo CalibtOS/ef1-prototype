@@ -1,17 +1,21 @@
 // Admin · Offers / Sevdesk — generate offers and invoices.
-;(function(){
-const { useState: useStateA, useEffect: useEffectA, useMemo: useMemoA } = React;
-const { Icon, StatusPill, Avatar, Money, Bi, ScoreBar, CrumbBar, NotReady, PlannedTag, EmptyState, Skeleton } = window;
-const U = window.EFU;
-const D = window.EF;
 
 // ====================================================================
+import React, { useState as useStateA, useEffect as useEffectA, useMemo as useMemoA } from 'react';
+import { Icon, StatusPill, Avatar, Money, Bi, ScoreBar, NotReady, PlannedTag, EmptyState, Skeleton } from '../../utils.jsx';
+import * as U from '../../utils.jsx';
+import { CrumbBar } from '../../shell.jsx';
+import * as EFHooks from '../core/hooks.js';
+import EFActions from '../core/actions.js';
+import EF from '../core/ef.js';
+const D = EF;
+
 function OffersPage({ navigate, toast }) {
   const [tab, setTab] = useStateA('all');
   const [genFor, setGenFor] = useStateA(null); // order id while wizard open
 
   // Source: every order with status qualified | offer_sent | invoice_sent | paid+
-  const allEffective = window.EFHooks.useOrders();
+  const allEffective = EFHooks.useOrders();
   const offerable = allEffective.filter(o => ['qualified','offer_sent','invoice_sent'].includes(o.status));
   const accepted = allEffective.filter(o => !['qualified','offer_sent','invoice_sent','lead','cancelled','bye'].includes(o.status));
 
@@ -144,7 +148,7 @@ function OffersPage({ navigate, toast }) {
 window.OffersPage = OffersPage;
 
 function GenerateOfferModal({ orderId, toast, onClose }) {
-  const order = window.EFHooks.useOrder(orderId);
+  const order = EFHooks.useOrder(orderId);
   const cust = D.customer(order.customerId);
   const [phase, setPhase] = useStateA('preview'); // preview → sending → sent
   const [progress, setProgress] = useStateA([
@@ -163,7 +167,7 @@ function GenerateOfferModal({ orderId, toast, onClose }) {
     });
     setTimeout(() => {
       setPhase('sent');
-      window.EFActions.orders.sendOffer(orderId, {
+      EFActions.orders.sendOffer(orderId, {
         status: 'offer_sent',
         offerSentAt: new Date().toISOString(),
         sevdeskOfferNo: `AN-2026-${String(orderId).padStart(4, '0')}`,
@@ -239,4 +243,3 @@ window.GenerateOfferModal = GenerateOfferModal;
 
 window.OffersPage = OffersPage;
 window.GenerateOfferModal = GenerateOfferModal;
-})();

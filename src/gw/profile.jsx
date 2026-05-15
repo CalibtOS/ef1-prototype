@@ -1,11 +1,13 @@
 // GW · Profile — expertise, languages, AGB version, signed PDF.
-;(function(){
-const { useState: useStateA, useEffect: useEffectA, useMemo: useMemoA } = React;
-const { Icon, StatusPill, Avatar, Money, Bi, ScoreBar, CrumbBar, NotReady, PlannedTag, EmptyState, Skeleton } = window;
-const U = window.EFU;
-const D = window.EF;
 
 // ============ GW PROFILE ============
+import React, { useState as useStateA, useEffect as useEffectA, useMemo as useMemoA } from 'react';
+import { Icon, StatusPill, Avatar, Money, Bi, ScoreBar, NotReady, PlannedTag, EmptyState, Skeleton } from '../../utils.jsx';
+import * as U from '../../utils.jsx';
+import { CrumbBar } from '../../shell.jsx';
+import EF from '../core/ef.js';
+const D = EF;
+
 function GWProfile() {
   const me = D.GW_ME;
   return (
@@ -82,4 +84,3 @@ function GWProfile() {
 window.GWProfile = GWProfile;
 
 window.GWProfile = GWProfile;
-})();

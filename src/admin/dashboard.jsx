@@ -1,12 +1,16 @@
 // Admin dashboard
-;(function(){
-const { useState: useStateA, useEffect: useEffectA, useMemo: useMemoA } = React;
-const { Icon, StatusPill, Avatar, Money, Bi, ScoreBar } = window;
-const { CrumbBar } = window;
-const U = window.EFU; // utils
-const D = window.EF; // data
 
 // ----- Sparkline -----
+import React, { useState as useStateA, useEffect as useEffectA, useMemo as useMemoA } from 'react';
+import { Icon, StatusPill, Avatar, Money, Bi, ScoreBar } from '../../utils.jsx';
+import * as U from '../../utils.jsx';
+import { CrumbBar } from '../../shell.jsx';
+import * as W from '../core/workflow.js';
+import * as EFHooks from '../core/hooks.js';
+import * as EFSelectors from '../core/selectors.js';
+import EF from '../core/ef.js';
+const D = EF;
+
 function Spark({ values, color = 'var(--blue)', w = 120, h = 28 }) {
   const max = Math.max(...values), min = Math.min(...values);
   const dx = w / (values.length - 1);
@@ -60,7 +64,7 @@ function DashboardLiveHeader({ k, navigate, openFridayBatch }) {
 }
 
 function AdminDashboard({ navigate, openFridayBatch }) {
-  const k = window.EFHooks.useKpis();
+  const k = EFHooks.useKpis();
   return (
     <div className="page">
       <DashboardLiveHeader k={k} navigate={navigate} openFridayBatch={openFridayBatch} />
@@ -230,7 +234,7 @@ function fmtAge(days) {
 
 // ===== Revenue at risk =====
 function RevenueAtRisk({ navigate }) {
-  const items = window.EFHooks.useRevenueAtRisk();
+  const items = EFHooks.useRevenueAtRisk();
   const totalEur = items.reduce((s, it) => s + (it.atRiskEur || 0), 0);
   const subtitle = items.length
     ? `${items.length} item${items.length === 1 ? '' : 's'} · ${U.EUR(totalEur)} at risk`
@@ -290,7 +294,7 @@ function RevenueAtRisk({ navigate }) {
 
 // ===== Needs your decision =====
 function NeedsYourDecision({ navigate }) {
-  const items = window.EFHooks.useNeedsDecision();
+  const items = EFHooks.useNeedsDecision();
   return (
     <QueueCard
       title="Needs your decision"
@@ -338,7 +342,7 @@ function NeedsYourDecision({ navigate }) {
 
 // ===== SLA & operational =====
 function SlaOperational({ navigate }) {
-  const items = window.EFHooks.useSlaOperational();
+  const items = EFHooks.useSlaOperational();
   return (
     <QueueCard
       title="SLA & operational"
@@ -381,7 +385,7 @@ function SlaOperational({ navigate }) {
 
 // ===== Cash & Friday =====
 function CashAndFriday({ navigate, openFridayBatch }) {
-  const cash = window.EFHooks.useCashFriday();
+  const cash = EFHooks.useCashFriday();
   const now = U.useNow(60000);
   const batchLabel = U.fridayBatchLabel(now);
   const releasableEur = cash.releaseable.reduce((s, o) => s + (o.netHonorarium || 0), 0);
@@ -492,9 +496,8 @@ function CashAndFriday({ navigate, openFridayBatch }) {
 // the hardcoded list, so a delay-reported or extension-approved order updates
 // the panel immediately on role-switch.
 function TodaysDeadlines({ navigate }) {
-  const orders = window.EFHooks.useOrders();
-  const D = window.EF;
-  const W = window.EFWorkflow;
+  const orders = EFHooks.useOrders();
+  const D = EF;
   const NOW = D.DEMO_NOW || new Date();
   const closedStates = new Set(['completed','cancelled','payment_pending','delivered']);
   const items = [];
@@ -525,7 +528,7 @@ function TodaysDeadlines({ navigate }) {
         ) : (
           <div className="timeline">
             {visible.map((d, i) => {
-              const meta = window.EFU.deadlineMeta(d.date);
+              const meta = U.deadlineMeta(d.date);
               const cust = D.customer(d.order.customerId);
               const gw = D.gw(d.order.gwId);
               const dotTone = meta.tone === 'danger' ? 'red' : meta.tone === 'warn' ? '' : '';
@@ -537,7 +540,7 @@ function TodaysDeadlines({ navigate }) {
                   <div className="timeline-content">
                     <div className="timeline-title">
                       <span className={`pill ${pillTone}`} style={{ marginRight: 6 }}>{meta.label}</span>
-                      Order #{d.orderId} · <span className="mono">{d.label}</span> — {window.EFU.fmtDate(d.date)}, 18:00
+                      Order #{d.orderId} · <span className="mono">{d.label}</span> — {U.fmtDate(d.date)}, 18:00
                       {isFlagged && <span className="pill pill-red" style={{ marginLeft: 6 }}>blocked</span>}
                     </div>
                     <div className="timeline-meta">
@@ -770,8 +773,8 @@ function FunnelChart() {
 }
 
 function Heatmap() {
-  const orders = window.EFHooks.useOrders();
-  const ghostwriters = window.EFHooks.useGhostwriters();
+  const orders = EFHooks.useOrders();
+  const ghostwriters = EFHooks.useGhostwriters();
   const days = Array.from({length: 14}, (_, i) => {
     const d = new Date('2026-05-08');
     d.setDate(d.getDate() + i);
@@ -780,7 +783,7 @@ function Heatmap() {
     return { d: d.getDate(), date: d, start, end, label: ['So','Mo','Di','Mi','Do','Fr','Sa'][d.getDay()] };
   });
   const gws = ghostwriters.filter(g => !g.isOwner).slice(0, 11);
-  const openStatuses = new Set(window.EFSelectors.ACTIVE_GW_ORDER_STATUSES);
+  const openStatuses = new Set(EFSelectors.ACTIVE_GW_ORDER_STATUSES);
   const sameDay = (iso, day) => {
     if (!iso) return false;
     const d = new Date(iso);
@@ -837,4 +840,3 @@ function Heatmap() {
 window.AdminDashboard = AdminDashboard;
 window.Spark = Spark;
 window.MiniBars = MiniBars;
-})();

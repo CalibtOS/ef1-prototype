@@ -1,14 +1,17 @@
 // GW · Messages — anonymized customer threads (admin always CC).
-;(function(){
-const { useState: useStateA, useEffect: useEffectA, useMemo: useMemoA } = React;
-const { Icon, Avatar, NotReady, EmptyState, ChatNotice, ChatMessage, ChatComposer, ChatThreadRow } = window;
-const U = window.EFU;
-const D = window.EF;
 
 // ============ GW MESSAGES ============
+import React, { useState as useStateA, useEffect as useEffectA, useMemo as useMemoA } from 'react';
+import { Icon, Avatar, NotReady, EmptyState, ChatNotice, ChatMessage, ChatComposer, ChatThreadRow } from '../../utils.jsx';
+import * as U from '../../utils.jsx';
+import * as EFHooks from '../core/hooks.js';
+import EFActions from '../core/actions.js';
+import EF from '../core/ef.js';
+const D = EF;
+
 function GWMessages({ navigate }) {
   const [reply, setReply] = useStateA('');
-  const allThreads = window.EFHooks.useThreads();
+  const allThreads = EFHooks.useThreads();
   // Only threads tied to my (Isabel's) assignments are visible.
   const myThreads = useMemoA(() => allThreads.filter(t => t.gwId === D.GW_ME.id), [allThreads]);
   const [activeId, setActiveId] = useStateA(myThreads[0]?.id || null);
@@ -17,13 +20,13 @@ function GWMessages({ navigate }) {
   // Mark as read when a thread is opened.
   useEffectA(() => {
     if (active?.id && (active.unread?.gw || 0) > 0) {
-      window.EFActions.threads.markRead(active.id, 'gw');
+      EFActions.threads.markRead(active.id, 'gw');
     }
   }, [active?.id]);
 
   const onSend = () => {
     if (!active || !reply.trim()) return;
-    const msg = window.EFActions.threads.send({
+    const msg = EFActions.threads.send({
       threadId: active.id,
       orderId: active.orderId,
       role: 'gw',
@@ -161,4 +164,3 @@ function GWMessages({ navigate }) {
 }
 
 window.GWMessages = GWMessages;
-})();

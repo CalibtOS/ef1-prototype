@@ -1,10 +1,14 @@
 // Admin · Order detail — overview, payments, submissions, comms, assignment, audit tabs.
-;(function(){
-const { useState: useStateA, useEffect: useEffectA, useMemo: useMemoA } = React;
-const { Icon, StatusPill, Avatar, Money, Bi, ScoreBar, CrumbBar, NotReady, PlannedTag, EmptyState, Skeleton, ChatNotice, ChatMessage, ChatComposer } = window;
-const U = window.EFU;
-const D = window.EF;
-const W = window.EFWorkflow;
+
+import React, { useState as useStateA, useEffect as useEffectA, useMemo as useMemoA } from 'react';
+import { Icon, StatusPill, Avatar, Money, Bi, ScoreBar, NotReady, PlannedTag, EmptyState, Skeleton, ChatNotice, ChatMessage, ChatComposer } from '../../utils.jsx';
+import * as U from '../../utils.jsx';
+import { CrumbBar } from '../../shell.jsx';
+import * as W from '../core/workflow.js';
+import * as EFHooks from '../core/hooks.js';
+import EFActions from '../core/actions.js';
+import EF from '../core/ef.js';
+const D = EF;
 
 function initialsFor(name, email) {
   const text = String(name || email || '').trim();
@@ -42,11 +46,11 @@ function ExtensionResolutionPanel({ order, toast }) {
   const [overrideDeadline, setOverrideDeadline] = useStateA('');
   const [rejectReason, setRejectReason] = useStateA('');
   const onApprove = () => {
-    window.EFActions.orders.approveExtension(order.id, overrideDeadline ? { newDeadline: overrideDeadline + 'T18:00:00' } : {});
+    EFActions.orders.approveExtension(order.id, overrideDeadline ? { newDeadline: overrideDeadline + 'T18:00:00' } : {});
     toast && toast({ tone: 'success', transition: { entity: `Order #${order.id}`, from: 'Extension Requested', to: 'Active' }, text: 'Extension approved · GW + customer notified' });
   };
   const onReject = () => {
-    window.EFActions.orders.rejectExtension(order.id, rejectReason);
+    EFActions.orders.rejectExtension(order.id, rejectReason);
     toast && toast({ tone: 'info', transition: { entity: `Order #${order.id}`, from: 'Extension Requested', to: 'Active' }, text: 'Extension rejected · GW notified to continue with original scope' });
   };
   return (
@@ -79,12 +83,12 @@ function ExtensionResolutionPanel({ order, toast }) {
 function DelayResolutionPanel({ order, toast }) {
   const [counter, setCounter] = useStateA('');
   const onAccept = () => {
-    window.EFActions.orders.acceptDelay(order.id, {});
+    EFActions.orders.acceptDelay(order.id, {});
     toast && toast({ tone: 'success', transition: { entity: `Order #${order.id}`, from: 'Delay Reported', to: 'Active' }, text: 'New deadline confirmed · customer + GW notified' });
   };
   const onCounter = () => {
     if (!counter) return;
-    window.EFActions.orders.proposeNewDelay(order.id, counter + 'T18:00:00');
+    EFActions.orders.proposeNewDelay(order.id, counter + 'T18:00:00');
     toast && toast({ tone: 'info', text: `Counter-deadline ${counter} proposed to customer + GW` });
     setCounter('');
   };
@@ -115,7 +119,7 @@ function DisputeResolutionPanel({ order, toast }) {
   const [resolution, setResolution] = useStateA('');
   const canSubmit = resolution.trim().length >= 10;
   const onClose = () => {
-    window.EFActions.orders.closeDispute(order.id, resolution);
+    EFActions.orders.closeDispute(order.id, resolution);
     toast && toast({ tone: 'success', text: 'Dispute closed · customer + GW notified' });
     setResolution('');
   };
@@ -148,11 +152,11 @@ function ViolationResolutionPanel({ order, submissions, toast }) {
   const flaggedSub = (submissions || []).find(s => s.flagged) || (submissions || [])[0];
   const gw = D.gw(order.gwId);
   const onConfirm = () => {
-    window.EFActions.orders.confirmViolation(order.id, { reason: order.qaFlagReason });
+    EFActions.orders.confirmViolation(order.id, { reason: order.qaFlagReason });
     toast && toast({ tone: 'danger', transition: { entity: `Order #${order.id}`, from: isPlag ? 'Plagiarism Violation' : 'AI Violation', to: 'On Job Board (reassigning)' }, text: 'Violation confirmed · GW shadow-banned · customer notified about reassignment' });
   };
   const onClear = () => {
-    window.EFActions.orders.clearViolation(order.id, 'Reviewed and cleared after admin investigation');
+    EFActions.orders.clearViolation(order.id, 'Reviewed and cleared after admin investigation');
     toast && toast({ tone: 'success', transition: { entity: `Order #${order.id}`, from: isPlag ? 'Plagiarism Violation' : 'AI Violation', to: order.finalSubmittedAt ? 'Delivered' : 'QA Review' }, text: 'False positive · flag cleared · GW + customer notified' });
   };
   return (
@@ -204,9 +208,9 @@ function OrderDetail({ orderId, navigate, toast, initialTab }) {
     setTab(initialTab || 'overview');
   }, [orderId, initialTab]);
   // Store-backed read so newly-created orders resolve across all role views.
-  const order = window.EFHooks.useOrder(orderId);
-  const submissions = window.EFHooks.useSubmissions({ orderId });
-  const orderEvents = window.EFHooks.useOrderEvents(orderId);
+  const order = EFHooks.useOrder(orderId);
+  const submissions = EFHooks.useSubmissions({ orderId });
+  const orderEvents = EFHooks.useOrderEvents(orderId);
   if (!order) return <div className="page">Order not found.</div>;
   const cust = D.customer(order.customerId) || fallbackCustomer(order);
   const gw = D.gw(order.gwId);
@@ -258,7 +262,7 @@ function OrderDetail({ orderId, navigate, toast, initialTab }) {
     setTimeout(() => setApproving({ phase: 'cust' }), 700);
     setTimeout(() => setApproving({ phase: 'done' }), 1400);
     setTimeout(() => {
-      window.EFActions.orders.approveClaim(orderId);
+      EFActions.orders.approveClaim(orderId);
       toast({
         tone: 'success',
         transition: { entity: `Order #${orderId}`, from: 'GW Claimed — Approve', to: 'Active' },
@@ -268,7 +272,7 @@ function OrderDetail({ orderId, navigate, toast, initialTab }) {
     setTimeout(() => setApproving(null), 2400);
   };
   const rejectClaim = () => {
-    window.EFActions.orders.rejectClaim(orderId);
+    EFActions.orders.rejectClaim(orderId);
     toast({
       tone: 'info',
       transition: { entity: `Order #${orderId}`, from: 'GW Claimed — Approve', to: 'On Job Board' },
@@ -277,7 +281,7 @@ function OrderDetail({ orderId, navigate, toast, initialTab }) {
   };
   const markInstallmentPaid = (n) => {
     const installment = (order.installments || []).find(i => i.n === n);
-    window.EFActions.orders.markInstallmentPaid(orderId, n);
+    EFActions.orders.markInstallmentPaid(orderId, n);
     toast({ text: `Installment ${n} marked as paid · ${U.EUR(installment?.amt)} via SEPA`, tone: 'success' });
   };
   // Direct release is intentionally removed: per business_rules §5 GW payments are released
@@ -467,7 +471,7 @@ function OrderDetail({ orderId, navigate, toast, initialTab }) {
                       <div className="flex justify-between fs-11 mb-2"><span className="text-muted">GW rate (locked at assignment)</span><span className="mono strong">{((order.rate||0.4)*100).toFixed(0)}%</span></div>
                       <input type="range" min="33" max="62" step="1" value={Math.round((order.rate||0.4)*100)} onChange={(e) => {
                         const r = +e.target.value / 100;
-                        window.EFActions.orders.setHonorRate(orderId, r);
+                        EFActions.orders.setHonorRate(orderId, r);
                       }} style={{ width: '100%' }}/>
                       <div className="flex justify-between fs-11 mt-1 text-faint mono"><span>33%</span><span>40% mode</span><span>62%</span></div>
                     </div>
@@ -818,7 +822,7 @@ function dateInputValue(iso) {
 }
 
 function midpointDate(finalIso) {
-  const now = new Date(window.EF.DEMO_NOW || '2026-05-07T14:32:00');
+  const now = new Date(EF.DEMO_NOW || '2026-05-07T14:32:00');
   const final = new Date(finalIso || now);
   const mid = new Date(now.getTime() + ((final.getTime() - now.getTime()) / 2));
   return mid.toISOString().slice(0, 10);
@@ -900,7 +904,7 @@ function SevdeskPdfPreview({ order, cust, offerNo, pageRate, discount, totalGros
             </div>
             <div className="offer-pdf-facts">
               <div><span>Angebots-Nr.</span><strong>{offerNo}</strong></div>
-              <div><span>Datum</span><strong>{U.fmtDate(window.EF.DEMO_NOW)}</strong></div>
+              <div><span>Datum</span><strong>{U.fmtDate(EF.DEMO_NOW)}</strong></div>
               <div><span>Ihr Ansprechpartner</span><strong>Berat Özdemir</strong></div>
             </div>
           </div>
@@ -1000,7 +1004,7 @@ function InvoiceAutomationPanel({ order, cust, totalGross, toast }) {
     steps.forEach((p, i) => setTimeout(() => setPhase(p), i * 520));
     setTimeout(() => {
       const link = needsStripe ? `https://pay.stripe.com/ef1/${order.id}-${method.replace('stripe_', '')}` : null;
-      window.EFActions.orders.sendInvoice(order.id, {
+      EFActions.orders.sendInvoice(order.id, {
         status: 'invoice_sent',
         sevdeskInvoiceNo: invoiceNo,
         invoiceRequestAt: '2026-05-07T15:08:00',
@@ -1018,7 +1022,7 @@ function InvoiceAutomationPanel({ order, cust, totalGross, toast }) {
   const confirmPayment = () => {
     setPaying(true);
     setTimeout(() => {
-      window.EFActions.orders.confirmPayment(order.id, {
+      EFActions.orders.confirmPayment(order.id, {
         status: order.gwId ? 'active' : 'available',
         paidEur: totalGross,
         outstandingEur: 0,
@@ -1129,7 +1133,7 @@ function OfferTab({ order, toast, setTab }) {
     setSending(true);
     steps.forEach((_, i) => setTimeout(() => setPhaseIndex(i), i * 540));
     setTimeout(() => {
-      window.EFActions.orders.sendOffer(order.id, {
+      EFActions.orders.sendOffer(order.id, {
         status: 'offer_sent',
         sevdeskCustomerNo: order.sevdeskCustomerNo || '9507',
         sevdeskOfferNo: offerNo,
@@ -1239,7 +1243,7 @@ function OfferTab({ order, toast, setTab }) {
 }
 
 function SubmissionsTab({ order }) {
-  const subs = window.EFHooks.useDisplaySubmissions(order.id);
+  const subs = EFHooks.useDisplaySubmissions(order.id);
   return (
     <div className="card">
       <div className="card-head"><div className="card-title">Submissions</div><span className="text-faint fs-11">interim · final · invoices</span></div>
@@ -1297,7 +1301,7 @@ function CommsTab({ order, toast }) {
   const gw = D.gw(order.gwId);
   const customerInitials = cust?.initials || 'CU';
   const gwInitials = gw?.initials || 'GW';
-  const thread = window.EFHooks.useThreadByOrder(order.id);
+  const thread = EFHooks.useThreadByOrder(order.id);
 
   const normalizeLegacyChannel = (value) => {
     if (value === 'email_proxy') return 'email';
@@ -1345,7 +1349,7 @@ function CommsTab({ order, toast }) {
 
   const sendReply = () => {
     if (!reply.trim()) return;
-    const msg = window.EFActions.threads.send({
+    const msg = EFActions.threads.send({
       threadId: thread?.id,
       orderId: order.id,
       role: 'admin',
@@ -1445,7 +1449,7 @@ function CommsTab({ order, toast }) {
 
 function AssignmentTab({ order, navigate, toast }) {
   const gw = D.gw(order.gwId);
-  const assignmentEvents = window.EFHooks.useOrderEvents(order.id).filter(e => e.domain === 'assignment');
+  const assignmentEvents = EFHooks.useOrderEvents(order.id).filter(e => e.domain === 'assignment');
   // Per PRD order_lifecycle: assignment can happen only after the offer/invoice has been paid
   // (state ≥ "paid"/"available"). Earlier states must complete the offer→invoice→payment path
   // first. Self-assign goes straight to active without posting to the board.
@@ -1462,7 +1466,7 @@ function AssignmentTab({ order, navigate, toast }) {
       if (toast) toast({ text: blockReason, tone: 'danger' });
       return;
     }
-    window.EFActions.orders.assignGw(order.id, g.id, { selfAssigned: !!g.isOwner });
+    EFActions.orders.assignGw(order.id, g.id, { selfAssigned: !!g.isOwner });
     if (toast) toast({
       tone: 'success',
       transition: { entity: `Order #${order.id}`, from: order.status === 'available' ? 'On Job Board' : 'Awaiting Assignment', to: 'Active' },
@@ -1546,7 +1550,7 @@ function AssignmentTab({ order, navigate, toast }) {
 }
 
 function AuditTab({ order, events }) {
-  const fallbackRows = window.EFHooks.useOrderEvents(order.id);
+  const fallbackRows = EFHooks.useOrderEvents(order.id);
   const rows = events || fallbackRows;
   return (
     <div className="card">
@@ -1583,4 +1587,3 @@ window.SubmissionsTab = SubmissionsTab;
 window.CommsTab = CommsTab;
 window.AssignmentTab = AssignmentTab;
 window.AuditTab = AuditTab;
-})();

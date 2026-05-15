@@ -1,15 +1,19 @@
 // GW · First contact — initial customer message after claim approval.
-;(function(){
-const { useState: useStateA, useEffect: useEffectA, useMemo: useMemoA } = React;
-const { Icon, StatusPill, Avatar, Money, Bi, ScoreBar, CrumbBar, NotReady, PlannedTag, EmptyState, Skeleton } = window;
-const U = window.EFU;
-const D = window.EF;
 
 // ====================================================================
 // GW — First-contact wizard (SOP D)
 // ====================================================================
+import React, { useState as useStateA, useEffect as useEffectA, useMemo as useMemoA } from 'react';
+import { Icon, StatusPill, Avatar, Money, Bi, ScoreBar, NotReady, PlannedTag, EmptyState, Skeleton } from '../../utils.jsx';
+import * as U from '../../utils.jsx';
+import { CrumbBar } from '../../shell.jsx';
+import * as EFHooks from '../core/hooks.js';
+import EFActions from '../core/actions.js';
+import EF from '../core/ef.js';
+const D = EF;
+
 function GWFirstContact({ orderId, navigate, toast }) {
-  const order = window.EFHooks.useOrder(orderId);
+  const order = EFHooks.useOrder(orderId);
   const cust = order ? D.customer(order.customerId) : null;
   const receiptAlreadyConfirmed = !!order?.firstContactReceiptConfirmedAt;
   const baseSubject = order ? `Auftrag #${orderId} · ${D.WORK_TYPE_LABELS[order.workType]} — Erstkontakt` : '';
@@ -54,7 +58,7 @@ Isabel Walter` : '';
   if (!order) return <div className="page">Assignment not found.</div>;
 
   const finishConfirm = () => {
-    const ok = window.EFActions.gw.confirmFirstContactReceipt(order.id);
+    const ok = EFActions.gw.confirmFirstContactReceipt(order.id);
     if (!ok) return;
     setConfirmed(true);
     setStep(2);
@@ -63,7 +67,7 @@ Isabel Walter` : '';
   const sendEmail = () => {
     if (sending) return;
     setSending(true);
-    const msg = window.EFActions.gw.completeFirstContact(order.id, { subject, body });
+    const msg = EFActions.gw.completeFirstContact(order.id, { subject, body });
     if (!msg) {
       setSending(false);
       return;
@@ -175,4 +179,3 @@ Isabel Walter` : '';
   );
 }
 window.GWFirstContact = GWFirstContact;
-})();

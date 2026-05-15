@@ -1,15 +1,18 @@
 // Admin · Customer detail — orders, LTV, dispute history.
-;(function(){
-const { useState: useStateA, useEffect: useEffectA, useMemo: useMemoA } = React;
-const { Icon, StatusPill, Avatar, Money, Bi, ScoreBar, CrumbBar, NotReady, PlannedTag, EmptyState, Skeleton } = window;
-const U = window.EFU;
-const D = window.EF;
-const W = window.EFWorkflow;
 
 // ====================================================================
+import React, { useState as useStateA, useEffect as useEffectA, useMemo as useMemoA } from 'react';
+import { Icon, StatusPill, Avatar, Money, Bi, ScoreBar, NotReady, PlannedTag, EmptyState, Skeleton } from '../../utils.jsx';
+import * as U from '../../utils.jsx';
+import { CrumbBar } from '../../shell.jsx';
+import * as W from '../core/workflow.js';
+import * as EFHooks from '../core/hooks.js';
+import EF from '../core/ef.js';
+const D = EF;
+
 function CustomerDetail({ customerId, navigate }) {
   const c = D.customer(customerId);
-  const liveOrders = window.EFHooks.useOrders({ customerId });
+  const liveOrders = EFHooks.useOrders({ customerId });
   if (!c) return <div className="page">Customer not found.</div>;
   const orders = liveOrders
     .filter(o => o.customerId === customerId)
@@ -137,4 +140,3 @@ function CustomerDetail({ customerId, navigate }) {
 window.CustomerDetail = CustomerDetail;
 
 window.CustomerDetail = CustomerDetail;
-})();

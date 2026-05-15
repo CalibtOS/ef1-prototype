@@ -1,14 +1,16 @@
 // QA · AI detection — GPTZero per-paragraph analysis.
-;(function(){
-const { useState: useStateA, useEffect: useEffectA, useMemo: useMemoA } = React;
-const { Icon, StatusPill, Avatar, Money, Bi, ScoreBar, CrumbBar, NotReady, PlannedTag, EmptyState, Skeleton } = window;
-const U = window.EFU;
-const D = window.EF;
 
 // ============ QA AI DETECTION ============
 // Q-05: deterministic per-paragraph AI risk distribution.
 // High overall score → cluster of high-risk paragraphs at the offending sections;
 // review-tier scores get a few amber outliers; clean docs stay green with mild noise.
+import React, { useState as useStateA, useEffect as useEffectA, useMemo as useMemoA } from 'react';
+import { Icon, StatusPill, Avatar, Money, Bi, ScoreBar, NotReady, PlannedTag, EmptyState, Skeleton } from '../../utils.jsx';
+import * as U from '../../utils.jsx';
+import { CrumbBar } from '../../shell.jsx';
+import EF from '../core/ef.js';
+const D = EF;
+
 function buildParaRisks(detection) {
   const total = detection.totalParas;
   const out = [];
@@ -224,4 +226,3 @@ function QAAIDetection({ navigate }) {
 window.QAAIDetection = QAAIDetection;
 
 window.QAAIDetection = QAAIDetection;
-})();

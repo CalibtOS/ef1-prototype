@@ -1,17 +1,21 @@
 // QA · Order detail — restricted view (no financials per PRD qa.permissions).
-;(function(){
-const { useState: useStateA, useEffect: useEffectA, useMemo: useMemoA } = React;
-const { Icon, StatusPill, Avatar, Money, Bi, ScoreBar, CrumbBar, NotReady, PlannedTag, EmptyState, Skeleton, ChatNotice, ChatMessage } = window;
-const U = window.EFU;
-const D = window.EF;
-const W = window.EFWorkflow;
+
+import React, { useState as useStateA, useEffect as useEffectA, useMemo as useMemoA } from 'react';
+import { Icon, StatusPill, Avatar, Money, Bi, ScoreBar, NotReady, PlannedTag, EmptyState, Skeleton, ChatNotice, ChatMessage } from '../../utils.jsx';
+import * as U from '../../utils.jsx';
+import { CrumbBar } from '../../shell.jsx';
+import * as W from '../core/workflow.js';
+import * as EFHooks from '../core/hooks.js';
+import EFActions from '../core/actions.js';
+import EF from '../core/ef.js';
+const D = EF;
 
 function QAOrderDetail({ orderId, navigate, toast }) {
   const [tab, setTab] = useStateA('overview');
-  const order = window.EFHooks.useOrder(orderId);
-  const actualSubs = window.EFHooks.useSubmissions({ orderId });
-  const displaySubs = window.EFHooks.useDisplaySubmissions(orderId);
-  const thread = window.EFHooks.useThreadByOrder(orderId);
+  const order = EFHooks.useOrder(orderId);
+  const actualSubs = EFHooks.useSubmissions({ orderId });
+  const displaySubs = EFHooks.useDisplaySubmissions(orderId);
+  const thread = EFHooks.useThreadByOrder(orderId);
   if (!order) return <div className="page">Order not found.</div>;
   const cust = D.customer(order.customerId);
   const gw = D.gw(order.gwId);
@@ -29,7 +33,7 @@ function QAOrderDetail({ orderId, navigate, toast }) {
   const goToQueue = () => navigate('qa-queue');
   const requestRevision = () => {
     if (!canReviewLatest) return;
-    window.EFActions.qa.requestRevision(latestActionable.id);
+    EFActions.qa.requestRevision(latestActionable.id);
     toast({
       tone: 'info',
       transition: { entity: `Order #${orderId}`, from: 'QA Review', to: 'Revision Required' },
@@ -39,7 +43,7 @@ function QAOrderDetail({ orderId, navigate, toast }) {
   const passToCustomer = () => {
     if (!canReviewLatest) return;
     const isFinal = latestActionable.kind === 'final_work';
-    window.EFActions.qa.pass(latestActionable.id);
+    EFActions.qa.pass(latestActionable.id);
     toast({
       tone: 'success',
       transition: { entity: `Order #${orderId}`, from: 'QA Review', to: isFinal ? 'Delivered' : 'Customer Review' },
@@ -245,4 +249,3 @@ function QAOrderDetail({ orderId, navigate, toast }) {
 
 
 window.QAOrderDetail = QAOrderDetail;
-})();

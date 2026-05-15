@@ -1,11 +1,13 @@
 // QA · Plagiarism reports — Turnitin scan history per submission.
-;(function(){
-const { useState: useStateA, useEffect: useEffectA, useMemo: useMemoA } = React;
-const { Icon, StatusPill, Avatar, Money, Bi, ScoreBar, CrumbBar, NotReady, PlannedTag, EmptyState, Skeleton } = window;
-const U = window.EFU;
-const D = window.EF;
 
 // ============ QA PLAGIARISM REPORTS ============
+import React, { useState as useStateA, useEffect as useEffectA, useMemo as useMemoA } from 'react';
+import { Icon, StatusPill, Avatar, Money, Bi, ScoreBar, NotReady, PlannedTag, EmptyState, Skeleton } from '../../utils.jsx';
+import * as U from '../../utils.jsx';
+import { CrumbBar } from '../../shell.jsx';
+import EF from '../core/ef.js';
+const D = EF;
+
 function QAPlagiarismReports({ navigate }) {
   const reports = [
     { id: 'r1', orderId: 3514, gwName: 'Dr. Henrik Vogel', gwInitials: 'HV', kind: 'final_work', score: 8, status: 'passed', topSource: 'IEEE Xplore — partial citation match', sources: 3, scannedAt: '2026-05-07T11:42:00', words: 28420 },
@@ -95,4 +97,3 @@ function QAPlagiarismReports({ navigate }) {
 window.QAPlagiarismReports = QAPlagiarismReports;
 
 window.QAPlagiarismReports = QAPlagiarismReports;
-})();

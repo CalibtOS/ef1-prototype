@@ -1,16 +1,19 @@
 // GW · Active Jobs — assignments-in-progress view with deadlines and submissions.
-;(function(){
-const { useState: useStateA, useEffect: useEffectA, useMemo: useMemoA } = React;
-const { Icon, StatusPill, Avatar, Money, Bi, ScoreBar, CrumbBar, NotReady, PlannedTag, EmptyState, Skeleton } = window;
-const U = window.EFU;
-const D = window.EF;
 
 // ============ GW ACTIVE JOBS ============
+import React, { useState as useStateA, useEffect as useEffectA, useMemo as useMemoA } from 'react';
+import { Icon, StatusPill, Avatar, Money, Bi, ScoreBar, NotReady, PlannedTag, EmptyState, Skeleton } from '../../utils.jsx';
+import * as U from '../../utils.jsx';
+import { CrumbBar } from '../../shell.jsx';
+import * as EFHooks from '../core/hooks.js';
+import EF from '../core/ef.js';
+const D = EF;
+
 function GWActiveJobs({ navigate }) {
   const [filter, setFilter] = useStateA('all');
 
   // The list and the detail route must read the same live order source.
-  const realMine = window.EFHooks.useOrders({ gwId: D.GW_ME.id });
+  const realMine = EFHooks.useOrders({ gwId: D.GW_ME.id });
 
   // Augment real with derived stage info
   const realAugmented = realMine.map(o => {
@@ -191,4 +194,3 @@ function GWActiveJobs({ navigate }) {
 }
 
 window.GWActiveJobs = GWActiveJobs;
-})();

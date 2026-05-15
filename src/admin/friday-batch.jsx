@@ -1,13 +1,17 @@
 // Admin · Friday payout batch — gates eligible orders and runs DATEV export.
-;(function(){
-const { useState: useStateA, useEffect: useEffectA, useMemo: useMemoA } = React;
-const { Icon, StatusPill, Avatar, Money, Bi, ScoreBar, CrumbBar, NotReady, PlannedTag, EmptyState, Skeleton } = window;
-const U = window.EFU;
-const D = window.EF;
 
 // ============ FRIDAY BATCH ============
+import React, { useState as useStateA, useEffect as useEffectA, useMemo as useMemoA } from 'react';
+import { Icon, StatusPill, Avatar, Money, Bi, ScoreBar, NotReady, PlannedTag, EmptyState, Skeleton } from '../../utils.jsx';
+import * as U from '../../utils.jsx';
+import { CrumbBar } from '../../shell.jsx';
+import * as EFHooks from '../core/hooks.js';
+import EFActions from '../core/actions.js';
+import EF from '../core/ef.js';
+const D = EF;
+
 function FridayBatch({ navigate, toast }) {
-  const batch = window.EFHooks.useFridayBatch();
+  const batch = EFHooks.useFridayBatch();
   const releaseable = batch.releaseable;
   const blocked = batch.blocked;
   const [selected, setSelected] = useStateA(() => new Set(releaseable.map(o => o.id)));
@@ -40,7 +44,7 @@ function FridayBatch({ navigate, toast }) {
       setTimeout(() => setRowState(p => ({ ...p, [o.id]: 'sending' })), start);
       setTimeout(() => {
         setRowState(p => ({ ...p, [o.id]: 'paid' }));
-        window.EFActions.payments.releaseBatch([o.id]);
+        EFActions.payments.releaseBatch([o.id]);
       }, start + 320);
     });
     const totalDur = 200 + targets.length * 220 + 400;
@@ -184,4 +188,3 @@ function FridayBatch({ navigate, toast }) {
 }
 
 window.FridayBatch = FridayBatch;
-})();

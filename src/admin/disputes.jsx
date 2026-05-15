@@ -1,15 +1,18 @@
 // Admin · Disputes — open dispute orders + resolution actions.
-;(function(){
-const { useState: useStateA, useEffect: useEffectA, useMemo: useMemoA } = React;
-const { Icon, StatusPill, Avatar, Money, Bi, ScoreBar, CrumbBar, NotReady, PlannedTag, EmptyState, Skeleton } = window;
-const U = window.EFU;
-const D = window.EF;
 
 // ============ DISPUTES (minimal) ============
+import React, { useState as useStateA, useEffect as useEffectA, useMemo as useMemoA } from 'react';
+import { Icon, StatusPill, Avatar, Money, Bi, ScoreBar, NotReady, PlannedTag, EmptyState, Skeleton } from '../../utils.jsx';
+import * as U from '../../utils.jsx';
+import { CrumbBar } from '../../shell.jsx';
+import * as EFHooks from '../core/hooks.js';
+import EF from '../core/ef.js';
+const D = EF;
+
 function DisputesPage({ navigate }) {
   // Derive disputes from real order state. Categorize by what's actually wrong.
-  const allEffective = window.EFHooks.useOrders();
-  const allSubmissions = window.EFHooks.useSubmissions();
+  const allEffective = EFHooks.useOrders();
+  const allSubmissions = EFHooks.useSubmissions();
   const summarizeOrder = (o) => {
     if (o.status === 'ai_violation_review') {
       const sub = allSubmissions.find(s => s.orderId === o.id);
@@ -115,4 +118,3 @@ function DisputesPage({ navigate }) {
   );
 }
 window.DisputesPage = DisputesPage;
-})();

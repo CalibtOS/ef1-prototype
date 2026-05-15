@@ -1,11 +1,15 @@
 // Admin · Inbox — customer & GW threads with reply, redirect-to-kundenservice.
-;(function(){
-const { useState: useStateA, useEffect: useEffectA, useMemo: useMemoA, useRef: useRefA } = React;
-const { Icon, StatusPill, Avatar, Money, Bi, ScoreBar, CrumbBar, NotReady, PlannedTag, EmptyState, Skeleton, ChatNotice, ChatMessage, ChatComposer, ChatThreadRow } = window;
-const U = window.EFU;
-const D = window.EF;
 
 // ============ INBOX ============
+import React, { useState as useStateA, useEffect as useEffectA, useMemo as useMemoA, useRef as useRefA } from 'react';
+import { Icon, StatusPill, Avatar, Money, Bi, ScoreBar, NotReady, PlannedTag, EmptyState, Skeleton, ChatNotice, ChatMessage, ChatComposer, ChatThreadRow } from '../../utils.jsx';
+import * as U from '../../utils.jsx';
+import { CrumbBar } from '../../shell.jsx';
+import * as EFHooks from '../core/hooks.js';
+import EFActions from '../core/actions.js';
+import EF from '../core/ef.js';
+const D = EF;
+
 function Inbox({ toast, route }) {
   const [activeId, setActiveId] = useStateA('t1');
   const [tab, setTab] = useStateA('All');
@@ -14,7 +18,7 @@ function Inbox({ toast, route }) {
   const [reply, setReply] = useStateA('');
   const appliedRouteTarget = useRefA(null);
   const _toast = toast || (m => console.log(m));
-  const rawThreads = window.EFHooks.useThreads();
+  const rawThreads = EFHooks.useThreads();
   const threads = rawThreads.map(t => {
     const cust = D.customer(t.customerId);
     const gw = D.gw(t.gwId);
@@ -102,7 +106,7 @@ function Inbox({ toast, route }) {
   // Mark the active thread read for admin once it's open. Effect runs on selection change.
   useEffectA(() => {
     if (active?.id && active.unread > 0) {
-      window.EFActions.threads.markRead(active.id, 'admin');
+      EFActions.threads.markRead(active.id, 'admin');
     }
   }, [active?.id]);
 
@@ -142,7 +146,7 @@ function Inbox({ toast, route }) {
       _toast({ text: 'Reply is empty.', tone: 'danger' });
       return;
     }
-    const msg = window.EFActions.threads.send({
+    const msg = EFActions.threads.send({
       threadId: active.id,
       orderId: active.orderId,
       role: 'admin',
@@ -156,16 +160,16 @@ function Inbox({ toast, route }) {
     }
   };
   const onRedirect = () => {
-    const ok = window.EFActions.threads.redirect(active.id);
+    const ok = EFActions.threads.redirect(active.id);
     const label = active.orderId ? `Thread #${active.orderId}` : `Thread (${active.from})`;
     if (ok) _toast({ text: `${label} redirected to kundenservice@efactory1.de`, tone: 'info' });
   };
   const onSnooze = () => {
-    window.EFActions.threads.snooze(active.id, 4);
+    EFActions.threads.snooze(active.id, 4);
     _toast({ text: 'Thread snoozed for 4h', tone: 'info' });
   };
   const onFollowUp = () => {
-    window.EFActions.threads.flagFollowUp(active.id);
+    EFActions.threads.flagFollowUp(active.id);
     _toast({ text: active.followUp ? 'Follow-up flag cleared' : 'Thread flagged for follow-up', tone: 'info' });
   };
   const initialsFor = (name) => (name || 'EF').split(/\s+/).map(s => s[0]).join('').slice(0, 2).toUpperCase();
@@ -440,4 +444,3 @@ function Inbox({ toast, route }) {
 
 
 window.Inbox = Inbox;
-})();
