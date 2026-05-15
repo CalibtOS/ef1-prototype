@@ -31,7 +31,7 @@ function GWJobBoard({ navigate, toast, role = 'gw' }) {
   const filtered = filter === 'all' ? unclaimed : unclaimed.filter(o => o.workType === filter);
 
   const onUnpublish = (id) => {
-    window.EFActions.orders.patch(id, { status: 'on_hold', holdReason: 'Unpublished by admin' });
+    window.EFActions.orders.hold(id, 'Unpublished by admin');
     toast && toast({
       tone: 'info',
       transition: { entity: `Order #${id}`, from: 'On Job Board', to: 'On Hold' },

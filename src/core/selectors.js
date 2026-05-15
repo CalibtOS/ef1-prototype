@@ -117,7 +117,10 @@ function selectNotifications(state, role) {
   return tableItems(state.entities.notifications)
     .filter(n => {
       const to = Array.isArray(n.to) ? n.to : [n.to || 'admin'];
-      return to.includes(target) || to.includes('all');
+      if (!to.includes(target) && !to.includes('all')) return false;
+      if (target === 'gw' && n.gwId && n.gwId !== state.session.gwId) return false;
+      if (target === 'customer' && n.customerId && n.customerId !== state.session.customerId) return false;
+      return true;
     })
     .sort((a, b) => new Date(b.at || 0) - new Date(a.at || 0));
 }
@@ -132,7 +135,7 @@ function selectOrderEvents(state, orderId) {
   return W.buildOrderEvents(order, {
     submissions: selectSubmissionsForOrder(state, orderId),
     thread: selectThreadByOrder(state, orderId),
-    notifications: selectAllNotifications(state).filter(n => String(n.title || '').includes(`#${orderId}`) || String(n.body || '').includes(`#${orderId}`)),
+    notifications: selectAllNotifications(state).filter(n => Number(n.orderId) === Number(orderId) || String(n.title || '').includes(`#${orderId}`) || String(n.body || '').includes(`#${orderId}`)),
     customer: selectCustomer(state, order.customerId),
     gw: selectGhostwriter(state, order.gwId),
   });

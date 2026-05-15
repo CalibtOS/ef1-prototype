@@ -23,15 +23,35 @@ const customer = I.customer;
 const toast = I.toast;
 const notify = N.notify;
 
+function notifyOrder(orderId, payload) {
+  const o = order(orderId);
+  return notify({
+    ...payload,
+    orderId,
+    customerId: payload.customerId || o?.customerId || null,
+    gwId: Object.prototype.hasOwnProperty.call(payload, 'gwId') ? payload.gwId : (o?.gwId || null),
+  });
+}
+
 function patchOrder(id, patch) {
   patchEntity('orders', id, prev => ({ ...prev, ...(typeof patch === 'function' ? patch(prev) : patch) }), 'orders.patch');
 }
 
-function createOrder(draft) {
-  const id = draft.id || (9100 + Math.floor(Math.random() * 900));
-  const next = { id, revisionRounds: 0, ...draft };
+function createOrder(draft = {}) {
+  const { customer: customerDraft, ...orderDraft } = draft || {};
+  const id = orderDraft.id || (9100 + Math.floor(Math.random() * 900));
+  const nextCustomer = customerDraft?.id ? { ...customerDraft } : null;
+  const next = {
+    id,
+    revisionRounds: 0,
+    ...orderDraft,
+    customerId: orderDraft.customerId || nextCustomer?.id || null,
+  };
+  if (nextCustomer) {
+    upsertEntity('customers', nextCustomer, 'customers.upsertFromOrderCreate');
+  }
   upsertEntity('orders', next, 'orders.create');
-  notify({ to: 'admin', kind: 'order_created', title: `New manual order · #${id}`, body: `${next.title || 'Untitled'} · ready for offer/payment workflow` });
+  notifyOrder(id, { to: 'admin', kind: 'order_created', title: `New manual order · #${id}`, body: `${next.title || 'Untitled'} · ready for offer/payment workflow` });
   return next;
 }
 
@@ -41,9 +61,8 @@ function approveClaim(orderId) {
   if (!guard.ok) { toast({ text: guard.reason, tone: 'danger' }); return false; }
   patchOrder(orderId, { status: 'active', claimApprovedAt: nowIso(), assignedAt: nowIso() });
   const g = gw(o.gwId);
-  const c = customer(o.customerId);
-  notify({ to: 'gw', kind: 'assignment_approved', title: `Order #${orderId} approved — you may begin`, body: 'Briefing email sent · customer was introduced' });
-  notify({ to: 'customer', kind: 'assignment_intro', title: 'Ihr Ghostwriter wurde zugewiesen', body: `${g?.name || 'Ihr Ghostwriter'} meldet sich heute bei Ihnen.` });
+  notifyOrder(orderId, { to: 'gw', kind: 'assignment_approved', gwId: o.gwId, title: `Order #${orderId} approved — you may begin`, body: 'Briefing email sent · customer was introduced' });
+  notifyOrder(orderId, { to: 'customer', kind: 'assignment_intro', customerId: o.customerId, title: 'Ihr Ghostwriter wurde zugewiesen', body: `${g?.name || 'Ihr Ghostwriter'} meldet sich heute bei Ihnen.` });
   return true;
 }
 
@@ -51,8 +70,18 @@ function rejectClaim(orderId) {
   const o = order(orderId);
   const guard = W.canTransition(o, 'reject_claim');
   if (!guard.ok) { toast({ text: guard.reason, tone: 'danger' }); return false; }
+  const rejectedGwId = o.gwId;
   patchOrder(orderId, { status: 'available', gwId: null, claimedAt: null, claimTermsAccepted: null });
-  notify({ to: 'admin', kind: 'claim_rejected', title: `Claim rejected · #${orderId}`, body: 'Job returned to the GW board' });
+  if (rejectedGwId) {
+    notifyOrder(orderId, {
+      to: 'gw',
+      kind: 'claim_rejected',
+      gwId: rejectedGwId,
+      title: `Claim declined · #${orderId}`,
+      body: 'efactory1 did not approve this claim. The order is back on the job board.',
+      route: 'gw-job-board',
+    });
+  }
   return true;
 }
 
@@ -71,9 +100,9 @@ function assignGw(orderId, gwId, opts = {}) {
     gwPaymentStatus: selfAssigned ? 'no_payment_self_assigned' : (o.gwPaymentStatus || 'work_in_progress'),
   });
   if (!selfAssigned) {
-    notify({ to: 'gw', kind: 'assignment_approved', title: `Order #${orderId} assigned`, body: 'Briefing email sent · NICHT WEITERLEITEN' });
+    notifyOrder(orderId, { to: 'gw', kind: 'assignment_approved', gwId, title: `Order #${orderId} assigned`, body: 'Briefing email sent · NICHT WEITERLEITEN' });
   }
-  notify({ to: 'customer', kind: 'assignment_intro', title: 'Ihr Ghostwriter wurde zugewiesen', body: `${targetGw.name} meldet sich heute bei Ihnen.` });
+  notifyOrder(orderId, { to: 'customer', kind: 'assignment_intro', customerId: o.customerId, title: 'Ihr Ghostwriter wurde zugewiesen', body: `${targetGw.name} meldet sich heute bei Ihnen.` });
   return true;
 }
 
@@ -86,7 +115,8 @@ function markInstallmentPaid(orderId, n) {
   const nextPatch = { installments, paidEur: paid, outstandingEur: outstanding };
   if (o.status === 'invoice_sent' && paid > 0) nextPatch.status = 'available';
   patchOrder(orderId, nextPatch);
-  notify({ to: 'admin', kind: 'payment_confirmed', title: `Installment ${n} paid · #${orderId}`, body: `Outstanding balance now €${outstanding.toFixed(2)}` });
+  notifyOrder(orderId, { to: 'admin', kind: 'payment_confirmed', title: `Installment ${n} paid · #${orderId}`, body: `Outstanding balance now €${outstanding.toFixed(2)}` });
+  notifyOrder(orderId, { to: 'customer', kind: 'payment_confirmed', title: 'Zahlung bestätigt', body: `Auftrag #${orderId} · Rate ${n} verbucht.` });
   return true;
 }
 
@@ -95,6 +125,101 @@ function setHonorRate(orderId, rate) {
   if (!o) return false;
   const honor = ((o.grossEur || 0) / 1.07) * rate;
   patchOrder(orderId, { rate, netHonorarium: honor });
+  return true;
+}
+
+function sendOffer(orderId, patch = {}) {
+  const o = order(orderId);
+  if (!o) return false;
+  const nextPatch = {
+    status: 'offer_sent',
+    offerSentAt: patch.offerSentAt || nowIso(),
+    pipedriveStage: patch.pipedriveStage || 'Proposal',
+    ...patch,
+  };
+  patchOrder(orderId, nextPatch);
+  notifyOrder(orderId, {
+    to: 'customer',
+    kind: 'offer_sent',
+    title: `Angebot verfügbar · Auftrag #${orderId}`,
+    body: `${o.title || 'Ihr Auftrag'} · bitte Angebot prüfen und Rechnungsdaten bestätigen.`,
+  });
+  return true;
+}
+
+function sendInvoice(orderId, patch = {}) {
+  const o = order(orderId);
+  if (!o) return false;
+  const invoiceNo = patch.sevdeskInvoiceNo || o.sevdeskInvoiceNo || `RG-2026-${orderId}`;
+  patchOrder(orderId, {
+    status: 'invoice_sent',
+    invoiceSentAt: patch.invoiceSentAt || nowIso(),
+    sevdeskInvoiceNo: invoiceNo,
+    pipedriveStage: patch.pipedriveStage || 'Rechnung angefordert',
+    ...patch,
+  });
+  notifyOrder(orderId, { to: 'admin', kind: 'invoice_sent', title: `Offer accepted · invoice sent · #${orderId}`, body: `${invoiceNo} issued. Waiting for customer payment.` });
+  notifyOrder(orderId, { to: 'customer', kind: 'invoice_sent', title: 'Rechnung verfügbar', body: `Auftrag #${orderId} · ${invoiceNo} wurde erstellt. Bitte Zahlung abschließen.` });
+  return true;
+}
+
+function confirmPayment(orderId, patch = {}) {
+  const o = order(orderId);
+  if (!o) return false;
+  const paidEur = patch.paidEur ?? (o.grossEur || 0);
+  const outstandingEur = patch.outstandingEur ?? 0;
+  const nextStatus = patch.status || (o.gwId ? 'active' : 'available');
+  patchOrder(orderId, {
+    status: nextStatus,
+    paidEur,
+    outstandingEur,
+    paymentConfirmedAt: patch.paymentConfirmedAt || nowIso(),
+    pipedriveStage: patch.pipedriveStage || 'Won',
+    ...patch,
+  });
+  notifyOrder(orderId, { to: 'admin', kind: 'payment_confirmed', title: `Payment confirmed · #${orderId}`, body: `Pipedrive Won · ${outstandingEur > 0 ? `outstanding €${Number(outstandingEur).toFixed(2)}` : 'ready for fulfillment'}` });
+  notifyOrder(orderId, { to: 'customer', kind: 'payment_confirmed', title: 'Zahlung bestätigt', body: `Auftrag #${orderId} · Ihre Zahlung wurde verbucht.` });
+  return true;
+}
+
+function holdOrder(orderId, reason) {
+  const o = order(orderId);
+  if (!o) return false;
+  patchOrder(orderId, { status: 'on_hold', holdReason: reason || 'On hold', holdAt: nowIso() });
+  if (o.gwId) {
+    notifyOrder(orderId, { to: 'gw', kind: 'order_on_hold', gwId: o.gwId, title: `Order on hold · #${orderId}`, body: reason || 'efactory1 paused this assignment. Wait for admin follow-up.' });
+    notifyOrder(orderId, { to: 'customer', kind: 'order_on_hold', gwId: o.gwId, title: 'Auftrag pausiert', body: `Auftrag #${orderId} wurde vorübergehend pausiert. efactory1 meldet sich mit den nächsten Schritten.` });
+  }
+  return true;
+}
+
+function cancelAssignment(orderId, reason) {
+  const o = order(orderId);
+  if (!o || !o.gwId) return false;
+  const oldGwId = o.gwId;
+  patchOrder(orderId, {
+    status: 'available',
+    gwId: null,
+    assignedAt: null,
+    assignmentCancelledAt: nowIso(),
+    assignmentCancelReason: reason || null,
+  });
+  notifyOrder(orderId, { to: 'gw', kind: 'assignment_cancelled', gwId: oldGwId, title: `Assignment cancelled · #${orderId}`, body: reason || 'efactory1 cancelled this assignment. Please stop work until contacted.' });
+  notifyOrder(orderId, { to: 'customer', kind: 'assignment_cancelled', gwId: oldGwId, title: 'Ghostwriter-Zuweisung geändert', body: `Auftrag #${orderId} · wir organisieren die weitere Bearbeitung und melden uns kurzfristig.` });
+  return true;
+}
+
+function cancelOrder(orderId, reason) {
+  const o = order(orderId);
+  if (!o) return false;
+  const oldGwId = o.gwId;
+  patchOrder(orderId, { status: 'cancelled', cancelledAt: nowIso(), cancelReason: reason || null });
+  if (oldGwId) {
+    notifyOrder(orderId, { to: 'gw', kind: 'order_cancelled', gwId: oldGwId, title: `Order cancelled · #${orderId}`, body: reason || 'efactory1 cancelled this order. Stop work and wait for settlement instructions.' });
+  }
+  if (o.customerId) {
+    notifyOrder(orderId, { to: 'customer', kind: 'order_cancelled', gwId: oldGwId, title: 'Auftrag storniert', body: `Auftrag #${orderId} wurde storniert. efactory1 meldet sich zur Abwicklung.` });
+  }
   return true;
 }
 
@@ -117,7 +242,7 @@ function claimJob(orderId, gwId) {
     },
   });
   const g = gw(actualGwId);
-  notify({ to: 'admin', kind: 'claim_pending_your_approval', title: `Claim awaiting approval · #${orderId}`, body: `${g?.name || 'GW'} claimed this job · 6 acknowledgements signed` });
+  notifyOrder(orderId, { to: 'admin', kind: 'claim_pending_your_approval', gwId: actualGwId, title: `Claim awaiting approval · #${orderId}`, body: `${g?.name || 'GW'} claimed this job · 6 acknowledgements signed` });
   return true;
 }
 
@@ -142,6 +267,9 @@ function confirmFirstContactReceipt(orderId) {
   notify({
     to: 'admin',
     kind: 'first_contact_receipt_confirmed',
+    orderId,
+    gwId: currentGwId,
+    customerId: o.customerId,
     title: `Receipt confirmed · #${orderId}`,
     body: `${gw(currentGwId)?.name || 'GW'} confirmed the assignment email and is preparing first customer contact.`,
   });
@@ -227,11 +355,12 @@ function submitWork(orderId, payload = {}) {
   });
   const g = gw(currentGwId);
   if (isInterim) {
-    notify({ to: 'customer', kind: 'interim_received', title: 'Ihr Zwischenstand ist verfügbar', body: `Auftrag #${orderId} · Bitte prüfen und Feedback geben` });
-    notify({ to: 'admin', kind: 'interim_received', title: `Interim forwarded · #${orderId}`, body: `${g?.name || 'GW'} uploaded interim · auto-sent to customer` });
+    notifyOrder(orderId, { to: 'customer', kind: 'interim_received', submissionId: submission.id, title: 'Ihr Zwischenstand ist verfügbar', body: `Auftrag #${orderId} · Bitte prüfen und Feedback geben` });
+    notifyOrder(orderId, { to: 'admin', kind: 'interim_received', submissionId: submission.id, title: `Interim forwarded · #${orderId}`, body: `${g?.name || 'GW'} uploaded interim · auto-sent to customer` });
+    notifyOrder(orderId, { to: 'qa', kind: 'interim_uploaded_auto_forwarded', submissionId: submission.id, title: `Interim uploaded · #${orderId}`, body: `${g?.name || 'GW'} uploaded ${entityKind}. Auto-forwarded to customer; spot-check if needed.` });
   } else {
-    notify({ to: 'admin', kind: 'final_uploaded', title: `${kind === 'final' ? 'Final' : 'Revision'} submission · #${orderId}`, body: `${g?.name || 'GW'} uploaded · pending QA` });
-    notify({ to: 'qa', kind: 'final_uploaded', title: `New submission · #${orderId}`, body: `${entityKind} · waiting for QA verdict` });
+    notifyOrder(orderId, { to: 'admin', kind: 'final_uploaded', submissionId: submission.id, title: `${kind === 'final' ? 'Final' : 'Revision'} submission · #${orderId}`, body: `${g?.name || 'GW'} uploaded · pending QA` });
+    notifyOrder(orderId, { to: 'qa', kind: 'final_uploaded', submissionId: submission.id, title: `New submission · #${orderId}`, body: `${entityKind} · waiting for QA verdict` });
   }
   return submission;
 }
@@ -249,9 +378,9 @@ function qaPass(submissionId) {
     flagged: false,
     deliveredAt: isFinal ? nowIso() : o.deliveredAt,
   });
-  const c = customer(o.customerId);
-  notify({ to: 'customer', kind: 'qa_passed', title: 'Ihre Arbeit hat die Qualitätsprüfung bestanden', body: `Auftrag #${o.id} · ${isFinal ? 'Endabgabe' : 'Zwischenstand'} freigegeben` });
-  notify({ to: 'gw', kind: 'qa_passed', title: `QA passed · #${o.id}`, body: 'Forwarded to customer · payment release gate progressing' });
+  notifyOrder(o.id, { to: 'customer', kind: 'qa_passed', submissionId, title: 'Ihre Arbeit hat die Qualitätsprüfung bestanden', body: `Auftrag #${o.id} · ${isFinal ? 'Endabgabe' : 'Zwischenstand'} freigegeben` });
+  notifyOrder(o.id, { to: 'gw', kind: 'qa_passed', submissionId, title: `QA passed · #${o.id}`, body: 'Forwarded to customer · payment release gate progressing' });
+  notifyOrder(o.id, { to: 'admin', kind: 'qa_passed', submissionId, title: `QA passed · #${o.id}`, body: `${isFinal ? 'Final' : 'Interim'} passed and was forwarded to the customer.` });
   return true;
 }
 
@@ -265,7 +394,8 @@ function qaRequestRevision(submissionId) {
     revisionRounds: (o.revisionRounds || 0) + 1,
     qaPassed: false,
   });
-  notify({ to: 'gw', kind: 'revision_required', title: `Revision requested on Order #${o.id}`, body: 'QA returned feedback · please resubmit through the platform' });
+  notifyOrder(o.id, { to: 'gw', kind: 'revision_required', submissionId, title: `Revision requested on Order #${o.id}`, body: 'QA returned feedback · please resubmit through the platform' });
+  notifyOrder(o.id, { to: 'admin', kind: 'revision_required', submissionId, title: `QA requested revision · #${o.id}`, body: `${gw(o.gwId)?.name || 'GW'} must resubmit before customer delivery.` });
   return true;
 }
 
@@ -284,7 +414,7 @@ function qaFlag(submissionId, type) {
     qaPassed: false,
     paymentBlocked: true,
   });
-  notify({ to: 'admin', kind: type === 'plagiarism' ? 'plagiarism_violation' : 'ai_violation', title: `🚨 ${reason} · #${o.id}`, body: `QA flagged ${gw(o.gwId)?.name || 'GW'}. Payment is blocked and admin review is required.`, urgent: true });
+  notifyOrder(o.id, { to: 'admin', kind: type === 'plagiarism' ? 'plagiarism_violation' : 'ai_violation', submissionId, title: `🚨 ${reason} · #${o.id}`, body: `QA flagged ${gw(o.gwId)?.name || 'GW'}. Payment is blocked and admin review is required.`, urgent: true });
   return true;
 }
 
@@ -293,8 +423,8 @@ function approveInterim(orderId) {
   const guard = W.canTransition(o, 'customer_approve_interim');
   if (!guard.ok) { toast({ text: guard.reason, tone: 'danger' }); return false; }
   patchOrder(orderId, { status: 'active', interimCustomerSatisfied: true, lastCustomerFeedbackAt: nowIso() });
-  notify({ to: 'gw', kind: 'interim_approved', title: 'Zwischenstand freigegeben', body: `Kunde hat Zwischenstand #${orderId} freigegeben` });
-  notify({ to: 'admin', kind: 'interim_approved', title: `Customer approved interim · #${orderId}`, body: 'GW can continue to the next milestone' });
+  notifyOrder(orderId, { to: 'gw', kind: 'interim_approved', title: 'Zwischenstand freigegeben', body: `Kunde hat Zwischenstand #${orderId} freigegeben` });
+  notifyOrder(orderId, { to: 'admin', kind: 'interim_approved', title: `Customer approved interim · #${orderId}`, body: 'GW can continue to the next milestone' });
   return true;
 }
 
@@ -308,8 +438,8 @@ function requestCustomerRevision(orderId, note) {
     lastCustomerFeedbackAt: nowIso(),
     customerRevisionNote: note || '',
   });
-  notify({ to: 'gw', kind: 'revision_required', title: 'Überarbeitung angefordert', body: `Auftrag #${orderId}: ${(note || '').slice(0, 80)}` });
-  notify({ to: 'admin', kind: 'revision_required', title: `Customer requested revision · #${orderId}`, body: (note || '').slice(0, 120) });
+  notifyOrder(orderId, { to: 'gw', kind: 'revision_required', title: 'Überarbeitung angefordert', body: `Auftrag #${orderId}: ${(note || '').slice(0, 80)}` });
+  notifyOrder(orderId, { to: 'admin', kind: 'revision_required', title: `Customer requested revision · #${orderId}`, body: (note || '').slice(0, 120) });
   return true;
 }
 
@@ -317,7 +447,7 @@ function escalate(orderId) {
   const o = order(orderId);
   if (!o) return false;
   patchOrder(orderId, { disputeOpen: true, status: o.status === 'delivered' ? 'revision_required' : o.status, lastDisputeAt: nowIso() });
-  notify({ to: 'admin', kind: 'dispute_opened', title: `Dispute opened · #${orderId}`, body: 'Customer escalated from the portal · payment release blocked', urgent: true });
+  notifyOrder(orderId, { to: 'admin', kind: 'dispute_opened', title: `Dispute opened · #${orderId}`, body: 'Customer escalated from the portal · payment release blocked', urgent: true });
   return true;
 }
 
@@ -335,8 +465,8 @@ function acceptFinal(orderId) {
     finalAcceptedAt: nowIso(),
     lastCustomerFeedbackAt: nowIso(),
   });
-  notify({ to: 'admin', kind: 'final_accepted', title: `Customer accepted final · #${orderId}`, body: 'Order moved to Friday-batch eligibility — release gate now driven by GW invoice + installments.' });
-  notify({ to: 'gw', kind: 'final_accepted', title: `Final accepted · #${orderId}`, body: 'Customer signed off. Honorarium queues for the next Friday batch once gates clear.' });
+  notifyOrder(orderId, { to: 'admin', kind: 'final_accepted', title: `Customer accepted final · #${orderId}`, body: 'Order moved to Friday-batch eligibility — release gate now driven by GW invoice + installments.' });
+  notifyOrder(orderId, { to: 'gw', kind: 'final_accepted', title: `Final accepted · #${orderId}`, body: 'Customer signed off. Honorarium queues for the next Friday batch once gates clear.' });
   return true;
 }
 
@@ -349,8 +479,8 @@ function reportDelay(orderId, payload = {}) {
     delayReportedAt: nowIso(),
     proposedNewDeadline: payload.newDate ? payload.newDate + 'T18:00:00' : payload.proposedNewDeadline,
   });
-  notify({ to: 'admin', kind: 'delay_reported', title: `Delay reported · #${orderId}`, body: `New proposed date ${payload.newDate || 'TBD'} · reason: ${payload.reasonKind || payload.reason || 'other'}`, urgent: true });
-  notify({ to: 'customer', kind: 'delay_reported', title: 'Lieferdatum-Anpassung gemeldet', body: `Neuer Termin: ${payload.newDate || 'TBD'}. Wir kümmern uns.` });
+  notifyOrder(orderId, { to: 'admin', kind: 'delay_reported', title: `Delay reported · #${orderId}`, body: `New proposed date ${payload.newDate || 'TBD'} · reason: ${payload.reasonKind || payload.reason || 'other'}`, urgent: true });
+  notifyOrder(orderId, { to: 'customer', kind: 'delay_reported', title: 'Lieferdatum-Anpassung gemeldet', body: `Neuer Termin: ${payload.newDate || 'TBD'}. Wir kümmern uns.` });
   return true;
 }
 
@@ -366,7 +496,7 @@ function requestExtension(orderId, payload = {}) {
       requestedAt: nowIso(),
     },
   });
-  notify({ to: 'admin', kind: 'extension_requested', title: `Extension requested · #${orderId}`, body: 'GW requests scope review and customer approval before work proceeds' });
+  notifyOrder(orderId, { to: 'admin', kind: 'extension_requested', title: `Extension requested · #${orderId}`, body: 'GW requests scope review and customer approval before work proceeds' });
   return true;
 }
 
@@ -379,9 +509,9 @@ function releaseBatch(orderIds) {
     const gates = W.releaseGates(o);
     if (!gates.releasable) return;
     patchOrder(id, { status: 'completed', gwPaymentStatus: 'paid', paidToGwAt: nowIso(), completedAt: nowIso() });
-    released.push({ id, amount: o.netHonorarium || 0 });
+    released.push({ id, amount: o.netHonorarium || 0, gwId: o.gwId });
   });
-  released.forEach(x => notify({ to: 'gw', kind: 'payment_released', title: `€${Number(x.amount).toLocaleString('de-DE', { minimumFractionDigits: 2 })} released · #${x.id}`, body: 'See your bank in 1–3 business days' }));
+  released.forEach(x => notifyOrder(x.id, { to: 'gw', kind: 'payment_released', gwId: x.gwId, title: `€${Number(x.amount).toLocaleString('de-DE', { minimumFractionDigits: 2 })} released · #${x.id}`, body: 'See your bank in 1–3 business days' }));
   return released;
 }
 
@@ -405,8 +535,8 @@ function approveExtension(orderId, payload = {}) {
     extensionPending: null,
     extensionApprovedAt: nowIso(),
   }));
-  notify({ to: 'gw', kind: 'extension_approved', title: `Extension approved · #${orderId}`, body: `Scope updated · ${extraPages ? '+' + extraPages + ' pages · ' : ''}${extraFee ? '+' + extraFee + ' € · ' : ''}new deadline ${newDeadline?.slice?.(0,10) || ''}` });
-  notify({ to: 'customer', kind: 'extension_approved', title: 'Erweiterung genehmigt', body: `Auftrag #${orderId} wurde erweitert. Neuer Liefertermin: ${newDeadline?.slice?.(0,10) || ''}.` });
+  notifyOrder(orderId, { to: 'gw', kind: 'extension_approved', title: `Extension approved · #${orderId}`, body: `Scope updated · ${extraPages ? '+' + extraPages + ' pages · ' : ''}${extraFee ? '+' + extraFee + ' € · ' : ''}new deadline ${newDeadline?.slice?.(0,10) || ''}` });
+  notifyOrder(orderId, { to: 'customer', kind: 'extension_approved', title: 'Erweiterung genehmigt', body: `Auftrag #${orderId} wurde erweitert. Neuer Liefertermin: ${newDeadline?.slice?.(0,10) || ''}.` });
   return true;
 }
 
@@ -414,7 +544,7 @@ function rejectExtension(orderId, reason) {
   const o = order(orderId);
   if (!o) return false;
   patchOrder(orderId, { status: 'active', extensionPending: null, extensionRejectedAt: nowIso(), extensionRejectReason: reason || null });
-  notify({ to: 'gw', kind: 'extension_rejected', title: `Extension declined · #${orderId}`, body: reason ? `Reason: ${reason}` : 'Please continue with the original scope.' });
+  notifyOrder(orderId, { to: 'gw', kind: 'extension_rejected', title: `Extension declined · #${orderId}`, body: reason ? `Reason: ${reason}` : 'Please continue with the original scope.' });
   return true;
 }
 
@@ -428,8 +558,8 @@ function acceptDelay(orderId, payload = {}) {
     delayAcceptedAt: nowIso(),
     proposedNewDeadline: null,
   });
-  notify({ to: 'gw', kind: 'delay_accepted', title: `New deadline confirmed · #${orderId}`, body: `Final deadline now ${newDeadline?.slice?.(0,10) || ''}` });
-  notify({ to: 'customer', kind: 'delay_accepted', title: 'Neuer Liefertermin bestätigt', body: `Auftrag #${orderId} · neuer Termin ${newDeadline?.slice?.(0,10) || ''}` });
+  notifyOrder(orderId, { to: 'gw', kind: 'delay_accepted', title: `New deadline confirmed · #${orderId}`, body: `Final deadline now ${newDeadline?.slice?.(0,10) || ''}` });
+  notifyOrder(orderId, { to: 'customer', kind: 'delay_accepted', title: 'Neuer Liefertermin bestätigt', body: `Auftrag #${orderId} · neuer Termin ${newDeadline?.slice?.(0,10) || ''}` });
   return true;
 }
 
@@ -437,8 +567,8 @@ function proposeNewDelay(orderId, newDeadline) {
   const o = order(orderId);
   if (!o) return false;
   patchOrder(orderId, { proposedNewDeadline: newDeadline });
-  notify({ to: 'customer', kind: 'delay_counter', title: 'Gegenvorschlag für Liefertermin', body: `Auftrag #${orderId} · vorgeschlagen: ${newDeadline?.slice?.(0,10) || ''}` });
-  notify({ to: 'gw', kind: 'delay_counter', title: `Admin proposed new deadline · #${orderId}`, body: newDeadline?.slice?.(0,10) || '' });
+  notifyOrder(orderId, { to: 'customer', kind: 'delay_counter', title: 'Gegenvorschlag für Liefertermin', body: `Auftrag #${orderId} · vorgeschlagen: ${newDeadline?.slice?.(0,10) || ''}` });
+  notifyOrder(orderId, { to: 'gw', kind: 'delay_counter', title: `Admin proposed new deadline · #${orderId}`, body: newDeadline?.slice?.(0,10) || '' });
   return true;
 }
 
@@ -446,8 +576,8 @@ function closeDispute(orderId, resolution) {
   const o = order(orderId);
   if (!o) return false;
   patchOrder(orderId, { disputeOpen: false, disputeResolution: resolution || 'resolved', disputeClosedAt: nowIso() });
-  notify({ to: 'customer', kind: 'dispute_closed', title: `Streitfall gelöst · Auftrag #${orderId}`, body: resolution ? resolution.slice(0, 140) : 'Der Streitfall wurde geschlossen.' });
-  notify({ to: 'gw', kind: 'dispute_closed', title: `Dispute closed · #${orderId}`, body: resolution ? resolution.slice(0, 140) : 'Closed by admin.' });
+  notifyOrder(orderId, { to: 'customer', kind: 'dispute_closed', title: `Streitfall gelöst · Auftrag #${orderId}`, body: resolution ? resolution.slice(0, 140) : 'Der Streitfall wurde geschlossen.' });
+  notifyOrder(orderId, { to: 'gw', kind: 'dispute_closed', title: `Dispute closed · #${orderId}`, body: resolution ? resolution.slice(0, 140) : 'Closed by admin.' });
   return true;
 }
 
@@ -458,10 +588,11 @@ function confirmViolation(orderId, payload = {}) {
   if (!o) return false;
   const reasonText = payload.reason || o.qaFlagReason || 'Quality violation confirmed';
   const violationType = o.status === 'plagiarism_violation_review' ? 'plagiarism' : 'ai';
+  const originalGwId = o.gwId;
   // Shadow-ban the GW (already an existing action) and reset the order so a new
   // GW can be assigned; payment stays blocked until reassignment + re-QA.
-  if (o.gwId) {
-    shadowBan(o.gwId, { banned: true, reason: `${violationType === 'plagiarism' ? 'Plagiarism' : 'AI use'} confirmed on #${orderId}` });
+  if (originalGwId) {
+    shadowBan(originalGwId, { banned: true, reason: `${violationType === 'plagiarism' ? 'Plagiarism' : 'AI use'} confirmed on #${orderId}`, notify: false });
   }
   patchOrder(orderId, {
     status: 'available',
@@ -472,8 +603,11 @@ function confirmViolation(orderId, payload = {}) {
     violationConfirmedAt: nowIso(),
     violationReason: reasonText,
   });
-  notify({ to: 'customer', kind: 'violation_confirmed', title: 'Wir setzen Ihren Auftrag mit einem neuen Ghostwriter fort', body: `Auftrag #${orderId} · die Qualitätsprüfung hat eine Auffälligkeit bestätigt. Wir weisen Ihnen kurzfristig einen neuen Ghostwriter zu — ohne Mehrkosten.` });
-  notify({ to: 'admin', kind: 'violation_confirmed', title: `Violation confirmed · #${orderId}`, body: `Order returned to job board · GW shadow-banned · payment block lifted (no honorarium owed).` });
+  if (originalGwId) {
+    notifyOrder(orderId, { to: 'gw', kind: 'assignment_cancelled', gwId: originalGwId, title: `Assignment ended · #${orderId}`, body: `${violationType === 'plagiarism' ? 'Plagiarism' : 'AI use'} violation confirmed. The assignment was removed and payment is blocked per policy.` });
+  }
+  notifyOrder(orderId, { to: 'customer', kind: 'violation_confirmed', gwId: originalGwId, title: 'Wir setzen Ihren Auftrag mit einem neuen Ghostwriter fort', body: `Auftrag #${orderId} · die Qualitätsprüfung hat eine Auffälligkeit bestätigt. Wir weisen Ihnen kurzfristig einen neuen Ghostwriter zu — ohne Mehrkosten.` });
+  notifyOrder(orderId, { to: 'admin', kind: 'violation_confirmed', gwId: originalGwId, title: `Violation confirmed · #${orderId}`, body: `Order returned to job board · GW shadow-banned · payment block lifted (no honorarium owed).` });
   return true;
 }
 
@@ -492,8 +626,8 @@ function clearViolation(orderId, reason) {
     violationClearReason: reason || null,
     qaFlagReason: null,
   });
-  notify({ to: 'gw', kind: 'violation_cleared', title: `Flag cleared · #${orderId}`, body: reason ? `Admin reviewed and cleared the flag: ${reason}` : 'Admin reviewed the evidence and cleared the flag.' });
-  notify({ to: 'customer', kind: 'violation_cleared', title: 'Auftrag freigegeben', body: `Auftrag #${orderId} · die Endversion wurde nach Prüfung freigegeben.` });
+  notifyOrder(orderId, { to: 'gw', kind: 'violation_cleared', title: `Flag cleared · #${orderId}`, body: reason ? `Admin reviewed and cleared the flag: ${reason}` : 'Admin reviewed the evidence and cleared the flag.' });
+  notifyOrder(orderId, { to: 'customer', kind: 'violation_cleared', title: 'Auftrag freigegeben', body: `Auftrag #${orderId} · die Endversion wurde nach Prüfung freigegeben.` });
   return true;
 }
 
@@ -502,7 +636,9 @@ function shadowBan(gwId, payload = {}) {
   if (!target) return false;
   const banned = payload.banned !== undefined ? payload.banned : !target.banned;
   patchEntity('ghostwriters', gwId, { banned, banReason: banned ? (payload.reason || target.banReason || 'Admin quality control') : null }, 'gws.shadowBan');
-  notify({ to: 'admin', kind: 'gw_shadow_ban', title: `${target.name} ${banned ? 'shadow-banned' : 'restored'}`, body: banned ? 'GW stops receiving job-board email alerts but can still access the board.' : 'GW visibility restored.' });
+  if (payload.notify !== false) {
+    notify({ to: 'admin', kind: 'gw_shadow_ban', gwId, title: `${target.name} ${banned ? 'shadow-banned' : 'restored'}`, body: banned ? 'GW stops receiving job-board email alerts but can still access the board.' : 'GW visibility restored.' });
+  }
   return true;
 }
 
@@ -526,6 +662,12 @@ const actions = {
     assignGw,
     markInstallmentPaid,
     setHonorRate,
+    sendOffer,
+    sendInvoice,
+    confirmPayment,
+    hold: holdOrder,
+    cancelAssignment,
+    cancel: cancelOrder,
     approveExtension,
     rejectExtension,
     acceptDelay,
@@ -556,7 +698,7 @@ const actions = {
   },
   payments: { releaseBatch },
   gws: { shadowBan },
-  notifications: { markAllRead: N.markAllRead },
+  notifications: { markAllRead: N.markAllRead, markRead: N.markRead },
   threads: {
     send: T.send,
     markRead: T.markRead,

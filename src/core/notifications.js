@@ -4,9 +4,18 @@
 ;(function(){
 const I = window.EFInternals;
 
+function inferOrderId(payload) {
+  if (payload.orderId != null) return Number(payload.orderId);
+  const text = [payload.title, payload.body].filter(Boolean).join(' ');
+  const match = text.match(/(?:#|order\s*#?|auftrag\s*#?)(\d{3,})/i);
+  return match ? Number(match[1]) : null;
+}
+
 function notify(payload) {
   const targets = Array.isArray(payload.to) ? payload.to : [payload.to || 'admin'];
   const id = payload.id || ('n-live-' + Date.now() + '-' + Math.random().toString(36).slice(2, 7));
+  const orderId = inferOrderId(payload);
+  const relatedOrder = orderId != null ? I.order(orderId) : null;
   const note = {
     id,
     to: targets,
@@ -16,6 +25,13 @@ function notify(payload) {
     urgent: !!payload.urgent,
     read: false,
     at: payload.at || I.nowIso(),
+    orderId,
+    customerId: payload.customerId || relatedOrder?.customerId || null,
+    gwId: payload.gwId || relatedOrder?.gwId || null,
+    submissionId: payload.submissionId || null,
+    threadId: payload.threadId || null,
+    route: payload.route || null,
+    params: payload.params || null,
   };
   I.upsertEntity('notifications', note, 'notifications.add');
   try { window.dispatchEvent(new CustomEvent('efactory:notify', { detail: note })); } catch(e) {}
@@ -34,7 +50,21 @@ function markAllRead(role) {
   }, 'notifications.markAllRead');
 }
 
-window.EFNotifications = { notify, markAllRead };
+function markRead(id, role) {
+  if (!id) return;
+  I.updateTable('notifications', table => {
+    const note = table.byId[id];
+    if (!note) return table;
+    const targets = Array.isArray(note.to) ? note.to : [note.to || 'admin'];
+    if (role && !targets.includes(role) && !targets.includes('all')) return table;
+    return {
+      ...table,
+      byId: { ...table.byId, [id]: { ...note, read: true } },
+    };
+  }, 'notifications.markRead');
+}
+
+window.EFNotifications = { notify, markAllRead, markRead };
 
 // Backward-compatible shim for any not-yet-migrated demo hooks.
 window.efNotify = notify;

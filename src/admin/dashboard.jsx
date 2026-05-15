@@ -43,20 +43,27 @@ function MiniBars({ data, w = 320, h = 110 }) {
 }
 
 // ============ ADMIN DASHBOARD ============
+function DashboardLiveHeader({ k, navigate, openFridayBatch }) {
+  const now = U.useNow(1000);
+  return (
+    <div className="page-header">
+      <div>
+        <h1 className="page-title">{U.greetingFor(now)}, Berat.</h1>
+        <div className="page-subtitle">{U.fmtWeekdayDate(now)} · {U.fmtClock(now)} local time · Friday batch {U.fridayBatchLabel(now)} · {k.fridayCount} releasable · {U.EUR(k.fridayEur)}</div>
+      </div>
+      <div className="page-actions">
+        <button type="button" className="btn" onClick={() => navigate('order-new')}><Icon name="plus" size={14}/> New order</button>
+        <button type="button" className="btn btn-primary" onClick={openFridayBatch}><Icon name="zap" size={14}/> Open Friday batch</button>
+      </div>
+    </div>
+  );
+}
+
 function AdminDashboard({ navigate, openFridayBatch }) {
   const k = window.EFHooks.useKpis();
   return (
     <div className="page">
-      <div className="page-header">
-        <div>
-          <h1 className="page-title">Good afternoon, Berat.</h1>
-          <div className="page-subtitle">Donnerstag, 07.05.2026 · Friday batch tomorrow · {k.fridayCount} releasable · {U.EUR(k.fridayEur)}</div>
-        </div>
-        <div className="page-actions">
-          <button type="button" className="btn" onClick={() => navigate('order-new')}><Icon name="plus" size={14}/> New order <span className="kbd">⌘N</span></button>
-          <button type="button" className="btn btn-primary" onClick={openFridayBatch}><Icon name="zap" size={14}/> Open Friday batch</button>
-        </div>
-      </div>
+      <DashboardLiveHeader k={k} navigate={navigate} openFridayBatch={openFridayBatch} />
 
       <div className="kpi-grid mb-4">
         <div className={`kpi ${k.eurAtRisk > 0 ? 'danger' : ''}`} onClick={() => navigate('orders', { view: 'at_risk' })} style={{ cursor: 'pointer' }}>
@@ -375,6 +382,8 @@ function SlaOperational({ navigate }) {
 // ===== Cash & Friday =====
 function CashAndFriday({ navigate, openFridayBatch }) {
   const cash = window.EFHooks.useCashFriday();
+  const now = U.useNow(60000);
+  const batchLabel = U.fridayBatchLabel(now);
   const releasableEur = cash.releaseable.reduce((s, o) => s + (o.netHonorarium || 0), 0);
   const blockedEur = cash.blocked.reduce((s, b) => s + (b.order.netHonorarium || 0), 0);
 
@@ -400,7 +409,7 @@ function CashAndFriday({ navigate, openFridayBatch }) {
       <div className="card-pad flex-col gap-2">
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
           <button type="button" onClick={openFridayBatch} style={{ padding: 10, textAlign: 'left', background: 'color-mix(in oklab, var(--green) 6%, var(--surface))', border: '1px solid color-mix(in oklab, var(--green) 30%, var(--border))', borderRadius: 8, cursor: 'pointer', color: 'inherit', font: 'inherit' }}>
-            <div className="text-faint fs-11">Releasable tomorrow</div>
+            <div className="text-faint fs-11">Releasable {batchLabel}</div>
             <div className="mono strong" style={{ fontSize: 18, color: 'var(--green)' }}>{cash.releaseable.length}</div>
             <div className="text-muted fs-11">{U.EUR(releasableEur)}</div>
           </button>

@@ -1,8 +1,7 @@
 // eFactory One — seed data
-// Demo clock: Thursday 2026-05-07, 14:32 (Friday batch tomorrow)
+// Demo data stays seeded, but the app clock is the user's live local time.
 ;(function(){
-const NOW = new Date('2026-05-07T14:32:00');
-const DEMO_NOW = NOW;
+const liveNow = () => new Date();
 
 // ---- Ghostwriters (12) ----
 const GHOSTWRITERS = [
@@ -302,7 +301,8 @@ const GW_ME = GHOSTWRITERS.find(g => g.id === 'gw-iw') || {
 };
 
 window.EF = {
-  NOW, DEMO_NOW,
+  get NOW() { return liveNow(); },
+  get DEMO_NOW() { return liveNow(); },
   GHOSTWRITERS, CUSTOMERS, ORDERS, GW_DEMO_ASSIGNMENTS, SUBMISSIONS, FRIDAY_BATCH, INBOX_THREADS, NOTIFICATIONS,
   WORK_TYPE_LABELS, STATUS_PILLS, FEATURE_FLAGS,
   featureStatus, isFeatureLive,

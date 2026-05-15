@@ -29,11 +29,58 @@ const fmtTime = (iso) => {
   const d = new Date(iso);
   return String(d.getHours()).padStart(2,'0') + ':' + String(d.getMinutes()).padStart(2,'0');
 };
+const now = () => new Date();
+const useNow = (intervalMs = 1000) => {
+  const [value, setValue] = React.useState(() => now());
+  React.useEffect(() => {
+    const tick = () => setValue(now());
+    const id = window.setInterval(tick, intervalMs);
+    window.addEventListener('focus', tick);
+    document.addEventListener('visibilitychange', tick);
+    return () => {
+      window.clearInterval(id);
+      window.removeEventListener('focus', tick);
+      document.removeEventListener('visibilitychange', tick);
+    };
+  }, [intervalMs]);
+  return value;
+};
+const fmtClock = (date = now()) => {
+  const d = new Date(date);
+  return d.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+};
+const fmtWeekdayDate = (date = now()) => {
+  const d = new Date(date);
+  return d.toLocaleDateString('de-DE', { weekday: 'long', day: '2-digit', month: '2-digit', year: 'numeric' });
+};
+const greetingFor = (date = now()) => {
+  const h = new Date(date).getHours();
+  if (h < 12) return 'Good morning';
+  if (h < 17) return 'Good afternoon';
+  if (h < 22) return 'Good evening';
+  return 'Good night';
+};
+const fridayBatchLabel = (date = now()) => {
+  const day = new Date(date).getDay();
+  const days = (5 - day + 7) % 7;
+  if (days === 0) return 'today';
+  if (days === 1) return 'tomorrow';
+  return 'in ' + days + ' days';
+};
 
-const relTime = (iso, now = window.EF.DEMO_NOW) => {
+const relTime = (iso, base = now()) => {
   if (!iso) return '—';
   const d = new Date(iso);
-  const diff = (now - d) / 1000;
+  const diff = (base - d) / 1000;
+  const abs = Math.abs(diff);
+  if (diff < 0) {
+    if (abs < 60) return 'in ' + Math.round(abs) + 's';
+    if (abs < 3600) return 'in ' + Math.round(abs/60) + ' min';
+    if (abs < 86400) return 'in ' + Math.round(abs/3600) + 'h';
+    const futureDays = Math.round(abs/86400);
+    if (futureDays < 7) return 'in ' + futureDays + ' days';
+    return fmtDate(iso);
+  }
   if (diff < 60) return Math.round(diff) + 's ago';
   if (diff < 3600) return Math.round(diff/60) + ' min ago';
   if (diff < 86400) {
@@ -46,10 +93,10 @@ const relTime = (iso, now = window.EF.DEMO_NOW) => {
   return fmtDate(iso);
 };
 
-const daysTo = (iso, now = window.EF.DEMO_NOW) => {
+const daysTo = (iso, base = now()) => {
   if (!iso) return null;
   const d = new Date(iso);
-  return Math.ceil((d - now) / 86400000);
+  return Math.ceil((d - base) / 86400000);
 };
 
 const deadlineMeta = (iso) => {
@@ -353,7 +400,7 @@ const ScoreBar = ({ value, label }) => {
   );
 };
 
-window.EFU = { EUR, fmtDate, fmtDateTime, fmtTime, relTime, daysTo, deadlineMeta, Icon, StatusPill, Avatar, Money, Bi, ScoreBar, NotReady, PlannedTag, EmptyState, Skeleton, ChatNotice, ChatMessage, ChatComposer, ChatThreadRow };
+window.EFU = { EUR, fmtDate, fmtDateTime, fmtTime, now, useNow, fmtClock, fmtWeekdayDate, greetingFor, fridayBatchLabel, relTime, daysTo, deadlineMeta, Icon, StatusPill, Avatar, Money, Bi, ScoreBar, NotReady, PlannedTag, EmptyState, Skeleton, ChatNotice, ChatMessage, ChatComposer, ChatThreadRow };
 // Also expose at top-level for cross-script use
 Object.assign(window, { Icon, StatusPill, Avatar, Money, Bi, ScoreBar, NotReady, PlannedTag, EmptyState, Skeleton, ChatNotice, ChatMessage, ChatComposer, ChatThreadRow });
 

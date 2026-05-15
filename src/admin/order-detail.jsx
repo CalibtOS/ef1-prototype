@@ -6,6 +6,29 @@ const U = window.EFU;
 const D = window.EF;
 const W = window.EFWorkflow;
 
+function initialsFor(name, email) {
+  const text = String(name || email || '').trim();
+  const words = text.split(/\s+/).filter(Boolean);
+  if (words.length > 1) return words.map(part => part[0]).join('').slice(0, 2).toUpperCase();
+  return text.slice(0, 2).toUpperCase() || 'CU';
+}
+
+function fallbackCustomer(order) {
+  const snapshot = order.customer || {};
+  return {
+    id: order.customerId || snapshot.id || 'unknown-customer',
+    initials: snapshot.initials || initialsFor(snapshot.name || order.customerName, snapshot.email || order.customerEmail),
+    name: snapshot.name || order.customerName || 'Unknown customer',
+    email: snapshot.email || order.customerEmail || 'no-email@example.com',
+    phone: snapshot.phone || order.customerPhone || '—',
+    country: snapshot.country || order.country || '—',
+    leadSource: snapshot.leadSource || order.leadSource || '—',
+    orders: snapshot.orders || 0,
+    ltv: snapshot.ltv || 0,
+    tags: snapshot.tags || [],
+  };
+}
+
 // =============================================================================
 // A5 / A6 — Admin resolution panels
 // Each panel renders inline in OrderDetail when the order is in a state that
@@ -185,7 +208,7 @@ function OrderDetail({ orderId, navigate, toast, initialTab }) {
   const submissions = window.EFHooks.useSubmissions({ orderId });
   const orderEvents = window.EFHooks.useOrderEvents(orderId);
   if (!order) return <div className="page">Order not found.</div>;
-  const cust = D.customer(order.customerId);
+  const cust = D.customer(order.customerId) || fallbackCustomer(order);
   const gw = D.gw(order.gwId);
   const submissionsCount = submissions.length;
   const dm = U.deadlineMeta(order.finalDeadline);
@@ -977,7 +1000,7 @@ function InvoiceAutomationPanel({ order, cust, totalGross, toast }) {
     steps.forEach((p, i) => setTimeout(() => setPhase(p), i * 520));
     setTimeout(() => {
       const link = needsStripe ? `https://pay.stripe.com/ef1/${order.id}-${method.replace('stripe_', '')}` : null;
-      window.EFActions.orders.patch(order.id, {
+      window.EFActions.orders.sendInvoice(order.id, {
         status: 'invoice_sent',
         sevdeskInvoiceNo: invoiceNo,
         invoiceRequestAt: '2026-05-07T15:08:00',
@@ -995,7 +1018,7 @@ function InvoiceAutomationPanel({ order, cust, totalGross, toast }) {
   const confirmPayment = () => {
     setPaying(true);
     setTimeout(() => {
-      window.EFActions.orders.patch(order.id, {
+      window.EFActions.orders.confirmPayment(order.id, {
         status: order.gwId ? 'active' : 'available',
         paidEur: totalGross,
         outstandingEur: 0,
@@ -1106,7 +1129,7 @@ function OfferTab({ order, toast, setTab }) {
     setSending(true);
     steps.forEach((_, i) => setTimeout(() => setPhaseIndex(i), i * 540));
     setTimeout(() => {
-      window.EFActions.orders.patch(order.id, {
+      window.EFActions.orders.sendOffer(order.id, {
         status: 'offer_sent',
         sevdeskCustomerNo: order.sevdeskCustomerNo || '9507',
         sevdeskOfferNo: offerNo,

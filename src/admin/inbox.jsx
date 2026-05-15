@@ -1,17 +1,18 @@
 // Admin · Inbox — customer & GW threads with reply, redirect-to-kundenservice.
 ;(function(){
-const { useState: useStateA, useEffect: useEffectA, useMemo: useMemoA } = React;
+const { useState: useStateA, useEffect: useEffectA, useMemo: useMemoA, useRef: useRefA } = React;
 const { Icon, StatusPill, Avatar, Money, Bi, ScoreBar, CrumbBar, NotReady, PlannedTag, EmptyState, Skeleton, ChatNotice, ChatMessage, ChatComposer, ChatThreadRow } = window;
 const U = window.EFU;
 const D = window.EF;
 
 // ============ INBOX ============
-function Inbox({ toast }) {
+function Inbox({ toast, route }) {
   const [activeId, setActiveId] = useStateA('t1');
   const [tab, setTab] = useStateA('All');
   const [channelFilter, setChannelFilter] = useStateA('all');
   const [deliveryRail, setDeliveryRail] = useStateA('email');
   const [reply, setReply] = useStateA('');
+  const appliedRouteTarget = useRefA(null);
   const _toast = toast || (m => console.log(m));
   const rawThreads = window.EFHooks.useThreads();
   const threads = rawThreads.map(t => {
@@ -65,6 +66,28 @@ function Inbox({ toast }) {
       raw: t,
     };
   });
+
+  const routeTargetKey = [
+    route?.params?.thread || route?.params?.threadId || '',
+    route?.params?.orderId || route?.params?.id || '',
+  ].join('|');
+
+  useEffectA(() => {
+    if (routeTargetKey === '|') {
+      appliedRouteTarget.current = null;
+      return;
+    }
+    if (appliedRouteTarget.current === routeTargetKey) return;
+    const params = route?.params || {};
+    const requestedThreadId = params.thread || params.threadId;
+    const requestedOrderId = params.orderId || params.id;
+    const target = (requestedThreadId && threads.find(t => t.id === requestedThreadId))
+      || (requestedOrderId != null && threads.find(t => Number(t.orderId) === Number(requestedOrderId)));
+    if (target) {
+      appliedRouteTarget.current = routeTargetKey;
+      setActiveId(target.id);
+    }
+  }, [routeTargetKey, route?.params, threads]);
 
   const filteredThreads = tab === 'Orders'
     ? threads.filter(t => t.threadType === 'order')

@@ -91,7 +91,7 @@ function custGwContact(o) {
   return { name: gw.name, email: gw.email, phone: gw.phone };
 }
 
-function CustHeader({ tab, setTab, role, setRole }) {
+function CustHeader({ tab, setTab, role, setRole, onOpenNotification }) {
   const [open, setOpen] = useStateA(false);
   const NotifBell = window.NotifBell;
   const customerNotifs = window.EFHooks.useNotifications('customer');
@@ -112,8 +112,10 @@ function CustHeader({ tab, setTab, role, setRole }) {
         <span style={{ flex: 1 }}/>
         {NotifBell && (
           <NotifBell
+            role="customer"
             notifications={customerNotifs}
             onMark={() => window.EFActions.notifications.markAllRead('customer')}
+            onOpen={onOpenNotification}
           />
         )}
         <div style={{ position: 'relative' }}>
@@ -1405,6 +1407,16 @@ function CustomerView({ role, setRole, toast, section, navigate }) {
     if (navigate && ROUTE_FOR_TAB[t]) navigate(ROUTE_FOR_TAB[t]);
   };
 
+  const openNotification = (n) => {
+    const target = window.EFShell?.resolveNotificationTarget?.(n, 'customer');
+    if (target?.customerOrderId != null) {
+      if (navigate) navigate(ROUTE_FOR_TAB.orders);
+      openOrder(target.customerOrderId, target.tab || 'status');
+      return;
+    }
+    if (target?.customerSection) switchTab(target.customerSection);
+  };
+
   let body;
   if (openOrderId != null) {
     body = <CustOrderDetail orderId={openOrderId} initialTab={openOrderTab} onBack={closeOrder} toast={toast}/>;
@@ -1422,7 +1434,7 @@ function CustomerView({ role, setRole, toast, section, navigate }) {
 
   return (
     <div style={{ background: 'var(--bg)', minHeight: '100%' }}>
-      <CustHeader tab={tab} setTab={switchTab} role={role} setRole={setRole}/>
+      <CustHeader tab={tab} setTab={switchTab} role={role} setRole={setRole} onOpenNotification={openNotification}/>
       <div style={{ maxWidth: 1080, margin: '0 auto', padding: '0 24px 32px' }}>
         {body}
       </div>

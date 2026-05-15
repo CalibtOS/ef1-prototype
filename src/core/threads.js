@@ -91,9 +91,16 @@ function bumpUnread(threadId, recipientRoles) {
 }
 
 function recipientsForThread(thread, senderRole) {
-  // Admin always observes (CC). The other side of the conversation gets a ping.
-  const all = ['admin', 'gw', 'customer'];
-  return all.filter(r => r !== senderRole);
+  // Admin observes every operational thread. Customer/GW bells only exist when
+  // that role is an actual participant; lead-only threads stay in the admin inbox.
+  const all = ['admin'];
+  if (thread?.threadType === 'order') {
+    if (thread.customerId) all.push('customer');
+    if (thread.gwId) all.push('gw');
+  } else if (thread?.threadType === 'gw_direct') {
+    if (thread.gwId) all.push('gw');
+  }
+  return Array.from(new Set(all)).filter(r => r !== senderRole);
 }
 
 function send(payload = {}) {
@@ -158,7 +165,11 @@ function send(payload = {}) {
     N.notify({
       to: 'admin',
       kind: 'message_redirected',
-      title: `Finanzfrage umgeleitet · #${thread.orderId}`,
+      orderId: thread.orderId,
+      customerId: thread.customerId || null,
+      gwId: thread.gwId || null,
+      threadId,
+      title: thread.orderId ? `Finanzfrage umgeleitet · #${thread.orderId}` : 'Finanzfrage umgeleitet',
       body: 'Customer fragte nach Preisen/Raten. Auto-Redirect an kundenservice@efactory1.de.',
       urgent: false,
     });
@@ -178,7 +189,11 @@ function send(payload = {}) {
     N.notify({
       to: recipients,
       kind: 'message_received',
-      title: `Neue Nachricht · #${thread.orderId}`,
+      orderId: thread.orderId,
+      customerId: thread.customerId || null,
+      gwId: thread.gwId || null,
+      threadId,
+      title: thread.orderId ? `Neue Nachricht · #${thread.orderId}` : 'Neue Nachricht',
       body: `${senderName}: ${previewBody}`,
       urgent: false,
     });
@@ -214,7 +229,11 @@ function redirect(threadId) {
   N.notify({
     to: 'customer',
     kind: 'message_redirected',
-    title: `Anfrage an Kundenservice weitergeleitet · #${thread.orderId}`,
+    orderId: thread.orderId,
+    customerId: thread.customerId || null,
+    gwId: thread.gwId || null,
+    threadId,
+    title: thread.orderId ? `Anfrage an Kundenservice weitergeleitet · #${thread.orderId}` : 'Anfrage an Kundenservice weitergeleitet',
     body: 'Wir kümmern uns von dort um Ihre Frage.',
   });
   return true;

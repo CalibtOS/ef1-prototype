@@ -120,27 +120,36 @@ function App() {
   const [toasts, setToasts] = useState([]);
   window.EFHooks.useStore(s => s.meta.version);
 
-  // Sync URL <- state
+  // Keep shared session state in step with the active app route.
   useEffect(() => {
-    const expected = buildHash(role, route.name, route.params);
-    if (window.location.hash !== expected) {
-      window.history.replaceState(null, '', expected);
-    }
     window.EFActions.session.setRole(role);
     window.EFActions.session.setRoute(route);
   }, [role, route.name, route.params]);
 
   // Sync state <- URL (back/forward, manual edits, reload)
   useEffect(() => {
-    const onHash = () => {
+    const syncFromLocation = (scroll = false) => {
       const next = parseHash();
       setRoleState(next.role);
       setRoute({ name: next.name, params: next.params });
       window.EFActions.session.setRole(next.role);
       window.EFActions.session.setRoute({ name: next.name, params: next.params });
+      if (scroll) window.scrollTo(0, 0);
     };
-    window.addEventListener('hashchange', onHash);
-    return () => window.removeEventListener('hashchange', onHash);
+
+    const current = parseHash();
+    const expected = buildHash(current.role, current.name, current.params);
+    if (window.location.hash !== expected) {
+      window.history.replaceState({ role: current.role, route: { name: current.name, params: current.params } }, '', expected);
+    }
+
+    const onNavigation = () => syncFromLocation(true);
+    window.addEventListener('hashchange', onNavigation);
+    window.addEventListener('popstate', onNavigation);
+    return () => {
+      window.removeEventListener('hashchange', onNavigation);
+      window.removeEventListener('popstate', onNavigation);
+    };
   }, []);
 
   // tweaks integration
@@ -171,20 +180,28 @@ function App() {
     document.documentElement.style.setProperty('--blue', tweaks.accent);
   }, [tweaks.theme, tweaks.density, tweaks.locale, tweaks.accent]);
 
-  const navigate = useCallback((name, params = {}) => {
-    setRoute({ name, params });
-    window.EFActions.session.setRoute({ name, params });
-    window.scrollTo(0, 0);
+  const applyRoute = useCallback((nextRole, name, params = {}, options = {}) => {
+    const nextRoute = { name, params: params || {} };
+    const nextHash = buildHash(nextRole, name, nextRoute.params);
+    if (window.location.hash !== nextHash) {
+      const method = options.replace ? 'replaceState' : 'pushState';
+      window.history[method]({ role: nextRole, route: nextRoute }, '', nextHash);
+    }
+    setRoleState(nextRole);
+    setRoute(nextRoute);
+    window.EFActions.session.setRole(nextRole);
+    window.EFActions.session.setRoute(nextRoute);
+    if (options.scroll !== false) window.scrollTo(0, 0);
   }, []);
+
+  const navigate = useCallback((name, params = {}) => {
+    applyRoute(role, name, params);
+  }, [applyRoute, role]);
 
   const setRole = useCallback((nextRole) => {
     const nextName = window.EFRoutes.defaultRouteFor(nextRole);
-    setRoleState(nextRole);
-    setRoute({ name: nextName, params: {} });
-    window.EFActions.session.setRole(nextRole);
-    window.EFActions.session.setRoute({ name: nextName, params: {} });
-    window.scrollTo(0, 0);
-  }, []);
+    applyRoute(nextRole, nextName);
+  }, [applyRoute]);
 
   const toast = useCallback(({ text, tone = 'info', transition }) => {
     const id = Math.random().toString(36).slice(2);
@@ -246,7 +263,7 @@ function App() {
       'order-detail':       (p) => <OrderDetail orderId={p.id} initialTab={p.tab} navigate={navigate} toast={toast}/>,
       'friday-batch':       () => <FridayBatch navigate={navigate} toast={toast}/>,
       'qa':                 () => <QAQueue navigate={navigate} toast={toast}/>,
-      'inbox':              () => <Inbox toast={toast}/>,
+      'inbox':              () => <Inbox toast={toast} route={route}/>,
       'ai-bi':              () => <AIBIDashboard/>,
       'gw-job-board':       () => <GWJobBoard navigate={navigate} toast={toast} role="admin"/>,
       'ghostwriters':       () => <GhostwritersList navigate={navigate}/>,

@@ -1,7 +1,7 @@
 // Shell — sidebar, topbar, role switcher, toast host, notifications
 ;(function(){
 const { useState, useEffect, useRef, useMemo, createContext, useContext } = React;
-const { Icon, StatusPill, Avatar, Money, Bi, EUR, fmtDate, fmtDateTime, fmtTime, relTime, daysTo, deadlineMeta, ScoreBar } = window.EFU;
+const { Icon, StatusPill, Avatar, Money, Bi, EUR, fmtDate, fmtDateTime, fmtTime, relTime, daysTo, deadlineMeta, ScoreBar, useNow, fmtClock, fmtWeekdayDate, fridayBatchLabel } = window.EFU;
 
 // App-wide context
 const AppCtx = createContext(null);
@@ -110,16 +110,87 @@ function RoleSwitcher({ role, setRole }) {
   );
 }
 
-function NotifBell({ notifications, onMark }) {
+function notificationOrderId(n) {
+  if (!n) return null;
+  if (n.orderId != null) return Number(n.orderId);
+  const text = [n.title, n.body].filter(Boolean).join(' ');
+  const match = text.match(/(?:#|order\s*#?|auftrag\s*#?)(\d{3,})/i);
+  return match ? Number(match[1]) : null;
+}
+
+function adminNotificationTab(kind) {
+  if (['claim_pending_your_approval', 'claim_rejected', 'assignment_approved', 'assignment_intro', 'assignment_cancelled'].includes(kind)) return 'assignment';
+  if (['final_uploaded', 'revision_required', 'qa_passed', 'interim_received', 'interim_approved', 'interim_uploaded_auto_forwarded'].includes(kind)) return 'submissions';
+  if (['invoice_unpaid_5d', 'payment_confirmed', 'invoice_sent', 'final_accepted'].includes(kind)) return 'payments';
+  if (['offer_sent', 'offer_stale'].includes(kind)) return 'offer';
+  return null;
+}
+
+function customerNotificationTab(kind) {
+  if (['message_received', 'message_redirected'].includes(kind)) return 'messages';
+  if (['payment_confirmed', 'payment_released', 'invoice_sent', 'invoice_unpaid_5d'].includes(kind)) return 'payments';
+  if (['qa_passed', 'final_uploaded', 'interim_received', 'violation_cleared'].includes(kind)) return 'files';
+  return 'status';
+}
+
+function resolveNotificationTarget(n, role) {
+  if (!n) return null;
+  if (n.route) return { name: n.route, params: n.params || {} };
+
+  const kind = n.kind || 'event';
+  const orderId = notificationOrderId(n);
+
+  if (kind === 'subscriber_limit_warning') return { name: 'settings', params: {} };
+  if (kind === 'gw_shadow_ban') return { name: 'ghostwriters', params: {} };
+
+  if (['message_received', 'message_redirected'].includes(kind)) {
+    if (role === 'customer') {
+      return orderId ? { customerOrderId: orderId, tab: 'messages' } : { customerSection: 'messages' };
+    }
+    if (role === 'gw') return { name: 'gw-messages', params: orderId ? { orderId } : {} };
+    return { name: 'inbox', params: n.threadId ? { thread: n.threadId } : (orderId ? { orderId } : {}) };
+  }
+
+  if (role === 'customer') {
+    return orderId
+      ? { customerOrderId: orderId, tab: customerNotificationTab(kind) }
+      : { customerSection: kind === 'payment_confirmed' ? 'invoices' : 'orders' };
+  }
+
+  if (role === 'qa') {
+    return orderId ? { name: 'order-detail', params: { id: orderId } } : { name: 'qa-queue', params: {} };
+  }
+
+  if (role === 'gw') {
+    if (kind === 'payment_released') return { name: 'gw-payments', params: {} };
+    if (['claim_rejected', 'assignment_cancelled', 'order_cancelled', 'order_on_hold'].includes(kind)) return { name: 'gw-active', params: {} };
+    if (kind === 'revision_required' && orderId) return { name: 'gw-submit', params: { id: orderId, kind: 'revision' } };
+    return orderId ? { name: 'gw-assignment-detail', params: { id: orderId } } : { name: 'gw-dashboard', params: {} };
+  }
+
+  if (orderId) {
+    const params = { id: orderId };
+    const tab = adminNotificationTab(kind);
+    if (tab) params.tab = tab;
+    return { name: 'order-detail', params };
+  }
+
+  if (kind === 'order_created') return { name: 'orders', params: {} };
+  return { name: 'admin-dashboard', params: {} };
+}
+
+function NotifBell({ notifications, onMark, onOpen, role }) {
   const [open, setOpen] = useState(false);
   const [shake, setShake] = useState(false);
   const ref = useRef();
   const lastCount = useRef(notifications.filter(n => !n.read).length);
+
   useEffect(() => {
     const fn = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
     document.addEventListener('mousedown', fn);
     return () => document.removeEventListener('mousedown', fn);
   }, []);
+
   // Shake when unread count grows
   useEffect(() => {
     const u = notifications.filter(n => !n.read).length;
@@ -131,10 +202,17 @@ function NotifBell({ notifications, onMark }) {
     }
     lastCount.current = u;
   }, [notifications]);
+
   const unread = notifications.filter(n => !n.read).length;
+  const handleOpen = (n) => {
+    window.EFActions?.notifications?.markRead?.(n.id, role);
+    if (onOpen) onOpen(n);
+    setOpen(false);
+  };
+
   return (
     <div ref={ref} style={{ position: 'relative' }}>
-      <button className="icon-btn" onClick={() => setOpen(!open)} aria-label={`Notifications (${unread} unread)`}>
+      <button type="button" className="icon-btn" onClick={() => setOpen(!open)} aria-label={`Notifications (${unread} unread)`}>
         <span className={shake ? 'ef-bell-shake' : ''} style={{ display: 'inline-flex' }}>
           <Icon name="bell" size={16} />
         </span>
@@ -144,18 +222,18 @@ function NotifBell({ notifications, onMark }) {
         <div className="notif-pop">
           <div style={{ padding: '10px 14px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <strong style={{ fontSize: 13 }}>Notifications</strong>
-            <button className="btn btn-ghost btn-sm" onClick={onMark}>Mark all read</button>
+            <button type="button" className="btn btn-ghost btn-sm" onClick={(e) => { e.stopPropagation(); onMark && onMark(); }}>Mark all read</button>
           </div>
           <div style={{ maxHeight: 420, overflowY: 'auto' }}>
             {notifications.map(n => (
-              <div key={n.id} className={`notif-item ${n.read ? 'read' : ''} ${n.urgent ? 'urgent' : ''}`}>
+              <button type="button" key={n.id} className={`notif-item ${n.read ? 'read' : ''} ${n.urgent ? 'urgent' : ''}`} onClick={() => handleOpen(n)}>
                 <div className="notif-dot" />
                 <div style={{ flex: 1 }}>
                   <div className="notif-title">{n.title}</div>
                   <div className="notif-body">{n.body}</div>
                   <div className="notif-time">{relTime(n.at)}</div>
                 </div>
-              </div>
+              </button>
             ))}
           </div>
         </div>
@@ -164,13 +242,26 @@ function NotifBell({ notifications, onMark }) {
   );
 }
 
+function TopbarClock() {
+  const now = useNow(1000);
+  const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || 'local time';
+  return (
+    <div className="topbar-clock" title={`Local browser time · ${tz}`}>
+      <Icon name="clock" size={13} className="text-faint" aria-hidden/>
+      <span className="mono">{fmtClock(now)}</span>
+      <span className="topbar-clock-date">{fmtWeekdayDate(now)}</span>
+    </div>
+  );
+}
+
 function FridayWidget({ onClick }) {
   // Derive counts from the shared store so the widget never lies.
   const k = window.EFHooks.useKpis();
+  const now = useNow(60000);
   return (
     <button type="button" className="friday-widget" onClick={onClick} title="Open Friday batch">
       <span className="friday-dot" />
-      <span className="text-strong">Friday batch in 1 day</span>
+      <span className="text-strong">Friday batch {fridayBatchLabel(now)}</span>
       <span className="text-faint" style={{ fontFamily: 'JetBrains Mono, monospace' }}>· {k.fridayCount} releasable · {window.EFU ? window.EFU.EUR(k.fridayEur) : ('€' + k.fridayEur.toLocaleString('de-DE'))}</span>
     </button>
   );
@@ -223,25 +314,22 @@ function AdminGlobalBanners({ navigate }) {
 // Topbar
 function Topbar({ role, setRole, navigate, toast }) {
   const isAdmin = role === 'admin';
-  const isStaff = role === 'admin' || role === 'qa';
   const notifs = window.EFHooks.useNotifications(role);
+  const openNotification = (n) => {
+    const target = resolveNotificationTarget(n, role);
+    if (target?.name) navigate(target.name, target.params || {});
+  };
   return (
     <div className="topbar">
-      {isStaff && (
-        <div className="topbar-search">
-          <Icon name="search" size={14} className="text-faint topbar-search-icon" aria-hidden/>
-          <input
-            type="search"
-            enterKeyHint="search"
-            placeholder={isAdmin ? 'Search orders, customers, GWs…' : 'Search submissions, orders…'}
-            aria-label="Search"
-          />
-          <span className="kbd">⌘K</span>
-        </div>
-      )}
       <div style={{ flex: 1 }}/>
+      <TopbarClock />
       {isAdmin && <FridayWidget onClick={() => navigate('friday-batch')}/>}
-      <NotifBell notifications={notifs} onMark={() => window.EFActions.notifications.markAllRead(role)}/>
+      <NotifBell
+        role={role}
+        notifications={notifs}
+        onMark={() => window.EFActions.notifications.markAllRead(role)}
+        onOpen={openNotification}
+      />
       <RoleSwitcher role={role} setRole={setRole}/>
     </div>
   );
@@ -283,6 +371,6 @@ window.efNotify = window.EFActions?.notify || function(payload) {
   try { window.dispatchEvent(new CustomEvent('efactory:notify', { detail: payload || {} })); } catch (e) {}
 };
 
-window.EFShell = { Sidebar, RoleSwitcher, NotifBell, FridayWidget, ToastHost, CrumbBar, Topbar, ToastStack, AppCtx, useApp, ROLES, buildNav, AdminGlobalBanners };
-Object.assign(window, { Sidebar, Topbar, ToastStack, CrumbBar, RoleSwitcher, NotifBell, FridayWidget, AdminGlobalBanners });
+window.EFShell = { Sidebar, RoleSwitcher, NotifBell, FridayWidget, TopbarClock, ToastHost, CrumbBar, Topbar, ToastStack, AppCtx, useApp, ROLES, buildNav, AdminGlobalBanners, resolveNotificationTarget, notificationOrderId };
+Object.assign(window, { Sidebar, Topbar, ToastStack, CrumbBar, RoleSwitcher, NotifBell, FridayWidget, TopbarClock, AdminGlobalBanners });
 })();

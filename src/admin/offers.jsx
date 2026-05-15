@@ -163,7 +163,7 @@ function GenerateOfferModal({ orderId, toast, onClose }) {
     });
     setTimeout(() => {
       setPhase('sent');
-      window.EFActions.orders.patch(orderId, {
+      window.EFActions.orders.sendOffer(orderId, {
         status: 'offer_sent',
         offerSentAt: new Date().toISOString(),
         sevdeskOfferNo: `AN-2026-${String(orderId).padStart(4, '0')}`,

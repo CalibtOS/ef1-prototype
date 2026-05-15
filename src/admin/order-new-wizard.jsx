@@ -5,6 +5,13 @@ const { Icon, StatusPill, Avatar, Money, Bi, ScoreBar, CrumbBar, NotReady, Plann
 const U = window.EFU;
 const D = window.EF;
 
+function initialsFor(name, email) {
+  const text = String(name || email || '').trim();
+  const words = text.split(/\s+/).filter(Boolean);
+  if (words.length > 1) return words.map(part => part[0]).join('').slice(0, 2).toUpperCase();
+  return text.slice(0, 2).toUpperCase() || 'CU';
+}
+
 // ====================================================================
 function OrderNewWizard({ navigate, toast }) {
   const [step, setStep] = useStateA(0);
@@ -66,10 +73,22 @@ function OrderNewWizard({ navigate, toast }) {
 
   const create = () => {
     const newId = 9100 + Math.floor((D.ORDERS.length + Date.now()) % 900);
+    const customerId = draft.customerId || ('c-new-' + newId);
+    const newCustomer = draft.customerId ? null : {
+      id: customerId,
+      initials: initialsFor(draft.customerName, draft.customerEmail),
+      name: draft.customerName.trim(),
+      email: draft.customerEmail.trim(),
+      phone: draft.customerPhone.trim(),
+      country: draft.country,
+      leadSource: draft.leadSource,
+      tags: [],
+    };
     const newOrder = {
       id: newId,
       status: 'qualified',
-      customerId: draft.customerId || ('c-new-' + newId),
+      customerId,
+      ...(newCustomer ? { customer: newCustomer } : {}),
       workType: draft.workType,
       title: draft.paperTitle || 'folgt',
       titleTBD: !draft.paperTitle,
