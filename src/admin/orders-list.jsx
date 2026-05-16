@@ -7,6 +7,7 @@ import { CrumbBar } from '../../shell.jsx';
 import * as W from '../core/workflow.js';
 import * as EFHooks from '../core/hooks.js';
 import EF from '../core/ef.js';
+import { DeadlineCalendar } from '../core/deadline-calendar.jsx';
 const D = EF;
 
 function OrdersTable({ navigate, route }) {
@@ -14,10 +15,15 @@ function OrdersTable({ navigate, route }) {
   const [statusFilter, setStatusFilter] = useState('all');
   const initialView = route?.params?.view || 'all';
   const [view, setView] = useState(initialView);
+  const [mode, setMode] = useState(route?.params?.mode === 'calendar' ? 'calendar' : 'list');
   useEffect(() => {
     const incoming = route?.params?.view || 'all';
     setView(prev => prev === incoming ? prev : incoming);
   }, [route?.params?.view]);
+  useEffect(() => {
+    const incoming = route?.params?.mode === 'calendar' ? 'calendar' : 'list';
+    setMode(prev => prev === incoming ? prev : incoming);
+  }, [route?.params?.mode]);
   const orders = EFHooks.useOrders();
   // Dashboard queues — reused so list and dashboard cannot drift.
   const riskItems = EFHooks.useRevenueAtRisk();
@@ -78,8 +84,20 @@ function OrdersTable({ navigate, route }) {
         </div>
       </div>
 
-      <div className="card mb-3">
-        <div className="tbl-toolbar">
+      <div className="tabs">
+        <div className={`tab ${mode === 'list' ? 'active' : ''}`} onClick={() => setMode('list')}>
+          <Icon name="list" size={13} style={{ verticalAlign: '-2px', marginRight: 6 }}/>
+          List
+        </div>
+        <div className={`tab ${mode === 'calendar' ? 'active' : ''}`} onClick={() => setMode('calendar')}>
+          <Icon name="calendar" size={13} style={{ verticalAlign: '-2px', marginRight: 6 }}/>
+          Calendar
+        </div>
+      </div>
+
+      {/* Filters toolbar — shared by list & calendar so both views always show the same set of orders. */}
+      <div className="card mb-3" style={{ padding: 0 }}>
+        <div className="tbl-toolbar" style={{ borderBottom: 'none' }}>
           <input type="text" placeholder="Search ID, customer, paper title…" value={search} onChange={e => setSearch(e.target.value)} />
           <div className="saved-views">
             {[
@@ -99,11 +117,20 @@ function OrdersTable({ navigate, route }) {
             ))}
           </div>
           <div style={{ flex: 1 }}/>
+          <span className="text-faint fs-12">{filtered.length} of {orders.length}</span>
           <select className="chip" value={statusFilter} onChange={e => setStatusFilter(e.target.value)} style={{ padding: '4px 8px' }}>
             <option value="all">All statuses</option>
             {Object.entries(D.STATUS_PILLS).map(([k,v]) => <option key={k} value={k}>{v.label}</option>)}
           </select>
         </div>
+      </div>
+
+      {mode === 'calendar' && (
+        <DeadlineCalendar orders={filtered} navigate={navigate}/>
+      )}
+
+      {mode === 'list' && (
+      <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
         <div className="table-wrap" style={{ borderRadius: 0, border: 'none', overflow: 'auto' }}>
           <table className="tbl">
             <thead>
@@ -203,6 +230,7 @@ function OrdersTable({ navigate, route }) {
           )}
         </div>
       </div>
+      )}
     </div>
   );
 }

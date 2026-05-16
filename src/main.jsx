@@ -43,7 +43,6 @@ import { GWOnboarding } from './gw/onboarding.jsx'
 import { GWFirstContact } from './gw/first-contact.jsx'
 import { GWReportDelay } from './gw/report-delay.jsx'
 import { GWExtensionRequest } from './gw/extension-request.jsx'
-import { GWCalendar } from './gw/calendar.jsx'
 
 // QA role
 import { QAQueue } from './qa/queue.jsx'
@@ -209,7 +208,7 @@ function App() {
       'gw-profile':           () => <GWProfile/>,
       'gw-assignment-detail': (p) => <GWAssignmentDetail orderId={p.id} navigate={navigate} toast={toast}/>,
       'order-detail':         (p) => <GWAssignmentDetail orderId={p.id} navigate={navigate} toast={toast}/>,
-      'gw-calendar':          () => <GWCalendar navigate={navigate}/>,
+      'gw-calendar':          () => <GWActiveJobs navigate={navigate} initialView="calendar"/>,
       _default:               () => <GWDashboard navigate={navigate}/>,
     },
     admin: {

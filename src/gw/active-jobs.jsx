@@ -7,10 +7,13 @@ import * as U from '../../utils.jsx';
 import { CrumbBar } from '../../shell.jsx';
 import * as EFHooks from '../core/hooks.js';
 import EF from '../core/ef.js';
+import { DeadlineCalendar } from '../core/deadline-calendar.jsx';
 const D = EF;
 
-function GWActiveJobs({ navigate }) {
+function GWActiveJobs({ navigate, initialView = 'list' }) {
   const [filter, setFilter] = useState('all');
+  const [view, setView] = useState(initialView === 'calendar' ? 'calendar' : 'list');
+  const [search, setSearch] = useState('');
 
   // The list and the detail route must read the same live order source.
   const realMine = EFHooks.useOrders({ gwId: D.GW_ME.id });
@@ -40,7 +43,12 @@ function GWActiveJobs({ navigate }) {
     qa: o => ['final_submitted', 'qa_review'].includes(o.status),
     done: o => ['delivered', 'payment_pending', 'completed'].includes(o.status),
   };
-  const filtered = all.filter(filterMap[filter] || (() => true));
+  // Strip leading '#' so users can paste either "3601" or "#3601".
+  const searchId = search.trim().replace(/^#/, '');
+  let filtered = all.filter(filterMap[filter] || (() => true));
+  if (searchId) {
+    filtered = filtered.filter(o => String(o.id).includes(searchId));
+  }
 
   // KPIs
   const counts = {
@@ -110,7 +118,55 @@ function GWActiveJobs({ navigate }) {
         </div>
       </div>
 
+      <div className="tabs">
+        <div className={`tab ${view === 'list' ? 'active' : ''}`} onClick={() => setView('list')}>
+          <Icon name="list" size={13} style={{ verticalAlign: '-2px', marginRight: 6 }}/>
+          List
+        </div>
+        <div className={`tab ${view === 'calendar' ? 'active' : ''}`} onClick={() => setView('calendar')}>
+          <Icon name="calendar" size={13} style={{ verticalAlign: '-2px', marginRight: 6 }}/>
+          Calendar
+        </div>
+      </div>
+
+      {/* Filter chips & search — shared by list & calendar so both views always show the same set of assignments. */}
       <div className="flex items-center gap-2 mb-3" style={{ flexWrap: 'wrap' }}>
+        <div style={{ position: 'relative', display: 'inline-flex', alignItems: 'center' }}>
+          <span style={{
+            position: 'absolute', left: 8, top: '50%', transform: 'translateY(-50%)',
+            display: 'inline-flex', alignItems: 'center', color: 'var(--text-3)',
+            pointerEvents: 'none',
+          }}>
+            <Icon name="search" size={12}/>
+          </span>
+          <input
+            type="text"
+            placeholder="Search by order ID…"
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            style={{
+              border: '1px solid var(--border)', background: 'var(--surface)', borderRadius: 6,
+              padding: '4px 8px 4px 26px', fontSize: 12, color: 'var(--text)', minWidth: 180,
+              font: 'inherit',
+            }}
+            onFocus={e => e.target.style.borderColor = 'var(--blue)'}
+            onBlur={e => e.target.style.borderColor = 'var(--border)'}
+          />
+          {search && (
+            <button
+              type="button"
+              onClick={() => setSearch('')}
+              title="Clear search"
+              style={{
+                position: 'absolute', right: 4, background: 'transparent', border: 'none',
+                cursor: 'pointer', padding: 2, display: 'inline-flex', alignItems: 'center',
+                color: 'var(--text-3)',
+              }}
+            >
+              <Icon name="x" size={12}/>
+            </button>
+          )}
+        </div>
         {[
           ['all', `All (${all.length})`],
           ['pending', `Awaiting approval (${counts.pending})`],
@@ -125,6 +181,9 @@ function GWActiveJobs({ navigate }) {
         <span className="text-faint fs-12">{filtered.length} of {all.length}</span>
       </div>
 
+      {view === 'calendar' && <DeadlineCalendar orders={filtered} navigate={navigate}/>}
+
+      {view === 'list' && (
       <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
         <table className="tbl">
           <thead>
@@ -143,7 +202,9 @@ function GWActiveJobs({ navigate }) {
           </thead>
           <tbody>
             {filtered.length === 0 && (
-              <tr><td colSpan={10} className="text-faint fs-12" style={{ padding: 20, textAlign: 'center' }}>No assignments match this filter.</td></tr>
+              <tr><td colSpan={10} className="text-faint fs-12" style={{ padding: 20, textAlign: 'center' }}>
+                {searchId ? `No assignments match order ID "${search}".` : 'No assignments match this filter.'}
+              </td></tr>
             )}
             {filtered.map(o => {
               const cust = D.customer(o.customerId);
@@ -189,6 +250,7 @@ function GWActiveJobs({ navigate }) {
           </tbody>
         </table>
       </div>
+      )}
     </div>
   );
 }

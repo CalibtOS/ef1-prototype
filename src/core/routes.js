@@ -140,7 +140,6 @@ function navItems(role, state) {
       { id: 'gw-templates', label: 'Templates', icon: 'folder' },
       { id: 'gw-payments', label: 'Payments', icon: 'wallet' },
       { id: 'gw-messages', label: 'Messages', icon: 'message-square' },
-      { id: 'gw-calendar', label: 'Calendar', icon: 'calendar' },
       { id: 'gw-profile', label: 'Profile', icon: 'user' },
     ];
   }
