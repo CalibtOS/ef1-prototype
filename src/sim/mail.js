@@ -261,6 +261,56 @@ function paymentMethodLabel(m) {
   }[m] || m;
 }
 
+function paymentReceivedAdminNotify({ orderId, customerId, customerName, installmentN, amountPaid, fullyPaid, outstandingEur, method, scenarioId }) {
+  const amt = Number(amountPaid || 0).toLocaleString('de-DE', { minimumFractionDigits: 2 });
+  const outstanding = Number(outstandingEur || 0).toLocaleString('de-DE', { minimumFractionDigits: 2 });
+  return createEmail({
+    to: 'kundenservice@efactory1.de',
+    toRole: 'admin',
+    from: 'noreply@stripe.com',
+    subject: `Zahlung eingegangen · Auftrag #${orderId} · ${amt} €`,
+    bodyMd: [
+      `Eine Zahlung wurde verbucht.`,
+      ``,
+      `**Auftrag:** #${orderId}`,
+      `**Kunde:** ${customerName || customerId || '—'}`,
+      `**Rate:** ${installmentN || 1}`,
+      `**Betrag:** ${amt} €`,
+      `**Zahlungsweg:** ${paymentMethodLabel(method)}`,
+      fullyPaid ? `**Status:** Vollständig bezahlt — bereit für Fulfillment.` : `**Offen:** ${outstanding} €`,
+    ].join('\n'),
+    cta: { label: 'Auftrag öffnen', action: 'open_admin_order', orderId },
+    kind: 'payment_received_admin',
+    orderId,
+    customerId,
+    scenarioId,
+  });
+}
+
+function gwApplicationAdminNotify({ orderId, customerId, customerName, gwId, gwName, applicationId, pitch, scenarioId }) {
+  return createEmail({
+    to: 'kundenservice@efactory1.de',
+    toRole: 'admin',
+    from: 'noreply@efactory1.de',
+    subject: `Neue Bewerbung · Auftrag #${orderId} · ${gwName || gwId}`,
+    bodyMd: [
+      `Ein Ghostwriter hat sich für einen Job auf dem Board beworben.`,
+      ``,
+      `**Auftrag:** #${orderId}`,
+      `**Kunde:** ${customerName || customerId || '—'}`,
+      `**Ghostwriter:** ${gwName || '—'} (\`${gwId}\`)`,
+      `**Bewerbungs-ID:** ${applicationId || '—'}`,
+      pitch ? `\n**Pitch:**\n${pitch}` : null,
+    ].filter(Boolean).join('\n'),
+    cta: { label: 'Bewerbungen prüfen', action: 'open_admin_order', orderId },
+    kind: 'gw_application_admin',
+    orderId,
+    customerId,
+    gwId,
+    scenarioId,
+  });
+}
+
 function gwJobAvailableToGw({ orderId, gwId, gwEmail, gwName, title, field, pages, finalDeadline, fee, scenarioId }) {
   const dl = finalDeadline ? new Date(finalDeadline).toLocaleDateString('de-DE') : '—';
   return createEmail({
@@ -336,6 +386,51 @@ function gwAssignedToCustomer({ orderId, customerId, customerEmail, customerName
   });
 }
 
+function payoutReleasedGw({ orderId, gwId, gwEmail, gwName, amount, scenarioId }) {
+  const amt = Number(amount || 0).toLocaleString('de-DE', { minimumFractionDigits: 2 });
+  return createEmail({
+    to: gwEmail,
+    toRole: 'gw',
+    from: 'kundenservice@efactory1.de',
+    subject: `Honorar freigegeben · Auftrag #${orderId} · ${amt} €`,
+    bodyMd: [
+      `Hallo ${gwName || ''},`,
+      ``,
+      `Ihr Honorar für Auftrag #${orderId} wurde im Friday-Batch freigegeben.`,
+      ``,
+      `**Betrag:** ${amt} €`,
+      `**Eingang:** Wir-Soldatentag · 1–3 Bankarbeitstage`,
+    ].join('\n'),
+    cta: { label: 'Auszahlungen ansehen', action: 'open_gw_payments', orderId },
+    kind: 'payout_released_gw',
+    orderId,
+    customerId: null,
+    gwId,
+    scenarioId,
+  });
+}
+
+function payoutBatchAdminNotify({ count, totalAmount, scenarioId }) {
+  const amt = Number(totalAmount || 0).toLocaleString('de-DE', { minimumFractionDigits: 2 });
+  return createEmail({
+    to: 'kundenservice@efactory1.de',
+    toRole: 'admin',
+    from: 'noreply@efactory1.de',
+    subject: `Friday-Payout abgeschlossen · ${count} Auszahlungen · ${amt} €`,
+    bodyMd: [
+      `Der Friday-Payout-Batch wurde ausgeführt.`,
+      ``,
+      `**Aufträge:** ${count}`,
+      `**Gesamtbetrag:** ${amt} €`,
+    ].join('\n'),
+    cta: { label: 'Friday-Batch öffnen', action: 'open_admin_friday_batch' },
+    kind: 'payout_batch_admin',
+    orderId: null,
+    customerId: null,
+    scenarioId,
+  });
+}
+
 function gwApplicationRejected({ orderId, gwId, gwEmail, gwName, scenarioId }) {
   return createEmail({
     to: gwEmail,
@@ -368,9 +463,13 @@ export {
   offerSentCustomer,
   invoiceEmailCustomer,
   paymentReceiptCustomer,
+  paymentReceivedAdminNotify,
   paymentMethodLabel,
   gwJobAvailableToGw,
   gwAssignedToGw,
   gwAssignedToCustomer,
   gwApplicationRejected,
+  gwApplicationAdminNotify,
+  payoutReleasedGw,
+  payoutBatchAdminNotify,
 };

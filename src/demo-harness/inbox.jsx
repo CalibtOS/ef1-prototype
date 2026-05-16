@@ -69,6 +69,16 @@ function DemoInbox({ onClose, navigate, switchRole }) {
       switchRole && switchRole('gw', 'gw-assignment-detail', { id: cta.orderId });
       return;
     }
+    if (cta.action === 'open_gw_payments') {
+      onClose && onClose();
+      switchRole && switchRole('gw', 'gw-payments', {});
+      return;
+    }
+    if (cta.action === 'open_admin_friday_batch') {
+      onClose && onClose();
+      switchRole && switchRole('admin', 'friday-batch', {});
+      return;
+    }
   };
 
   return (

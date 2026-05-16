@@ -8,8 +8,21 @@ import { createRoot } from 'react-dom/client'
 import EFActions from './core/actions.js'
 import * as EFHooks from './core/hooks.js'
 import * as EFRoutes from './core/routes.js'
+import store from './core/store.js'
+import * as Scenarios from './sim/scenarios.js'
+import * as SimMail from './sim/mail.js'
 import { setEmitter as setToastEmitter } from './core/toast.js'
 import { Sidebar, Topbar, ToastStack, AdminGlobalBanners } from '../shell.jsx'
+
+// Dev-only bridge for end-to-end propagation testing from the preview eval
+// context. Never exposed in production builds. Read-only access to the live
+// app store + canonical actions; lets verification scripts reach the same
+// module instance the React tree consumes.
+if (import.meta.env?.DEV && typeof window !== 'undefined') {
+  window.__EF_DEV__ = Object.freeze({
+    store, Actions: EFActions, Scenarios, SimMail,
+  })
+}
 
 // Admin role
 import { AdminDashboard } from './admin/dashboard.jsx'

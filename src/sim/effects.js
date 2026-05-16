@@ -198,6 +198,16 @@ DomainEvents.on('gw.application.created', (payload) => {
     orderId, customerId, scenarioId,
     detail: { applicationId: application.id, gwId, gwName: g?.name },
   });
+  SimMail.gwApplicationAdminNotify({
+    orderId,
+    customerId,
+    customerName: selectCustomerName(customerId),
+    gwId,
+    gwName: g?.name || null,
+    applicationId: application.id,
+    pitch: application.pitch || '',
+    scenarioId,
+  });
 });
 
 DomainEvents.on('order.assignment.approved', (payload) => {
@@ -269,6 +279,32 @@ DomainEvents.on('order.gw_assigned', (payload) => {
   }
 });
 
+DomainEvents.on('payments.batch.released', (payload) => {
+  const { released, count, totalAmount } = payload;
+  released.forEach(r => {
+    const g = selectGw(r.gwId);
+    if (!g?.email) return;
+    SimMail.payoutReleasedGw({
+      orderId: r.id,
+      gwId: r.gwId,
+      gwEmail: g.email,
+      gwName: g.name,
+      amount: r.amount,
+      scenarioId: r.scenarioId || null,
+    });
+  });
+  SimMail.payoutBatchAdminNotify({
+    count,
+    totalAmount,
+    scenarioId: released[0]?.scenarioId || null,
+  });
+  SimEvents.emit({
+    source: 'platform',
+    kind: 'payments.batch.released',
+    detail: { count, totalAmount },
+  });
+});
+
 DomainEvents.on('payment.confirmed', (payload) => {
   const { order, orderId, customerId, scenarioId, installment, installmentN, paidEur, outstandingEur, fullyPaid, method } = payload;
   if (!order) return;
@@ -309,6 +345,15 @@ DomainEvents.on('payment.confirmed', (payload) => {
     amountPaid,
     fullyPaid,
     outstandingEur,
+    scenarioId,
+  });
+  SimMail.paymentReceivedAdminNotify({
+    orderId, customerId, customerName,
+    installmentN: installmentN || 1,
+    amountPaid,
+    fullyPaid,
+    outstandingEur,
+    method,
     scenarioId,
   });
   if (order.status === 'available' || order.status === 'active') {

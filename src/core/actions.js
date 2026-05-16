@@ -192,12 +192,22 @@ function applyForJob(orderId, gwId, payload = {}) {
     scenarioId: o.scenarioId || null,
   };
   upsertEntity('gw_applications', application, 'gw_applications.create');
+  const applicantGw = gw(gwId);
+  notifyOrder(orderId, {
+    to: 'admin',
+    kind: 'claim_pending_your_approval',
+    gwId,
+    applicationId: application.id,
+    title: `New application · #${orderId}`,
+    body: `${applicantGw?.name || gwId} applied — review & approve.`,
+  });
   DomainEvents.emit('gw.application.created', {
     application,
     orderId,
     customerId: o.customerId,
     scenarioId: o.scenarioId || null,
     gwId,
+    gwName: applicantGw?.name || null,
   });
   return { ok: true, application };
 }
@@ -605,10 +615,11 @@ function submitWork(orderId, payload = {}) {
   });
   const g = gw(currentGwId);
   if (isInterim) {
+    // Interim submissions go DIRECTLY to the customer. No QA review stage.
     notifyOrder(orderId, { to: 'customer', kind: 'interim_received', submissionId: submission.id, title: 'Ihr Zwischenstand ist verfügbar', body: `Auftrag #${orderId} · Bitte prüfen und Feedback geben` });
     notifyOrder(orderId, { to: 'admin', kind: 'interim_received', submissionId: submission.id, title: `Interim forwarded · #${orderId}`, body: `${g?.name || 'GW'} uploaded interim · auto-sent to customer` });
-    notifyOrder(orderId, { to: 'qa', kind: 'interim_uploaded_auto_forwarded', submissionId: submission.id, title: `Interim uploaded · #${orderId}`, body: `${g?.name || 'GW'} uploaded ${entityKind}. Auto-forwarded to customer; spot-check if needed.` });
   } else {
+    // Final submissions go to QA first; QA forwards to customer on pass.
     notifyOrder(orderId, { to: 'admin', kind: 'final_uploaded', submissionId: submission.id, title: `${kind === 'final' ? 'Final' : 'Revision'} submission · #${orderId}`, body: `${g?.name || 'GW'} uploaded · pending QA` });
     notifyOrder(orderId, { to: 'qa', kind: 'final_uploaded', submissionId: submission.id, title: `New submission · #${orderId}`, body: `${entityKind} · waiting for QA verdict` });
   }
@@ -628,9 +639,15 @@ function qaPass(submissionId) {
     flagged: false,
     deliveredAt: isFinal ? nowIso() : o.deliveredAt,
   });
-  notifyOrder(o.id, { to: 'customer', kind: 'qa_passed', submissionId, title: 'Ihre Arbeit hat die Qualitätsprüfung bestanden', body: `Auftrag #${o.id} · ${isFinal ? 'Endabgabe' : 'Zwischenstand'} freigegeben` });
-  notifyOrder(o.id, { to: 'gw', kind: 'qa_passed', submissionId, title: `QA passed · #${o.id}`, body: 'Forwarded to customer · payment release gate progressing' });
-  notifyOrder(o.id, { to: 'admin', kind: 'qa_passed', submissionId, title: `QA passed · #${o.id}`, body: `${isFinal ? 'Final' : 'Interim'} passed and was forwarded to the customer.` });
+  // Customer is notified ONLY when QA passes a final/revision. Interim does
+  // not pass through QA in the canonical workflow (auto-forwarded at submit
+  // time), so this branch is also a defensive guard against any non-canonical
+  // path that might invoke qaPass on a non-final submission.
+  if (isFinal) {
+    notifyOrder(o.id, { to: 'customer', kind: 'qa_passed', submissionId, title: 'Ihre Endabgabe ist freigegeben', body: `Auftrag #${o.id} · die Endabgabe wurde nach Qualitätsprüfung an Sie weitergeleitet.` });
+  }
+  notifyOrder(o.id, { to: 'gw', kind: 'qa_passed', submissionId, title: `QA passed · #${o.id}`, body: isFinal ? 'Final forwarded to customer · payment release gate progressing' : 'QA spot-check passed' });
+  notifyOrder(o.id, { to: 'admin', kind: 'qa_passed', submissionId, title: `QA passed · #${o.id}`, body: isFinal ? 'Final passed QA and was forwarded to the customer.' : 'QA spot-check passed (interim).' });
   return true;
 }
 
@@ -759,9 +776,23 @@ function releaseBatch(orderIds) {
     const gates = W.releaseGates(o);
     if (!gates.releasable) return;
     patchOrder(id, { status: 'completed', gwPaymentStatus: 'paid', paidToGwAt: nowIso(), completedAt: nowIso() });
-    released.push({ id, amount: o.netHonorarium || 0, gwId: o.gwId });
+    released.push({ id, amount: o.netHonorarium || 0, gwId: o.gwId, customerId: o.customerId, scenarioId: o.scenarioId || null });
   });
   released.forEach(x => notifyOrder(x.id, { to: 'gw', kind: 'payment_released', gwId: x.gwId, title: `€${Number(x.amount).toLocaleString('de-DE', { minimumFractionDigits: 2 })} released · #${x.id}`, body: 'See your bank in 1–3 business days' }));
+  if (released.length > 0) {
+    const total = released.reduce((s, r) => s + (Number(r.amount) || 0), 0);
+    notify({
+      to: 'admin',
+      kind: 'payment_released',
+      title: `Friday-Batch released · ${released.length} payouts · €${Number(total).toLocaleString('de-DE', { minimumFractionDigits: 2 })}`,
+      body: `${released.length} ghostwriter payouts confirmed.`,
+    });
+    DomainEvents.emit('payments.batch.released', {
+      count: released.length,
+      totalAmount: total,
+      released,
+    });
+  }
   return released;
 }
 
