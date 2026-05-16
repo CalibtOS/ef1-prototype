@@ -34,6 +34,65 @@ function submissionClosedReason(order) {
   return W.submissionClosedReason(order);
 }
 
+function Check({ k, label, why, checks, setChecks }) {
+  return (
+    <label className="flex items-start gap-2" style={{ padding: '10px 12px', border: '1px solid var(--border)', borderRadius: 8, cursor: 'pointer', background: checks[k] ? 'color-mix(in oklab, var(--green) 5%, var(--surface))' : 'var(--surface)' }}>
+      <input type="checkbox" checked={checks[k]} onChange={(e) => setChecks(c => ({ ...c, [k]: e.target.checked }))} style={{ marginTop: 2 }}/>
+      <div className="flex-col" style={{ lineHeight: 1.35 }}>
+        <span className="fs-12 strong">{label}</span>
+        {why && <span className="fs-11 text-faint">{why}</span>}
+      </div>
+    </label>
+  );
+}
+
+function FilePicker({ label, current, err, onPicked, accept, allowedExt, inputRef, hint }) {
+  const [drag, setDrag] = useState(false);
+  const onChange = (e) => { const f = e.target.files?.[0]; if (f) onPicked(f); e.target.value = ''; };
+  const onDrop = (e) => { e.preventDefault(); e.stopPropagation(); setDrag(false); const f = e.dataTransfer?.files?.[0]; if (f) onPicked(f); };
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-1">
+        <span className="fs-12 strong">{label}</span>
+        {current && <span className="pill pill-green"><Icon name="check" size={10}/> ready</span>}
+      </div>
+      <input ref={inputRef} type="file" accept={accept} onChange={onChange} style={{ display: 'none' }} aria-label={label}/>
+      <div
+        role="button"
+        tabIndex={0}
+        onClick={() => inputRef.current?.click()}
+        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); inputRef.current?.click(); } }}
+        onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); setDrag(true); }}
+        onDragLeave={(e) => { e.preventDefault(); e.stopPropagation(); setDrag(false); }}
+        onDrop={onDrop}
+        style={{
+          border: `2px dashed ${drag ? 'var(--blue)' : (err ? 'var(--red)' : 'var(--border)')}`,
+          borderRadius: 10, padding: current ? 14 : 24, cursor: 'pointer',
+          background: drag ? 'color-mix(in oklab, var(--blue) 6%, var(--surface-2))' : 'var(--surface-2)',
+          transition: 'border-color .15s, background .15s', textAlign: 'center',
+        }}
+      >
+        {current ? (
+          <div className="flex items-center gap-2" style={{ justifyContent: 'center' }}>
+            <Icon name="file-text" size={16} className="text-muted"/>
+            <span className="fs-12 mono">{current.name}</span>
+            <span className="text-faint fs-11">· {(current.size/1024).toFixed(0)} KB</span>
+            <button type="button" className="btn btn-sm" onClick={(e) => { e.stopPropagation(); inputRef.current?.click(); }}>Replace</button>
+          </div>
+        ) : (
+          <div className="flex-col items-center gap-1">
+            <Icon name="upload-cloud" size={22} className="text-faint"/>
+            <div className="fs-12 strong">{drag ? 'Drop to attach' : 'Click or drop file'}</div>
+            <div className="fs-11 text-faint">{allowedExt.join(', ')} · max 5 MB</div>
+          </div>
+        )}
+      </div>
+      {hint && <div className="fs-11 text-faint mt-1">{hint}</div>}
+      {err && <div className="banner danger mt-2" style={{ fontSize: 11.5 }}><Icon name="alert-triangle" size={12}/> <span>{err}</span></div>}
+    </div>
+  );
+}
+
 // ============ GW SUBMIT ============
 // Per-assignment submit. Routes:
 //   #/gw/gw-submit?id=3520&kind=interim_1
@@ -55,8 +114,24 @@ function GWSubmit({ orderId, kind, navigate, toast }) {
     if (order.interimDeadline && U.daysTo(order.interimDeadline) >= -1 && order.status === 'active') return 'interim_1';
     return 'final';
   })();
+  // ---- pipeline state ----
+  // NB: declared BEFORE the closed-state gate so that, once submission starts,
+  // we keep rendering the pipeline view even after `submitWork` mutates the order
+  // into a state where allowedSubmissionKinds() no longer includes our kind.
+  // Otherwise the component would swap trees mid-flight and crash with removeChild.
+  const [step, setStep] = useState(0);
+  const timersRef = useRef([]);
+  const submittingRef = useRef(false);
+
+  useEffect(() => {
+    return () => {
+      timersRef.current.forEach((id) => window.clearTimeout(id));
+      timersRef.current = [];
+    };
+  }, []);
+
   const allowedKinds = allowedSubmissionKinds(order);
-  if (!allowedKinds.includes(resolvedKind)) {
+  if (step === 0 && !allowedKinds.includes(resolvedKind)) {
     return (
       <div className="page" style={{ maxWidth: 640, margin: '0 auto' }}>
         <div className="page-header">
@@ -110,9 +185,6 @@ function GWSubmit({ orderId, kind, navigate, toast }) {
   const workInputRef = useRef(null);
   const invoiceInputRef = useRef(null);
 
-  // ---- pipeline state ----
-  const [step, setStep] = useState(0); // 0 idle, 1 upload, 2 plag, 3 ai, 4 qa, 5 done
-
   const MAX_BYTES = 5 * 1024 * 1024;
   // PRD: .doc, .docx, .pdf, .xls, .xlsx — max 5 MB
   const ACCEPTED_MIME = [
@@ -153,12 +225,20 @@ function GWSubmit({ orderId, kind, navigate, toast }) {
   const canSubmit = allChecksDone && filesReady && step === 0;
 
   const submit = () => {
-    if (!canSubmit) return;
+    if (!canSubmit || submittingRef.current) return;
+    submittingRef.current = true;
+    timersRef.current.forEach((id) => window.clearTimeout(id));
+    timersRef.current = [];
+    const schedule = (fn, ms) => {
+      const id = window.setTimeout(fn, ms);
+      timersRef.current.push(id);
+      return id;
+    };
     setStep(1);
-    setTimeout(() => setStep(2), 1100);
-    setTimeout(() => setStep(3), 2400);
-    setTimeout(() => setStep(4), 3500);
-    setTimeout(() => {
+    schedule(() => setStep(2), 1100);
+    schedule(() => setStep(3), 2400);
+    schedule(() => setStep(4), 3500);
+    schedule(() => {
       setStep(5);
       EFActions.gw.submit(order.id, {
         kind: resolvedKind,
@@ -194,63 +274,6 @@ function GWSubmit({ orderId, kind, navigate, toast }) {
         { name: 'Auto-forwarded', icon: 'send' },
       ];
 
-  const Check = ({ k, label, why }) => (
-    <label className="flex items-start gap-2" style={{ padding: '10px 12px', border: '1px solid var(--border)', borderRadius: 8, cursor: 'pointer', background: checks[k] ? 'color-mix(in oklab, var(--green) 5%, var(--surface))' : 'var(--surface)' }}>
-      <input type="checkbox" checked={checks[k]} onChange={(e) => setChecks(c => ({ ...c, [k]: e.target.checked }))} style={{ marginTop: 2 }}/>
-      <div className="flex-col" style={{ lineHeight: 1.35 }}>
-        <span className="fs-12 strong">{label}</span>
-        {why && <span className="fs-11 text-faint">{why}</span>}
-      </div>
-    </label>
-  );
-
-  const FilePicker = ({ label, current, err, onPicked, accept, allowedExt, inputRef, hint }) => {
-    const [drag, setDrag] = useState(false);
-    const onChange = (e) => { const f = e.target.files?.[0]; if (f) onPicked(f); e.target.value = ''; };
-    const onDrop = (e) => { e.preventDefault(); e.stopPropagation(); setDrag(false); const f = e.dataTransfer?.files?.[0]; if (f) onPicked(f); };
-    return (
-      <div>
-        <div className="flex items-center justify-between mb-1">
-          <span className="fs-12 strong">{label}</span>
-          {current && <span className="pill pill-green"><Icon name="check" size={10}/> ready</span>}
-        </div>
-        <input ref={inputRef} type="file" accept={accept} onChange={onChange} style={{ display: 'none' }} aria-label={label}/>
-        <div
-          role="button"
-          tabIndex={0}
-          onClick={() => inputRef.current?.click()}
-          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); inputRef.current?.click(); } }}
-          onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); setDrag(true); }}
-          onDragLeave={(e) => { e.preventDefault(); e.stopPropagation(); setDrag(false); }}
-          onDrop={onDrop}
-          style={{
-            border: `2px dashed ${drag ? 'var(--blue)' : (err ? 'var(--red)' : 'var(--border)')}`,
-            borderRadius: 10, padding: current ? 14 : 24, cursor: 'pointer',
-            background: drag ? 'color-mix(in oklab, var(--blue) 6%, var(--surface-2))' : 'var(--surface-2)',
-            transition: 'border-color .15s, background .15s', textAlign: 'center',
-          }}
-        >
-          {current ? (
-            <div className="flex items-center gap-2" style={{ justifyContent: 'center' }}>
-              <Icon name="file-text" size={16} className="text-muted"/>
-              <span className="fs-12 mono">{current.name}</span>
-              <span className="text-faint fs-11">· {(current.size/1024).toFixed(0)} KB</span>
-              <button type="button" className="btn btn-sm" onClick={(e) => { e.stopPropagation(); inputRef.current?.click(); }}>Replace</button>
-            </div>
-          ) : (
-            <>
-              <Icon name="upload-cloud" size={22} className="text-faint"/>
-              <div className="fs-12 strong mt-1">{drag ? 'Drop to attach' : 'Click or drop file'}</div>
-              <div className="fs-11 text-faint mt-1">{allowedExt.join(', ')} · max 5 MB</div>
-            </>
-          )}
-        </div>
-        {hint && <div className="fs-11 text-faint mt-1">{hint}</div>}
-        {err && <div className="banner danger mt-2" style={{ fontSize: 11.5 }}><Icon name="alert-triangle" size={12}/> <span>{err}</span></div>}
-      </div>
-    );
-  };
-
   // ---- Pipeline view ----
   if (step >= 1) {
     return (
@@ -266,7 +289,7 @@ function GWSubmit({ orderId, kind, navigate, toast }) {
           <div className="card-pad">
             <div className="flex justify-between items-center">
               {stages.map((s, i) => (
-                <React.Fragment key={i}>
+                <div key={s.name} className="flex items-center" style={{ flex: i < stages.length - 1 ? 1.4 : 1, minWidth: 0 }}>
                   <div className="flex-col items-center gap-1" style={{ flex: 1, opacity: step >= i+1 ? 1 : 0.4 }}>
                     <div style={{ width: 36, height: 36, borderRadius: 18, background: step > i+1 ? 'var(--green)' : step === i+1 ? 'var(--blue)' : 'var(--surface-3)', color: step >= i+1 ? 'white' : 'var(--text-3)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                       {step > i+1 ? <Icon name="check" size={16}/> : <Icon name={s.icon} size={16}/>}
@@ -274,7 +297,7 @@ function GWSubmit({ orderId, kind, navigate, toast }) {
                     <div className="fs-11 strong">{s.name}</div>
                   </div>
                   {i < stages.length - 1 && <div style={{ flex: 0.4, height: 2, background: step > i+1 ? 'var(--green)' : 'var(--border)', marginBottom: 18 }}/>}
-                </React.Fragment>
+                </div>
               ))}
             </div>
           </div>
@@ -300,7 +323,7 @@ function GWSubmit({ orderId, kind, navigate, toast }) {
               </div>
             )}
             {isInterim ? (
-              <>
+              <div className="flex-col gap-3">
                 <div className="flex items-center gap-3" style={{ padding: 12, border: '1px solid var(--border)', borderRadius: 8 }}>
                   <Icon name="check-circle" size={20} className={step >= 2 ? 'text-success' : 'text-muted'} />
                   <div style={{ flex: 1 }}><strong className="fs-12">Customer-ready self-check recorded</strong><div className="fs-11 text-faint">{step >= 2 ? 'No-AI / ready-to-send / guidelines acknowledgements stored' : 'Recording checklist…'}</div></div>
@@ -311,9 +334,9 @@ function GWSubmit({ orderId, kind, navigate, toast }) {
                   <div style={{ flex: 1 }}><strong className="fs-12">Auto-forward to customer</strong><div className="fs-11 text-faint">{step >= 3 ? 'Sent immediately to customer · efactory1 remains in CC' : 'Forwarding…'}</div></div>
                   {step >= 3 && <span className="pill pill-green"><Icon name="check" size={10}/> SENT</span>}
                 </div>
-              </>
+              </div>
             ) : (
-              <>
+              <div className="flex-col gap-3">
                 <div className="flex items-center gap-3" style={{ padding: 12, border: '1px solid var(--border)', borderRadius: 8 }}>
                   <Icon name="shield-check" size={20} className={step >= 2 ? 'text-success' : 'text-muted'} />
                   <div style={{ flex: 1 }}><strong className="fs-12">Plagiarism scan (PlagScan)</strong><div className="fs-11 text-faint">{step >= 2 ? '4% — within tolerance' : 'Scanning…'}</div></div>
@@ -329,7 +352,7 @@ function GWSubmit({ orderId, kind, navigate, toast }) {
                   <div style={{ flex: 1 }}><strong className="fs-12">QA queue</strong><div className="fs-11 text-faint">{step >= 4 ? 'Forwarded · admin will review within 4h' : 'Queueing…'}</div></div>
                   {step >= 4 && <span className="pill pill-green"><Icon name="check" size={10}/> DONE</span>}
                 </div>
-              </>
+              </div>
             )}
             {step >= 5 && (
               <div className="banner success">
@@ -360,7 +383,7 @@ function GWSubmit({ orderId, kind, navigate, toast }) {
         <div>
           <CrumbBar trail={['My Assignments', `#${order.id}`, 'Submit']}/>
           <h1 className="page-title" style={{ marginTop: 6 }}>{kindLabel}</h1>
-          <div className="page-subtitle">Order #{order.id} · {order.titleTBD ? 'folgt' : order.title}{dueDate ? <> · due <span className="mono">{U.fmtDate(dueDate)}, 18:00</span></> : null}</div>
+          <div className="page-subtitle">Order #{order.id} · {order.titleTBD ? 'folgt' : order.title}{dueDate ? <span> · due <span className="mono">{U.fmtDate(dueDate)}, 18:00</span></span> : null}</div>
         </div>
         <div className="page-actions">
           <button className="btn" onClick={() => navigate('gw-assignment-detail', { id: order.id })}><Icon name="chevron-left" size={14}/> Back</button>
@@ -386,15 +409,15 @@ function GWSubmit({ orderId, kind, navigate, toast }) {
           <span className="text-faint fs-11">All boxes required · SOP E</span>
         </div>
         <div className="card-pad flex-col gap-2">
-          <Check k="spelling" label="Spelling reviewed" why="Run a German spell-check pass — no obvious typos"/>
-          <Check k="grammar" label="Grammar reviewed" why="Sentence structure, agreement, punctuation"/>
-          <Check k="plagiarism" label="Plagiarism self-check completed" why="I've quoted/cited every external source. PlagScan will run again on upload."/>
-          <Check k="requirements" label="Customer requirements re-read" why="Aligned to brief, outline, page count, citation style"/>
+          <Check k="spelling" label="Spelling reviewed" why="Run a German spell-check pass — no obvious typos" checks={checks} setChecks={setChecks}/>
+          <Check k="grammar" label="Grammar reviewed" why="Sentence structure, agreement, punctuation" checks={checks} setChecks={setChecks}/>
+          <Check k="plagiarism" label="Plagiarism self-check completed" why="I've quoted/cited every external source. PlagScan will run again on upload." checks={checks} setChecks={setChecks}/>
+          <Check k="requirements" label="Customer requirements re-read" why="Aligned to brief, outline, page count, citation style" checks={checks} setChecks={setChecks}/>
           <div style={{ borderTop: '1px dashed var(--border)', margin: '6px 0', paddingTop: 6 }}/>
-          <Check k="noAi" label="No AI tools used" why="ChatGPT, Claude, Gemini etc. are forbidden under AGB v3.2"/>
-          <Check k="ready" label={isInterim ? 'Interim is ready to send to the customer' : 'Work is ready to send to the customer'} why={isInterim ? 'Interim drafts auto-forward immediately after upload.' : 'Final formatting, deckblatt, references, appendices — all done'}/>
+          <Check k="noAi" label="No AI tools used" why="ChatGPT, Claude, Gemini etc. are forbidden under AGB v3.2" checks={checks} setChecks={setChecks}/>
+          <Check k="ready" label={isInterim ? 'Interim is ready to send to the customer' : 'Work is ready to send to the customer'} why={isInterim ? 'Interim drafts auto-forward immediately after upload.' : 'Final formatting, deckblatt, references, appendices — all done'} checks={checks} setChecks={setChecks}/>
           {(isFinal || isRevision) && (
-            <Check k="individual" label="Individually created for this customer" why="No reused content from prior jobs (Werkvertrag requirement)"/>
+            <Check k="individual" label="Individually created for this customer" why="No reused content from prior jobs (Werkvertrag requirement)" checks={checks} setChecks={setChecks}/>
           )}
         </div>
       </div>

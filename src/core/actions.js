@@ -11,6 +11,7 @@ import * as W from './workflow.js';
 import * as I from './internals.js';
 import * as N from './notifications.js';
 import * as T from './threads.js';
+import * as DomainEvents from './events.js';
 import { QA_STATUS } from './status.js';
 
 const nowIso = I.nowIso;
@@ -92,32 +93,151 @@ function assignGw(orderId, gwId, opts = {}) {
   const targetGw = gw(gwId);
   if (!targetGw) { toast({ text: 'Ghostwriter not found', tone: 'danger' }); return false; }
   const selfAssigned = !!targetGw.isOwner || !!opts.selfAssigned;
+  const assignmentMode = opts.assignmentMode || (selfAssigned ? 'self' : 'direct');
+  const cascadingFromBoard = opts.assignmentMode !== 'job_board' && o.assignmentMode === 'job_board' && o.jobBoardStatus === 'open';
+  let cascadeRejections = [];
+  if (cascadingFromBoard) {
+    const at = nowIso();
+    cascadeRejections = tableItemsByOrder('gw_applications', orderId).filter(a => a.status === 'pending');
+    cascadeRejections.forEach(a => {
+      patchEntity('gw_applications', a.id, { status: 'rejected', resolvedAt: at, rejectedBy: 'direct_assigned_outside_board' }, 'gw_applications.cascade_reject');
+    });
+  }
   patchOrder(orderId, {
     gwId,
     status: 'active',
     assignedAt: nowIso(),
     selfAssigned,
+    assignmentMode,
+    jobBoardStatus: (cascadingFromBoard || assignmentMode === 'job_board') ? 'closed' : null,
     gwPaymentStatus: selfAssigned ? 'no_payment_self_assigned' : (o.gwPaymentStatus || 'work_in_progress'),
   });
   if (!selfAssigned) {
     notifyOrder(orderId, { to: 'gw', kind: 'assignment_approved', gwId, title: `Order #${orderId} assigned`, body: 'Briefing email sent · NICHT WEITERLEITEN' });
   }
   notifyOrder(orderId, { to: 'customer', kind: 'assignment_intro', customerId: o.customerId, title: 'Ihr Ghostwriter wurde zugewiesen', body: `${targetGw.name} meldet sich heute bei Ihnen.` });
+  const after = order(orderId);
+  DomainEvents.emit('order.gw_assigned', {
+    order: after,
+    orderId,
+    customerId: after?.customerId,
+    scenarioId: after?.scenarioId || null,
+    gwId,
+    gwName: targetGw.name,
+    assignmentMode,
+    selfAssigned,
+  });
+  if (cascadingFromBoard && cascadeRejections.length) {
+    DomainEvents.emit('order.assignment.board_cancelled', {
+      order: after,
+      orderId,
+      customerId: after?.customerId,
+      scenarioId: after?.scenarioId || null,
+      rejectedApplications: cascadeRejections.map(a => ({ id: a.id, gwId: a.gwId })),
+      reason: 'direct_assigned_outside_board',
+    });
+  }
   return true;
 }
 
-function markInstallmentPaid(orderId, n) {
+function publishJobToBoard(orderId, opts = {}) {
   const o = order(orderId);
-  if (!o) return false;
-  const installments = (o.installments || []).map(i => i.n === n ? { ...i, status: 'paid', date: '2026-05-07' } : i);
-  const paid = installments.filter(i => i.status === 'paid').reduce((s, i) => s + (i.amt || 0), 0);
-  const outstanding = Math.max(0, (o.grossEur || 0) - paid);
-  const nextPatch = { installments, paidEur: paid, outstandingEur: outstanding };
-  if (o.status === 'invoice_sent' && paid > 0) nextPatch.status = 'available';
-  patchOrder(orderId, nextPatch);
-  notifyOrder(orderId, { to: 'admin', kind: 'payment_confirmed', title: `Installment ${n} paid · #${orderId}`, body: `Outstanding balance now €${outstanding.toFixed(2)}` });
-  notifyOrder(orderId, { to: 'customer', kind: 'payment_confirmed', title: 'Zahlung bestätigt', body: `Auftrag #${orderId} · Rate ${n} verbucht.` });
-  return true;
+  if (!o) return { ok: false, reason: 'not_found' };
+  if (o.gwId) return { ok: false, reason: 'already_assigned' };
+  if (o.assignmentMode === 'job_board' && o.jobBoardStatus === 'open') {
+    return { ok: true, order: o, alreadyOpen: true };
+  }
+  // Admin may edit a small whitelist of fields right before publishing so the
+  // GW job board row reflects the final brief. Anything not in the whitelist
+  // is ignored — this is not a generic order-edit endpoint.
+  const allowed = ['title', 'titleTBD', 'workType', 'field', 'pages', 'finalDeadline', 'interimDeadline', 'netHonorarium', 'gwBoardNote'];
+  const editPatch = {};
+  if (opts.patch) {
+    for (const k of allowed) {
+      if (Object.prototype.hasOwnProperty.call(opts.patch, k)) editPatch[k] = opts.patch[k];
+    }
+  }
+  patchOrder(orderId, {
+    ...editPatch,
+    assignmentMode: 'job_board',
+    jobBoardStatus: 'open',
+    jobBoardPublishedAt: nowIso(),
+    status: o.status === 'invoice_sent' ? o.status : (o.status === 'qualified' || o.status === 'offer_sent' ? o.status : 'available'),
+  });
+  const after = order(orderId);
+  DomainEvents.emit('order.assignment.posted_to_board', {
+    order: after,
+    orderId,
+    customerId: after?.customerId,
+    scenarioId: after?.scenarioId || null,
+  });
+  return { ok: true, order: after };
+}
+
+function applyForJob(orderId, gwId, payload = {}) {
+  const o = order(orderId);
+  if (!o) return { ok: false, reason: 'not_found' };
+  if (o.gwId) return { ok: false, reason: 'already_assigned' };
+  if (o.jobBoardStatus !== 'open') return { ok: false, reason: 'board_closed' };
+  const existing = tableItemsByOrder('gw_applications', orderId).find(a => a.gwId === gwId && a.status === 'pending');
+  if (existing) return { ok: true, application: existing, dup: true };
+  const application = {
+    id: `app-${orderId}-${gwId}-${Date.now().toString(36)}`,
+    orderId,
+    gwId,
+    status: 'pending',
+    appliedAt: nowIso(),
+    pitch: payload.pitch || '',
+    termsAccepted: !!payload.termsAccepted,
+    scenarioId: o.scenarioId || null,
+  };
+  upsertEntity('gw_applications', application, 'gw_applications.create');
+  DomainEvents.emit('gw.application.created', {
+    application,
+    orderId,
+    customerId: o.customerId,
+    scenarioId: o.scenarioId || null,
+    gwId,
+  });
+  return { ok: true, application };
+}
+
+function approveApplication(applicationId) {
+  const state = store.getState();
+  const app = state.entities.gw_applications?.byId?.[applicationId];
+  if (!app) return { ok: false, reason: 'not_found' };
+  if (app.status !== 'pending') return { ok: false, reason: 'not_pending' };
+  const o = order(app.orderId);
+  if (!o) return { ok: false, reason: 'order_missing' };
+  if (o.gwId) return { ok: false, reason: 'already_assigned' };
+  const approvedAt = nowIso();
+  patchEntity('gw_applications', applicationId, { status: 'approved', resolvedAt: approvedAt }, 'gw_applications.approve');
+  const peers = tableItemsByOrder('gw_applications', app.orderId).filter(a => a.id !== applicationId && a.status === 'pending');
+  peers.forEach(p => {
+    patchEntity('gw_applications', p.id, { status: 'rejected', resolvedAt: approvedAt, rejectedBy: 'cascade' }, 'gw_applications.cascade_reject');
+  });
+  assignGw(app.orderId, app.gwId, { assignmentMode: 'job_board' });
+  patchOrder(app.orderId, { jobBoardStatus: 'closed' });
+  const after = order(app.orderId);
+  DomainEvents.emit('order.assignment.approved', {
+    order: after,
+    orderId: app.orderId,
+    customerId: after?.customerId,
+    scenarioId: after?.scenarioId || null,
+    approvedApplicationId: applicationId,
+    approvedGwId: app.gwId,
+    rejectedApplications: peers.map(p => ({ id: p.id, gwId: p.gwId })),
+  });
+  return { ok: true, application: { ...app, status: 'approved' }, rejectedCount: peers.length };
+}
+
+function tableItemsByOrder(kind, orderId) {
+  const t = store.getState().entities[kind];
+  return (t?.allIds || []).map(id => t.byId[id]).filter(x => x && x.orderId === orderId);
+}
+
+function markInstallmentPaid(orderId, n) {
+  return confirmPayment(orderId, { installmentN: n });
 }
 
 function setHonorRate(orderId, rate) {
@@ -144,6 +264,19 @@ function sendOffer(orderId, patch = {}) {
     title: `Angebot verfügbar · Auftrag #${orderId}`,
     body: `${o.title || 'Ihr Auftrag'} · bitte Angebot prüfen und Rechnungsdaten bestätigen.`,
   });
+  const after = order(orderId);
+  DomainEvents.emit('order.offer_sent', {
+    order: after,
+    customerId: after?.customerId || o.customerId,
+    scenarioId: after?.scenarioId || o.scenarioId || null,
+    offerNo: after?.sevdeskOfferNo || null,
+    totalGross: after?.grossEur ?? null,
+    pageRate: after?.offerPageRate ?? null,
+    discountPct: after?.discountPct ?? null,
+    interimDeadline: after?.interimDeadline || null,
+    finalDeadline: after?.finalDeadline || null,
+    note: after?.offerNote || null,
+  });
   return true;
 }
 
@@ -163,22 +296,139 @@ function sendInvoice(orderId, patch = {}) {
   return true;
 }
 
+function defaultInstallmentPlan(totalGross, paymentMethod) {
+  const total = Math.max(0, Math.round((Number(totalGross) || 0) * 100) / 100);
+  if (paymentMethod === 'stripe_klarna') {
+    const each = Math.round((total / 3) * 100) / 100;
+    return [
+      { n: 1, amt: each, status: 'pending', method: paymentMethod },
+      { n: 2, amt: each, status: 'scheduled', method: paymentMethod },
+      { n: 3, amt: Math.max(0, Math.round((total - 2 * each) * 100) / 100), status: 'scheduled', method: paymentMethod },
+    ];
+  }
+  if (paymentMethod === 'bank_transfer_sepa') {
+    const half = Math.round((total / 2) * 100) / 100;
+    return [
+      { n: 1, amt: half, status: 'pending', method: paymentMethod },
+      { n: 2, amt: Math.max(0, Math.round((total - half) * 100) / 100), status: 'scheduled', method: paymentMethod },
+    ];
+  }
+  return [{ n: 1, amt: total, status: 'pending', method: paymentMethod }];
+}
+
+// Customer accepts the offer. Captures billing/AGB/payment-method, transitions
+// the order to invoice_sent, builds the installment plan, and emits the
+// domain event so sim effects can create the Rechnung artifact, checkout
+// session, and email. Idempotent: re-accepting a non-offer_sent order is a
+// no-op.
+function acceptOffer(orderId, payload = {}) {
+  const o = order(orderId);
+  if (!o) return { ok: false, reason: 'not_found' };
+  if (o.status !== 'offer_sent' && o.status !== 'qualified') {
+    return { ok: false, reason: 'already_accepted', order: o };
+  }
+  const paymentMethod = payload.paymentMethod || 'stripe_card';
+  const totalGross = o.grossEur || 0;
+  const installments = payload.installments || defaultInstallmentPlan(totalGross, paymentMethod);
+  const invoiceNo = payload.sevdeskInvoiceNo || o.sevdeskInvoiceNo || `RG-${String(26000 + (Number(orderId) % 100)).padStart(5, '0')}`;
+  const acceptedAt = payload.acceptedAt || nowIso();
+  const acceptance = {
+    acceptedAt,
+    billingAddress: payload.billingAddress || null,
+    agbVersion: payload.agbVersion || 'v3.2',
+    agbAcceptedAt: acceptedAt,
+    marketingOptIn: !!payload.marketingOptIn,
+  };
+  patchOrder(orderId, {
+    status: 'invoice_sent',
+    invoiceSentAt: acceptedAt,
+    sevdeskInvoiceNo: invoiceNo,
+    paymentMethodChoice: paymentMethod,
+    paidEur: 0,
+    outstandingEur: totalGross,
+    installments,
+    pipedriveStage: 'Rechnung angefordert',
+    customerAcceptance: acceptance,
+  });
+  notifyOrder(orderId, { to: 'admin', kind: 'invoice_sent', title: `Offer accepted · invoice sent · #${orderId}`, body: `${invoiceNo} issued (${paymentMethod}). Waiting for customer payment.` });
+  const after = order(orderId);
+  DomainEvents.emit('order.offer_accepted', {
+    order: after,
+    customerId: after?.customerId,
+    scenarioId: after?.scenarioId || null,
+    invoiceNo,
+    paymentMethod,
+    installments,
+    totalGross,
+    billingAddress: acceptance.billingAddress,
+  });
+  return { ok: true, order: after, invoiceNo, paymentMethod, installments };
+}
+
 function confirmPayment(orderId, patch = {}) {
   const o = order(orderId);
   if (!o) return false;
-  const paidEur = patch.paidEur ?? (o.grossEur || 0);
-  const outstandingEur = patch.outstandingEur ?? 0;
-  const nextStatus = patch.status || (o.gwId ? 'active' : 'available');
+  const installmentN = patch.installmentN ?? null;
+  let installments = o.installments ? o.installments.map(i => ({ ...i })) : [];
+  let installmentPaid = null;
+  if (installmentN != null && installments.length) {
+    const idx = installments.findIndex(i => i.n === installmentN);
+    if (idx >= 0) {
+      if (installments[idx].status === 'paid') return false;
+      installments[idx] = { ...installments[idx], status: 'paid', date: patch.paidAt || nowIso().slice(0, 10) };
+      installmentPaid = installments[idx];
+    }
+  } else if (patch.installments) {
+    installments = patch.installments;
+  } else if (installments.length) {
+    installments = installments.map(i => ({ ...i, status: 'paid', date: i.date || nowIso().slice(0, 10) }));
+  }
+  const paidEur = installments.length
+    ? Math.round(installments.filter(i => i.status === 'paid').reduce((s, i) => s + (Number(i.amt) || 0), 0) * 100) / 100
+    : (patch.paidEur ?? (o.grossEur || 0));
+  const totalGross = Number(o.grossEur || 0);
+  const outstandingEur = patch.outstandingEur ?? Math.max(0, Math.round((totalGross - paidEur) * 100) / 100);
+  const fullyPaid = installments.length ? installments.every(i => i.status === 'paid') : true;
+  const firstInstallmentPaid = installments.length ? installments.find(i => i.n === 1)?.status === 'paid' : true;
+  const nextStatus = patch.status || ((firstInstallmentPaid && o.status === 'invoice_sent') ? (o.gwId ? 'active' : 'available') : o.status);
   patchOrder(orderId, {
     status: nextStatus,
     paidEur,
     outstandingEur,
     paymentConfirmedAt: patch.paymentConfirmedAt || nowIso(),
-    pipedriveStage: patch.pipedriveStage || 'Won',
+    pipedriveStage: fullyPaid ? (patch.pipedriveStage || 'Won') : (o.pipedriveStage || 'Won'),
+    installments,
     ...patch,
   });
-  notifyOrder(orderId, { to: 'admin', kind: 'payment_confirmed', title: `Payment confirmed · #${orderId}`, body: `Pipedrive Won · ${outstandingEur > 0 ? `outstanding €${Number(outstandingEur).toFixed(2)}` : 'ready for fulfillment'}` });
-  notifyOrder(orderId, { to: 'customer', kind: 'payment_confirmed', title: 'Zahlung bestätigt', body: `Auftrag #${orderId} · Ihre Zahlung wurde verbucht.` });
+  const after = order(orderId);
+  notifyOrder(orderId, {
+    to: 'admin',
+    kind: 'payment_confirmed',
+    title: `Payment confirmed · #${orderId}`,
+    body: fullyPaid
+      ? `All installments paid · ready for fulfillment`
+      : `Rate ${installmentPaid?.n || installmentN || 1} confirmed · outstanding €${Number(outstandingEur).toFixed(2)}`,
+  });
+  notifyOrder(orderId, {
+    to: 'customer',
+    kind: 'payment_confirmed',
+    title: fullyPaid ? 'Zahlung vollständig bestätigt' : `Rate ${installmentPaid?.n || installmentN || 1} bestätigt`,
+    body: fullyPaid
+      ? `Auftrag #${orderId} · Ihre Zahlung wurde vollständig verbucht.`
+      : `Auftrag #${orderId} · Rate ${installmentPaid?.n || installmentN || 1} ist eingegangen.`,
+  });
+  DomainEvents.emit('payment.confirmed', {
+    order: after,
+    orderId,
+    customerId: after?.customerId,
+    scenarioId: after?.scenarioId || null,
+    installmentN: installmentPaid?.n || installmentN || null,
+    installment: installmentPaid,
+    paidEur,
+    outstandingEur,
+    fullyPaid,
+    method: installmentPaid?.method || after?.paymentMethodChoice || null,
+  });
   return true;
 }
 
@@ -646,6 +896,19 @@ function setRole(role) {
   store.setState(prev => ({ ...prev, session: { ...prev.session, role } }), 'session.setRole');
 }
 
+// Atomic persona switch: role + optional customerId/gwId in one transition.
+// Used by the persona dropdown so that switching into a customer (seeded or
+// dynamic) attaches the correct identity in the same tick the role flips.
+function setPersona({ role, customerId, gwId }) {
+  store.setState(prev => {
+    const next = { ...prev.session };
+    if (role) next.role = role;
+    if (customerId) next.customerId = customerId;
+    if (gwId) next.gwId = gwId;
+    return { ...prev, session: next };
+  }, 'session.setPersona');
+}
+
 function setRoute(route) {
   store.setState(prev => ({ ...prev, ui: { ...prev.ui, route } }), 'ui.setRoute');
 }
@@ -653,7 +916,7 @@ function setRoute(route) {
 const actions = {
   toast,
   notify,
-  session: { setRole, setRoute },
+  session: { setRole, setPersona, setRoute },
   orders: {
     patch: patchOrder,
     create: createOrder,
@@ -664,7 +927,10 @@ const actions = {
     setHonorRate,
     sendOffer,
     sendInvoice,
+    acceptOffer,
     confirmPayment,
+    publishJobToBoard,
+    approveApplication,
     hold: holdOrder,
     cancelAssignment,
     cancel: cancelOrder,
@@ -678,6 +944,7 @@ const actions = {
   },
   gw: {
     claimJob,
+    applyForJob,
     confirmFirstContactReceipt,
     completeFirstContact,
     submit: submitWork,

@@ -2,6 +2,7 @@
 // no `window.*` bridges. Action handlers reach the toast queue through
 // `core/toast.js`, which is wired here.
 
+import './core/dom-safety.js'
 import React, { useState, useEffect, useCallback } from 'react'
 import { createRoot } from 'react-dom/client'
 import EFActions from './core/actions.js'
@@ -54,6 +55,19 @@ import { QAHistory } from './qa/history.jsx'
 
 // Customer role
 import { CustomerView } from './customer/view.jsx'
+
+// WP simulation
+import { WpHausarbeit } from './wp/hausarbeit.jsx'
+import { WpVielenDank } from './wp/vielen-dank.jsx'
+
+// Simulated Stripe checkout (outside product shell)
+import { FakeStripeCheckout } from './sim/stripe-checkout-page.jsx'
+
+// Demo harness (outside product shell)
+import { DemoHarnessBar } from './demo-harness/bar.jsx'
+
+// Simulation effects subscribe to domain events on import
+import './sim/effects.js'
 
 // Dev tools
 import { TweaksPanel } from './dev/tweaks-panel.jsx'
@@ -153,9 +167,25 @@ function App() {
     applyRoute(role, name, params)
   }, [applyRoute, role])
 
+  const harnessGoTo = useCallback((targetRole, name, params = {}) => {
+    applyRoute(targetRole || role, name, params)
+  }, [applyRoute, role])
+
   const setRole = useCallback((nextRole) => {
     const nextName = EFRoutes.defaultRouteFor(nextRole)
     applyRoute(nextRole, nextName)
+  }, [applyRoute])
+
+  // Atomic persona switch driven by the dropdown. Patches store identity
+  // (customerId/gwId) first, then flips role/route so the new persona is in
+  // place before route-dependent views re-render.
+  const selectPersona = useCallback((persona) => {
+    if (!persona) return
+    if (persona.customerId || persona.gwId) {
+      EFActions.session.setPersona({ customerId: persona.customerId, gwId: persona.gwId })
+    }
+    const nextName = EFRoutes.defaultRouteFor(persona.role)
+    applyRoute(persona.role, nextName)
   }, [applyRoute])
 
   const toast = useCallback(({ text, tone = 'info', transition }) => {
@@ -178,7 +208,8 @@ function App() {
           'cust-orders': 'orders', 'cust-messages': 'messages', 'cust-invoices': 'invoices',
           'cust-downloads': 'downloads', 'cust-profile': 'profile', 'admin-dashboard': 'orders',
         }[name] || 'orders'
-        return <CustomerView role={role} setRole={setRole} navigate={navigate} toast={toast} section={section}/>
+        const goTo = (r, n, p = {}) => harnessGoTo(r, n || EFRoutes.defaultRouteFor(r), p)
+        return <CustomerView role={role} setRole={setRole} selectPersona={selectPersona} navigate={navigate} toast={toast} section={section} goTo={goTo}/>
       },
     },
     qa: {
@@ -211,6 +242,15 @@ function App() {
       'order-detail':         (p) => <GWAssignmentDetail orderId={p.id} navigate={navigate} toast={toast}/>,
       'gw-calendar':          () => <GWCalendar navigate={navigate}/>,
       _default:               () => <GWDashboard navigate={navigate}/>,
+    },
+    wp: {
+      'wp-hausarbeit':  () => <WpHausarbeit navigate={navigate}/>,
+      'wp-vielen-dank': (p) => <WpVielenDank navigate={navigate} params={p} switchRole={(r, name, params) => harnessGoTo(r, name || EFRoutes.defaultRouteFor(r), params || {})}/>,
+      _default:         () => <WpHausarbeit navigate={navigate}/>,
+    },
+    sim: {
+      'sim-stripe-checkout': (p) => <FakeStripeCheckout params={p} navigate={navigate} switchRole={(r, name, params) => harnessGoTo(r, name || EFRoutes.defaultRouteFor(r), params || {})}/>,
+      _default:              (p) => <FakeStripeCheckout params={p} navigate={navigate} switchRole={(r, name, params) => harnessGoTo(r, name || EFRoutes.defaultRouteFor(r), params || {})}/>,
     },
     admin: {
       'admin-dashboard':    () => <AdminDashboard navigate={navigate} openFridayBatch={() => navigate('friday-batch')}/>,
@@ -247,9 +287,25 @@ function App() {
 
   const tweakPanel = tweakOpen && <TweaksPanel tweaks={tweaks} setTweak={setTweak} onClose={() => { setTweakOpen(false); try { window.parent.postMessage({ type: '__edit_mode_dismissed' }, '*') } catch(e){} }}/>
 
+  const harnessBar = (
+    <DemoHarnessBar role={role} navigate={(name, params) => harnessGoTo(role, name, params)} switchRole={(r, name, params) => harnessGoTo(r, name || EFRoutes.defaultRouteFor(r), params || {})}/>
+  )
+
+  if (role === 'wp' || role === 'sim') {
+    return (
+      <div style={{ minHeight: '100vh', background: '#f7f8fb' }}>
+        {harnessBar}
+        {body}
+        {tweakPanel}
+        <ToastStack toasts={toasts} onDismiss={dismiss}/>
+      </div>
+    )
+  }
+
   if (role === 'customer') {
     return (
       <div style={{ minHeight: '100vh', background: 'var(--bg)' }}>
+        {harnessBar}
         {body}
         {tweakPanel}
         <ToastStack toasts={toasts} onDismiss={dismiss}/>
@@ -261,7 +317,8 @@ function App() {
     <div className="app-root">
       <Sidebar route={route} navigate={navigate} role={role}/>
       <div className="app-main">
-        <Topbar role={role} setRole={setRole} navigate={navigate} toast={toast}/>
+        {harnessBar}
+        <Topbar role={role} setRole={setRole} selectPersona={selectPersona} navigate={navigate} toast={toast}/>
         {role === 'admin' && <AdminGlobalBanners navigate={navigate}/>}
         <div className="content-area">
           {body}

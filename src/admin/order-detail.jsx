@@ -297,7 +297,7 @@ function OrderDetail({ orderId, navigate, toast, initialTab }) {
           <CrumbBar trail={['Admin','Orders', `#${order.id}`]} />
           <h1 className="page-title" style={{ marginTop: 6, display: 'flex', gap: 12, alignItems: 'center' }}>
             <span className="mono">#{order.id}</span>
-            <StatusPill status={order.status}/>
+            <StatusPill status={order.status} order={order}/>
             <span style={{ fontWeight: 400, color: 'var(--text-2)', fontSize: 16 }}>· {order.titleTBD ? <em>folgt — awaiting customer</em> : order.title}</span>
           </h1>
           <div className="page-subtitle flex gap-3 items-center" style={{ marginTop: 6 }}>
@@ -1452,6 +1452,33 @@ function CommsTab({ order, toast }) {
 function AssignmentTab({ order, navigate, toast }) {
   const gw = D.gw(order.gwId);
   const assignmentEvents = EFHooks.useOrderEvents(order.id).filter(e => e.domain === 'assignment');
+  // Phase 4 — three assignment paths + multi-applicant approval. Pulls live
+  // applications from the store so admins see new GW applications appear.
+  EFHooks.useStore(s => s.meta.version);
+  const applicationsTable = EFHooks.useStore(s => s.entities.gw_applications);
+  const pendingApplications = (applicationsTable?.allIds || [])
+    .map(id => applicationsTable.byId[id])
+    .filter(a => a && a.orderId === order.id && a.status === 'pending');
+  const allApplications = (applicationsTable?.allIds || [])
+    .map(id => applicationsTable.byId[id])
+    .filter(a => a && a.orderId === order.id);
+  const boardOpen = order.assignmentMode === 'job_board' && order.jobBoardStatus === 'open';
+  const [postModalOpen, setPostModalOpen] = useState(false);
+  const onPostToBoard = () => setPostModalOpen(true);
+  const onConfirmPost = (patch) => {
+    const res = EFActions.orders.publishJobToBoard(order.id, { patch });
+    if (res?.ok && toast) toast({ tone: 'success', text: `#${order.id} published to GW Job Board · ${res.alreadyOpen ? 'still open' : 'eligible GWs notified'}` });
+    setPostModalOpen(false);
+  };
+  const onSelfAssign = () => {
+    const owner = D.GHOSTWRITERS.find(g => g.isOwner) || { id: 'gw-bo', name: 'Berat Özdemir', isOwner: true };
+    EFActions.orders.assignGw(order.id, owner.id, { selfAssigned: true });
+    if (toast) toast({ tone: 'success', text: `Self-assigned · no GW payout workflow` });
+  };
+  const onApproveApplication = (appId) => {
+    const res = EFActions.orders.approveApplication(appId);
+    if (res?.ok && toast) toast({ tone: 'success', text: `Application approved · ${res.rejectedCount} other applicant(s) auto-rejected` });
+  };
   // Per PRD order_lifecycle: assignment can happen only after the offer/invoice has been paid
   // (state ≥ "paid"/"available"). Earlier states must complete the offer→invoice→payment path
   // first. Self-assign goes straight to active without posting to the board.
@@ -1483,7 +1510,67 @@ function AssignmentTab({ order, navigate, toast }) {
           <span><strong>Assignment locked.</strong> {blockReason}</span>
         </div>
       )}
-      <div className="card">
+
+      {!assignBlocked && !order.gwId && (
+        <div className="card" style={{ gridColumn: '1 / -1' }}>
+          <div className="card-head">
+            <div className="card-title">Assignment path</div>
+            {boardOpen && <span className="pill pill-blue">On Job Board · {pendingApplications.length} pending</span>}
+          </div>
+          <div className="card-pad" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
+            <button type="button" className="btn" disabled={boardOpen} onClick={() => document.getElementById('assignment-direct-list')?.scrollIntoView({ behavior: 'smooth' })}>
+              <Icon name="user" size={14}/> Direct assign
+            </button>
+            <button type="button" className="btn" disabled={boardOpen} onClick={onSelfAssign}>
+              <Icon name="feather" size={14}/> Self-assign (Berat)
+            </button>
+            <button type="button" className={`btn ${boardOpen ? '' : 'btn-primary'}`} disabled={boardOpen} onClick={onPostToBoard}>
+              <Icon name="clipboard-list" size={14}/> {boardOpen ? 'Published to board' : 'Post to GW board'}
+            </button>
+          </div>
+          <div className="card-pad" style={{ paddingTop: 0, fontSize: 11.5, color: 'var(--text-3)' }}>
+            <Icon name="zap" size={12}/> Posting opens the order to all eligible (non-shadow-banned) GWs. Berat then approves exactly one application; others are auto-rejected.
+          </div>
+        </div>
+      )}
+
+      {!assignBlocked && boardOpen && (
+        <div className="card" style={{ gridColumn: '1 / -1' }}>
+          <div className="card-head">
+            <div className="card-title">Pending applications</div>
+            <span className="text-faint fs-11">{pendingApplications.length} pending · {allApplications.length} total</span>
+          </div>
+          <div className="card-pad flex-col gap-2">
+            {pendingApplications.length === 0 && (
+              <div className="text-faint fs-12">Noch keine Bewerbungen. Wechseln Sie in die GW-Rolle und reichen Sie eine Bewerbung über das Job Board ein.</div>
+            )}
+            {pendingApplications.map(app => {
+              const g = D.gw(app.gwId);
+              return (
+                <div key={app.id} className="flex items-center gap-3" style={{ padding: 10, border: '1px solid var(--border)', borderRadius: 8 }}>
+                  <Avatar initials={g?.initials || app.gwId.slice(-2).toUpperCase()} size={32}/>
+                  <div className="flex-col" style={{ flex: 1 }}>
+                    <strong className="fs-12">{g?.name || app.gwId}</strong>
+                    <span className="fs-11 text-faint">{g?.expertise?.slice(0, 3).join(', ') || '—'}</span>
+                    {app.pitch && <span className="fs-11" style={{ color: 'var(--text-2)', marginTop: 4 }}>“{app.pitch}”</span>}
+                  </div>
+                  <span className="fs-11 text-faint mono">{U.fmtDateTime(app.appliedAt)}</span>
+                  <button type="button" className="btn btn-sm btn-success" onClick={() => onApproveApplication(app.id)}>
+                    <Icon name="check" size={11}/> Approve
+                  </button>
+                </div>
+              );
+            })}
+            {allApplications.filter(a => a.status !== 'pending').length > 0 && (
+              <div className="fs-11 text-faint" style={{ marginTop: 6 }}>
+                <Icon name="history" size={11}/> {allApplications.filter(a => a.status === 'approved').length} approved · {allApplications.filter(a => a.status === 'rejected').length} auto-rejected
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      <div id="assignment-direct-list" className="card">
         <div className="card-head"><div className="card-title">GW selection</div></div>
         <div className="card-pad flex-col gap-2">
           {D.GHOSTWRITERS.filter(g => !g.banned && !g.isOwner).slice(0, 6).map(g => {
@@ -1545,6 +1632,94 @@ function AssignmentTab({ order, navigate, toast }) {
               ))}
             </div>
           )}
+        </div>
+      </div>
+      {postModalOpen && (
+        <PostToBoardModal order={order} onCancel={() => setPostModalOpen(false)} onConfirm={onConfirmPost}/>
+      )}
+    </div>
+  );
+}
+
+function PostToBoardModal({ order, onCancel, onConfirm }) {
+  const toDateInput = (iso) => (iso ? String(iso).slice(0, 10) : '');
+  const [form, setForm] = useState({
+    title: order.titleTBD ? '' : (order.title || ''),
+    workType: order.workType || 'hausarbeit',
+    field: order.field || '',
+    pages: order.pages ?? '',
+    finalDeadline: toDateInput(order.finalDeadline),
+    interimDeadline: toDateInput(order.interimDeadline),
+    netHonorarium: order.netHonorarium ?? '',
+    gwBoardNote: order.gwBoardNote || order.offerNote || '',
+  });
+  const set = (k) => (e) => setForm(prev => ({ ...prev, [k]: e.target.value }));
+  const submit = () => {
+    const patch = {
+      title: form.title.trim() || order.title || 'Titel folgt',
+      titleTBD: !form.title.trim(),
+      workType: form.workType,
+      field: form.field.trim(),
+      pages: form.pages === '' ? null : Number(form.pages),
+      finalDeadline: form.finalDeadline ? `${form.finalDeadline}T18:00:00` : null,
+      interimDeadline: form.interimDeadline ? `${form.interimDeadline}T18:00:00` : null,
+      netHonorarium: form.netHonorarium === '' ? null : Number(form.netHonorarium),
+      gwBoardNote: form.gwBoardNote.trim() || null,
+    };
+    onConfirm(patch);
+  };
+  const workTypeOptions = Object.entries(D.WORK_TYPE_LABELS || {});
+  return (
+    <div className="modal-backdrop" onClick={onCancel}>
+      <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: 640 }}>
+        <div className="modal-header">
+          <div>
+            <div className="modal-title">Auftrag für GW Job Board veröffentlichen · #{order.id}</div>
+            <div className="text-faint fs-11 mt-1">Felder anpassen — so erscheint der Auftrag auf dem Board.</div>
+          </div>
+          <button className="btn btn-sm" onClick={onCancel}><Icon name="x" size={14}/></button>
+        </div>
+        <div className="modal-body" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+          <label style={{ gridColumn: '1 / -1', display: 'flex', flexDirection: 'column', gap: 4 }}>
+            <span className="fs-11 strong">Titel der Arbeit</span>
+            <input type="text" value={form.title} onChange={set('title')} placeholder="z.B. BWIP01 – Wirtschaftspolitik" className="input"/>
+          </label>
+          <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+            <span className="fs-11 strong">Art der Arbeit</span>
+            <select value={form.workType} onChange={set('workType')} className="input">
+              {workTypeOptions.map(([k, label]) => <option key={k} value={k}>{label}</option>)}
+            </select>
+          </label>
+          <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+            <span className="fs-11 strong">Fachbereich</span>
+            <input type="text" value={form.field} onChange={set('field')} placeholder="z.B. BWL, Jura" className="input"/>
+          </label>
+          <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+            <span className="fs-11 strong">Seitenanzahl</span>
+            <input type="number" min={1} max={400} value={form.pages} onChange={set('pages')} className="input"/>
+          </label>
+          <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+            <span className="fs-11 strong">Gesamthonorar Netto (€)</span>
+            <input type="number" min={0} step="0.01" value={form.netHonorarium} onChange={set('netHonorarium')} className="input"/>
+          </label>
+          <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+            <span className="fs-11 strong">Verbindlicher 1. Zwischenstand (bis 18 Uhr)</span>
+            <input type="date" value={form.interimDeadline} onChange={set('interimDeadline')} className="input"/>
+          </label>
+          <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+            <span className="fs-11 strong">Verbindliches Finales Lieferdatum (bis 18 Uhr)</span>
+            <input type="date" value={form.finalDeadline} onChange={set('finalDeadline')} className="input"/>
+          </label>
+          <label style={{ gridColumn: '1 / -1', display: 'flex', flexDirection: 'column', gap: 4 }}>
+            <span className="fs-11 strong">Weitere Notiz von efactory1.de</span>
+            <textarea rows={3} value={form.gwBoardNote} onChange={set('gwBoardNote')} placeholder="z.B. 10 Seiten Hausarbeit + 5 Folien PowerPoint" className="input" style={{ resize: 'vertical' }}/>
+          </label>
+        </div>
+        <div className="modal-footer">
+          <button className="btn" onClick={onCancel}>Abbrechen</button>
+          <button className="btn btn-primary" onClick={submit}>
+            <Icon name="clipboard-list" size={14}/> Auf Job Board veröffentlichen
+          </button>
         </div>
       </div>
     </div>

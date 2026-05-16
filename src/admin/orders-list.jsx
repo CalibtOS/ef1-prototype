@@ -140,7 +140,7 @@ function OrdersTable({ navigate, route }) {
                     : ''
                   }>
                     <td className="mono"><strong>#{o.id}</strong></td>
-                    <td><StatusPill status={o.status}/></td>
+                    <td><StatusPill status={o.status} order={o}/></td>
                     <td>
                       <div className="flex items-center gap-2">
                         <Avatar initials={cust?.initials||'??'} size={22} tone="blue"/>

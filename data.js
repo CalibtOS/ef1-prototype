@@ -213,6 +213,10 @@ const STATUS_PILLS = {
   invoice_sent:             { color: 'yellow', label: 'Awaiting Payment' },
   // Job board
   available:                { color: 'blue',   label: 'On Job Board' },
+  // Synthetic pill for the same DB status when the order is paid but the
+  // admin hasn't actually published it to the GW board yet. Resolved in
+  // StatusPill by inspecting the order's jobBoardStatus.
+  available_ready:          { color: 'teal',   label: 'Paid · Ready for Job Board' },
   claimed_pending_approval: { color: 'yellow', label: 'GW Claimed — Approve' },
   // Active work (blue = in-progress)
   active:                   { color: 'blue',   label: 'Active' },

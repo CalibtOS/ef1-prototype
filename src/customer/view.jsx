@@ -14,22 +14,36 @@ import * as W from '../core/workflow.js';
 import * as EFHooks from '../core/hooks.js';
 import EFActions from '../core/actions.js';
 import * as EFSelectors from '../core/selectors.js';
+import store from '../core/store.js';
 import EF from '../core/ef.js';
 import { QA_STATUS } from '../core/status.js';
+import { CheckoutModal } from './checkout-modal.jsx';
 const D = EF;
 
 const CUST_PERSONA = (EFShell?.ROLES || []).find(r => r.id === 'customer') ||
   { user: 'Antigona Berisha', initials: 'AB', email: 'antigona.berisha@example.com' };
-const CUST_ME = D.CUSTOMERS.find(c => c.initials === CUST_PERSONA.initials) ||
+const CUST_ME_FALLBACK = D.CUSTOMERS.find(c => c.initials === CUST_PERSONA.initials) ||
   { id: 'c-demo', name: CUST_PERSONA.user, initials: CUST_PERSONA.initials, email: CUST_PERSONA.email };
 
+// Resolve the active customer from the session so D-21 first-touch demos work:
+// after auto-login the session.customerId points at the new scenario customer
+// (demo-c-first-touch), not the hardcoded Antigona persona.
+function activeCustomer() {
+  const cid = store.getState().session.customerId;
+  const live = cid ? EFSelectors.selectCustomer(store.getState(), cid) : null;
+  return live || CUST_ME_FALLBACK;
+}
+
+const CUST_ME = CUST_ME_FALLBACK;
+
 function custOrders() {
-  const real = D.liveOrders().filter(o => o.customerId === CUST_ME.id);
+  const cid = activeCustomer().id;
+  const real = D.liveOrders().filter(o => o.customerId === cid);
   return real.sort((a, b) => {
     const ra = a.status === 'completed' ? 1 : 0;
     const rb = b.status === 'completed' ? 1 : 0;
     if (ra !== rb) return ra - rb;
-    return new Date(b.finalDeadline) - new Date(a.finalDeadline);
+    return new Date(b.finalDeadline || 0) - new Date(a.finalDeadline || 0);
   });
 }
 
@@ -40,13 +54,23 @@ function custStatusMeta(o) {
   if (s === 'completed' || s === 'payment_pending')
     return { color: 'green', label: 'Abgeschlossen', icon: 'check-circle' };
   // Pre-payment states: customer must understand we're waiting on the offer/invoice/payment.
-  if (s === 'qualified' || s === 'offer_sent')
+  if (s === 'qualified')
     return { color: 'blue', label: 'Angebot wird vorbereitet', icon: 'file-text' };
-  if (s === 'invoice_sent')
+  if (s === 'offer_sent')
+    return { color: 'blue', label: 'Angebot liegt vor', icon: 'file-text' };
+  if (s === 'invoice_sent') {
+    const anyPaid = (o.installments || []).some(i => i.status === 'paid');
+    if (anyPaid) {
+      const nextOpen = (o.installments || []).find(i => i.status !== 'paid');
+      return { color: 'amber', label: nextOpen ? `Rate ${nextOpen.n} ausstehend` : 'Restbetrag ausstehend', icon: 'wallet' };
+    }
     return { color: 'amber', label: 'Zahlung ausstehend', icon: 'wallet' };
+  }
   // Post-payment, pre-assignment / pre-approval:
-  if (s === 'available' || s === 'claimed_pending_approval')
-    return { color: 'cyan', label: 'GW-Suche läuft', icon: 'search' };
+  if (s === 'available' || s === 'claimed_pending_approval') {
+    const allPaid = (o.installments || []).length > 0 && (o.installments || []).every(i => i.status === 'paid');
+    return { color: 'cyan', label: allPaid ? 'GW-Suche läuft' : 'Rate 1 bestätigt · GW-Suche', icon: 'search' };
+  }
   if (s === 'cancelled') return { color: 'red', label: 'Storniert', icon: 'x-circle' };
   if (s === 'on_hold') return { color: 'amber', label: 'Pausiert', icon: 'pause' };
   if (s === 'delay_reported') return { color: 'orange', label: 'Verzögerung gemeldet', icon: 'alert-triangle' };
@@ -98,10 +122,16 @@ function custGwContact(o) {
   return { name: gw.name, email: gw.email, phone: gw.phone };
 }
 
-function CustHeader({ tab, setTab, role, setRole, onOpenNotification }) {
+function CustHeader({ tab, setTab, role, setRole, selectPersona, onOpenNotification }) {
   const [open, setOpen] = useState(false);
   const NotifBell = EFShell.NotifBell;
   const customerNotifs = EFHooks.useNotifications('customer');
+  EFHooks.useStore(s => s.session.customerId);
+  EFHooks.useStore(s => s.entities.customers);
+  const me = activeCustomer();
+  const personas = EFShell.buildPersonas(store.getState());
+  const activePid = EFShell.activePersonaId(store.getState());
+  const pickPersona = selectPersona || ((p) => setRole && setRole(p.role));
   const tabs = [
     { id: 'orders', label: 'Meine Aufträge', icon: 'package' },
     { id: 'messages', label: 'Nachrichten', icon: 'message-square' },
@@ -127,24 +157,27 @@ function CustHeader({ tab, setTab, role, setRole, onOpenNotification }) {
         )}
         <div style={{ position: 'relative' }}>
           <div onClick={() => setOpen(!open)} className="role-switcher" style={{ cursor: 'pointer' }}>
-            <Avatar initials={CUST_PERSONA.initials} size={26} tone="blue"/>
+            <Avatar initials={me?.initials || CUST_PERSONA.initials} size={26} tone="blue"/>
             <div className="flex-col" style={{ lineHeight: 1.2 }}>
               <span style={{ fontSize: 11, color: 'var(--text-3)' }}>Angemeldet als</span>
-              <span style={{ fontSize: 12, fontWeight: 500 }}>{CUST_PERSONA.user}</span>
+              <span style={{ fontSize: 12, fontWeight: 500 }}>{me?.name || CUST_PERSONA.user}</span>
             </div>
             <Icon name="chevron-down" size={14} className="text-faint"/>
           </div>
-          {open && setRole && (
-            <div style={{ position: 'absolute', top: 40, right: 0, width: 220, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10, boxShadow: 'var(--shadow-lg)', zIndex: 50, overflow: 'hidden' }}>
+          {open && (setRole || selectPersona) && (
+            <div style={{ position: 'absolute', top: 40, right: 0, width: 240, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10, boxShadow: 'var(--shadow-lg)', zIndex: 50, overflow: 'hidden' }}>
               <div style={{ padding: '8px 12px', fontSize: 11, color: 'var(--text-3)', fontWeight: 500, textTransform: 'uppercase', letterSpacing: '0.04em', borderBottom: '1px solid var(--border)' }}>Demo persona wechseln</div>
-              {(EFShell?.ROLES || []).map(r => (
-                <div key={r.id} onClick={() => { setRole(r.id); setOpen(false); }} style={{ padding: '9px 12px', display: 'flex', gap: 10, alignItems: 'center', cursor: 'pointer', borderBottom: '1px solid var(--border)' }} onMouseEnter={(e)=>e.currentTarget.style.background='var(--surface-2)'} onMouseLeave={(e)=>e.currentTarget.style.background='transparent'}>
-                  <Avatar initials={r.initials} size={24} tone={r.id === role ? 'blue' : 'neutral'}/>
+              {personas.map(p => (
+                <div key={p.id} onClick={() => { pickPersona(p); setOpen(false); }} style={{ padding: '9px 12px', display: 'flex', gap: 10, alignItems: 'center', cursor: 'pointer', borderBottom: '1px solid var(--border)' }} onMouseEnter={(e)=>e.currentTarget.style.background='var(--surface-2)'} onMouseLeave={(e)=>e.currentTarget.style.background='transparent'}>
+                  <Avatar initials={p.initials} size={24} tone={p.id === activePid ? 'blue' : 'neutral'}/>
                   <div className="flex-col" style={{ flex: 1, lineHeight: 1.2 }}>
-                    <span style={{ fontSize: 12, fontWeight: 500 }}>{r.label}</span>
-                    <span style={{ fontSize: 10.5, color: 'var(--text-3)' }}>{r.user}</span>
+                    <span style={{ fontSize: 12, fontWeight: 500, display: 'flex', alignItems: 'center', gap: 6 }}>
+                      {p.label}
+                      {p.dynamic && <span style={{ fontSize: 9.5, padding: '1px 6px', borderRadius: 8, background: 'color-mix(in oklab, var(--blue) 16%, transparent)', color: 'var(--blue)', fontWeight: 500 }}>NEU</span>}
+                    </span>
+                    <span style={{ fontSize: 10.5, color: 'var(--text-3)' }}>{p.user}</span>
                   </div>
-                  {r.id === role && <Icon name="check" size={12} className="text-faint"/>}
+                  {p.id === activePid && <Icon name="check" size={12} className="text-faint"/>}
                 </div>
               ))}
             </div>
@@ -177,7 +210,7 @@ function CustFooterBanner() {
   );
 }
 
-function CustOrderCard({ o, onOpen }) {
+function CustOrderCard({ o, onOpen, startCheckout, goTo }) {
   const meta = custStatusMeta(o);
   const progress = custProgress(o);
   const gw = custGwLabel(o);
@@ -246,8 +279,22 @@ function CustOrderCard({ o, onOpen }) {
           const gwActive = !!o.gwId && !['available','qualified','offer_sent','invoice_sent','claimed_pending_approval'].includes(o.status);
           const hasFiles = ['active','interim_submitted','under_customer_review','revision_required','final_submitted','qa_review','delivered','payment_pending','completed'].includes(o.status);
           const needsReview = o.status === 'interim_submitted' || o.status === 'under_customer_review';
+          const offerReady = o.status === 'offer_sent';
+          const awaitingPayment = o.status === 'invoice_sent';
+          const isBank = o.paymentMethodChoice === 'bank_transfer_sepa';
+          const isStripe = o.paymentMethodChoice && o.paymentMethodChoice !== 'bank_transfer_sepa';
           return (
             <div className="flex gap-2 mt-3" style={{ flexWrap: 'wrap' }}>
+              {offerReady && (
+                <button type="button" className="btn btn-sm btn-primary" onClick={(e)=>{e.stopPropagation(); startCheckout && startCheckout(o.id);}}>
+                  <Icon name="file-text" size={12}/> Angebot annehmen
+                </button>
+              )}
+              {awaitingPayment && isStripe && (
+                <button type="button" className="btn btn-sm btn-primary" onClick={(e)=>{e.stopPropagation(); resumeStripeCheckout(o.id, goTo);}}>
+                  <Icon name="wallet" size={12}/> Zahlung fortsetzen
+                </button>
+              )}
               {gwActive && (
                 <button type="button" className="btn btn-sm" onClick={(e)=>{e.stopPropagation();onOpen('messages');}}>
                   <Icon name="message-square" size={12}/> Nachrichten
@@ -269,16 +316,56 @@ function CustOrderCard({ o, onOpen }) {
             </div>
           );
         })()}
+        {o.status === 'invoice_sent' && o.paymentMethodChoice === 'bank_transfer_sepa' && (
+          <BankTransferPanel order={o}/>
+        )}
       </div>
     </div>
   );
 }
 
-function CustOrdersList({ openOrder }) {
+function resumeStripeCheckout(orderId, goTo) {
+  const sessions = Object.values(store.getState().entities.checkout_sessions?.byId || {});
+  const open = sessions
+    .filter(s => s.orderId === orderId && s.status === 'pending')
+    .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))[0];
+  if (open && goTo) goTo('sim', 'sim-stripe-checkout', { sid: open.id });
+}
+
+function BankTransferPanel({ order }) {
+  const inst = (order.installments || []).find(i => i.status !== 'paid') || order.installments?.[0] || { n: 1, amt: order.grossEur || 0 };
+  const totalInstallments = order.installments?.length || 1;
+  const allPaid = (order.installments || []).every(i => i.status === 'paid');
+  if (allPaid) return null;
+  const money = (n) => `${Number(n || 0).toLocaleString('de-DE', { minimumFractionDigits: 2 })} €`;
+  return (
+    <div style={{ marginTop: 14, padding: 14, background: 'var(--surface-2)', borderRadius: 8, border: '1px dashed var(--border-strong)' }} onClick={e => e.stopPropagation()}>
+      <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-2)', marginBottom: 8 }}>
+        <Icon name="wallet" size={11}/> Banküberweisung — Rate {inst.n} von {totalInstallments}
+      </div>
+      <table style={{ fontSize: 12, lineHeight: 1.6 }}>
+        <tbody>
+          <tr><td style={{ color: 'var(--text-3)', paddingRight: 12 }}>Empfänger</td><td>Bery Ventures GmbH</td></tr>
+          <tr><td style={{ color: 'var(--text-3)', paddingRight: 12 }}>IBAN</td><td style={{ fontFamily: 'monospace' }}>DE89 3704 0044 0532 0130 00</td></tr>
+          <tr><td style={{ color: 'var(--text-3)', paddingRight: 12 }}>Verwendungszweck</td><td style={{ fontFamily: 'monospace' }}>ORDER-{order.id}-RATE-{inst.n}</td></tr>
+          <tr><td style={{ color: 'var(--text-3)', paddingRight: 12 }}>Betrag</td><td style={{ fontWeight: 600 }}>{money(inst.amt)}</td></tr>
+        </tbody>
+      </table>
+      <div style={{ marginTop: 8, fontSize: 11, color: 'var(--text-3)' }}>
+        Status: Wir warten auf Ihre Überweisung — Bestätigung typischerweise innerhalb 1–3 Werktagen.
+      </div>
+    </div>
+  );
+}
+
+function CustOrdersList({ openOrder, startCheckout, goTo }) {
+  EFHooks.useStore(s => s.session.customerId);
+  EFHooks.useStore(s => s.meta.version);
   const orders = custOrders();
   const active = orders.filter(o => custProgress(o) < 100);
   const done = orders.filter(o => custProgress(o) >= 100);
-  const firstName = (CUST_PERSONA.user || '').split(' ')[0];
+  const me = activeCustomer();
+  const firstName = (me?.name || CUST_PERSONA.user || '').split(' ')[0];
 
   return (
     <div>
@@ -291,7 +378,7 @@ function CustOrdersList({ openOrder }) {
             Aktiv ({active.length})
           </div>
           <div className="flex-col gap-3 mb-4">
-            {active.map(o => <CustOrderCard key={o.id} o={o} onOpen={(t)=>openOrder(o.id, t)}/>)}
+            {active.map(o => <CustOrderCard key={o.id} o={o} onOpen={(t)=>openOrder(o.id, t)} startCheckout={startCheckout} goTo={goTo}/>)}
           </div>
         </>
       )}
@@ -302,7 +389,7 @@ function CustOrdersList({ openOrder }) {
             Abgeschlossen ({done.length})
           </div>
           <div className="flex-col gap-3">
-            {done.map(o => <CustOrderCard key={o.id} o={o} onOpen={(t)=>openOrder(o.id, t)}/>)}
+            {done.map(o => <CustOrderCard key={o.id} o={o} onOpen={(t)=>openOrder(o.id, t)} startCheckout={startCheckout} goTo={goTo}/>)}
           </div>
         </>
       )}
@@ -1393,10 +1480,13 @@ function CustProfile({ toast }) {
 // CustomerView is rendered by the shell router. The shell passes a `section` prop
 // (orders | messages | invoices | downloads | profile) — that's the source of truth
 // for the active tab. Clicking an internal tab navigates so the URL/sidebar stay in sync.
-function CustomerView({ role, setRole, toast, section, navigate }) {
+function CustomerView({ role, setRole, selectPersona, toast, section, navigate, goTo }) {
   const tab = section || 'orders';
   const [openOrderId, setOpenOrderId] = useState(null);
   const [openOrderTab, setOpenOrderTab] = useState('status');
+  const [checkoutOrderId, setCheckoutOrderId] = useState(null);
+  EFHooks.useStore(s => s.session.customerId);
+  EFHooks.useStore(s => s.meta.version);
 
   const openOrder = (id, subTab = 'status') => {
     setOpenOrderId(id);
@@ -1405,6 +1495,21 @@ function CustomerView({ role, setRole, toast, section, navigate }) {
     window.scrollTo(0, 0);
   };
   const closeOrder = () => { setOpenOrderId(null); window.scrollTo(0, 0); };
+
+  const startCheckout = (id) => setCheckoutOrderId(id);
+  const closeCheckout = () => setCheckoutOrderId(null);
+  const onAccepted = (res) => {
+    closeCheckout();
+    if (res?.paymentMethod && res.paymentMethod !== 'bank_transfer_sepa') {
+      const sid = (EFSelectors.tableItems
+        ? EFSelectors.tableItems(store.getState().entities.checkout_sessions)
+        : Object.values(store.getState().entities.checkout_sessions?.byId || {})
+      ).filter(s => s.orderId === res.order.id).sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))[0]?.id;
+      if (sid && goTo) goTo('sim', 'sim-stripe-checkout', { sid });
+    }
+  };
+  const checkoutOrder = checkoutOrderId != null ? EFSelectors.selectOrder(store.getState(), checkoutOrderId) : null;
+  const checkoutCustomer = checkoutOrder ? EFSelectors.selectCustomer(store.getState(), checkoutOrder.customerId) : null;
 
   // Map internal tab IDs to the shell route names so inner-tab clicks update the URL
   // and the sidebar highlight at the same time (no more divergent navigation state).
@@ -1436,15 +1541,23 @@ function CustomerView({ role, setRole, toast, section, navigate }) {
   } else if (tab === 'profile') {
     body = <CustProfile toast={toast}/>;
   } else {
-    body = <CustOrdersList openOrder={openOrder}/>;
+    body = <CustOrdersList openOrder={openOrder} startCheckout={startCheckout} goTo={goTo}/>;
   }
 
   return (
     <div style={{ background: 'var(--bg)', minHeight: '100%' }}>
-      <CustHeader tab={tab} setTab={switchTab} role={role} setRole={setRole} onOpenNotification={openNotification}/>
+      <CustHeader tab={tab} setTab={switchTab} role={role} setRole={setRole} selectPersona={selectPersona} onOpenNotification={openNotification}/>
       <div style={{ maxWidth: 1080, margin: '0 auto', padding: '0 24px 32px' }}>
         {body}
       </div>
+      {checkoutOrder && (
+        <CheckoutModal
+          order={checkoutOrder}
+          customer={checkoutCustomer}
+          onClose={closeCheckout}
+          onAccepted={onAccepted}
+        />
+      )}
     </div>
   );
 }

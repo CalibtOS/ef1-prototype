@@ -77,7 +77,7 @@ function GhostwriterDetail({ gwId, navigate, toast }) {
                     {active.map(o => (
                       <tr key={o.id} style={{ cursor: 'pointer' }} onClick={() => navigate('order-detail', { id: o.id })}>
                         <td className="mono"><strong>#{o.id}</strong></td>
-                        <td><StatusPill status={o.status}/></td>
+                        <td><StatusPill status={o.status} order={o}/></td>
                         <td style={{ maxWidth: 320, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{o.title}</td>
                         <td className="num mono" style={{ color: 'var(--green)' }}>{U.EUR(o.netHonorarium)}</td>
                         <td className="mono fs-11">{U.fmtDate(o.finalDeadline)}</td>

@@ -70,7 +70,7 @@ function CustomerDetail({ customerId, navigate }) {
                     return (
                     <tr key={o.id} onClick={() => navigate('order-detail', { id: o.id })} style={{ cursor: 'pointer' }}>
                       <td className="mono"><strong>#{o.id}</strong></td>
-                      <td><StatusPill status={o.status}/></td>
+                      <td><StatusPill status={o.status} order={o}/></td>
                       <td className="text-muted">{D.WORK_TYPE_LABELS[o.workType]}</td>
                       <td style={{ maxWidth: 280, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{o.titleTBD ? <em className="text-faint">folgt</em> : o.title}</td>
                       <td className="num mono">{showMoney ? U.EUR(o.grossEur) : <span className="text-faint fs-11">Hidden until proposal</span>}</td>

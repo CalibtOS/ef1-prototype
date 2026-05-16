@@ -2,37 +2,100 @@
 
 // ============ GW JOB BOARD ============
 // Same surface, two perspectives: GW claims, admin manages (no Claim button).
-import React, { useState, useEffect, useMemo } from 'react';
-import { Icon, StatusPill, Avatar, Money, Bi, ScoreBar, NotReady, PlannedTag, EmptyState, Skeleton } from '../../utils.jsx';
+import React, { useMemo, useState } from 'react';
+import { Icon, Avatar, NotReady } from '../../utils.jsx';
 import * as U from '../../utils.jsx';
-import { CrumbBar } from '../../shell.jsx';
 import * as EFHooks from '../core/hooks.js';
 import EFActions from '../core/actions.js';
 import EF from '../core/ef.js';
 const D = EF;
 
+const WORK_FILTERS = [
+  ['all', 'Alle'],
+  ['hausarbeit', 'Hausarbeit'],
+  ['bachelorarbeit', 'Bachelor'],
+  ['masterarbeit', 'Master'],
+  ['lektorat', 'Lektorat'],
+  ['expose', 'Exposé'],
+];
+
+const metricItems = (open, urgent, week, honor) => [
+  { label: 'Offene Aufträge', value: open },
+  { label: 'Dringend', value: urgent, tone: urgent ? 'danger' : null },
+  { label: 'Diese Woche', value: week, tone: week ? 'warn' : null },
+  { label: 'Honorar netto', value: U.EUR(honor), tone: 'money' },
+];
+
 function GWJobBoard({ navigate, toast, role = 'gw' }) {
   const isAdmin = role === 'admin';
   const [filter, setFilter] = useState('all');
   const [claimingId, setClaimingId] = useState(null);
+  EFHooks.useStore(s => s.meta.version);
+  const currentGwId = EFHooks.useStore(s => s.session.gwId);
+  const applicationsTable = EFHooks.useStore(s => s.entities.gw_applications);
+  const myPendingApps = (applicationsTable?.allIds || [])
+    .map(id => applicationsTable.byId[id])
+    .filter(a => a && a.gwId === currentGwId && a.status === 'pending');
   // Source of truth: ORDERS where status === 'available' AND no GW assigned.
+  // Scenario orders (those that came through the new acquisition flow with a
+  // scenarioId) only appear on the board after the admin explicitly publishes
+  // them via `publishJobToBoard`. Legacy seed orders without a scenarioId
+  // continue to behave as before so the existing demo isn't disrupted.
   const unclaimed = EFHooks.useOrders({ filter: 'available' })
-    .filter(o => o.status === 'available' && !o.gwId)
+    .filter(o => {
+      if (o.status !== 'available' || o.gwId) return false;
+      if (o.scenarioId) return o.jobBoardStatus === 'open';
+      return true;
+    })
     .map(o => ({
       id: o.id,
       workType: o.workType,
       field: o.field,
       pages: o.pages,
       deadline: o.finalDeadline,
+      interimDeadline: o.interimDeadline,
       honorEur: o.netHonorarium,
       grossEur: o.grossEur,
       customerId: o.customerId,
       factor: U.daysTo(o.finalDeadline) < 7 ? '1.5' : '1.0',
       topic: o.titleTBD ? 'Titel folgt — Briefing nach Claim' : o.title,
+      adminNote: o.gwBoardNote || o.offerNote || null,
       urgent: U.daysTo(o.finalDeadline) < 7,
+      jobBoardStatus: o.jobBoardStatus,
+      assignmentMode: o.assignmentMode,
     }));
 
-  const filtered = filter === 'all' ? unclaimed : unclaimed.filter(o => o.workType === filter);
+  const onApply = (id) => {
+    const res = EFActions.gw.applyForJob(id, currentGwId, {
+      pitch: 'Ich habe passende Expertise und melde mich heute beim Kunden.',
+      termsAccepted: true,
+    });
+    if (res?.ok && toast) {
+      toast({
+        tone: 'success',
+        transition: { entity: `Order #${id}`, from: 'On Job Board', to: 'Bewerbung eingereicht' },
+        text: 'Bewerbung gesendet · Berat prüft alle Bewerbungen',
+      });
+    }
+  };
+  const hasMyApplication = (id) => myPendingApps.some(a => a.orderId === id);
+
+  const typeCounts = useMemo(() => {
+    return unclaimed.reduce((acc, job) => {
+      acc[job.workType] = (acc[job.workType] || 0) + 1;
+      return acc;
+    }, {});
+  }, [unclaimed]);
+
+  const filtered = useMemo(() => {
+    const rows = filter === 'all' ? unclaimed : unclaimed.filter(o => o.workType === filter);
+    return [...rows].sort((a, b) => {
+      const da = U.daysTo(a.deadline) ?? Number.MAX_SAFE_INTEGER;
+      const db = U.daysTo(b.deadline) ?? Number.MAX_SAFE_INTEGER;
+      if (da !== db) return da - db;
+      return (b.honorEur || 0) - (a.honorEur || 0);
+    });
+  }, [filter, unclaimed]);
 
   const onUnpublish = (id) => {
     EFActions.orders.hold(id, 'Unpublished by admin');
@@ -43,101 +106,186 @@ function GWJobBoard({ navigate, toast, role = 'gw' }) {
     });
   };
 
+  const urgentCount = unclaimed.filter(j => j.urgent).length;
+  const totalHonor = unclaimed.reduce((s, j) => s + (j.honorEur || 0), 0);
+  const thisWeek = unclaimed.filter(j => {
+    const d = U.daysTo(j.deadline);
+    return d != null && d >= 0 && d <= 7;
+  }).length;
+  const boardMetrics = metricItems(unclaimed.length, urgentCount, thisWeek, totalHonor);
+
   return (
-    <div className="page">
-      <div className="page-header">
-        <div>
-          <h1 className="page-title">Job Board</h1>
-          <div className="page-subtitle">
+    <div className="page gw-board-page">
+      <section className="gw-board-hero">
+        <div className="gw-board-kicker">Autor:innen Dashboard</div>
+        <div className="gw-board-title-row">
+          <h1 className="gw-board-title">efactory1 Dashboard für Autor:innen</h1>
+          <div className="gw-board-actions">
             {isAdmin
-              ? `${unclaimed.length} jobs published · first GW to claim wins · admin must approve claim before customer is unlocked`
-              : `${unclaimed.length} unclaimed jobs · first to claim wins · admin must approve`}
+              ? <button type="button" className="btn btn-primary" onClick={() => navigate('orders')}><Icon name="plus" size={14}/> Auftrag veröffentlichen</button>
+              : <NotReady className="btn" feature="alerts"><Icon name="bell" size={14}/> Benachrichtigungen</NotReady>}
           </div>
         </div>
-        <div className="page-actions">
-          {isAdmin
-            ? <button type="button" className="btn btn-primary" onClick={() => navigate('orders')}><Icon name="plus" size={14}/> Publish job</button>
-            : <NotReady className="btn" feature="alerts"><Icon name="bell" size={14}/> Alerts</NotReady>}
-        </div>
-      </div>
-
-      <div className="card mb-3">
-        <div className="card-pad flex items-center gap-3">
-          <div className="flex gap-2 items-center">
-            <span className="text-muted fs-12">Filter:</span>
-            {[['all','All'],['hausarbeit','Hausarbeit'],['bachelorarbeit','Bachelor'],['masterarbeit','Master'],['lektorat','Lektorat'],['expose','Exposé']].map(([k,l]) => (
-              <button type="button" key={k} className={`chip ${filter===k?'active':''}`} onClick={() => setFilter(k)}>{l}</button>
-            ))}
-          </div>
-          <div style={{ flex: 1 }}/>
-          <span className="fs-11 text-faint">Sorted by: deadline urgency ↑</span>
-        </div>
-      </div>
-
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(360px, 1fr))', gap: 16 }}>
-        {filtered.map(j => {
-          const dm = U.deadlineMeta(j.deadline);
-          const cust = isAdmin ? D.customer(j.customerId) : null;
-          return (
-            <div key={j.id} className="card" style={{ overflow: 'visible' }}>
-              <div className="card-pad flex-col gap-2">
-                <div className="flex items-center gap-2">
-                  <span className="mono fs-11 text-faint">#{j.id}</span>
-                  <span className={`pill pill-${U.WORK_TYPE_TONES?.[j.workType] || 'slate'}`} style={{ background: 'var(--surface-2)', color: 'var(--text-2)' }}>{D.WORK_TYPE_LABELS[j.workType]}</span>
-                  {j.urgent && <span className="pill pill-red"><Icon name="flame" size={10}/> Urgent ×{j.factor}</span>}
-                  <span style={{ flex: 1 }}/>
-                  <span className={`pill pill-${dm.tone === 'danger' ? 'red' : dm.tone === 'warn' ? 'amber' : 'slate'}`}>{dm.label}</span>
-                </div>
-                <div className="strong fs-13">{j.topic}</div>
-                <div className="kv">
-                  <div className="kv-row"><dt>Field</dt><dd>{j.field}</dd></div>
-                  <div className="kv-row"><dt>Pages</dt><dd className="mono">{j.pages}</dd></div>
-                  <div className="kv-row"><dt>Deadline</dt><dd className="mono">{U.fmtDate(j.deadline)}, 18:00</dd></div>
-                  {isAdmin
-                    ? <>
-                        <div className="kv-row"><dt>Customer</dt><dd>{cust?.name || '—'}</dd></div>
-                        <div className="kv-row"><dt>Gross</dt><dd className="mono">{U.EUR(j.grossEur)}</dd></div>
-                        <div className="kv-row"><dt>GW honorar</dt><dd className="mono" style={{ color: 'var(--green)' }}>{U.EUR(j.honorEur)}</dd></div>
-                        <div className="kv-row"><dt>Margin</dt><dd className="mono strong">{U.EUR((j.grossEur / 1.07) - j.honorEur)}</dd></div>
-                      </>
-                    : <div className="kv-row"><dt>Honorar (you receive)</dt><dd className="mono strong" style={{ color: 'var(--green)', fontSize: 14 }}>{U.EUR(j.honorEur)}</dd></div>
-                  }
-                </div>
-                {isAdmin
-                  ? (
-                    <div className="banner" style={{ background: 'var(--surface-2)', border: '1px dashed var(--border)', fontSize: 11 }}>
-                      <Icon name="eye" size={12}/>
-                      <span>Admin view · GWs see this job with customer name hidden until their claim is approved.</span>
-                    </div>
-                  ) : (
-                    <div className="banner" style={{ background: 'var(--surface-2)', border: '1px dashed var(--border)', fontSize: 11 }}>
-                      <Icon name="lock" size={12}/>
-                      <span>Customer name + contact <strong>hidden</strong> until claim is approved.</span>
-                    </div>
-                  )
-                }
-                {isAdmin ? (
-                  <div className="flex gap-2" style={{ flexWrap: 'wrap' }}>
-                    <button type="button" className="btn" style={{ flex: 1, justifyContent: 'center' }} onClick={() => navigate('order-detail', { id: j.id })}>
-                      <Icon name="eye" size={14}/> Open
-                    </button>
-                    <button type="button" className="btn" onClick={() => onUnpublish(j.id)} title="Unpublish job">
-                      <Icon name="x" size={14}/> Unpublish
-                    </button>
-                  </div>
-                ) : (
-                  <button type="button" className="btn btn-success" style={{ justifyContent: 'center' }} onClick={() => setClaimingId(j.id)}>
-                    <Icon name="check" size={14}/> Claim job
-                  </button>
-                )}
-              </div>
+        <div className="gw-board-metrics" aria-label="Job board overview">
+          {boardMetrics.map(item => (
+            <div key={item.label} className={`gw-board-metric ${item.tone ? 'is-' + item.tone : ''}`}>
+              <span>{item.label}</span>
+              <strong className="mono">{item.value}</strong>
             </div>
-          );
-        })}
-        {filtered.length === 0 && (
-          <div className="card"><div className="card-pad text-faint fs-12">No jobs match this filter.</div></div>
+          ))}
+        </div>
+      </section>
+
+      <section className="gw-board-section">
+        <div className="gw-board-section-head">
+          <div>
+            <h2>Aktuell verfügbare Aufträge</h2>
+            <div className="gw-board-section-meta">{filtered.length} von {unclaimed.length} sichtbar · sortiert nach Dringlichkeit</div>
+          </div>
+        </div>
+
+        <div className="gw-board-toolbar">
+          <div className="gw-board-view-tabs" role="tablist" aria-label="Auftragsfilter">
+            {WORK_FILTERS.map(([key, label]) => {
+              const count = key === 'all' ? unclaimed.length : (typeCounts[key] || 0);
+              return (
+                <button
+                  type="button"
+                  key={key}
+                  role="tab"
+                  aria-selected={filter === key}
+                  className={`gw-board-tab ${filter === key ? 'active' : ''}`}
+                  onClick={() => setFilter(key)}
+                >
+                  <span>{label}</span>
+                  <span className="mono">{count}</span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {!isAdmin && (
+          <div className="banner gw-board-privacy">
+            <Icon name="lock" size={12}/>
+            <span>Kundenname und Kontaktdaten sind <strong>verborgen</strong>, bis Ihre Bewerbung genehmigt wurde.</span>
+          </div>
         )}
-      </div>
+
+        <div className="gw-board-database">
+          <div className="gw-board-table-scroll">
+            <table className={`tbl gw-board-table ${isAdmin ? 'gw-board-clickable' : ''}`}>
+          <colgroup>
+            <col style={{ width: 92 }} />
+            <col style={{ width: 138 }} />
+            <col style={{ width: 330 }} />
+            <col style={{ width: 150 }} />
+            <col style={{ width: 84 }} />
+            <col style={{ width: 166 }} />
+            <col style={{ width: 150 }} />
+            <col style={{ width: 138 }} />
+            {isAdmin && <col style={{ width: 112 }} />}
+            {isAdmin && <col style={{ width: 160 }} />}
+            <col style={{ width: 280 }} />
+            <col style={{ width: 154 }} />
+          </colgroup>
+          <thead>
+            <tr>
+              <th>Auftrags ID</th>
+              <th>Art der Arbeit</th>
+              <th>Titel der Arbeit</th>
+              <th>Fachbereich</th>
+              <th className="num">Seitenanzahl</th>
+              <th>Verbindliches finales Lieferdatum <span>bis 18 Uhr</span></th>
+              <th>Verbindlicher 1. Zwischenstand <span>bis 18 Uhr</span></th>
+              <th className="num">{isAdmin ? 'GW-Honorar' : 'Gesamthonorar'} <span>Netto</span></th>
+              {isAdmin && <th className="num">Brutto</th>}
+              {isAdmin && <th>Kunde</th>}
+              <th>Weitere Notiz von efactory1.de</th>
+              <th aria-label="Aktion"></th>
+            </tr>
+          </thead>
+          <tbody>
+            {filtered.length === 0 && (
+              <tr>
+                <td colSpan={isAdmin ? 12 : 10} className="text-faint fs-12" style={{ padding: 20, textAlign: 'center' }}>
+                  Aktuell keine offenen Aufträge.
+                </td>
+              </tr>
+            )}
+            {filtered.map(j => {
+              const dm = U.deadlineMeta(j.deadline);
+              const cust = isAdmin ? D.customer(j.customerId) : null;
+              const rowTone = dm.tone === 'danger' ? 'danger' : (j.urgent ? 'urgent' : '');
+              return (
+                <tr key={j.id} className={rowTone ? `gw-board-row-${rowTone}` : ''} onClick={isAdmin ? () => navigate('order-detail', { id: j.id }) : undefined}>
+                  <td className="mono gw-board-id"><strong>#{j.id}</strong></td>
+                  <td>
+                    <span className={`pill pill-${U.WORK_TYPE_TONES[j.workType] || 'slate'}`}>{D.WORK_TYPE_LABELS[j.workType]}</span>
+                  </td>
+                  <td title={j.topic}>
+                    <div className="gw-board-title-cell">{j.topic}</div>
+                  </td>
+                  <td className="text-muted fs-12">{j.field || <span className="text-faint">—</span>}</td>
+                  <td className="num mono">{j.pages ?? <span className="text-faint">—</span>}</td>
+                  <td>
+                    <div className="gw-board-date">
+                      <span className="mono">{U.fmtDate(j.deadline)}</span>
+                      <span className={`gw-board-deadline-meta is-${dm.tone}`}>
+                        {j.urgent && <Icon name="flame" size={10}/>} {dm.label}{j.urgent ? ` · ×${j.factor}` : ''}
+                      </span>
+                    </div>
+                  </td>
+                  <td className="mono gw-board-small">{j.interimDeadline ? U.fmtDate(j.interimDeadline) : <span className="text-faint">—</span>}</td>
+                  <td className="num mono strong gw-board-money">{U.EUR(j.honorEur)}</td>
+                  {isAdmin && <td className="num mono">{U.EUR(j.grossEur)}</td>}
+                  {isAdmin && (
+                    <td>
+                      <div className="flex items-center gap-2">
+                        <Avatar initials={cust?.initials || '??'} size={22} tone="blue"/>
+                        <span className="fs-12">{cust?.name || '—'}</span>
+                      </div>
+                    </td>
+                  )}
+                  <td className="gw-board-note-cell">
+                    {j.adminNote ? (
+                      <div title={j.adminNote}>{j.adminNote}</div>
+                    ) : <span className="text-faint">—</span>}
+                  </td>
+                  <td onClick={(e) => e.stopPropagation()} className="num">
+                    {isAdmin ? (
+                      <div className="flex gap-1" style={{ justifyContent: 'flex-end' }}>
+                        <button type="button" className="btn btn-sm" onClick={() => navigate('order-detail', { id: j.id })} title="Auftrag öffnen">
+                          <Icon name="eye" size={12}/>
+                        </button>
+                        <button type="button" className="btn btn-sm" onClick={() => onUnpublish(j.id)} title="Vom Board nehmen">
+                          <Icon name="x" size={12}/>
+                        </button>
+                      </div>
+                    ) : j.assignmentMode === 'job_board' && j.jobBoardStatus === 'open' ? (
+                      hasMyApplication(j.id) ? (
+                        <button type="button" className="btn btn-sm gw-board-row-action" disabled>
+                          <Icon name="clock" size={12}/> Gesendet
+                        </button>
+                      ) : (
+                        <button type="button" className="btn btn-sm btn-primary gw-board-row-action" onClick={() => onApply(j.id)}>
+                          <Icon name="send" size={12}/> Bewerben
+                        </button>
+                      )
+                    ) : (
+                      <button type="button" className="btn btn-sm btn-success gw-board-row-action" onClick={() => setClaimingId(j.id)}>
+                        <Icon name="check" size={12}/> Annehmen
+                      </button>
+                    )}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
       {!isAdmin && claimingId && <ClaimModal job={unclaimed.find(j => j.id === claimingId)} onClose={() => setClaimingId(null)} toast={toast} navigate={navigate}/>}
     </div>
   );

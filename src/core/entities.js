@@ -268,13 +268,23 @@ function hydrate() {
   ];
   if (!baseOrders.some(o => Number(o.id) === 3518)) baseOrders.push(customerDemoOrder());
 
+  // Stamp seeded residents so reset can distinguish them from dynamic ones.
+  // Origin is consulted only by reset — never by business logic or sim.
+  const seededCustomers = (CUSTOMERS || []).map(c => ({ ...c, origin: 'seeded' }));
+
   return {
     orders: normalize(baseOrders),
     submissions: normalize(SUBMISSIONS || []),
-    customers: normalize(CUSTOMERS || []),
+    customers: normalize(seededCustomers),
     ghostwriters: normalize(GHOSTWRITERS || []),
     threads: normalize(buildThreads()),
     notifications: normalize(roleSeedNotifications()),
+    sim_events: normalize([]),
+    emails: normalize([]),
+    tokens: normalize([]),
+    checkout_sessions: normalize([]),
+    offer_artifacts: normalize([]),
+    gw_applications: normalize([]),
   };
 }
 

@@ -15,12 +15,57 @@ import { inferOrderId as notificationOrderId } from './src/core/notifications.js
 const AppCtx = createContext(null);
 const useApp = () => useContext(AppCtx);
 
-const ROLES = [
-  { id: 'admin', label: 'Admin', user: 'Berat Özdemir', initials: 'BÖ', email: 'berat@efactory1.de' },
-  { id: 'gw', label: 'Ghostwriter', user: 'Isabel Walter', initials: 'IW', email: 'isabel.walter@gw.efactory1.de' },
-  { id: 'qa', label: 'QA Reviewer', user: 'Lina Hoffmann', initials: 'LH', email: 'qa@efactory1.de' },
-  { id: 'customer', label: 'Customer', user: 'Antigona Berisha', initials: 'AB', email: 'antigona.berisha@example.com' },
+// Static role baseline — admin/GW/QA personas. Customer personas are built
+// dynamically below so seeded customers and WP-intake (dynamic) residents
+// both appear in the dropdown as first-class peers.
+const STATIC_PERSONAS = [
+  { id: 'admin', role: 'admin', label: 'Admin', user: 'Berat Özdemir', initials: 'BÖ', email: 'berat@efactory1.de' },
+  { id: 'gw:gw-iw', role: 'gw', gwId: 'gw-iw', label: 'Ghostwriter', user: 'Isabel Walter', initials: 'IW', email: 'isabel.walter@gw.efactory1.de' },
+  { id: 'qa', role: 'qa', label: 'QA Reviewer', user: 'Lina Hoffmann', initials: 'LH', email: 'qa@efactory1.de' },
 ];
+
+const FEATURED_SEEDED_CUSTOMER_ID = 'c-ab';
+
+function customerPersona(c, opts = {}) {
+  const initials = c.initials || (c.name || '').split(' ').map(s => s[0]).slice(0, 2).join('').toUpperCase() || '??';
+  return {
+    id: `customer:${c.id}`,
+    role: 'customer',
+    customerId: c.id,
+    label: opts.dynamic ? 'Customer (neu)' : 'Customer',
+    user: c.name,
+    initials,
+    email: c.email,
+    dynamic: !!opts.dynamic,
+  };
+}
+
+function buildPersonas(state) {
+  const personas = [...STATIC_PERSONAS];
+  const customers = state?.entities?.customers;
+  if (!customers) return personas;
+  const featured = customers.byId?.[FEATURED_SEEDED_CUSTOMER_ID];
+  if (featured) personas.push(customerPersona(featured));
+  customers.allIds.forEach(id => {
+    if (id === FEATURED_SEEDED_CUSTOMER_ID) return;
+    const c = customers.byId[id];
+    if (c?.origin === 'dynamic') personas.push(customerPersona(c, { dynamic: true }));
+  });
+  return personas;
+}
+
+function activePersonaId(state) {
+  const session = state?.session || {};
+  if (session.role === 'customer') return `customer:${session.customerId}`;
+  if (session.role === 'gw') return `gw:${session.gwId || 'gw-iw'}`;
+  return session.role || 'admin';
+}
+
+// Back-compat export: shape resembles the old ROLES constant for callers
+// that read role-level metadata. Built from the static baseline.
+const ROLES = STATIC_PERSONAS.map(p => ({
+  id: p.role, label: p.label, user: p.user, initials: p.initials, email: p.email,
+})).concat([{ id: 'customer', label: 'Customer', user: 'Antigona Berisha', initials: 'AB', email: 'antigona.berisha@example.com' }]);
 
 // Build nav lazily so badges reflect current ORDERS / SUBMISSIONS data.
 function buildNav(role) {
@@ -30,7 +75,10 @@ function buildNav(role) {
 function Sidebar({ role, route, navigate, collapsed, setCollapsed }) {
   EFHooks.useStore(s => s.meta.version);
   const nav = buildNav(role);
-  const roleMeta = ROLES.find(r => r.id === role) || ROLES[0];
+  const state = store.getState();
+  const personas = buildPersonas(state);
+  const activePid = activePersonaId(state);
+  const roleMeta = personas.find(p => p.id === activePid) || personas.find(p => p.role === role) || personas[0];
   // Map nav item ids to internal route names
   const routeMap = EFRoutes.NAV_ROUTE_MAP;
   const activeId = Object.entries(routeMap).find(([, v]) => v === route?.name)?.[0] || route?.name;
@@ -80,15 +128,21 @@ function Sidebar({ role, route, navigate, collapsed, setCollapsed }) {
   );
 }
 
-function RoleSwitcher({ role, setRole }) {
+function RoleSwitcher({ role, selectPersona }) {
   const [open, setOpen] = useState(false);
   const ref = useRef();
+  // Re-render when customers table changes so dynamic residents appear/disappear.
+  EFHooks.useStore(s => s.entities.customers);
+  EFHooks.useStore(s => s.session.customerId);
   useEffect(() => {
     const fn = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
     document.addEventListener('mousedown', fn);
     return () => document.removeEventListener('mousedown', fn);
   }, []);
-  const cur = ROLES.find(r => r.id === role);
+  const state = store.getState();
+  const personas = buildPersonas(state);
+  const activePid = activePersonaId(state);
+  const cur = personas.find(p => p.id === activePid) || personas.find(p => p.role === role) || personas[0];
   return (
     <div ref={ref} style={{ position: 'relative' }}>
       <button type="button" className="role-switcher" aria-haspopup="listbox" aria-expanded={open} onClick={() => setOpen(!open)}>
@@ -100,16 +154,23 @@ function RoleSwitcher({ role, setRole }) {
         <Icon name="chevron-down" size={14} className="text-faint" />
       </button>
       {open && (
-        <div role="listbox" aria-label="Demo persona" style={{ position: 'absolute', top: 40, right: 0, width: 240, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10, boxShadow: 'var(--shadow-lg)', zIndex: 50, overflow: 'hidden' }}>
+        <div role="listbox" aria-label="Demo persona" style={{ position: 'absolute', top: 40, right: 0, width: 260, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10, boxShadow: 'var(--shadow-lg)', zIndex: 50, overflow: 'hidden' }}>
           <div style={{ padding: '8px 12px', fontSize: 11, color: 'var(--text-3)', fontWeight: 500, textTransform: 'uppercase', letterSpacing: '0.04em', borderBottom: '1px solid var(--border)' }}>Demo persona</div>
-          {ROLES.map(r => (
-            <button type="button" role="option" aria-selected={r.id === role} key={r.id} onClick={() => { setRole(r.id); setOpen(false); }} style={{ width: '100%', textAlign: 'left', padding: '10px 12px', display: 'flex', gap: 10, cursor: 'pointer', alignItems: 'center', borderBottom: '1px solid var(--border)', borderTop: 'none', borderLeft: 'none', borderRight: 'none', background: 'transparent', font: 'inherit', color: 'inherit' }} onMouseEnter={(e)=>e.currentTarget.style.background='var(--surface-2)'} onMouseLeave={(e)=>e.currentTarget.style.background='transparent'}>
-              <Avatar initials={r.initials} size={28} tone={r.id === role ? 'blue' : 'neutral'} />
+          {personas.map(p => (
+            <button type="button" role="option" aria-selected={p.id === activePid} key={p.id}
+              onClick={() => { selectPersona && selectPersona(p); setOpen(false); }}
+              style={{ width: '100%', textAlign: 'left', padding: '10px 12px', display: 'flex', gap: 10, cursor: 'pointer', alignItems: 'center', borderBottom: '1px solid var(--border)', borderTop: 'none', borderLeft: 'none', borderRight: 'none', background: 'transparent', font: 'inherit', color: 'inherit' }}
+              onMouseEnter={(e) => e.currentTarget.style.background = 'var(--surface-2)'}
+              onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}>
+              <Avatar initials={p.initials} size={28} tone={p.id === activePid ? 'blue' : 'neutral'} />
               <div className="flex-col" style={{ flex: 1 }}>
-                <span style={{ fontSize: 12.5, fontWeight: 500 }}>{r.label}</span>
-                <span style={{ fontSize: 11, color: 'var(--text-3)' }}>{r.user}</span>
+                <span style={{ fontSize: 12.5, fontWeight: 500, display: 'flex', alignItems: 'center', gap: 6 }}>
+                  {p.label}
+                  {p.dynamic && <span style={{ fontSize: 9.5, padding: '1px 6px', borderRadius: 8, background: 'color-mix(in oklab, var(--blue) 16%, transparent)', color: 'var(--blue)', fontWeight: 500, letterSpacing: '0.02em' }}>NEU</span>}
+                </span>
+                <span style={{ fontSize: 11, color: 'var(--text-3)' }}>{p.user}</span>
               </div>
-              {r.id === role && <Icon name="check" size={14} className="text-faint" />}
+              {p.id === activePid && <Icon name="check" size={14} className="text-faint" />}
             </button>
           ))}
         </div>
@@ -286,10 +347,10 @@ function CrumbBar({ trail }) {
   return (
     <div className="crumbs">
       {trail.map((c, i) => (
-        <React.Fragment key={i}>
+        <span key={`${i}-${c}`} style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
           {i > 0 && <Icon name="chevron-right" size={12} className="crumb-sep" />}
           <span className={i === trail.length - 1 ? 'crumb-current' : ''}>{c}</span>
-        </React.Fragment>
+        </span>
       ))}
     </div>
   );
@@ -312,13 +373,15 @@ function AdminGlobalBanners({ navigate }) {
 }
 
 // Topbar
-function Topbar({ role, setRole, navigate, toast }) {
+function Topbar({ role, setRole, selectPersona, navigate, toast }) {
   const isAdmin = role === 'admin';
   const notifs = EFHooks.useNotifications(role);
   const openNotification = (n) => {
     const target = resolveNotificationTarget(n, role);
     if (target?.name) navigate(target.name, target.params || {});
   };
+  // Fallback for callers that haven't been migrated to selectPersona.
+  const pickPersona = selectPersona || ((p) => setRole && setRole(p.role));
   return (
     <div className="topbar">
       <div style={{ flex: 1 }}/>
@@ -330,7 +393,7 @@ function Topbar({ role, setRole, navigate, toast }) {
         onMark={() => EFActions.notifications.markAllRead(role)}
         onOpen={openNotification}
       />
-      <RoleSwitcher role={role} setRole={setRole}/>
+      <RoleSwitcher role={role} selectPersona={pickPersona}/>
     </div>
   );
 }
@@ -368,5 +431,6 @@ function ToastStack({ toasts, onDismiss }) {
 export {
   Sidebar, RoleSwitcher, NotifBell, FridayWidget, TopbarClock, ToastHost,
   CrumbBar, Topbar, ToastStack, AppCtx, useApp, ROLES, buildNav,
+  buildPersonas, activePersonaId, STATIC_PERSONAS,
   AdminGlobalBanners, resolveNotificationTarget, notificationOrderId,
 };

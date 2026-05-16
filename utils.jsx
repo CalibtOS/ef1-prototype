@@ -202,12 +202,20 @@ const Icon = ({ name, size = 16, className = '', strokeWidth = 1.5 }) => {
     'arrow-down-right': <><line x1="7" y1="7" x2="17" y2="17"/><polyline points="17 7 17 17 7 17"/></>,
     'minus': <line x1="5" y1="12" x2="19" y2="12"/>,
   };
-  return <svg {...props}>{paths[name] || paths['dot']}</svg>;
+  const iconKey = paths[name] ? name : 'dot';
+  return <svg {...props}><g key={iconKey}>{paths[name] || paths['dot']}</g></svg>;
 };
 
-// Status pill
-const StatusPill = ({ status }) => {
-  const m = STATUS_PILLS[status] || { color: 'slate', label: status };
+// Status pill. When `order` is passed and the order is in `available` but
+// hasn't been published to the board (jobBoardStatus !== 'open'), render the
+// distinct "Paid · Ready for Job Board" variant. Callers that only have a
+// raw status string keep the legacy behavior.
+const StatusPill = ({ status, order }) => {
+  let key = status;
+  if (order && status === 'available' && order.jobBoardStatus !== 'open') {
+    key = 'available_ready';
+  }
+  const m = STATUS_PILLS[key] || { color: 'slate', label: key };
   return <span className={`pill pill-${m.color}`}>{m.label}</span>;
 };
 

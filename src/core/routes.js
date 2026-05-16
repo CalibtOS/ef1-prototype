@@ -45,12 +45,17 @@ const ROUTES = {
   CUSTOMER_INVOICES: 'cust-invoices',
   CUSTOMER_DOWNLOADS: 'cust-downloads',
   CUSTOMER_PROFILE: 'cust-profile',
+  WP_HAUSARBEIT: 'wp-hausarbeit',
+  WP_VIELEN_DANK: 'wp-vielen-dank',
+  SIM_STRIPE_CHECKOUT: 'sim-stripe-checkout',
 };
 
 function defaultRouteFor(role) {
   if (role === 'gw') return ROUTES.GW_DASHBOARD;
   if (role === 'qa') return ROUTES.QA_QUEUE;
   if (role === 'customer') return ROUTES.CUSTOMER_ORDERS;
+  if (role === 'wp') return ROUTES.WP_HAUSARBEIT;
+  if (role === 'sim') return ROUTES.SIM_STRIPE_CHECKOUT;
   return ROUTES.ADMIN_DASHBOARD;
 }
 
@@ -59,7 +64,7 @@ function parseHash() {
   if (!raw) return { role: 'admin', name: ROUTES.ADMIN_DASHBOARD, params: {} };
   const [path, query] = raw.split('?');
   const segments = path.split('/').filter(Boolean);
-  const role = ['admin','gw','qa','customer'].includes(segments[0]) ? segments[0] : 'admin';
+  const role = ['admin','gw','qa','customer','wp','sim'].includes(segments[0]) ? segments[0] : 'admin';
   const name = segments[1] || defaultRouteFor(role);
   const params = {};
   if (query) {
@@ -117,7 +122,7 @@ function navItems(role, state) {
       { id: 'orders', label: 'Orders', icon: 'package', badge: String(orders.length) },
       { id: 'customers', label: 'Customers', icon: 'users' },
       { id: 'ghostwriters', label: 'Ghostwriters', icon: 'feather' },
-      { id: 'jobs', label: 'Job Board', icon: 'clipboard-list', badge: String(orders.filter(o => o.status === 'available' && !o.gwId).length) },
+      { id: 'jobs', label: 'Job Board', icon: 'clipboard-list', badge: String(orders.filter(o => o.status === 'available' && !o.gwId && (!o.scenarioId || o.jobBoardStatus === 'open')).length) },
       { id: 'qa', label: 'QA Queue', icon: 'shield-check', badge: qaPending ? String(qaPending) : null, badgeTone: 'warn' },
       { id: 'payments', label: 'Payments', icon: 'wallet', badge: friday ? String(friday) : null },
       { id: 'disputes', label: 'Disputes', icon: 'alert-triangle', badge: disputes ? String(disputes) : null },
@@ -130,7 +135,7 @@ function navItems(role, state) {
   }
   if (role === 'gw') {
     const gwId = state.session.gwId;
-    const board = orders.filter(o => o.status === 'available' && !o.gwId).length;
+    const board = orders.filter(o => o.status === 'available' && !o.gwId && (!o.scenarioId || o.jobBoardStatus === 'open')).length;
     const mine = orders.filter(o => o.gwId === gwId && !['completed','cancelled'].includes(o.status));
     return [
       { id: 'gw-dashboard', label: 'My Dashboard', icon: 'layout-dashboard' },

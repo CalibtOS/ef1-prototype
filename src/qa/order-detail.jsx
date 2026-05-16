@@ -60,7 +60,7 @@ function QAOrderDetail({ orderId, navigate, toast }) {
           <CrumbBar trail={['QA','Review Queue', `#${order.id}`]} />
           <h1 className="page-title" style={{ marginTop: 6, display: 'flex', gap: 12, alignItems: 'center' }}>
             <span className="mono">#{order.id}</span>
-            <StatusPill status={order.status}/>
+            <StatusPill status={order.status} order={order}/>
             <span style={{ fontWeight: 400, color: 'var(--text-2)', fontSize: 16 }}>· {order.titleTBD ? <em>folgt — awaiting customer</em> : order.title}</span>
           </h1>
           <div className="page-subtitle flex gap-3 items-center" style={{ marginTop: 6 }}>
