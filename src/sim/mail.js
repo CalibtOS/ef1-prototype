@@ -356,7 +356,7 @@ function gwApplicationAdminNotify({ orderId, customerId, customerName, gwId, gwN
       `**Bewerbungs-ID:** ${applicationId || '—'}`,
       pitch ? `\n**Pitch:**\n${pitch}` : null,
     ].filter(Boolean).join('\n'),
-    cta: { label: 'Bewerbungen prüfen', action: 'open_admin_order', orderId },
+    cta: { label: 'Bewerbungen prüfen', action: 'open_admin_order', orderId, tab: 'assignment' },
     kind: 'gw_application_admin',
     orderId,
     customerId,
