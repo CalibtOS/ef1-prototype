@@ -8,6 +8,9 @@ import * as U from '../../utils.jsx';
 const WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
 
+// I1 → I2 → Final, so a day with multiple deadlines for the same order reads chronologically.
+const TYPE_ORDER = { I1: 0, I2: 1, Final: 2 };
+
 function buildCalendarGrid(year, month) {
   const firstDay = new Date(year, month, 1);
   const lastDay = new Date(year, month + 1, 0);
@@ -30,7 +33,7 @@ function toDateKey(isoOrDate) {
 // pageTitle   — h1 text
 // pageActions — optional JSX rendered in the page-actions slot
 function DeadlineCalendar({ orders, navigate, pageTitle = 'Deadline Calendar', pageActions }) {
-  const today = new Date();
+  const today = useMemo(() => new Date(), []);
   const [year, setYear] = useState(today.getFullYear());
   const [month, setMonth] = useState(today.getMonth());
 
@@ -48,6 +51,7 @@ function DeadlineCalendar({ orders, navigate, pageTitle = 'Deadline Calendar', p
       add(o.interim2Deadline, o.id, title, 'I2');
       add(o.finalDeadline,    o.id, title, 'Final');
     });
+    Object.values(map).forEach(items => items.sort((a, b) => TYPE_ORDER[a.type] - TYPE_ORDER[b.type]));
     return map;
   }, [orders]);
 
@@ -186,7 +190,7 @@ function DeadlineCalendar({ orders, navigate, pageTitle = 'Deadline Calendar', p
                           <button
                             key={j}
                             onClick={() => navigate('order-detail', { id: item.orderId })}
-                            title={`${item.title} · ${item.type} · ${U.fmtDate(item.iso)}, 18:00`}
+                            title={`${item.title} · ${item.type} · ${U.fmtDateTime(item.iso)}`}
                             style={{
                               display: 'flex', alignItems: 'center', gap: 4,
                               padding: '2px 5px', borderRadius: 4,

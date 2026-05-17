@@ -3,14 +3,10 @@
 import React from 'react';
 import { Icon } from '../../utils.jsx';
 import { DeadlineCalendar } from '../shared/deadline-calendar.jsx';
+import { IN_DELIVERY_STATUSES } from '../core/selectors.js';
 import * as EFHooks from '../core/hooks.js';
 
-// Statuses that represent an order actively in delivery (has meaningful deadlines).
-const IN_DELIVERY = new Set([
-  'active', 'interim_submitted', 'under_customer_review', 'revision_required',
-  'final_submitted', 'qa_review', 'delay_reported', 'extension_requested',
-  'claimed_pending_approval', 'available', 'ai_violation_review',
-]);
+const IN_DELIVERY = new Set(IN_DELIVERY_STATUSES);
 
 function AdminCalendar({ navigate }) {
   const all = EFHooks.useOrders();
