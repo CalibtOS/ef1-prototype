@@ -6,6 +6,7 @@ import { Icon } from '../../utils.jsx';
 import * as EFHooks from '../core/hooks.js';
 import * as SimMail from '../sim/mail.js';
 import * as Scenarios from '../sim/scenarios.js';
+import EFActions from '../core/actions.js';
 
 function relTime(at) {
   if (!at) return '';
@@ -50,8 +51,11 @@ function DemoInbox({ onClose, navigate, switchRole }) {
       return;
     }
     if (cta.action === 'open_customer_dashboard') {
+      if (cta.customerId) {
+        EFActions.session.setPersona({ role: 'customer', customerId: cta.customerId });
+      }
       onClose && onClose();
-      switchRole && switchRole('customer', 'cust-orders', { orderId: cta.orderId });
+      switchRole && switchRole('customer', 'cust-orders', cta.orderId ? { orderId: cta.orderId } : {});
       return;
     }
     if (cta.action === 'open_admin_order') {
@@ -136,6 +140,7 @@ function DemoInbox({ onClose, navigate, switchRole }) {
                 <div style={{ fontSize: 12, color: 'var(--text-2)' }}>
                   <strong>Von:</strong> {selected.from}<br/>
                   <strong>An:</strong> {selected.to}<br/>
+                  {selected.cc && (<><strong>CC:</strong> {selected.cc}<br/></>)}
                   <strong>Gesendet:</strong> {new Date(selected.sentAt).toLocaleString('de-DE')}
                 </div>
               </div>

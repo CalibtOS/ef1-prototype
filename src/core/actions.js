@@ -571,6 +571,21 @@ function completeFirstContact(orderId, payload = {}) {
     firstContactReceiptConfirmedAt: prev.firstContactReceiptConfirmedAt || msg.at,
     firstContactReceiptConfirmedBy: prev.firstContactReceiptConfirmedBy || store.getState().session.gwId,
   }));
+  const after = order(orderId);
+  const sendingGw = gw(store.getState().session.gwId);
+  DomainEvents.emit('gw.first_contact_sent', {
+    order: after,
+    orderId,
+    customerId: after?.customerId,
+    scenarioId: after?.scenarioId || null,
+    gwId: sendingGw?.id || null,
+    gwName: sendingGw?.name || null,
+    gwEmail: sendingGw?.email || null,
+    subject: subject || after?.firstContactSubject || null,
+    body: payload.body || '',
+    ccEmail: 'kundenservice@efactory1.de',
+    sentAt: msg.at,
+  });
   return msg;
 }
 

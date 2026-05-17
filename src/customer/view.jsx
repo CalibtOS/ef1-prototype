@@ -406,8 +406,13 @@ function CustOrdersList({ openOrder, startCheckout, goTo }) {
 function CustOrderStatus({ o }) {
   const progress = custProgress(o);
   const meta = custStatusMeta(o);
-  const dates = W.lifecycleDates(o, []);
+  const displaySubs = EFHooks.useDisplaySubmissions(o.id);
+  const realSubs = (displaySubs || []).filter(s => !s.synthetic);
+  const dates = W.lifecycleDates(o, realSubs);
   const rank = W.statusRank(o);
+  const interim1Submitted = realSubs.some(s => s.kind === 'interim_1');
+  const interim2Submitted = realSubs.some(s => s.kind === 'interim_2');
+  const finalSubmitted = realSubs.some(s => W.isQaReviewKind(s.kind)) || !!o.finalSubmittedAt;
 
   const milestones = [
     { id: 'inquiry', label: 'Anfrage eingegangen',        date: dates.leadAt, icon: 'inbox' },
@@ -423,19 +428,32 @@ function CustOrderStatus({ o }) {
     { id: 'done',    label: 'Geliefert',                  date: dates.finalAcceptedAt || dates.completedAt, icon: 'check-circle' },
   ].filter(Boolean);
 
+  const idx = (id) => milestones.findIndex(m => m.id === id);
+  // The milestone *after* the latest interim that's actually been submitted.
+  // With a 2-interim contract we want interim1 → interim2 → final; with a
+  // single interim, interim1 → final.
+  const afterInterim = () => {
+    if (o.interim2Deadline && !interim2Submitted) return idx('interim2');
+    return idx('final');
+  };
+
   const stepIndex = (() => {
     if (progress >= 100) return milestones.length;
-    if (o.status === 'qa_review' || o.status === 'final_submitted') return milestones.findIndex(m => m.id === 'qa');
-    if (o.status === 'interim_submitted' || o.status === 'under_customer_review') return milestones.findIndex(m => m.id === 'interim');
-    if (o.status === 'revision_required') return milestones.findIndex(m => m.id === 'interim');
-    if (o.status === 'active') return milestones.findIndex(m => m.id === 'interim');
-    if (o.status === 'available' || o.status === 'claimed_pending_approval') return milestones.findIndex(m => m.id === 'gw');
-    if (custGwLabel(o)) return milestones.findIndex(m => m.id === 'interim');
-    if (o.installments?.[0]?.status === 'paid') return milestones.findIndex(m => m.id === 'gw');
-    if (o.status === 'invoice_sent') return milestones.findIndex(m => m.id === 'paid1');
-    if (o.status === 'offer_sent') return milestones.findIndex(m => m.id === 'invoice');
-    if (o.status === 'qualified') return milestones.findIndex(m => m.id === 'offer');
-    return milestones.findIndex(m => m.id === 'qualified');
+    if (o.status === 'completed' || o.status === 'payment_pending') return milestones.length;
+    if (o.status === 'delivered') return idx('done');
+    if (o.status === 'qa_review' || o.status === 'final_submitted') return idx('qa');
+    if (finalSubmitted) return idx('qa');
+    if (o.status === 'revision_required') return finalSubmitted ? idx('qa') : afterInterim();
+    if (o.status === 'interim_submitted' || o.status === 'under_customer_review') return afterInterim();
+    if (interim1Submitted) return afterInterim();
+    if (o.status === 'active') return idx('interim');
+    if (o.status === 'available' || o.status === 'claimed_pending_approval') return idx('gw');
+    if (custGwLabel(o)) return idx('interim');
+    if (o.installments?.[0]?.status === 'paid') return idx('gw');
+    if (o.status === 'invoice_sent') return idx('paid1');
+    if (o.status === 'offer_sent') return idx('invoice');
+    if (o.status === 'qualified') return idx('offer');
+    return idx('qualified');
   })();
 
   return (
@@ -1480,13 +1498,21 @@ function CustProfile({ toast }) {
 // CustomerView is rendered by the shell router. The shell passes a `section` prop
 // (orders | messages | invoices | downloads | profile) — that's the source of truth
 // for the active tab. Clicking an internal tab navigates so the URL/sidebar stay in sync.
-function CustomerView({ role, setRole, selectPersona, toast, section, navigate, goTo }) {
+function CustomerView({ role, setRole, selectPersona, toast, section, navigate, goTo, focusOrderId }) {
   const tab = section || 'orders';
   const [openOrderId, setOpenOrderId] = useState(null);
   const [openOrderTab, setOpenOrderTab] = useState('status');
   const [checkoutOrderId, setCheckoutOrderId] = useState(null);
   EFHooks.useStore(s => s.session.customerId);
   EFHooks.useStore(s => s.meta.version);
+
+  useEffect(() => {
+    if (focusOrderId != null && !Number.isNaN(focusOrderId)) {
+      setOpenOrderId(focusOrderId);
+      setOpenOrderTab('messages');
+      window.scrollTo(0, 0);
+    }
+  }, [focusOrderId]);
 
   const openOrder = (id, subTab = 'status') => {
     setOpenOrderId(id);

@@ -223,7 +223,8 @@ function App() {
           'cust-downloads': 'downloads', 'cust-profile': 'profile', 'admin-dashboard': 'orders',
         }[name] || 'orders'
         const goTo = (r, n, p = {}) => harnessGoTo(r, n || EFRoutes.defaultRouteFor(r), p)
-        return <CustomerView role={role} setRole={setRole} selectPersona={selectPersona} navigate={navigate} toast={toast} section={section} goTo={goTo}/>
+        const focusOrderId = params?.orderId != null ? Number(params.orderId) : null
+        return <CustomerView role={role} setRole={setRole} selectPersona={selectPersona} navigate={navigate} toast={toast} section={section} goTo={goTo} focusOrderId={focusOrderId}/>
       },
     },
     qa: {

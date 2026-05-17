@@ -287,6 +287,31 @@ DomainEvents.on('order.gw_assigned', (payload) => {
   }
 });
 
+DomainEvents.on('gw.first_contact_sent', (payload) => {
+  const { orderId, customerId, scenarioId, gwId, gwName, gwEmail, subject, body, ccEmail } = payload;
+  const customerEmail = selectCustomerEmail(customerId);
+  const customerName = selectCustomerName(customerId);
+  if (!customerEmail) return;
+  SimEvents.emit({
+    source: 'gw',
+    kind: 'gw.first_contact.sent',
+    orderId, customerId, scenarioId,
+    detail: { gwId, gwName, subject },
+  });
+  SimMail.firstContactSentToCustomer({
+    orderId,
+    customerId,
+    customerEmail,
+    customerName,
+    gwEmail,
+    gwName,
+    ccEmail,
+    subject,
+    body,
+    scenarioId,
+  });
+});
+
 DomainEvents.on('gw.submission.final', (payload) => {
   const { orderId, customerId, scenarioId, gwId, gwName, submissionKind, fileName, submission } = payload;
   SimEvents.emit({

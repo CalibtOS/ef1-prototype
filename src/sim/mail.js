@@ -18,6 +18,7 @@ function createEmail(payload) {
     id: payload.id || nextId(payload.kind || 'mail', payload.orderId),
     to: payload.to,
     toRole: payload.toRole || 'customer',
+    cc: payload.cc || null,
     from: payload.from || 'kundenservice@efactory1.de',
     subject: payload.subject || '',
     bodyMd: payload.bodyMd || '',
@@ -419,6 +420,22 @@ function gwAssignedToGw({ orderId, gwId, gwEmail, gwName, customerName, title, f
   });
 }
 
+function firstContactSentToCustomer({ orderId, customerId, customerEmail, customerName, gwEmail, gwName, ccEmail, subject, body, scenarioId }) {
+  return createEmail({
+    to: customerEmail,
+    toRole: 'customer',
+    cc: ccEmail || 'kundenservice@efactory1.de',
+    from: gwEmail || 'kundenservice@efactory1.de',
+    subject: subject || `Auftrag #${orderId} · Erstkontakt`,
+    bodyMd: body || '',
+    cta: { label: 'Im Dashboard antworten', action: 'open_customer_dashboard', orderId, customerId },
+    kind: 'gw_first_contact',
+    orderId,
+    customerId,
+    scenarioId,
+  });
+}
+
 function gwAssignedToCustomer({ orderId, customerId, customerEmail, customerName, gwName, scenarioId }) {
   return createEmail({
     to: customerEmail,
@@ -523,6 +540,7 @@ export {
   gwJobAvailableToGw,
   gwAssignedToGw,
   gwAssignedToCustomer,
+  firstContactSentToCustomer,
   gwApplicationRejected,
   gwApplicationAdminNotify,
   finalSubmittedAdminNotify,
