@@ -56,7 +56,7 @@ function DemoInbox({ onClose, navigate, switchRole }) {
     }
     if (cta.action === 'open_admin_order') {
       onClose && onClose();
-      switchRole && switchRole('admin', 'order-detail', { id: cta.orderId });
+      switchRole && switchRole('admin', 'order-detail', { id: cta.orderId, ...(cta.tab ? { tab: cta.tab } : {}) });
       return;
     }
     if (cta.action === 'open_gw_job_board') {
