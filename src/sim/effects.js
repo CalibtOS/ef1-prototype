@@ -75,6 +75,14 @@ DomainEvents.on('order.offer_sent', (payload) => {
     scenarioId,
   });
 
+  SimMail.offerKennenlernenCustomer({
+    orderId,
+    customerId,
+    customerEmail: selectCustomerEmail(customerId),
+    customerName: selectCustomerName(customerId),
+    scenarioId,
+  });
+
   SimEvents.emit({
     source: 'pipedrive',
     kind: 'pipedrive.deal.move',
@@ -277,6 +285,27 @@ DomainEvents.on('order.gw_assigned', (payload) => {
       scenarioId,
     });
   }
+});
+
+DomainEvents.on('gw.submission.final', (payload) => {
+  const { orderId, customerId, scenarioId, gwId, gwName, submissionKind, fileName, submission } = payload;
+  SimEvents.emit({
+    source: 'gw',
+    kind: 'gw.submission.final',
+    orderId, customerId, scenarioId,
+    detail: { gwId, gwName, submissionKind, fileName, submissionId: submission?.id },
+  });
+  SimMail.finalSubmittedAdminNotify({
+    orderId,
+    customerId,
+    customerName: selectCustomerName(customerId),
+    gwId,
+    gwName,
+    submissionId: submission?.id,
+    submissionKind,
+    fileName,
+    scenarioId,
+  });
 });
 
 DomainEvents.on('payments.batch.released', (payload) => {

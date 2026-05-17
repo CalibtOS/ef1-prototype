@@ -622,6 +622,16 @@ function submitWork(orderId, payload = {}) {
     // Final submissions go to QA first; QA forwards to customer on pass.
     notifyOrder(orderId, { to: 'admin', kind: 'final_uploaded', submissionId: submission.id, title: `${kind === 'final' ? 'Final' : 'Revision'} submission · #${orderId}`, body: `${g?.name || 'GW'} uploaded · pending QA` });
     notifyOrder(orderId, { to: 'qa', kind: 'final_uploaded', submissionId: submission.id, title: `New submission · #${orderId}`, body: `${entityKind} · waiting for QA verdict` });
+    DomainEvents.emit('gw.submission.final', {
+      submission,
+      orderId,
+      customerId: o?.customerId,
+      scenarioId: o?.scenarioId || null,
+      gwId: currentGwId,
+      gwName: g?.name || null,
+      submissionKind: kind,
+      fileName: submission.fileName,
+    });
   }
   return submission;
 }

@@ -197,6 +197,35 @@ function offerSentCustomer({ orderId, customerId, customerEmail, customerName, o
   });
 }
 
+function offerKennenlernenCustomer({ orderId, customerId, customerEmail, customerName, scenarioId }) {
+  return createEmail({
+    to: customerEmail,
+    toRole: 'customer',
+    from: 'kundenservice@efactory1.de',
+    subject: `Erstes Kennenlernen mit efactory1`,
+    bodyMd: [
+      `Liebe/r ${customerName || ''},`,
+      ``,
+      `vielen Dank für Deine Anfrage!`,
+      ``,
+      `Unser Angebot für die Arbeit hast Du gerade in einer separaten E-Mail erhalten. Gerne auch den Spam-Ordner kontrollieren.`,
+      ``,
+      `Zudem haben wir Dich jetzt für dein persönliches Dashboard freigeschaltet. Dort bekommst Du alle Antworten zu deiner Anfrage, zum Ablauf, zur Kommunikation und unseren Versprechen. Im Dashboard findest Du außerdem unseren Thesis-Crashkurs als PDF mit über 30 Seiten von der Forschungsfrage bis zur Abgabe.`,
+      ``,
+      `Um etwaige nächste Schritte mit Dir zu besprechen, freuen wir uns über ein Telefonat oder einen Video-Call. Optional kannst Du uns in unserem Büro in Köln besuchen.`,
+      ``,
+      `Mit freundlichen Grüßen,`,
+      `Berat Özdemir, M.Sc.`,
+      `Geschäftsführer`,
+    ].join('\n'),
+    cta: { label: 'Zum Dashboard', action: 'open_customer_dashboard', orderId, customerId },
+    kind: 'offer_kennenlernen',
+    orderId,
+    customerId,
+    scenarioId,
+  });
+}
+
 function invoiceEmailCustomer({ orderId, customerId, customerEmail, customerName, invoiceNo, paymentMethod, amountDueNow, totalGross, checkoutSessionId, scenarioId }) {
   const money = (n) => `${Number(n || 0).toLocaleString('de-DE', { minimumFractionDigits: 2 })} €`;
   const isBank = paymentMethod === 'bank_transfer_sepa';
@@ -283,6 +312,31 @@ function paymentReceivedAdminNotify({ orderId, customerId, customerName, install
     kind: 'payment_received_admin',
     orderId,
     customerId,
+    scenarioId,
+  });
+}
+
+function finalSubmittedAdminNotify({ orderId, customerId, customerName, gwId, gwName, submissionId, submissionKind, fileName, scenarioId }) {
+  const isRevision = submissionKind === 'revision';
+  return createEmail({
+    to: 'kundenservice@efactory1.de',
+    toRole: 'admin',
+    from: 'noreply@efactory1.de',
+    subject: `${isRevision ? 'Überarbeitung' : 'Endabgabe'} eingereicht · Auftrag #${orderId} · QA prüft`,
+    bodyMd: [
+      `${gwName || gwId || 'Ein Ghostwriter'} hat die ${isRevision ? 'Überarbeitung' : 'Endabgabe'} hochgeladen.`,
+      ``,
+      `**Auftrag:** #${orderId}`,
+      `**Kunde:** ${customerName || customerId || '—'}`,
+      `**Ghostwriter:** ${gwName || '—'} (\`${gwId}\`)`,
+      fileName ? `**Datei:** ${fileName}` : null,
+      `**Status:** In der QA-Prüfung — bitte gegenprüfen, bevor die Endabgabe an den Kunden freigegeben wird.`,
+    ].filter(Boolean).join('\n'),
+    cta: { label: 'Auftrag öffnen', action: 'open_admin_order', orderId },
+    kind: 'final_submitted_admin',
+    orderId,
+    customerId,
+    gwId,
     scenarioId,
   });
 }
@@ -461,6 +515,7 @@ export {
   magicLinkLogin,
   intakeWelcomeCustomer,
   offerSentCustomer,
+  offerKennenlernenCustomer,
   invoiceEmailCustomer,
   paymentReceiptCustomer,
   paymentReceivedAdminNotify,
@@ -470,6 +525,7 @@ export {
   gwAssignedToCustomer,
   gwApplicationRejected,
   gwApplicationAdminNotify,
+  finalSubmittedAdminNotify,
   payoutReleasedGw,
   payoutBatchAdminNotify,
 };
