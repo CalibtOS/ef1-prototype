@@ -359,8 +359,9 @@ function AIDetectionRunner({ submission }) {
   );
 }
 
-function QAQueue({ navigate, toast }) {
-  const [activeId, setActiveId] = useState(3517);
+function QAQueue({ navigate, toast, initialOrderId }) {
+  const [activeId, setActiveId] = useState(initialOrderId ?? 3517);
+  useEffect(() => { if (initialOrderId != null) setActiveId(initialOrderId); }, [initialOrderId]);
   const subs = EFHooks.useSubmissions({ qaQueue: true });
   const active = subs.find(s => s.orderId === activeId) || subs[0];
   const order = active && D.order(active.orderId);
