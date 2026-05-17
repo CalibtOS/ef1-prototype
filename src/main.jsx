@@ -41,6 +41,7 @@ import { SettingsPage } from './admin/settings.jsx'
 import { AIBIDashboard } from './admin/bi.jsx'
 import { Inbox } from './admin/inbox.jsx'
 import { FridayBatch } from './admin/friday-batch.jsx'
+import { AdminCalendar } from './admin/calendar.jsx'
 
 // Ghostwriter role
 import { GWDashboard } from './gw/dashboard.jsx'
@@ -277,6 +278,7 @@ function App() {
       'ghostwriters':       () => <GhostwritersList navigate={navigate}/>,
       'ghostwriter-detail': (p) => <GhostwriterDetail gwId={p.id} navigate={navigate} toast={toast}/>,
       'pipeline':           () => <PipelineKanban navigate={navigate}/>,
+      'admin-calendar':     () => <AdminCalendar navigate={navigate}/>,
       'customers':          () => <CustomersPage navigate={navigate}/>,
       'customer-detail':    (p) => <CustomerDetail customerId={p.id} navigate={navigate}/>,
       'disputes':           () => <DisputesPage navigate={navigate}/>,

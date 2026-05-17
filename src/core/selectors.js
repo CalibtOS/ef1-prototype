@@ -63,16 +63,7 @@ function selectCustomer(state, id) {
   return enrichCustomerSummary(state, byId(state.entities.customers, id));
 }
 
-const ACTIVE_GW_ORDER_STATUSES = [
-  'active',
-  'interim_submitted',
-  'under_customer_review',
-  'revision_required',
-  'final_submitted',
-  'qa_review',
-  'delay_reported',
-  'extension_requested',
-];
+const { ACTIVE_GW_ORDER_STATUSES, IN_DELIVERY_STATUSES } = W;
 
 function isActiveGwAssignment(order) {
   return order?.gwId && ACTIVE_GW_ORDER_STATUSES.includes(order.status);
@@ -522,4 +513,5 @@ export {
   selectCashFriday,
   QUEUE_THRESHOLDS,
   ACTIVE_GW_ORDER_STATUSES,
+  IN_DELIVERY_STATUSES,
 };

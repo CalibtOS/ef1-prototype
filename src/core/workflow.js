@@ -1,7 +1,7 @@
 // Core workflow rules for eFactory One.
 // Pure business logic only: no React, no DOM writes, no side effects.
 import { STATUS_PILLS } from '../../data.js';
-import { QA_STATUS } from './status.js';
+import { QA_STATUS, STATUS } from './status.js';
 
 const ORDER_STATES = [
   'lead','qualified','offer_sent','invoice_sent','available','claimed_pending_approval',
@@ -19,6 +19,30 @@ const POST_FINAL_STATES = [
 ];
 const RELEASE_GATE_RELEVANT_STATES = [
   'delivered', 'payment_pending', 'completed', 'ai_violation_review', 'plagiarism_violation_review'
+];
+
+// Order is claimed by a GW and inside the delivery loop. Used to scope the GW
+// calendar to "my live work".
+const ACTIVE_GW_ORDER_STATUSES = [
+  STATUS.ACTIVE,
+  STATUS.INTERIM_SUBMITTED,
+  STATUS.UNDER_CUSTOMER_REVIEW,
+  STATUS.REVISION_REQUIRED,
+  STATUS.FINAL_SUBMITTED,
+  STATUS.QA_REVIEW,
+  STATUS.DELAY_REPORTED,
+  STATUS.EXTENSION_REQUESTED,
+];
+
+// Admin calendar superset: every status where a deadline is still meaningful.
+// Adds pre-claim (available, claimed_pending_approval) and flagged-but-not-resolved
+// states that the admin must keep watching even though the GW shouldn't.
+const IN_DELIVERY_STATUSES = [
+  ...ACTIVE_GW_ORDER_STATUSES,
+  STATUS.AVAILABLE,
+  STATUS.CLAIMED_PENDING_APPROVAL,
+  STATUS.AI_VIOLATION_REVIEW,
+  STATUS.PLAGIARISM_VIOLATION_REVIEW,
 ];
 const QA_REVIEW_KINDS = ['final_work', 'revision'];
 const STATUS_RANK = {
@@ -498,6 +522,8 @@ function buildOrderEvents(order, context) {
 
 export {
   ORDER_STATES,
+  ACTIVE_GW_ORDER_STATUSES,
+  IN_DELIVERY_STATUSES,
   TRANSITIONS,
   CLOSED_SUBMISSION_REASONS,
   canTransition,
