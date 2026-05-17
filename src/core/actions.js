@@ -165,6 +165,16 @@ function publishJobToBoard(orderId, opts = {}) {
     status: o.status === 'invoice_sent' ? o.status : (o.status === 'qualified' || o.status === 'offer_sent' ? o.status : 'available'),
   });
   const after = order(orderId);
+  const feeLabel = after?.netHonorarium != null ? `€${after.netHonorarium}` : '';
+  const detailParts = [after?.title || 'Untitled', after?.field, after?.pages ? `${after.pages} S.` : null, feeLabel].filter(Boolean);
+  notifyOrder(orderId, {
+    to: 'gw',
+    kind: 'job_available',
+    title: `New job available · #${orderId}`,
+    body: detailParts.join(' · '),
+    route: 'gw-job-board',
+    params: { orderId },
+  });
   DomainEvents.emit('order.assignment.posted_to_board', {
     order: after,
     orderId,
