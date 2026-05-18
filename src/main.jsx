@@ -272,7 +272,7 @@ function App() {
       'orders':             () => <OrdersTable navigate={navigate} route={route}/>,
       'order-detail':       (p) => <OrderDetail orderId={p.id} initialTab={p.tab} navigate={navigate} toast={toast}/>,
       'friday-batch':       () => <FridayBatch navigate={navigate} toast={toast}/>,
-      'qa':                 () => <QAQueue navigate={navigate} toast={toast}/>,
+      'qa':                 (p) => <QAQueue navigate={navigate} toast={toast} initialOrderId={p.orderId ? Number(p.orderId) : undefined}/>,
       'inbox':              () => <Inbox toast={toast} route={route}/>,
       'ai-bi':              () => <AIBIDashboard/>,
       'gw-job-board':       () => <GWJobBoard navigate={navigate} toast={toast} role="admin"/>,

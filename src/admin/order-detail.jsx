@@ -791,7 +791,7 @@ function OrderDetail({ orderId, navigate, toast, initialTab }) {
       )}
 
       {activeTab === 'submissions' && (
-        <SubmissionsTab order={order} />
+        <SubmissionsTab order={order} navigate={navigate} />
       )}
       {activeTab === 'communications' && (
         <CommsTab order={order} toast={toast} />
@@ -1244,11 +1244,22 @@ function OfferTab({ order, toast, setTab }) {
   );
 }
 
-function SubmissionsTab({ order }) {
+function SubmissionsTab({ order, navigate }) {
   const subs = EFHooks.useDisplaySubmissions(order.id);
+  const hasQaPending = subs.some(s => !W.isInterimKind(s.kind) && s.kind !== 'gw_invoice' && s.kind !== 'final_invoice' && s.qaStatus === QA_STATUS.PENDING);
   return (
     <div className="card">
-      <div className="card-head"><div className="card-title">Submissions</div><span className="text-faint fs-11">interim · final · invoices</span></div>
+      <div className="card-head">
+        <div className="card-title">Submissions</div>
+        <div className="flex items-center gap-2">
+          {hasQaPending && navigate && (
+            <button type="button" className="btn btn-sm" onClick={() => navigate('qa', { orderId: order.id })}>
+              <Icon name="shield" size={12}/> Go to QA Queue <Icon name="arrow-right" size={12}/>
+            </button>
+          )}
+          <span className="text-faint fs-11">interim · final · invoices</span>
+        </div>
+      </div>
       <div className="card-pad flex-col gap-2">
         {subs.length === 0 && <div className="text-faint fs-12">No submissions yet — GW will upload via /gw/submit.</div>}
         {subs.map(s => {
