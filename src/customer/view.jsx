@@ -403,7 +403,7 @@ function CustOrdersList({ openOrder, startCheckout, goTo }) {
   );
 }
 
-function CustOrderStatus({ o }) {
+function CustOrderStatus({ o, startCheckout }) {
   const progress = custProgress(o);
   const meta = custStatusMeta(o);
   const displaySubs = EFHooks.useDisplaySubmissions(o.id);
@@ -456,8 +456,44 @@ function CustOrderStatus({ o }) {
     return idx('qualified');
   })();
 
+  const isOfferStage = o.status === 'offer_sent';
+  const offerPages = o.pages;
+  const offerRate = o.offerPageRate;
+  const offerDiscount = o.discountPct;
+  const offerGross = o.grossEur;
+  const offerNo = o.sevdeskOfferNo;
+
   return (
     <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 12 }}>
+      {isOfferStage && (
+        <div className="card" style={{ gridColumn: '1 / -1', borderColor: 'var(--blue)' }}>
+          <div className="card-head">
+            <div className="card-title flex items-center gap-2">
+              <Icon name="file-text" size={14}/> Angebot prüfen und annehmen
+            </div>
+            {offerNo && <span className="pill pill-blue">{offerNo}</span>}
+          </div>
+          <div className="card-pad">
+            <div className="text-muted fs-13" style={{ marginBottom: 12, lineHeight: 1.5 }}>
+              Ihr persönliches Angebot liegt vor. Prüfen Sie die Eckdaten unten und nehmen Sie es an, um Ihre Rechnung zu erhalten und die Ghostwriter-Suche zu starten.
+            </div>
+            <div className="kv" style={{ marginBottom: 14 }}>
+              {offerPages != null && <div className="kv-row"><dt>Umfang</dt><dd className="mono">{offerPages} Seiten{offerRate ? ` · ${U.EUR(offerRate)}/Seite` : ''}</dd></div>}
+              {offerDiscount ? <div className="kv-row"><dt>Rabatt</dt><dd className="mono">{offerDiscount}%</dd></div> : null}
+              {W.canShowMoney(o) && offerGross != null && <div className="kv-row"><dt>Gesamtbetrag (brutto)</dt><dd className="mono strong">{U.EUR(offerGross)}</dd></div>}
+              <div className="kv-row"><dt>Endabgabe</dt><dd className="mono">{U.fmtDate(o.finalDeadline)}</dd></div>
+            </div>
+            <div className="flex gap-2" style={{ flexWrap: 'wrap' }}>
+              <button type="button" className="btn btn-primary" onClick={() => startCheckout && startCheckout(o.id)}>
+                <Icon name="check" size={14}/> Angebot annehmen
+              </button>
+              <span className="text-faint fs-11" style={{ alignSelf: 'center' }}>
+                Bei Annahme erhalten Sie automatisch die Rechnung per E-Mail.
+              </span>
+            </div>
+          </div>
+        </div>
+      )}
       <div className="card">
         <div className="card-head">
           <div className="card-title">Fortschritt</div>
@@ -1089,7 +1125,7 @@ function CustOrderPayments({ o }) {
   );
 }
 
-function CustOrderDetail({ orderId, initialTab, onBack, toast }) {
+function CustOrderDetail({ orderId, initialTab, onBack, toast, startCheckout }) {
   const [tab, setTab] = useState(initialTab || 'status');
   const all = custOrders();
   const o = all.find(x => x.id === orderId);
@@ -1152,7 +1188,7 @@ function CustOrderDetail({ orderId, initialTab, onBack, toast }) {
         })()}
       </div>
 
-      {tab === 'status'   && <CustOrderStatus o={o}/>}
+      {tab === 'status'   && <CustOrderStatus o={o} startCheckout={startCheckout}/>}
       {tab === 'messages' && <CustOrderChat o={o} toast={toast}/>}
       {tab === 'files'    && <CustOrderFiles o={o} toast={toast}/>}
       {tab === 'payments' && <CustOrderPayments o={o}/>}
@@ -1498,7 +1534,7 @@ function CustProfile({ toast }) {
 // CustomerView is rendered by the shell router. The shell passes a `section` prop
 // (orders | messages | invoices | downloads | profile) — that's the source of truth
 // for the active tab. Clicking an internal tab navigates so the URL/sidebar stay in sync.
-function CustomerView({ role, setRole, selectPersona, toast, section, navigate, goTo, focusOrderId }) {
+function CustomerView({ role, setRole, selectPersona, toast, section, navigate, goTo, focusOrderId, focusOrderTab }) {
   const tab = section || 'orders';
   const [openOrderId, setOpenOrderId] = useState(null);
   const [openOrderTab, setOpenOrderTab] = useState('status');
@@ -1508,19 +1544,42 @@ function CustomerView({ role, setRole, selectPersona, toast, section, navigate, 
 
   useEffect(() => {
     if (focusOrderId != null && !Number.isNaN(focusOrderId)) {
+      // Only resync state from the URL when it actually points at a different
+      // order — otherwise an `openOrder(id, subTab)` call that pushes the URL
+      // would race back through here and clobber the chosen sub-tab.
+      if (focusOrderId === openOrderId) return;
       setOpenOrderId(focusOrderId);
-      setOpenOrderTab('messages');
+      // An explicit `tab=` param wins (deep links from mail CTAs land users on
+      // the actionable tab, not the default). Otherwise pick a tab that's
+      // usable for the current state: Messages is locked until a GW is
+      // assigned, so for pre-GW states (e.g. offer_sent from the offer email)
+      // fall back to Status where the offer summary and CTA live.
+      if (focusOrderTab) {
+        setOpenOrderTab(focusOrderTab);
+      } else {
+        const o = EFSelectors.selectOrder(store.getState(), focusOrderId);
+        const preGw = !o?.gwId || ['lead','qualified','offer_sent','invoice_sent','available','claimed_pending_approval'].includes(o?.status);
+        setOpenOrderTab(preGw ? 'status' : 'messages');
+      }
       window.scrollTo(0, 0);
+    } else if (focusOrderId == null && openOrderId != null) {
+      // URL no longer carries an orderId (e.g. user hit back) — close the detail.
+      setOpenOrderId(null);
     }
-  }, [focusOrderId]);
+  }, [focusOrderId, focusOrderTab]);
 
   const openOrder = (id, subTab = 'status') => {
-    setOpenOrderId(id);
     const map = { messages: 'messages', files: 'files', payments: 'payments', status: 'status' };
+    setOpenOrderId(id);
     setOpenOrderTab(map[subTab] || 'status');
+    if (navigate) navigate('cust-orders', { orderId: id });
     window.scrollTo(0, 0);
   };
-  const closeOrder = () => { setOpenOrderId(null); window.scrollTo(0, 0); };
+  const closeOrder = () => {
+    setOpenOrderId(null);
+    if (navigate) navigate('cust-orders');
+    window.scrollTo(0, 0);
+  };
 
   const startCheckout = (id) => setCheckoutOrderId(id);
   const closeCheckout = () => setCheckoutOrderId(null);
@@ -1557,7 +1616,7 @@ function CustomerView({ role, setRole, selectPersona, toast, section, navigate, 
 
   let body;
   if (openOrderId != null) {
-    body = <CustOrderDetail orderId={openOrderId} initialTab={openOrderTab} onBack={closeOrder} toast={toast}/>;
+    body = <CustOrderDetail orderId={openOrderId} initialTab={openOrderTab} onBack={closeOrder} toast={toast} startCheckout={startCheckout}/>;
   } else if (tab === 'messages') {
     body = <CustMessagesList openOrder={openOrder}/>;
   } else if (tab === 'invoices') {

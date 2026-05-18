@@ -55,12 +55,19 @@ function DemoInbox({ onClose, navigate, switchRole }) {
         EFActions.session.setPersona({ role: 'customer', customerId: cta.customerId });
       }
       onClose && onClose();
-      switchRole && switchRole('customer', 'cust-orders', cta.orderId ? { orderId: cta.orderId } : {});
+      const params = {};
+      if (cta.orderId) params.orderId = cta.orderId;
+      if (cta.tab) params.tab = cta.tab;
+      switchRole && switchRole('customer', 'cust-orders', params);
       return;
     }
     if (cta.action === 'open_admin_order') {
       onClose && onClose();
-      switchRole && switchRole('admin', 'order-detail', { id: cta.orderId, ...(cta.tab ? { tab: cta.tab } : {}) });
+      switchRole && switchRole('admin', 'order-detail', {
+        id: cta.orderId,
+        ...(cta.tab ? { tab: cta.tab } : {}),
+        ...(cta.submissionId ? { submissionId: cta.submissionId } : {}),
+      });
       return;
     }
     if (cta.action === 'open_gw_job_board') {

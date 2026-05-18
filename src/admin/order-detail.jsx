@@ -1,6 +1,6 @@
 // Admin · Order detail — overview, payments, submissions, comms, assignment, audit tabs.
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Icon, StatusPill, Avatar, Money, Bi, ScoreBar, NotReady, PlannedTag, EmptyState, Skeleton, ChatNotice, ChatMessage, ChatComposer } from '../../utils.jsx';
 import * as U from '../../utils.jsx';
 import { CrumbBar } from '../../shell.jsx';
@@ -202,7 +202,7 @@ function ViolationResolutionPanel({ order, submissions, toast }) {
   );
 }
 
-function OrderDetail({ orderId, navigate, toast, initialTab }) {
+function OrderDetail({ orderId, navigate, toast, initialTab, focusSubmissionId }) {
   const [tab, setTab] = useState(initialTab || 'overview');
   const [showRateSlider, setShowRateSlider] = useState(false);
   const [approving, setApproving] = useState(null);
@@ -791,7 +791,7 @@ function OrderDetail({ orderId, navigate, toast, initialTab }) {
       )}
 
       {activeTab === 'submissions' && (
-        <SubmissionsTab order={order} navigate={navigate} />
+        <SubmissionsTab order={order} navigate={navigate} focusSubmissionId={focusSubmissionId} />
       )}
       {activeTab === 'communications' && (
         <CommsTab order={order} toast={toast} />
@@ -1244,9 +1244,21 @@ function OfferTab({ order, toast, setTab }) {
   );
 }
 
-function SubmissionsTab({ order, navigate }) {
+function SubmissionsTab({ order, navigate, focusSubmissionId }) {
   const subs = EFHooks.useDisplaySubmissions(order.id);
   const hasQaPending = subs.some(s => !W.isInterimKind(s.kind) && s.kind !== 'gw_invoice' && s.kind !== 'final_invoice' && s.qaStatus === QA_STATUS.PENDING);
+  const focusRef = useRef(null);
+  const [highlightedId, setHighlightedId] = useState(null);
+  useEffect(() => {
+    if (!focusSubmissionId) return;
+    if (!subs.some(s => s.id === focusSubmissionId)) return;
+    setHighlightedId(focusSubmissionId);
+    const t = setTimeout(() => {
+      focusRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }, 50);
+    const fade = setTimeout(() => setHighlightedId(null), 4000);
+    return () => { clearTimeout(t); clearTimeout(fade); };
+  }, [focusSubmissionId, subs.length]);
   return (
     <div className="card">
       <div className="card-head">
@@ -1265,8 +1277,23 @@ function SubmissionsTab({ order, navigate }) {
         {subs.map(s => {
           const isInterim = W.isInterimKind(s.kind);
           const isInvoice = s.kind === 'gw_invoice' || s.kind === 'final_invoice';
+          const isHighlighted = highlightedId === s.id;
           return (
-          <div key={s.id} className="card-pad" style={{ border: '1px solid var(--border)', borderRadius: 8 }}>
+          <div
+            key={s.id}
+            ref={focusSubmissionId === s.id ? focusRef : null}
+            className="card-pad"
+            style={{
+              border: isHighlighted ? '1px solid var(--blue)' : '1px solid var(--border)',
+              borderRadius: 8,
+              boxShadow: isHighlighted ? '0 0 0 3px var(--blue-soft)' : 'none',
+              transition: 'box-shadow 400ms ease, border-color 400ms ease',
+            }}>
+            {isHighlighted && (
+              <div className="fs-11 strong" style={{ color: 'var(--blue)', marginBottom: 6 }}>
+                <Icon name="navigation" size={11}/> From email · this is the new submission
+              </div>
+            )}
             <div className="flex items-center gap-3">
               <div className="action-icon" style={{ background: 'var(--blue-soft)', color: 'var(--blue)' }}><Icon name="file-text" size={16}/></div>
               <div style={{ flex: 1 }}>

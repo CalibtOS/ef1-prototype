@@ -599,6 +599,53 @@ function completeFirstContact(orderId, payload = {}) {
   return msg;
 }
 
+function recordFirstContactOutOfBand(orderId, payload = {}) {
+  const o = order(orderId);
+  if (!o) return false;
+  const currentGwId = store.getState().session.gwId;
+  if (o.gwId !== currentGwId) {
+    toast({ text: 'This assignment is not assigned to your account.', tone: 'danger' });
+    return false;
+  }
+  if (o.firstContactDoneAt) return true;
+  const reason = (payload.reason || '').trim();
+  if (!reason) {
+    toast({ text: 'Please describe how you contacted the customer.', tone: 'danger' });
+    return false;
+  }
+  const channel = (payload.channel || 'other').trim();
+  const at = nowIso();
+  patchOrder(orderId, prev => ({
+    ...prev,
+    firstContactDone: true,
+    firstContactDoneAt: at,
+    firstContactReceiptConfirmedAt: prev.firstContactReceiptConfirmedAt || at,
+    firstContactReceiptConfirmedBy: prev.firstContactReceiptConfirmedBy || currentGwId,
+    firstContactSkippedTemplate: true,
+    firstContactSkipChannel: channel,
+    firstContactSkipReason: reason,
+  }));
+  DomainEvents.emit('gw.first_contact.recorded_out_of_band', {
+    orderId,
+    gwId: currentGwId,
+    customerId: o.customerId,
+    channel,
+    reason,
+    at,
+  });
+  notify({
+    to: 'admin',
+    kind: 'first_contact_out_of_band',
+    orderId,
+    gwId: currentGwId,
+    customerId: o.customerId,
+    title: `Intro recorded out-of-band · #${orderId}`,
+    body: `${gw(currentGwId)?.name || 'GW'} skipped the intro-email template (channel: ${channel}). Reason: ${reason}`,
+  });
+  toast({ text: 'Recorded · submissions unlocked. Berat will see this on the admin queue.', tone: 'success' });
+  return true;
+}
+
 function submitWork(orderId, payload = {}) {
   const o = order(orderId);
   const currentGwId = payload.gwId || store.getState().session.gwId;
@@ -643,6 +690,16 @@ function submitWork(orderId, payload = {}) {
     // Interim submissions go DIRECTLY to the customer. No QA review stage.
     notifyOrder(orderId, { to: 'customer', kind: 'interim_received', submissionId: submission.id, title: 'Ihr Zwischenstand ist verfügbar', body: `Auftrag #${orderId} · Bitte prüfen und Feedback geben` });
     notifyOrder(orderId, { to: 'admin', kind: 'interim_received', submissionId: submission.id, title: `Interim forwarded · #${orderId}`, body: `${g?.name || 'GW'} uploaded interim · auto-sent to customer` });
+    DomainEvents.emit('gw.submission.interim', {
+      submission,
+      orderId,
+      customerId: o?.customerId,
+      scenarioId: o?.scenarioId || null,
+      gwId: currentGwId,
+      gwName: g?.name || null,
+      submissionKind: kind,
+      fileName: submission.fileName,
+    });
   } else {
     // Final submissions go to QA first; QA forwards to customer on pass.
     notifyOrder(orderId, { to: 'admin', kind: 'final_uploaded', submissionId: submission.id, title: `${kind === 'final' ? 'Final' : 'Revision'} submission · #${orderId}`, body: `${g?.name || 'GW'} uploaded · pending QA` });
@@ -683,6 +740,18 @@ function qaPass(submissionId) {
   }
   notifyOrder(o.id, { to: 'gw', kind: 'qa_passed', submissionId, title: `QA passed · #${o.id}`, body: isFinal ? 'Final forwarded to customer · payment release gate progressing' : 'QA spot-check passed' });
   notifyOrder(o.id, { to: 'admin', kind: 'qa_passed', submissionId, title: `QA passed · #${o.id}`, body: isFinal ? 'Final passed QA and was forwarded to the customer.' : 'QA spot-check passed (interim).' });
+  if (isFinal) {
+    DomainEvents.emit('qa.final.released', {
+      submission: sub,
+      orderId: o.id,
+      customerId: o?.customerId,
+      scenarioId: o?.scenarioId || null,
+      gwId: o?.gwId || sub.gwId || null,
+      gwName: gw(o?.gwId || sub.gwId)?.name || null,
+      submissionKind: sub.kind === 'revision' ? 'revision' : 'final',
+      fileName: sub.fileName,
+    });
+  }
   return true;
 }
 
@@ -727,6 +796,12 @@ function approveInterim(orderId) {
   patchOrder(orderId, { status: 'active', interimCustomerSatisfied: true, lastCustomerFeedbackAt: nowIso() });
   notifyOrder(orderId, { to: 'gw', kind: 'interim_approved', title: 'Zwischenstand freigegeben', body: `Kunde hat Zwischenstand #${orderId} freigegeben` });
   notifyOrder(orderId, { to: 'admin', kind: 'interim_approved', title: `Customer approved interim · #${orderId}`, body: 'GW can continue to the next milestone' });
+  DomainEvents.emit('customer.interim.approved', {
+    orderId,
+    customerId: o?.customerId,
+    gwId: o?.gwId,
+    scenarioId: o?.scenarioId || null,
+  });
   return true;
 }
 
@@ -769,6 +844,13 @@ function acceptFinal(orderId) {
   });
   notifyOrder(orderId, { to: 'admin', kind: 'final_accepted', title: `Customer accepted final · #${orderId}`, body: 'Order moved to Friday-batch eligibility — release gate now driven by GW invoice + installments.' });
   notifyOrder(orderId, { to: 'gw', kind: 'final_accepted', title: `Final accepted · #${orderId}`, body: 'Customer signed off. Honorarium queues for the next Friday batch once gates clear.' });
+  DomainEvents.emit('customer.final.accepted', {
+    orderId,
+    customerId: o?.customerId,
+    scenarioId: o?.scenarioId || null,
+    gwId: o?.gwId || null,
+    gwName: gw(o?.gwId)?.name || null,
+  });
   return true;
 }
 
@@ -1013,6 +1095,7 @@ const actions = {
     applyForJob,
     confirmFirstContactReceipt,
     completeFirstContact,
+    recordFirstContactOutOfBand,
     submit: submitWork,
     reportDelay,
     requestExtension,
