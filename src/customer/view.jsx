@@ -1125,8 +1125,8 @@ function CustOrderPayments({ o }) {
   );
 }
 
-function CustOrderDetail({ orderId, initialTab, onBack, toast, startCheckout }) {
-  const [tab, setTab] = useState(initialTab || 'status');
+function CustOrderDetail({ orderId, tab, onTabChange, onBack, toast, startCheckout }) {
+  const setTab = (next) => { if (onTabChange) onTabChange(next); };
   const all = custOrders();
   const o = all.find(x => x.id === orderId);
   if (!o) {
@@ -1544,24 +1544,24 @@ function CustomerView({ role, setRole, selectPersona, toast, section, navigate, 
 
   useEffect(() => {
     if (focusOrderId != null && !Number.isNaN(focusOrderId)) {
-      // Only resync state from the URL when it actually points at a different
-      // order — otherwise an `openOrder(id, subTab)` call that pushes the URL
-      // would race back through here and clobber the chosen sub-tab.
-      if (focusOrderId === openOrderId) return;
-      setOpenOrderId(focusOrderId);
-      // An explicit `tab=` param wins (deep links from mail CTAs land users on
-      // the actionable tab, not the default). Otherwise pick a tab that's
-      // usable for the current state: Messages is locked until a GW is
-      // assigned, so for pre-GW states (e.g. offer_sent from the offer email)
-      // fall back to Status where the offer summary and CTA live.
+      const orderChanged = focusOrderId !== openOrderId;
+      if (orderChanged) {
+        setOpenOrderId(focusOrderId);
+        window.scrollTo(0, 0);
+      }
+      // An explicit `tab=` param wins (deep links from mail CTAs, and our own
+      // internal tab clicks which push the tab into the URL — see openOrder
+      // and the onTabChange handler below). Re-sync on every change so that
+      // re-clicking the same email CTA while the order is already open still
+      // jumps to the right tab. When no tab is in the URL (only when the
+      // order first opens), fall back to a state-appropriate default.
       if (focusOrderTab) {
-        setOpenOrderTab(focusOrderTab);
-      } else {
+        if (focusOrderTab !== openOrderTab) setOpenOrderTab(focusOrderTab);
+      } else if (orderChanged) {
         const o = EFSelectors.selectOrder(store.getState(), focusOrderId);
         const preGw = !o?.gwId || ['lead','qualified','offer_sent','invoice_sent','available','claimed_pending_approval'].includes(o?.status);
         setOpenOrderTab(preGw ? 'status' : 'messages');
       }
-      window.scrollTo(0, 0);
     } else if (focusOrderId == null && openOrderId != null) {
       // URL no longer carries an orderId (e.g. user hit back) — close the detail.
       setOpenOrderId(null);
@@ -1570,10 +1570,15 @@ function CustomerView({ role, setRole, selectPersona, toast, section, navigate, 
 
   const openOrder = (id, subTab = 'status') => {
     const map = { messages: 'messages', files: 'files', payments: 'payments', status: 'status' };
+    const nextTab = map[subTab] || 'status';
     setOpenOrderId(id);
-    setOpenOrderTab(map[subTab] || 'status');
-    if (navigate) navigate('cust-orders', { orderId: id });
+    setOpenOrderTab(nextTab);
+    if (navigate) navigate('cust-orders', { orderId: id, tab: nextTab });
     window.scrollTo(0, 0);
+  };
+  const changeOrderTab = (nextTab) => {
+    setOpenOrderTab(nextTab);
+    if (navigate && openOrderId != null) navigate('cust-orders', { orderId: openOrderId, tab: nextTab });
   };
   const closeOrder = () => {
     setOpenOrderId(null);
@@ -1616,7 +1621,7 @@ function CustomerView({ role, setRole, selectPersona, toast, section, navigate, 
 
   let body;
   if (openOrderId != null) {
-    body = <CustOrderDetail orderId={openOrderId} initialTab={openOrderTab} onBack={closeOrder} toast={toast} startCheckout={startCheckout}/>;
+    body = <CustOrderDetail orderId={openOrderId} tab={openOrderTab} onTabChange={changeOrderTab} onBack={closeOrder} toast={toast} startCheckout={startCheckout}/>;
   } else if (tab === 'messages') {
     body = <CustMessagesList openOrder={openOrder}/>;
   } else if (tab === 'invoices') {
