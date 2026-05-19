@@ -32,7 +32,8 @@ function toDateKey(isoOrDate) {
 // navigate    — navigate(routeName, params) from the parent
 // pageTitle   — h1 text
 // pageActions — optional JSX rendered in the page-actions slot
-function DeadlineCalendar({ orders, navigate, pageTitle = 'Deadline Calendar', pageActions }) {
+// embedded    — skip outer page shell (for tabs inside another page)
+function DeadlineCalendar({ orders, navigate, pageTitle = 'Deadline Calendar', pageActions, embedded = false }) {
   const today = useMemo(() => new Date(), []);
   const [year, setYear] = useState(today.getFullYear());
   const [month, setMonth] = useState(today.getMonth());
@@ -72,6 +73,144 @@ function DeadlineCalendar({ orders, navigate, pageTitle = 'Deadline Calendar', p
     return d.getFullYear() === year && d.getMonth() === month;
   }).reduce((s, [, v]) => s + v.length, 0);
 
+  const calendarCard = (
+    <div className="card">
+      <div className="card-head">
+        <div className="flex items-center gap-2">
+          <button className="btn btn-sm" onClick={prevMonth}><Icon name="chevron-left" size={14}/></button>
+          <span className="strong" style={{ fontSize: 14, minWidth: 170, textAlign: 'center' }}>
+            {MONTHS[month]} {year}
+          </span>
+          <button className="btn btn-sm" onClick={nextMonth}><Icon name="chevron-right" size={14}/></button>
+        </div>
+        <div className="flex items-center gap-4 fs-11 text-faint">
+          <span className="flex items-center gap-1">
+            <span style={{ width: 8, height: 8, borderRadius: 2, background: 'var(--amber)', display: 'inline-block' }}/>
+            Interim
+          </span>
+          <span className="flex items-center gap-1">
+            <span style={{ width: 8, height: 8, borderRadius: 2, background: 'var(--blue)', display: 'inline-block' }}/>
+            Final
+          </span>
+          <span className="flex items-center gap-1">
+            <span style={{ width: 8, height: 8, borderRadius: 2, background: 'var(--red)', display: 'inline-block' }}/>
+            Overdue / urgent
+          </span>
+        </div>
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', borderBottom: '1px solid var(--border)' }}>
+        {WEEKDAYS.map((wd, i) => (
+          <div
+            key={wd}
+            style={{
+              padding: '7px 10px',
+              fontSize: 10.5, fontWeight: 600,
+              color: 'var(--text-3)',
+              textTransform: 'uppercase', letterSpacing: '0.05em',
+              textAlign: 'center',
+              borderRight: i < 6 ? '1px solid var(--border)' : undefined,
+            }}
+          >
+            {wd}
+          </div>
+        ))}
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)' }}>
+        {days.map((day, i) => {
+          const dateKey = day ? toDateKey(day) : null;
+          const items = dateKey ? (deadlineMap[dateKey] || []) : [];
+          const isToday = dateKey === todayKey;
+          const isPast = day && day < today && !isToday;
+          const isLastInRow = i % 7 === 6;
+
+          return (
+            <div
+              key={i}
+              style={{
+                minHeight: 96,
+                padding: '6px 7px',
+                borderRight: !isLastInRow ? '1px solid var(--border)' : undefined,
+                borderBottom: i < days.length - 7 ? '1px solid var(--border)' : undefined,
+                background: !day
+                  ? 'var(--surface-2)'
+                  : isToday
+                  ? 'color-mix(in oklab, var(--blue) 5%, var(--surface))'
+                  : 'var(--surface)',
+              }}
+            >
+              {day && (
+                <>
+                  <div style={{ marginBottom: items.length ? 5 : 0 }}>
+                    {isToday ? (
+                      <span style={{
+                        display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                        width: 22, height: 22, borderRadius: '50%',
+                        background: 'var(--blue)', color: 'white',
+                        fontSize: 11.5, fontWeight: 700,
+                      }}>
+                        {day.getDate()}
+                      </span>
+                    ) : (
+                      <span style={{ fontSize: 12, fontWeight: 500, color: isPast ? 'var(--text-3)' : 'var(--text)' }}>
+                        {day.getDate()}
+                      </span>
+                    )}
+                  </div>
+
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                    {items.map((item, j) => {
+                      const isInterim = item.type !== 'Final';
+                      const { tone } = item.meta;
+                      const urgent = tone === 'danger' || tone === 'warn';
+                      const accentColor = urgent ? 'var(--red)' : isInterim ? 'var(--amber)' : 'var(--blue)';
+                      const accentSoft  = urgent ? 'var(--red-soft)' : isInterim ? 'var(--amber-soft)' : 'var(--blue-soft)';
+                      const labelColor  = urgent ? 'var(--red)' : isInterim ? '#B45309' : 'var(--blue)';
+
+                      return (
+                        <button
+                          key={j}
+                          onClick={() => navigate('order-detail', { id: item.orderId })}
+                          title={`${item.title} · ${item.type} · ${U.fmtDateTime(item.iso)}`}
+                          style={{
+                            display: 'flex', alignItems: 'center', gap: 4,
+                            padding: '2px 5px', borderRadius: 4,
+                            background: accentSoft,
+                            border: `1px solid color-mix(in oklab, ${accentColor} 28%, transparent)`,
+                            cursor: 'pointer', width: '100%', textAlign: 'left',
+                            font: 'inherit', color: labelColor,
+                          }}
+                        >
+                          <span style={{
+                            flexShrink: 0,
+                            fontSize: 9, fontWeight: 700, lineHeight: 1.2,
+                            padding: '1px 3px', borderRadius: 3,
+                            background: accentColor, color: 'white',
+                          }}>
+                            {item.type}
+                          </span>
+                          <span className="mono" style={{
+                            fontSize: 10, fontWeight: 600,
+                            overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1,
+                          }}>
+                            #{item.orderId}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+
+  if (embedded) return calendarCard;
+
   return (
     <div className="page">
       <div className="page-header">
@@ -88,143 +227,7 @@ function DeadlineCalendar({ orders, navigate, pageTitle = 'Deadline Calendar', p
           {pageActions}
         </div>
       </div>
-
-      <div className="card">
-        {/* Month navigation + legend */}
-        <div className="card-head">
-          <div className="flex items-center gap-2">
-            <button className="btn btn-sm" onClick={prevMonth}><Icon name="chevron-left" size={14}/></button>
-            <span className="strong" style={{ fontSize: 14, minWidth: 170, textAlign: 'center' }}>
-              {MONTHS[month]} {year}
-            </span>
-            <button className="btn btn-sm" onClick={nextMonth}><Icon name="chevron-right" size={14}/></button>
-          </div>
-          <div className="flex items-center gap-4 fs-11 text-faint">
-            <span className="flex items-center gap-1">
-              <span style={{ width: 8, height: 8, borderRadius: 2, background: 'var(--amber)', display: 'inline-block' }}/>
-              Interim
-            </span>
-            <span className="flex items-center gap-1">
-              <span style={{ width: 8, height: 8, borderRadius: 2, background: 'var(--blue)', display: 'inline-block' }}/>
-              Final
-            </span>
-            <span className="flex items-center gap-1">
-              <span style={{ width: 8, height: 8, borderRadius: 2, background: 'var(--red)', display: 'inline-block' }}/>
-              Overdue / urgent
-            </span>
-          </div>
-        </div>
-
-        {/* Weekday header */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', borderBottom: '1px solid var(--border)' }}>
-          {WEEKDAYS.map((wd, i) => (
-            <div
-              key={wd}
-              style={{
-                padding: '7px 10px',
-                fontSize: 10.5, fontWeight: 600,
-                color: 'var(--text-3)',
-                textTransform: 'uppercase', letterSpacing: '0.05em',
-                textAlign: 'center',
-                borderRight: i < 6 ? '1px solid var(--border)' : undefined,
-              }}
-            >
-              {wd}
-            </div>
-          ))}
-        </div>
-
-        {/* Day cells */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)' }}>
-          {days.map((day, i) => {
-            const dateKey = day ? toDateKey(day) : null;
-            const items = dateKey ? (deadlineMap[dateKey] || []) : [];
-            const isToday = dateKey === todayKey;
-            const isPast = day && day < today && !isToday;
-            const isLastInRow = i % 7 === 6;
-
-            return (
-              <div
-                key={i}
-                style={{
-                  minHeight: 96,
-                  padding: '6px 7px',
-                  borderRight: !isLastInRow ? '1px solid var(--border)' : undefined,
-                  borderBottom: i < days.length - 7 ? '1px solid var(--border)' : undefined,
-                  background: !day
-                    ? 'var(--surface-2)'
-                    : isToday
-                    ? 'color-mix(in oklab, var(--blue) 5%, var(--surface))'
-                    : 'var(--surface)',
-                }}
-              >
-                {day && (
-                  <>
-                    <div style={{ marginBottom: items.length ? 5 : 0 }}>
-                      {isToday ? (
-                        <span style={{
-                          display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-                          width: 22, height: 22, borderRadius: '50%',
-                          background: 'var(--blue)', color: 'white',
-                          fontSize: 11.5, fontWeight: 700,
-                        }}>
-                          {day.getDate()}
-                        </span>
-                      ) : (
-                        <span style={{ fontSize: 12, fontWeight: 500, color: isPast ? 'var(--text-3)' : 'var(--text)' }}>
-                          {day.getDate()}
-                        </span>
-                      )}
-                    </div>
-
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-                      {items.map((item, j) => {
-                        const isInterim = item.type !== 'Final';
-                        const { tone } = item.meta;
-                        const urgent = tone === 'danger' || tone === 'warn';
-                        const accentColor = urgent ? 'var(--red)' : isInterim ? 'var(--amber)' : 'var(--blue)';
-                        const accentSoft  = urgent ? 'var(--red-soft)' : isInterim ? 'var(--amber-soft)' : 'var(--blue-soft)';
-                        const labelColor  = urgent ? 'var(--red)' : isInterim ? '#B45309' : 'var(--blue)';
-
-                        return (
-                          <button
-                            key={j}
-                            onClick={() => navigate('order-detail', { id: item.orderId })}
-                            title={`${item.title} · ${item.type} · ${U.fmtDateTime(item.iso)}`}
-                            style={{
-                              display: 'flex', alignItems: 'center', gap: 4,
-                              padding: '2px 5px', borderRadius: 4,
-                              background: accentSoft,
-                              border: `1px solid color-mix(in oklab, ${accentColor} 28%, transparent)`,
-                              cursor: 'pointer', width: '100%', textAlign: 'left',
-                              font: 'inherit', color: labelColor,
-                            }}
-                          >
-                            <span style={{
-                              flexShrink: 0,
-                              fontSize: 9, fontWeight: 700, lineHeight: 1.2,
-                              padding: '1px 3px', borderRadius: 3,
-                              background: accentColor, color: 'white',
-                            }}>
-                              {item.type}
-                            </span>
-                            <span className="mono" style={{
-                              fontSize: 10, fontWeight: 600,
-                              overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1,
-                            }}>
-                              #{item.orderId}
-                            </span>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </>
-                )}
-              </div>
-            );
-          })}
-        </div>
-      </div>
+      {calendarCard}
     </div>
   );
 }
