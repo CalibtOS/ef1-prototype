@@ -121,15 +121,31 @@ function selectAllNotifications(state) {
   return tableItems(state.entities.notifications);
 }
 
+function selectApplicationsForOrder(state, orderId) {
+  const table = state.entities.gw_applications;
+  if (!table) return [];
+  return (table.allIds || [])
+    .map(id => table.byId[id])
+    .filter(a => a && Number(a.orderId) === Number(orderId));
+}
+
 function selectOrderEvents(state, orderId) {
   const order = selectOrder(state, orderId);
   if (!order) return [];
+  const applications = selectApplicationsForOrder(state, orderId);
+  const gwById = {};
+  applications.forEach(a => {
+    if (a.gwId && !gwById[a.gwId]) gwById[a.gwId] = selectGhostwriter(state, a.gwId);
+  });
+  if (order.gwId && !gwById[order.gwId]) gwById[order.gwId] = selectGhostwriter(state, order.gwId);
   return W.buildOrderEvents(order, {
     submissions: selectSubmissionsForOrder(state, orderId),
     thread: selectThreadByOrder(state, orderId),
     notifications: selectAllNotifications(state).filter(n => Number(n.orderId) === Number(orderId) || String(n.title || '').includes(`#${orderId}`) || String(n.body || '').includes(`#${orderId}`)),
     customer: selectCustomer(state, order.customerId),
     gw: selectGhostwriter(state, order.gwId),
+    applications,
+    gwById,
   });
 }
 
@@ -504,6 +520,7 @@ export {
   selectNotifications,
   selectAllNotifications,
   selectOrderEvents,
+  selectApplicationsForOrder,
   selectQaHistory,
   selectKpis,
   selectFridayBatch,

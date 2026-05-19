@@ -260,12 +260,24 @@ function roleSeedNotifications() {
 	];
 }
 
+function backfillAssignmentTimestamps(o) {
+  // Seed orders don't include every audit-trail timestamp. Backfill the bare
+  // minimum so the Assignment History timeline can read real fields instead of
+  // reconstructing fake events at render time.
+  if (!o || !o.gwId) return o;
+  if (o.assignedAt) return o;
+  const anchor = o.acceptedAt || (o.installments && o.installments.find(i => i.status === 'paid')?.date) || o.createdAt || null;
+  if (!anchor) return o;
+  const iso = String(anchor).indexOf('T') >= 0 ? anchor : `${anchor}T10:00:00`;
+  return { ...o, assignedAt: iso };
+}
+
 function hydrate() {
   const baseOrders = [
     ...(ORDERS || []),
     ...(GW_DEMO_ASSIGNMENTS || []),
-  ];
-  if (!baseOrders.some(o => Number(o.id) === 3518)) baseOrders.push(customerDemoOrder());
+  ].map(backfillAssignmentTimestamps);
+  if (!baseOrders.some(o => Number(o.id) === 3518)) baseOrders.push(backfillAssignmentTimestamps(customerDemoOrder()));
 
   // Stamp seeded residents so reset can distinguish them from dynamic ones.
   // Origin is consulted only by reset — never by business logic or sim.
