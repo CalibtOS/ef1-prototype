@@ -18,6 +18,7 @@ function createEmail(payload) {
     id: payload.id || nextId(payload.kind || 'mail', payload.orderId),
     to: payload.to,
     toRole: payload.toRole || 'customer',
+    cc: payload.cc || null,
     from: payload.from || 'kundenservice@efactory1.de',
     subject: payload.subject || '',
     bodyMd: payload.bodyMd || '',
@@ -197,6 +198,35 @@ function offerSentCustomer({ orderId, customerId, customerEmail, customerName, o
   });
 }
 
+function offerKennenlernenCustomer({ orderId, customerId, customerEmail, customerName, scenarioId }) {
+  return createEmail({
+    to: customerEmail,
+    toRole: 'customer',
+    from: 'kundenservice@efactory1.de',
+    subject: `Erstes Kennenlernen mit efactory1`,
+    bodyMd: [
+      `Liebe/r ${customerName || ''},`,
+      ``,
+      `vielen Dank für Deine Anfrage!`,
+      ``,
+      `Unser Angebot für die Arbeit hast Du gerade in einer separaten E-Mail erhalten. Gerne auch den Spam-Ordner kontrollieren.`,
+      ``,
+      `Zudem haben wir Dich jetzt für dein persönliches Dashboard freigeschaltet. Dort bekommst Du alle Antworten zu deiner Anfrage, zum Ablauf, zur Kommunikation und unseren Versprechen. Im Dashboard findest Du außerdem unseren Thesis-Crashkurs als PDF mit über 30 Seiten von der Forschungsfrage bis zur Abgabe.`,
+      ``,
+      `Um etwaige nächste Schritte mit Dir zu besprechen, freuen wir uns über ein Telefonat oder einen Video-Call. Optional kannst Du uns in unserem Büro in Köln besuchen.`,
+      ``,
+      `Mit freundlichen Grüßen,`,
+      `Berat Özdemir, M.Sc.`,
+      `Geschäftsführer`,
+    ].join('\n'),
+    cta: { label: 'Zum Dashboard', action: 'open_customer_dashboard', orderId, customerId },
+    kind: 'offer_kennenlernen',
+    orderId,
+    customerId,
+    scenarioId,
+  });
+}
+
 function invoiceEmailCustomer({ orderId, customerId, customerEmail, customerName, invoiceNo, paymentMethod, amountDueNow, totalGross, checkoutSessionId, scenarioId }) {
   const money = (n) => `${Number(n || 0).toLocaleString('de-DE', { minimumFractionDigits: 2 })} €`;
   const isBank = paymentMethod === 'bank_transfer_sepa';
@@ -287,6 +317,155 @@ function paymentReceivedAdminNotify({ orderId, customerId, customerName, install
   });
 }
 
+function interimApprovedGwNotify({ orderId, gwId, gwEmail, gwName, customerName, finalDeadline, scenarioId }) {
+  const dl = finalDeadline ? new Date(finalDeadline).toLocaleDateString('de-DE') : null;
+  return createEmail({
+    to: gwEmail,
+    toRole: 'gw',
+    from: 'kundenservice@efactory1.de',
+    subject: `Zwischenstand freigegeben · Auftrag #${orderId} · weiter zur nächsten Phase`,
+    bodyMd: [
+      `Hallo ${gwName || ''},`,
+      ``,
+      `gute Nachricht: **${customerName || 'Der Kunde'}** hat Ihren Zwischenstand für Auftrag #${orderId} geprüft und **akzeptiert**.`,
+      ``,
+      `**Status:** Freigegeben — keine Überarbeitung angefordert.`,
+      `**Nächster Schritt:** Sie können direkt mit der nächsten Phase fortfahren${dl ? ` (Endabgabe bis ${dl})` : ''}.`,
+      ``,
+      `Vielen Dank für Ihre Arbeit.`,
+    ].join('\n'),
+    cta: { label: 'Auftrag öffnen', action: 'open_gw_assignment', orderId },
+    kind: 'interim_approved_gw',
+    orderId,
+    customerId: null,
+    gwId,
+    scenarioId,
+  });
+}
+
+function interimSubmittedCustomerNotify({ orderId, customerId, customerEmail, customerName, gwName, submissionId, submissionKind, fileName, scenarioId }) {
+  const label = submissionKind === 'interim_2' ? 'Zwischenstand 2' : 'Zwischenstand 1';
+  return createEmail({
+    to: customerEmail,
+    toRole: 'customer',
+    from: 'kundenservice@efactory1.de',
+    subject: `${label} verfügbar · Auftrag #${orderId}`,
+    bodyMd: [
+      `Hallo ${customerName || ''},`,
+      ``,
+      `Ihr **${label}** für Auftrag #${orderId} wurde von ${gwName || 'Ihrem Ghostwriter'} hochgeladen und steht jetzt in Ihrem Dashboard zur Ansicht bereit.`,
+      ``,
+      fileName ? `**Datei:** ${fileName}` : null,
+      ``,
+      `Bitte prüfen Sie den Zwischenstand und geben Sie Ihr Feedback im Dashboard.`,
+    ].filter(Boolean).join('\n'),
+    cta: { label: 'Zwischenstand ansehen', action: 'open_customer_dashboard', orderId, customerId, tab: 'files' },
+    kind: 'interim_submitted_customer',
+    orderId,
+    customerId,
+    scenarioId,
+  });
+}
+
+function interimSubmittedAdminNotify({ orderId, customerId, customerName, gwId, gwName, submissionId, submissionKind, fileName, scenarioId }) {
+  const label = submissionKind === 'interim_2' ? 'Zwischenstand 2' : 'Zwischenstand 1';
+  return createEmail({
+    to: 'kundenservice@efactory1.de',
+    toRole: 'admin',
+    from: 'noreply@efactory1.de',
+    subject: `${label} eingereicht · Auftrag #${orderId} · an Kunde weitergeleitet`,
+    bodyMd: [
+      `${gwName || gwId || 'Ein Ghostwriter'} hat den **${label}** hochgeladen. Die Datei wurde automatisch an den Kunden weitergeleitet (keine QA-Prüfung bei Zwischenständen).`,
+      ``,
+      `**Auftrag:** #${orderId}`,
+      `**Kunde:** ${customerName || customerId || '—'}`,
+      `**Ghostwriter:** ${gwName || '—'} (\`${gwId}\`)`,
+      fileName ? `**Datei:** ${fileName}` : null,
+      `**Status:** Wartet auf Kundenfeedback.`,
+    ].filter(Boolean).join('\n'),
+    cta: { label: 'Submissions öffnen', action: 'open_admin_order', orderId, tab: 'submissions', submissionId },
+    kind: 'interim_submitted_admin',
+    orderId,
+    customerId,
+    gwId,
+    scenarioId,
+  });
+}
+
+function finalSubmittedAdminNotify({ orderId, customerId, customerName, gwId, gwName, submissionId, submissionKind, fileName, scenarioId }) {
+  const isRevision = submissionKind === 'revision';
+  return createEmail({
+    to: 'kundenservice@efactory1.de',
+    toRole: 'admin',
+    from: 'noreply@efactory1.de',
+    subject: `${isRevision ? 'Überarbeitung' : 'Endabgabe'} eingereicht · Auftrag #${orderId} · QA prüft`,
+    bodyMd: [
+      `${gwName || gwId || 'Ein Ghostwriter'} hat die ${isRevision ? 'Überarbeitung' : 'Endabgabe'} hochgeladen.`,
+      ``,
+      `**Auftrag:** #${orderId}`,
+      `**Kunde:** ${customerName || customerId || '—'}`,
+      `**Ghostwriter:** ${gwName || '—'} (\`${gwId}\`)`,
+      fileName ? `**Datei:** ${fileName}` : null,
+      `**Status:** In der QA-Prüfung — bitte gegenprüfen, bevor die Endabgabe an den Kunden freigegeben wird.`,
+    ].filter(Boolean).join('\n'),
+    cta: { label: 'Submissions öffnen', action: 'open_admin_order', orderId, tab: 'submissions', submissionId },
+    kind: 'final_submitted_admin',
+    orderId,
+    customerId,
+    gwId,
+    scenarioId,
+  });
+}
+
+function finalAcceptedAdminNotify({ orderId, customerId, customerName, gwId, gwName, scenarioId }) {
+  return createEmail({
+    to: 'kundenservice@efactory1.de',
+    toRole: 'admin',
+    from: 'noreply@efactory1.de',
+    subject: `Endabgabe akzeptiert · Auftrag #${orderId} · bereit für Friday-Batch`,
+    bodyMd: [
+      `${customerName || customerId || 'Der Kunde'} hat die Endabgabe für Auftrag #${orderId} **akzeptiert**.`,
+      ``,
+      `**Auftrag:** #${orderId}`,
+      `**Kunde:** ${customerName || customerId || '—'}`,
+      gwName || gwId ? `**Ghostwriter:** ${gwName || '—'}${gwId ? ` (\`${gwId}\`)` : ''}` : null,
+      `**Status:** Auftrag in \`payment_pending\` — Honorar wartet auf den nächsten Friday-Batch (Release-Gate jetzt vom GW-Rechnungs- und Ratenstatus getrieben).`,
+    ].filter(Boolean).join('\n'),
+    cta: { label: 'Auftrag öffnen', action: 'open_admin_order', orderId },
+    kind: 'final_accepted_admin',
+    orderId,
+    customerId,
+    gwId,
+    scenarioId,
+  });
+}
+
+function finalReleasedCustomerNotify({ orderId, customerId, customerEmail, customerName, gwName, submissionId, submissionKind, fileName, scenarioId }) {
+  const isRevision = submissionKind === 'revision';
+  const label = isRevision ? 'Überarbeitete Endabgabe' : 'Endabgabe';
+  return createEmail({
+    to: customerEmail,
+    toRole: 'customer',
+    from: 'kundenservice@efactory1.de',
+    subject: `${label} freigegeben · Auftrag #${orderId}`,
+    bodyMd: [
+      `Hallo ${customerName || ''},`,
+      ``,
+      `Ihre **${label}** für Auftrag #${orderId} hat die Qualitätsprüfung bestanden und steht jetzt in Ihrem Dashboard zur Verfügung.`,
+      ``,
+      fileName ? `**Datei:** ${fileName}` : null,
+      gwName ? `**Ghostwriter:** ${gwName}` : null,
+      ``,
+      `Bitte prüfen Sie das Dokument und melden Sie sich bei Rückfragen über Ihr Dashboard.`,
+    ].filter(Boolean).join('\n'),
+    cta: { label: 'Endabgabe ansehen', action: 'open_customer_dashboard', orderId, customerId, tab: 'files' },
+    kind: 'final_released_customer',
+    orderId,
+    customerId,
+    scenarioId,
+  });
+}
+
 function gwApplicationAdminNotify({ orderId, customerId, customerName, gwId, gwName, applicationId, pitch, scenarioId }) {
   return createEmail({
     to: 'kundenservice@efactory1.de',
@@ -302,7 +481,7 @@ function gwApplicationAdminNotify({ orderId, customerId, customerName, gwId, gwN
       `**Bewerbungs-ID:** ${applicationId || '—'}`,
       pitch ? `\n**Pitch:**\n${pitch}` : null,
     ].filter(Boolean).join('\n'),
-    cta: { label: 'Bewerbungen prüfen', action: 'open_admin_order', orderId },
+    cta: { label: 'Bewerbungen prüfen', action: 'open_admin_order', orderId, tab: 'assignment' },
     kind: 'gw_application_admin',
     orderId,
     customerId,
@@ -365,6 +544,22 @@ function gwAssignedToGw({ orderId, gwId, gwEmail, gwName, customerName, title, f
   });
 }
 
+function firstContactSentToCustomer({ orderId, customerId, customerEmail, customerName, gwEmail, gwName, ccEmail, subject, body, scenarioId }) {
+  return createEmail({
+    to: customerEmail,
+    toRole: 'customer',
+    cc: ccEmail || 'kundenservice@efactory1.de',
+    from: gwEmail || 'kundenservice@efactory1.de',
+    subject: subject || `Auftrag #${orderId} · Erstkontakt`,
+    bodyMd: body || '',
+    cta: { label: 'Im Dashboard antworten', action: 'open_customer_dashboard', orderId, customerId },
+    kind: 'gw_first_contact',
+    orderId,
+    customerId,
+    scenarioId,
+  });
+}
+
 function gwAssignedToCustomer({ orderId, customerId, customerEmail, customerName, gwName, scenarioId }) {
   return createEmail({
     to: customerEmail,
@@ -378,7 +573,7 @@ function gwAssignedToCustomer({ orderId, customerId, customerEmail, customerName
       ``,
       `Alle Nachrichten laufen über die efactory1-Plattform — efactory1 bleibt Ihre Vertragspartnerin.`,
     ].join('\n'),
-    cta: { label: 'Auftrag öffnen', action: 'open_customer_dashboard', orderId, customerId },
+    cta: { label: 'Auftrag öffnen', action: 'open_customer_dashboard', orderId, customerId, tab: 'status' },
     kind: 'gw_assigned_customer',
     orderId,
     customerId,
@@ -461,6 +656,7 @@ export {
   magicLinkLogin,
   intakeWelcomeCustomer,
   offerSentCustomer,
+  offerKennenlernenCustomer,
   invoiceEmailCustomer,
   paymentReceiptCustomer,
   paymentReceivedAdminNotify,
@@ -468,8 +664,15 @@ export {
   gwJobAvailableToGw,
   gwAssignedToGw,
   gwAssignedToCustomer,
+  firstContactSentToCustomer,
   gwApplicationRejected,
   gwApplicationAdminNotify,
+  finalSubmittedAdminNotify,
+  finalAcceptedAdminNotify,
+  finalReleasedCustomerNotify,
+  interimSubmittedCustomerNotify,
+  interimSubmittedAdminNotify,
+  interimApprovedGwNotify,
   payoutReleasedGw,
   payoutBatchAdminNotify,
 };

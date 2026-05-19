@@ -14,6 +14,7 @@ import store from './store.js';
 import * as S from './selectors.js';
 import * as I from './internals.js';
 import * as N from './notifications.js';
+import { normalizeChannel } from './entities.js';
 
 const FINANCIAL_KEYWORD_RE = /preis|kosten|rabatt|nachlass|raten|geld|honorar|bezahl|rechnung|euro|€/i;
 
@@ -21,23 +22,10 @@ function selectThread(state, threadId) {
   return S.byId(state.entities.threads, threadId);
 }
 
-function selectThreadByOrder(state, orderId) {
-  const threads = state.entities.threads;
-  const id = (threads.allIds || []).find(tid => Number(threads.byId[tid]?.orderId) === Number(orderId));
-  return id ? threads.byId[id] : null;
-}
+const selectThreadByOrder = S.selectThreadByOrder;
 
 function newMessageId(threadId) {
   return `${threadId}-m-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 5)}`;
-}
-
-function normalizeChannel(value) {
-  if (value === 'email_proxy') return 'email';
-  if (value === 'whatsapp_proxy') return 'whatsapp';
-  if (value === 'platform_chat') return 'platform';
-  if (value === 'voice_metadata') return 'voice';
-  if (value === 'multi_channel') return 'multi';
-  return value || 'platform';
 }
 
 function ensureThreadForOrder(orderId) {

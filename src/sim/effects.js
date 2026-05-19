@@ -75,6 +75,14 @@ DomainEvents.on('order.offer_sent', (payload) => {
     scenarioId,
   });
 
+  SimMail.offerKennenlernenCustomer({
+    orderId,
+    customerId,
+    customerEmail: selectCustomerEmail(customerId),
+    customerName: selectCustomerName(customerId),
+    scenarioId,
+  });
+
   SimEvents.emit({
     source: 'pipedrive',
     kind: 'pipedrive.deal.move',
@@ -277,6 +285,145 @@ DomainEvents.on('order.gw_assigned', (payload) => {
       scenarioId,
     });
   }
+});
+
+DomainEvents.on('gw.first_contact_sent', (payload) => {
+  const { orderId, customerId, scenarioId, gwId, gwName, gwEmail, subject, body, ccEmail } = payload;
+  const customerEmail = selectCustomerEmail(customerId);
+  const customerName = selectCustomerName(customerId);
+  if (!customerEmail) return;
+  SimEvents.emit({
+    source: 'gw',
+    kind: 'gw.first_contact.sent',
+    orderId, customerId, scenarioId,
+    detail: { gwId, gwName, subject },
+  });
+  SimMail.firstContactSentToCustomer({
+    orderId,
+    customerId,
+    customerEmail,
+    customerName,
+    gwEmail,
+    gwName,
+    ccEmail,
+    subject,
+    body,
+    scenarioId,
+  });
+});
+
+DomainEvents.on('customer.interim.approved', (payload) => {
+  const { orderId, customerId, scenarioId, gwId } = payload;
+  const g = selectGw(gwId);
+  if (!g?.email) return;
+  const order = store.getState().entities.orders?.byId?.[orderId];
+  SimEvents.emit({
+    source: 'customer',
+    kind: 'customer.interim.approved',
+    orderId, customerId, scenarioId,
+    detail: { gwId, gwName: g.name },
+  });
+  SimMail.interimApprovedGwNotify({
+    orderId,
+    gwId,
+    gwEmail: g.email,
+    gwName: g.name,
+    customerName: selectCustomerName(customerId),
+    finalDeadline: order?.finalDeadline || null,
+    scenarioId,
+  });
+});
+
+DomainEvents.on('gw.submission.interim', (payload) => {
+  const { orderId, customerId, scenarioId, gwId, gwName, submissionKind, fileName, submission } = payload;
+  SimEvents.emit({
+    source: 'gw',
+    kind: 'gw.submission.interim',
+    orderId, customerId, scenarioId,
+    detail: { gwId, gwName, submissionKind, fileName, submissionId: submission?.id },
+  });
+  SimMail.interimSubmittedCustomerNotify({
+    orderId,
+    customerId,
+    customerEmail: selectCustomerEmail(customerId),
+    customerName: selectCustomerName(customerId),
+    gwName,
+    submissionId: submission?.id,
+    submissionKind,
+    fileName,
+    scenarioId,
+  });
+  SimMail.interimSubmittedAdminNotify({
+    orderId,
+    customerId,
+    customerName: selectCustomerName(customerId),
+    gwId,
+    gwName,
+    submissionId: submission?.id,
+    submissionKind,
+    fileName,
+    scenarioId,
+  });
+});
+
+DomainEvents.on('gw.submission.final', (payload) => {
+  const { orderId, customerId, scenarioId, gwId, gwName, submissionKind, fileName, submission } = payload;
+  SimEvents.emit({
+    source: 'gw',
+    kind: 'gw.submission.final',
+    orderId, customerId, scenarioId,
+    detail: { gwId, gwName, submissionKind, fileName, submissionId: submission?.id },
+  });
+  SimMail.finalSubmittedAdminNotify({
+    orderId,
+    customerId,
+    customerName: selectCustomerName(customerId),
+    gwId,
+    gwName,
+    submissionId: submission?.id,
+    submissionKind,
+    fileName,
+    scenarioId,
+  });
+});
+
+DomainEvents.on('customer.final.accepted', (payload) => {
+  const { orderId, customerId, scenarioId, gwId, gwName } = payload;
+  SimEvents.emit({
+    source: 'customer',
+    kind: 'customer.final.accepted',
+    orderId, customerId, scenarioId,
+    detail: { gwId, gwName },
+  });
+  SimMail.finalAcceptedAdminNotify({
+    orderId,
+    customerId,
+    customerName: selectCustomerName(customerId),
+    gwId,
+    gwName,
+    scenarioId,
+  });
+});
+
+DomainEvents.on('qa.final.released', (payload) => {
+  const { orderId, customerId, scenarioId, gwId, gwName, submissionKind, fileName, submission } = payload;
+  SimEvents.emit({
+    source: 'qa',
+    kind: 'qa.final.released',
+    orderId, customerId, scenarioId,
+    detail: { gwId, gwName, submissionKind, fileName, submissionId: submission?.id },
+  });
+  SimMail.finalReleasedCustomerNotify({
+    orderId,
+    customerId,
+    customerEmail: selectCustomerEmail(customerId),
+    customerName: selectCustomerName(customerId),
+    gwName,
+    submissionId: submission?.id,
+    submissionKind,
+    fileName,
+    scenarioId,
+  });
 });
 
 DomainEvents.on('payments.batch.released', (payload) => {

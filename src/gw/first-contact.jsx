@@ -15,6 +15,8 @@ const D = EF;
 function GWFirstContact({ orderId, navigate, toast }) {
   const order = EFHooks.useOrder(orderId);
   const cust = order ? D.customer(order.customerId) : null;
+  const gwSelf = order?.gwId ? D.gw(order.gwId) : null;
+  const gwSignName = gwSelf?.name || 'Ihr Ghostwriter';
   const receiptAlreadyConfirmed = !!order?.firstContactReceiptConfirmedAt;
   const baseSubject = order ? `Auftrag #${orderId} · ${D.WORK_TYPE_LABELS[order.workType]} — Erstkontakt` : '';
   const baseBody = order ? `Hallo ${cust?.name?.split(' ')[0] || ''},
@@ -36,7 +38,7 @@ Wichtig — Bitte beachten:
 • Antwortzeit von meiner Seite: i. d. R. innerhalb von 24 Stunden, Mo–Fr 18–23 Uhr.
 
 Beste Grüße
-Isabel Walter` : '';
+${gwSignName}` : '';
   const [step, setStep] = useState(receiptAlreadyConfirmed ? 2 : 1);
   const [confirmed, setConfirmed] = useState(receiptAlreadyConfirmed);
   const [subject, setSubject] = useState(baseSubject);
@@ -84,8 +86,8 @@ Isabel Walter` : '';
       <div className="page" style={{ maxWidth: 720, margin: '0 auto' }}>
         <div className="page-header">
           <div>
-            <CrumbBar trail={['Ghostwriter', 'My Assignments', `#${orderId}`, 'First contact']}/>
-            <h1 className="page-title" style={{ marginTop: 6 }}>First contact complete · #{orderId}</h1>
+            <CrumbBar trail={['Ghostwriter', 'My Assignments', `#${orderId}`, 'Introduction']}/>
+            <h1 className="page-title" style={{ marginTop: 6 }}>Introduction complete · #{orderId}</h1>
             <div className="page-subtitle">The intro email is recorded on the shared order thread.</div>
           </div>
           <div className="page-actions">
@@ -116,9 +118,9 @@ Isabel Walter` : '';
     <div className="page" style={{ maxWidth: 820, margin: '0 auto' }}>
       <div className="page-header">
         <div>
-          <CrumbBar trail={['Ghostwriter', 'My Assignments', `#${orderId}`, 'First contact']}/>
-          <h1 className="page-title" style={{ marginTop: 6 }}>First contact · #{orderId}</h1>
-          <div className="page-subtitle">SOP D · 2 steps: confirm receipt to efactory1 → send pre-filled customer intro email</div>
+          <CrumbBar trail={['Ghostwriter', 'My Assignments', `#${orderId}`, 'Introduction']}/>
+          <h1 className="page-title" style={{ marginTop: 6 }}>Introduce yourself to {cust?.name?.split(' ')[0] || 'the customer'} · #{orderId}</h1>
+          <div className="page-subtitle">Confirm receipt to efactory1, then send the intro email to {cust?.name || 'the customer'}.</div>
         </div>
         <div className="page-actions">
           <button type="button" className="btn" onClick={() => navigate('order-detail', { id: orderId })}><Icon name="chevron-left" size={14}/> Back</button>
@@ -128,7 +130,7 @@ Isabel Walter` : '';
       <div className="card mb-3"><div className="card-pad flex justify-between items-center" style={{ flexWrap: 'wrap', gap: 8 }}>
         {[
           { i: 1, label: 'Confirm receipt to efactory1' },
-          { i: 2, label: 'Email customer (template)' },
+          { i: 2, label: 'Send intro email to customer' },
         ].map(s => (
           <div key={s.i} className="flex items-center gap-2" style={{ flex: 1 }}>
             <div style={{ width: 28, height: 28, borderRadius: 14, background: step > s.i || (step === s.i && step === 2 && confirmed) ? 'var(--green)' : step === s.i ? 'var(--blue)' : 'var(--surface-2)', color: step >= s.i ? 'white' : 'var(--text-3)', display: 'grid', placeItems: 'center', flexShrink: 0 }}>
@@ -172,7 +174,7 @@ Isabel Walter` : '';
             <textarea value={body} onChange={e => setBody(e.target.value)} style={{ width: '100%', minHeight: 320, border: '1px solid var(--border)', borderRadius: 8, padding: 10, fontFamily: 'inherit', fontSize: 12, resize: 'vertical', background: 'var(--surface)', lineHeight: 1.55 }}/>
             <div className="text-faint fs-11 mt-1">Template includes: topic confirmation, scope, deadlines, file-flow rule, financial firewall, response SLA.</div>
           </div>
-          <button type="button" className="btn btn-primary" onClick={sendEmail} disabled={sending || !body.trim()} style={{ alignSelf: 'flex-start' }}><Icon name="send" size={14}/> {sending ? 'Sending…' : 'Send email · CC kundenservice@efactory1.de'}</button>
+          <button type="button" className="btn btn-primary" onClick={sendEmail} disabled={sending || !body.trim()} style={{ alignSelf: 'flex-start' }}><Icon name="send" size={14}/> {sending ? 'Sending…' : 'Send intro email · CC kundenservice@efactory1.de'}</button>
         </div></div>
       )}
     </div>

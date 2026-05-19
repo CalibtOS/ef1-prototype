@@ -11,13 +11,72 @@ import * as U from '../../utils.jsx';
 import { CrumbBar } from '../../shell.jsx';
 import * as W from '../core/workflow.js';
 import * as EFHooks from '../core/hooks.js';
+import EFActions from '../core/actions.js';
 import EF from '../core/ef.js';
 const D = EF;
+
+// Modal: GW declares they introduced themselves out-of-band (WhatsApp, phone, etc.)
+// Records firstContactDoneAt without sending the SOP D template; audit log captures channel + reason.
+function OutOfBandIntroModal({ orderId, customerName, onClose, onConfirm }) {
+  const [channel, setChannel] = useState('whatsapp');
+  const [reason, setReason] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const submit = () => {
+    if (submitting || !reason.trim()) return;
+    setSubmitting(true);
+    const ok = EFActions.gw.recordFirstContactOutOfBand(orderId, { channel, reason: reason.trim() });
+    if (ok) onConfirm && onConfirm();
+    else setSubmitting(false);
+  };
+  return (
+    <div className="modal-backdrop" style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'grid', placeItems: 'center', zIndex: 1000 }} onClick={onClose}>
+      <div className="card" style={{ maxWidth: 520, width: '92%' }} onClick={e => e.stopPropagation()}>
+        <div className="card-head">
+          <div className="card-title">Record out-of-band introduction</div>
+          <button type="button" className="btn btn-sm" onClick={onClose}><Icon name="x" size={12}/></button>
+        </div>
+        <div className="card-pad flex-col gap-3">
+          <div className="banner warn" style={{ fontSize: 12 }}>
+            <Icon name="alert-triangle" size={14}/>
+            <span>The SOP D template won&apos;t be sent. Berat will see this on the admin queue with your reason. Only use this if you already introduced yourself to {customerName} via another channel.</span>
+          </div>
+          <div className="field">
+            <label>Channel</label>
+            <select value={channel} onChange={e => setChannel(e.target.value)}>
+              <option value="whatsapp">WhatsApp</option>
+              <option value="phone">Phone call</option>
+              <option value="email_personal">Email (personal account)</option>
+              <option value="in_person">In person</option>
+              <option value="other">Other</option>
+            </select>
+          </div>
+          <div className="field">
+            <label>How did you introduce yourself? <span className="text-faint">— required, recorded for audit</span></label>
+            <textarea
+              value={reason}
+              onChange={e => setReason(e.target.value)}
+              placeholder="e.g. Spoke on WhatsApp 2026-05-17, confirmed topic + deadlines, explained that all files go via the platform and money questions go to kundenservice@efactory1.de."
+              style={{ width: '100%', minHeight: 110, border: '1px solid var(--border)', borderRadius: 8, padding: 10, fontFamily: 'inherit', fontSize: 12, resize: 'vertical', background: 'var(--surface)', lineHeight: 1.55 }}
+            />
+            <div className="text-faint fs-11 mt-1">Confirm you covered: topic + scope, file-flow rule (platform only), financial firewall (kundenservice@…), response SLA.</div>
+          </div>
+          <div className="flex gap-2" style={{ justifyContent: 'flex-end' }}>
+            <button type="button" className="btn" onClick={onClose}>Cancel</button>
+            <button type="button" className="btn btn-primary" onClick={submit} disabled={submitting || !reason.trim()}>
+              <Icon name="check" size={12}/> {submitting ? 'Recording…' : 'Record & unlock submissions'}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 function GWAssignmentDetail({ orderId, navigate, toast }) {
   const thread = EFHooks.useThreadByOrder(orderId);
   const displaySubs = EFHooks.useDisplaySubmissions(orderId);
   const order = EFHooks.useOrder(orderId);
+  const [outOfBandOpen, setOutOfBandOpen] = useState(false);
   if (!order) return <div className="page">Assignment not found.</div>;
   // Ownership guard — a GW may only view assignments where they are the assigned writer
   // OR the order is on the public job board. Otherwise no leakage of customer/order data.
@@ -63,12 +122,17 @@ function GWAssignmentDetail({ orderId, navigate, toast }) {
   const visibleMessages = [...(thread?.messages || [])]
     .filter(m => m.policy_exemption === 'sop_first_contact_template' || !/preis|kosten|rabatt|nachlass|raten|geld|honorar|bezahl|rechnung|euro|€/i.test(m.body || ''))
     .slice(-3);
-  // First-contact wizard surfaces only after approval, before any submission, and once per assignment.
-  const showFirstContact = isApproved && order.status === 'active' && !hasFirstContactThread && !hasGwContact;
+  // Intro is the first task after approval. Required before any submission per SOP D.
+  // We treat it as "done" when either (a) the SOP D wizard recorded firstContactDoneAt,
+  // or (b) a thread message marked as the first-contact template exists. An out-of-band
+  // record (firstContactSkippedTemplate) also sets firstContactDoneAt.
+  const introDone = !!order.firstContactDoneAt || hasFirstContactThread;
+  const showFirstContact = isApproved && order.status === 'active' && !introDone;
 
   const stages = [
     { id: 'pending', label: 'Pending Approval', done: !isPending },
     { id: 'active', label: 'Active', done: ['active','interim_submitted','under_customer_review','revision_required','final_submitted','qa_review','delivered','payment_pending','completed'].includes(order.status) },
+    { id: 'intro', label: 'Introduction', done: introDone },
     { id: 'interim', label: 'Interim', done: ['interim_submitted','under_customer_review','revision_required','final_submitted','qa_review','delivered','payment_pending','completed'].includes(order.status) },
     { id: 'final', label: 'Final', done: ['final_submitted','qa_review','delivered','payment_pending','completed'].includes(order.status) },
     { id: 'review', label: 'Customer Review', done: ['delivered','payment_pending','completed'].includes(order.status) },
@@ -82,9 +146,10 @@ function GWAssignmentDetail({ orderId, navigate, toast }) {
       <div className="page-header">
         <div>
           <CrumbBar trail={['Ghostwriter', 'My Assignments', `#${order.id}`]}/>
-          <h1 className="page-title" style={{ marginTop: 6, display: 'flex', gap: 12, alignItems: 'center' }}>
+          <h1 className="page-title" style={{ marginTop: 6, display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
             <span className="mono">#{order.id}</span>
             <StatusPill status={order.status} order={order}/>
+            {showFirstContact && <span className="pill pill-amber" title="You haven't introduced yourself to the customer yet">Intro pending</span>}
             <span style={{ fontWeight: 400, color: 'var(--text-2)', fontSize: 16 }}>· {order.titleTBD ? <em>folgt</em> : order.title}</span>
           </h1>
           <div className="page-subtitle flex gap-3 items-center" style={{ marginTop: 6 }}>
@@ -105,16 +170,44 @@ function GWAssignmentDetail({ orderId, navigate, toast }) {
       )}
 
       {showFirstContact && (
-        <div className="banner success mb-3" style={{ borderLeft: '4px solid var(--blue)' }}>
-          <Icon name="zap" size={14}/>
-          <div style={{ flex: 1 }}>
-            <strong>Your next step → First-contact wizard.</strong>
-            <div className="fs-11 mt-1">Step-by-step intro to {cust?.name?.split(' ')[0] || 'the customer'} · pre-filled with the financial-firewall reminder · CC kundenservice@efactory1.de.</div>
+        <div className="card mb-3" style={{ borderLeft: '4px solid var(--blue)' }}>
+          <div className="card-head">
+            <div className="card-title flex items-center gap-2">
+              <Icon name="mail" size={14} style={{ color: 'var(--blue)' }}/>
+              Introduce yourself to {cust?.name?.split(' ')[0] || 'the customer'}
+            </div>
+            <span className="text-faint fs-11">Required before submissions · SOP D</span>
           </div>
-          <button className="btn btn-sm btn-primary" onClick={() => navigate('gw-first-contact', { id: order.id })}>
-            <Icon name="arrow-right" size={12}/> Open wizard
-          </button>
+          <div className="card-pad flex-col gap-3">
+            <div className="fs-12 text-muted" style={{ lineHeight: 1.55 }}>
+              We&apos;ll prefill the email with topic confirmation, scope, deadlines, the file-flow rule, the financial firewall, and your response hours. <strong>efactory1 is auto-CC&apos;d</strong> on every message.
+            </div>
+            <div className="flex items-center gap-3" style={{ flexWrap: 'wrap' }}>
+              <button className="btn btn-primary btn-sm" onClick={() => navigate('gw-first-contact', { id: order.id })}>
+                <Icon name="send" size={12}/> Send intro email
+              </button>
+              <a
+                role="button"
+                tabIndex={0}
+                className="fs-11"
+                style={{ color: 'var(--blue)', cursor: 'pointer' }}
+                onClick={() => setOutOfBandOpen(true)}
+                onKeyDown={e => (e.key === 'Enter' || e.key === ' ') && setOutOfBandOpen(true)}
+              >
+                Already introduced via another channel?
+              </a>
+            </div>
+          </div>
         </div>
+      )}
+
+      {outOfBandOpen && (
+        <OutOfBandIntroModal
+          orderId={order.id}
+          customerName={cust?.name || 'the customer'}
+          onClose={() => setOutOfBandOpen(false)}
+          onConfirm={() => { setOutOfBandOpen(false); toast && toast({ text: 'Introduction recorded · submissions unlocked.', tone: 'success' }); }}
+        />
       )}
 
       {isRevision && (
@@ -186,13 +279,15 @@ function GWAssignmentDetail({ orderId, navigate, toast }) {
             const hasInterim1 = displaySubs.some(sub => sub.kind === 'interim_1');
             const hasInterim2 = displaySubs.some(sub => sub.kind === 'interim_2');
             const hasFinal = displaySubs.some(sub => W.isQaReviewKind(sub.kind));
+            // Soft-block: SOP D requires the GW introduction before any work goes to the customer.
+            const introBlocks = !introDone;
             // Interim 1 is allowed only while the order is "active" (i.e. before any interim has been sent).
-            const interim1Allowed = isApproved && s === 'active' && !!order.interimDeadline && !hasInterim1;
+            const interim1Allowed = isApproved && s === 'active' && !!order.interimDeadline && !hasInterim1 && !introBlocks;
             // Interim 2 is allowed once the customer has reviewed/approved interim 1 and we're back to active.
-            const interim2Allowed = isApproved && s === 'active' && !!order.interim2Deadline && hasInterim1 && !hasInterim2;
+            const interim2Allowed = isApproved && s === 'active' && !!order.interim2Deadline && hasInterim1 && !hasInterim2 && !introBlocks;
             // Final is allowed only after both interims (if any) and while still active.
             const interimsComplete = (!order.interimDeadline || hasInterim1) && (!order.interim2Deadline || hasInterim2);
-            const finalAllowed   = isApproved && s === 'active' && interimsComplete && !hasFinal;
+            const finalAllowed   = isApproved && s === 'active' && interimsComplete && !hasFinal && !introBlocks;
             // Revision upload (re-routed to the GWSubmit kind=final flow with revisionRounds++).
             const revisionMode   = isApproved && s === 'revision_required';
             const finalAlreadySubmitted = ['final_submitted','qa_review','delivered','payment_pending','completed'].includes(s);
@@ -214,10 +309,24 @@ function GWAssignmentDetail({ orderId, navigate, toast }) {
               ai_violation_review: 'AI violation flagged — admin review',
               plagiarism_violation_review: 'Plagiarism flagged — admin review',
             };
-            const stateReason = reasonFor[s] || (!interimsComplete ? 'Required interim submissions must be uploaded first' : 'Awaiting approval');
+            const introBlockReason = 'Send your intro email first — required before submissions (SOP D).';
+            const stateReason = introBlocks
+              ? introBlockReason
+              : (reasonFor[s] || (!interimsComplete ? 'Required interim submissions must be uploaded first' : 'Awaiting approval'));
             return (
           <div className="card">
             <div className="card-head"><div className="card-title">Submissions</div><span className="text-faint fs-11">cutoff 18:00 the day BEFORE due</span></div>
+            {introBlocks && isApproved && (
+              <div className="banner warn" style={{ margin: '0 16px', fontSize: 12 }}>
+                <Icon name="lock" size={14}/>
+                <div style={{ flex: 1 }}>
+                  <strong>Submissions locked.</strong> Send the intro email to {cust?.name?.split(' ')[0] || 'the customer'} first — required by SOP D so the customer is told that work goes via the platform.
+                </div>
+                <button className="btn btn-sm btn-primary" onClick={() => navigate('gw-first-contact', { id: order.id })}>
+                  <Icon name="send" size={12}/> Send intro email
+                </button>
+              </div>
+            )}
             <div className="card-pad" style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 10 }}>
               {order.interimDeadline && (
                 <div style={{ padding: 14, border: '1px solid var(--border)', borderRadius: 8 }}>

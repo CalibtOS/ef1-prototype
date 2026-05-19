@@ -224,7 +224,9 @@ function App() {
           'cust-downloads': 'downloads', 'cust-profile': 'profile', 'admin-dashboard': 'orders',
         }[name] || 'orders'
         const goTo = (r, n, p = {}) => harnessGoTo(r, n || EFRoutes.defaultRouteFor(r), p)
-        return <CustomerView role={role} setRole={setRole} selectPersona={selectPersona} navigate={navigate} toast={toast} section={section} goTo={goTo}/>
+        const focusOrderId = params?.orderId != null ? Number(params.orderId) : null
+        const focusOrderTab = params?.tab || null
+        return <CustomerView role={role} setRole={setRole} selectPersona={selectPersona} navigate={navigate} toast={toast} section={section} goTo={goTo} focusOrderId={focusOrderId} focusOrderTab={focusOrderTab}/>
       },
     },
     qa: {
@@ -271,9 +273,9 @@ function App() {
     admin: {
       'admin-dashboard':    () => <AdminDashboard navigate={navigate} openFridayBatch={() => navigate('friday-batch')}/>,
       'orders':             () => <OrdersTable navigate={navigate} route={route}/>,
-      'order-detail':       (p) => <OrderDetail orderId={p.id} initialTab={p.tab} navigate={navigate} toast={toast}/>,
+      'order-detail':       (p) => <OrderDetail orderId={p.id} initialTab={p.tab} focusSubmissionId={p.submissionId} navigate={navigate} toast={toast}/>,
       'friday-batch':       () => <FridayBatch navigate={navigate} toast={toast}/>,
-      'qa':                 () => <QAQueue navigate={navigate} toast={toast}/>,
+      'qa':                 (p) => <QAQueue navigate={navigate} toast={toast} initialOrderId={p.orderId ? Number(p.orderId) : undefined}/>,
       'inbox':              () => <Inbox toast={toast} route={route}/>,
       'ai-bi':              () => <AIBIDashboard/>,
       'gw-job-board':       () => <GWJobBoard navigate={navigate} toast={toast} role="admin"/>,

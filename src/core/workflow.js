@@ -91,7 +91,7 @@ const TRANSITIONS = {
   approve_claim:        { from: ['claimed_pending_approval'], to: 'active' },
   reject_claim:         { from: ['claimed_pending_approval'], to: 'available' },
   claim_job:            { from: ['available'], to: 'claimed_pending_approval' },
-  assign_gw:            { from: ['available','paid_assignment_started','active','delay_reported','extension_requested'], to: 'active' },
+  assign_gw:            { from: ['available','active','delay_reported','extension_requested'], to: 'active' },
   gw_submit_interim:    { from: ['active'], to: 'under_customer_review' },
   gw_submit_final:      { from: ['active','revision_required'], to: 'qa_review' },
   gw_submit_revision:   { from: ['revision_required'], to: 'qa_review' },
@@ -320,6 +320,12 @@ function firstInstallment(order) {
   return firstByDate(order?.installments || [], 'date');
 }
 
+// Returns a flat object of lifecycle timestamps for the order timeline.
+// Real timestamps (createdAt, offerSentAt, acceptedAt, …) are used when present.
+// When a stage is implied by status rank but no real timestamp exists, synthetic
+// values are derived from `anchor` — e.g. leadAt defaults to `anchor − 72h`.
+// Synthetic timestamps are not currently flagged on the return shape; consumers
+// that need to distinguish real-vs-synthetic should not rely on this helper alone.
 function lifecycleDates(order, submissions) {
   if (!order) return {};
   const rank = statusRank(order);
@@ -342,9 +348,9 @@ function lifecycleDates(order, submissions) {
     ? addHours(order.acceptedAt || paymentAt || firstInst?.date || offerAt, -2)
     : null);
   const acceptedAt = order.acceptedAt || (rank >= 3 ? addHours(invoiceAt || offerAt, 1) : null);
-  const boardAt = order.boardPublishedAt || (rank >= 4 ? addHours(paymentAt || acceptedAt || invoiceAt, 0.25) : null);
-  const claimedAt = order.claimedAt || (order.gwId && rank >= 5 ? addHours(boardAt, 0.5) : null);
-  const assignedAt = order.assignedAt || order.claimApprovedAt || (order.gwId && order.status !== 'claimed_pending_approval' && rank >= 6 ? addHours(claimedAt || boardAt || paymentAt, 1) : null);
+  const boardAt = order.jobBoardPublishedAt || null;
+  const claimedAt = order.claimedAt || null;
+  const assignedAt = order.assignedAt || order.claimApprovedAt || null;
   const interimAt = latestInterim?.submittedAt || order.interimSubmittedAt || (rank >= 7 && order.interimDeadline ? asIso(order.interimDeadline, '17:50:00') : null);
   const finalSubmittedAt = order.finalSubmittedAt || latestFinal?.submittedAt || (rank >= 10 ? addHours(order.finalDeadline, -3) : null);
   const qaReviewedAt = latestFinal?.reviewedAt || order.qaReviewedAt || order.deliveredAt || ((order.qaPassed || rank >= 13) && finalSubmittedAt ? addHours(finalSubmittedAt, 2) : null);
@@ -471,9 +477,66 @@ function buildOrderEvents(order, context) {
     if (i.status === 'overdue') addEvent(events, event(`installment.${i.n}.overdue`, asIso(i.date, '18:01:00'), `Installment ${i.n}/${order.installments.length} became overdue`, { icon: 'alert-triangle', dot: 'red', domain: 'payment', detail: 'Blocks GW Friday release until resolved.' }));
   });
   if (dates.paymentAt && rank >= 4) addEvent(events, event('pipedrive.won', dates.paymentAt, 'Pipedrive deal moved to Won', { icon: 'git-branch', dot: 'green', domain: 'sales', detail: 'Payment confirmed; operational fulfillment can start.' }));
-  if (dates.boardAt && rank >= 4 && !order.selfAssigned) addEvent(events, event('jobboard.published', dates.boardAt, 'Order published to GW job board', { icon: 'briefcase', dot: 'blue', domain: 'assignment' }));
-  if (dates.claimedAt && order.gwId && !order.selfAssigned) addEvent(events, event('gw.claimed', dates.claimedAt, `${gw?.name || 'GW'} claimed the assignment`, { icon: 'feather', dot: order.status === 'claimed_pending_approval' ? 'amber' : 'blue', domain: 'assignment', detail: order.status === 'claimed_pending_approval' ? 'Awaiting admin approval.' : 'Claim approved later by admin.' }));
-  if (dates.assignedAt && order.gwId) addEvent(events, event('gw.assigned', dates.assignedAt, order.selfAssigned ? 'Self-assigned to Berat' : `${gw?.name || 'GW'} assigned and customer intro sent`, { icon: 'user', dot: 'green', domain: 'assignment', detail: order.selfAssigned ? 'Hidden from GW board; no external GW payout.' : 'GW briefing and customer intro emails are part of the assignment event.' }));
+  if (dates.boardAt && order.assignmentMode === 'job_board') {
+    addEvent(events, event('jobboard.published', dates.boardAt, 'Order published to GW job board', { icon: 'briefcase', dot: 'blue', domain: 'assignment' }));
+  }
+  const applications = ctx.applications || [];
+  const gwById = ctx.gwById || {};
+  const gwNameFor = (gwId) => gwById[gwId]?.name || (gwId === order.gwId ? gw?.name : null) || gwId || 'GW';
+  applications.forEach(app => {
+    if (!app?.appliedAt) return;
+    addEvent(events, event(`gw.application.${app.id}.applied`, app.appliedAt, `${gwNameFor(app.gwId)} applied for the job`, {
+      icon: 'send', dot: 'blue', domain: 'assignment',
+      detail: app.pitch ? bodyPreview(app.pitch) : 'Awaiting admin review.',
+    }));
+    if (app.status === 'approved' && app.resolvedAt) {
+      addEvent(events, event(`gw.application.${app.id}.approved`, app.resolvedAt, `Admin approved ${gwNameFor(app.gwId)}'s application`, {
+        icon: 'check-circle', dot: 'green', domain: 'assignment',
+      }));
+    }
+    if (app.status === 'rejected' && app.resolvedAt) {
+      const reasonLabel = app.rejectedBy === 'cascade'
+        ? 'Another applicant was approved.'
+        : app.rejectedBy === 'direct_assigned_outside_board'
+          ? 'Admin assigned a different GW directly.'
+          : null;
+      addEvent(events, event(`gw.application.${app.id}.rejected`, app.resolvedAt, `${gwNameFor(app.gwId)}'s application rejected`, {
+        icon: 'x', dot: 'amber', domain: 'assignment', detail: reasonLabel,
+      }));
+    }
+  });
+  const hasApprovedApplicationForGw = applications.some(a => a.gwId === order.gwId && a.status === 'approved');
+  if (dates.claimedAt && order.gwId && !order.selfAssigned && !hasApprovedApplicationForGw) {
+    addEvent(events, event('gw.claimed', dates.claimedAt, `${gw?.name || 'GW'} claimed the assignment`, {
+      icon: 'feather',
+      dot: order.status === 'claimed_pending_approval' ? 'amber' : 'blue',
+      domain: 'assignment',
+      detail: order.status === 'claimed_pending_approval' ? 'Awaiting admin approval.' : null,
+    }));
+    if (order.claimApprovedAt && order.status !== 'claimed_pending_approval') {
+      addEvent(events, event('gw.claim.approved', order.claimApprovedAt, `Admin approved ${gw?.name || 'GW'}'s claim`, {
+        icon: 'check-circle', dot: 'green', domain: 'assignment',
+      }));
+    }
+  }
+  if (dates.assignedAt && order.gwId) {
+    let title;
+    let detail;
+    if (order.selfAssigned) {
+      title = `Self-assigned to ${gw?.name || 'Berat'}`;
+      detail = 'Hidden from GW board; no external GW payout.';
+    } else if (hasApprovedApplicationForGw || order.assignmentMode === 'job_board') {
+      title = `${gw?.name || 'GW'} assigned · briefing + customer intro sent`;
+      detail = 'Application approved — GW briefing and customer intro emails dispatched.';
+    } else if (order.claimedAt) {
+      title = `${gw?.name || 'GW'} assigned · briefing + customer intro sent`;
+      detail = 'Claim approved — GW briefing and customer intro emails dispatched.';
+    } else {
+      title = `${gw?.name || 'GW'} directly assigned · briefing + customer intro sent`;
+      detail = 'Admin assigned without job-board posting — GW briefing and customer intro emails dispatched.';
+    }
+    addEvent(events, event('gw.assigned', dates.assignedAt, title, { icon: 'user', dot: 'green', domain: 'assignment', detail }));
+  }
   if (order.firstContactReceiptConfirmedAt) addEvent(events, event('gw.first_contact.receipt', order.firstContactReceiptConfirmedAt, 'GW confirmed assignment receipt to efactory1', { icon: 'check', dot: 'green', domain: 'assignment', detail: gw?.name || null }));
   if (order.firstContactDoneAt) addEvent(events, event('gw.first_contact.sent', order.firstContactDoneAt, 'First customer contact sent', { icon: 'mail', dot: 'green', domain: 'communications', detail: order.firstContactSubject || 'efactory1 in CC' }));
 

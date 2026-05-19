@@ -403,11 +403,16 @@ function CustOrdersList({ openOrder, startCheckout, goTo }) {
   );
 }
 
-function CustOrderStatus({ o }) {
+function CustOrderStatus({ o, startCheckout }) {
   const progress = custProgress(o);
   const meta = custStatusMeta(o);
-  const dates = W.lifecycleDates(o, []);
+  const displaySubs = EFHooks.useDisplaySubmissions(o.id);
+  const realSubs = (displaySubs || []).filter(s => !s.synthetic);
+  const dates = W.lifecycleDates(o, realSubs);
   const rank = W.statusRank(o);
+  const interim1Submitted = realSubs.some(s => s.kind === 'interim_1');
+  const interim2Submitted = realSubs.some(s => s.kind === 'interim_2');
+  const finalSubmitted = realSubs.some(s => W.isQaReviewKind(s.kind)) || !!o.finalSubmittedAt;
 
   const milestones = [
     { id: 'inquiry', label: 'Anfrage eingegangen',        date: dates.leadAt, icon: 'inbox' },
@@ -423,23 +428,72 @@ function CustOrderStatus({ o }) {
     { id: 'done',    label: 'Geliefert',                  date: dates.finalAcceptedAt || dates.completedAt, icon: 'check-circle' },
   ].filter(Boolean);
 
+  const idx = (id) => milestones.findIndex(m => m.id === id);
+  // The milestone *after* the latest interim that's actually been submitted.
+  // With a 2-interim contract we want interim1 → interim2 → final; with a
+  // single interim, interim1 → final.
+  const afterInterim = () => {
+    if (o.interim2Deadline && !interim2Submitted) return idx('interim2');
+    return idx('final');
+  };
+
   const stepIndex = (() => {
     if (progress >= 100) return milestones.length;
-    if (o.status === 'qa_review' || o.status === 'final_submitted') return milestones.findIndex(m => m.id === 'qa');
-    if (o.status === 'interim_submitted' || o.status === 'under_customer_review') return milestones.findIndex(m => m.id === 'interim');
-    if (o.status === 'revision_required') return milestones.findIndex(m => m.id === 'interim');
-    if (o.status === 'active') return milestones.findIndex(m => m.id === 'interim');
-    if (o.status === 'available' || o.status === 'claimed_pending_approval') return milestones.findIndex(m => m.id === 'gw');
-    if (custGwLabel(o)) return milestones.findIndex(m => m.id === 'interim');
-    if (o.installments?.[0]?.status === 'paid') return milestones.findIndex(m => m.id === 'gw');
-    if (o.status === 'invoice_sent') return milestones.findIndex(m => m.id === 'paid1');
-    if (o.status === 'offer_sent') return milestones.findIndex(m => m.id === 'invoice');
-    if (o.status === 'qualified') return milestones.findIndex(m => m.id === 'offer');
-    return milestones.findIndex(m => m.id === 'qualified');
+    if (o.status === 'completed' || o.status === 'payment_pending') return milestones.length;
+    if (o.status === 'delivered') return idx('done');
+    if (o.status === 'qa_review' || o.status === 'final_submitted') return idx('qa');
+    if (finalSubmitted) return idx('qa');
+    if (o.status === 'revision_required') return finalSubmitted ? idx('qa') : afterInterim();
+    if (o.status === 'interim_submitted' || o.status === 'under_customer_review') return afterInterim();
+    if (interim1Submitted) return afterInterim();
+    if (o.status === 'active') return idx('interim');
+    if (o.status === 'available' || o.status === 'claimed_pending_approval') return idx('gw');
+    if (custGwLabel(o)) return idx('interim');
+    if (o.installments?.[0]?.status === 'paid') return idx('gw');
+    if (o.status === 'invoice_sent') return idx('paid1');
+    if (o.status === 'offer_sent') return idx('invoice');
+    if (o.status === 'qualified') return idx('offer');
+    return idx('qualified');
   })();
+
+  const isOfferStage = o.status === 'offer_sent';
+  const offerPages = o.pages;
+  const offerRate = o.offerPageRate;
+  const offerDiscount = o.discountPct;
+  const offerGross = o.grossEur;
+  const offerNo = o.sevdeskOfferNo;
 
   return (
     <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 12 }}>
+      {isOfferStage && (
+        <div className="card" style={{ gridColumn: '1 / -1', borderColor: 'var(--blue)' }}>
+          <div className="card-head">
+            <div className="card-title flex items-center gap-2">
+              <Icon name="file-text" size={14}/> Angebot prüfen und annehmen
+            </div>
+            {offerNo && <span className="pill pill-blue">{offerNo}</span>}
+          </div>
+          <div className="card-pad">
+            <div className="text-muted fs-13" style={{ marginBottom: 12, lineHeight: 1.5 }}>
+              Ihr persönliches Angebot liegt vor. Prüfen Sie die Eckdaten unten und nehmen Sie es an, um Ihre Rechnung zu erhalten und die Ghostwriter-Suche zu starten.
+            </div>
+            <div className="kv" style={{ marginBottom: 14 }}>
+              {offerPages != null && <div className="kv-row"><dt>Umfang</dt><dd className="mono">{offerPages} Seiten{offerRate ? ` · ${U.EUR(offerRate)}/Seite` : ''}</dd></div>}
+              {offerDiscount ? <div className="kv-row"><dt>Rabatt</dt><dd className="mono">{offerDiscount}%</dd></div> : null}
+              {W.canShowMoney(o) && offerGross != null && <div className="kv-row"><dt>Gesamtbetrag (brutto)</dt><dd className="mono strong">{U.EUR(offerGross)}</dd></div>}
+              <div className="kv-row"><dt>Endabgabe</dt><dd className="mono">{U.fmtDate(o.finalDeadline)}</dd></div>
+            </div>
+            <div className="flex gap-2" style={{ flexWrap: 'wrap' }}>
+              <button type="button" className="btn btn-primary" onClick={() => startCheckout && startCheckout(o.id)}>
+                <Icon name="check" size={14}/> Angebot annehmen
+              </button>
+              <span className="text-faint fs-11" style={{ alignSelf: 'center' }}>
+                Bei Annahme erhalten Sie automatisch die Rechnung per E-Mail.
+              </span>
+            </div>
+          </div>
+        </div>
+      )}
       <div className="card">
         <div className="card-head">
           <div className="card-title">Fortschritt</div>
@@ -1071,8 +1125,8 @@ function CustOrderPayments({ o }) {
   );
 }
 
-function CustOrderDetail({ orderId, initialTab, onBack, toast }) {
-  const [tab, setTab] = useState(initialTab || 'status');
+function CustOrderDetail({ orderId, tab, onTabChange, onBack, toast, startCheckout }) {
+  const setTab = (next) => { if (onTabChange) onTabChange(next); };
   const all = custOrders();
   const o = all.find(x => x.id === orderId);
   if (!o) {
@@ -1134,7 +1188,7 @@ function CustOrderDetail({ orderId, initialTab, onBack, toast }) {
         })()}
       </div>
 
-      {tab === 'status'   && <CustOrderStatus o={o}/>}
+      {tab === 'status'   && <CustOrderStatus o={o} startCheckout={startCheckout}/>}
       {tab === 'messages' && <CustOrderChat o={o} toast={toast}/>}
       {tab === 'files'    && <CustOrderFiles o={o} toast={toast}/>}
       {tab === 'payments' && <CustOrderPayments o={o}/>}
@@ -1480,7 +1534,7 @@ function CustProfile({ toast }) {
 // CustomerView is rendered by the shell router. The shell passes a `section` prop
 // (orders | messages | invoices | downloads | profile) — that's the source of truth
 // for the active tab. Clicking an internal tab navigates so the URL/sidebar stay in sync.
-function CustomerView({ role, setRole, selectPersona, toast, section, navigate, goTo }) {
+function CustomerView({ role, setRole, selectPersona, toast, section, navigate, goTo, focusOrderId, focusOrderTab }) {
   const tab = section || 'orders';
   const [openOrderId, setOpenOrderId] = useState(null);
   const [openOrderTab, setOpenOrderTab] = useState('status');
@@ -1488,13 +1542,49 @@ function CustomerView({ role, setRole, selectPersona, toast, section, navigate, 
   EFHooks.useStore(s => s.session.customerId);
   EFHooks.useStore(s => s.meta.version);
 
+  useEffect(() => {
+    if (focusOrderId != null && !Number.isNaN(focusOrderId)) {
+      const orderChanged = focusOrderId !== openOrderId;
+      if (orderChanged) {
+        setOpenOrderId(focusOrderId);
+        window.scrollTo(0, 0);
+      }
+      // An explicit `tab=` param wins (deep links from mail CTAs, and our own
+      // internal tab clicks which push the tab into the URL — see openOrder
+      // and the onTabChange handler below). Re-sync on every change so that
+      // re-clicking the same email CTA while the order is already open still
+      // jumps to the right tab. When no tab is in the URL (only when the
+      // order first opens), fall back to a state-appropriate default.
+      if (focusOrderTab) {
+        if (focusOrderTab !== openOrderTab) setOpenOrderTab(focusOrderTab);
+      } else if (orderChanged) {
+        const o = EFSelectors.selectOrder(store.getState(), focusOrderId);
+        const preGw = !o?.gwId || ['lead','qualified','offer_sent','invoice_sent','available','claimed_pending_approval'].includes(o?.status);
+        setOpenOrderTab(preGw ? 'status' : 'messages');
+      }
+    } else if (focusOrderId == null && openOrderId != null) {
+      // URL no longer carries an orderId (e.g. user hit back) — close the detail.
+      setOpenOrderId(null);
+    }
+  }, [focusOrderId, focusOrderTab]);
+
   const openOrder = (id, subTab = 'status') => {
-    setOpenOrderId(id);
     const map = { messages: 'messages', files: 'files', payments: 'payments', status: 'status' };
-    setOpenOrderTab(map[subTab] || 'status');
+    const nextTab = map[subTab] || 'status';
+    setOpenOrderId(id);
+    setOpenOrderTab(nextTab);
+    if (navigate) navigate('cust-orders', { orderId: id, tab: nextTab });
     window.scrollTo(0, 0);
   };
-  const closeOrder = () => { setOpenOrderId(null); window.scrollTo(0, 0); };
+  const changeOrderTab = (nextTab) => {
+    setOpenOrderTab(nextTab);
+    if (navigate && openOrderId != null) navigate('cust-orders', { orderId: openOrderId, tab: nextTab });
+  };
+  const closeOrder = () => {
+    setOpenOrderId(null);
+    if (navigate) navigate('cust-orders');
+    window.scrollTo(0, 0);
+  };
 
   const startCheckout = (id) => setCheckoutOrderId(id);
   const closeCheckout = () => setCheckoutOrderId(null);
@@ -1531,7 +1621,7 @@ function CustomerView({ role, setRole, selectPersona, toast, section, navigate, 
 
   let body;
   if (openOrderId != null) {
-    body = <CustOrderDetail orderId={openOrderId} initialTab={openOrderTab} onBack={closeOrder} toast={toast}/>;
+    body = <CustOrderDetail orderId={openOrderId} tab={openOrderTab} onTabChange={changeOrderTab} onBack={closeOrder} toast={toast} startCheckout={startCheckout}/>;
   } else if (tab === 'messages') {
     body = <CustMessagesList openOrder={openOrder}/>;
   } else if (tab === 'invoices') {
