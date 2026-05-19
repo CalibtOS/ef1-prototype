@@ -573,7 +573,7 @@ function gwAssignedToCustomer({ orderId, customerId, customerEmail, customerName
       ``,
       `Alle Nachrichten laufen über die efactory1-Plattform — efactory1 bleibt Ihre Vertragspartnerin.`,
     ].join('\n'),
-    cta: { label: 'Auftrag öffnen', action: 'open_customer_dashboard', orderId, customerId },
+    cta: { label: 'Auftrag öffnen', action: 'open_customer_dashboard', orderId, customerId, tab: 'status' },
     kind: 'gw_assigned_customer',
     orderId,
     customerId,

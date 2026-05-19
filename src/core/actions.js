@@ -256,10 +256,6 @@ function tableItemsByOrder(kind, orderId) {
   return (t?.allIds || []).map(id => t.byId[id]).filter(x => x && x.orderId === orderId);
 }
 
-function markInstallmentPaid(orderId, n) {
-  return confirmPayment(orderId, { installmentN: n });
-}
-
 function setHonorRate(orderId, rate) {
   const o = order(orderId);
   if (!o) return false;
@@ -1071,7 +1067,6 @@ const actions = {
     approveClaim,
     rejectClaim,
     assignGw,
-    markInstallmentPaid,
     setHonorRate,
     sendOffer,
     sendInvoice,

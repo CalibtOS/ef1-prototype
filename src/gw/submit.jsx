@@ -9,23 +9,6 @@ import EFActions from '../core/actions.js';
 import EF from '../core/ef.js';
 const D = EF;
 
-const CLOSED_SUBMISSION_REASONS = {
-  claimed_pending_approval: 'Awaiting admin approval',
-  interim_submitted: 'Interim already submitted — awaiting customer feedback',
-  under_customer_review: 'Awaiting customer review',
-  final_submitted: 'Final submitted — awaiting QA',
-  qa_review: 'In QA — no further upload needed',
-  delivered: 'Delivered — awaiting customer acceptance/payment gate',
-  payment_pending: 'Payment pending — work complete',
-  completed: 'Order complete',
-  cancelled: 'Order cancelled',
-  on_hold: 'Order on hold',
-  delay_reported: 'Delay reported — awaiting admin decision',
-  extension_requested: 'Extension requested — awaiting admin decision',
-  ai_violation_review: 'AI violation under review',
-  plagiarism_violation_review: 'Plagiarism violation under review',
-};
-
 function allowedSubmissionKinds(order) {
   return W.allowedSubmissionKinds(order, D.GW_ME.id);
 }

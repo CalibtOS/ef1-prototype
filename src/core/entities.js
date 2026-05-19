@@ -299,4 +299,4 @@ function hydrate() {
   };
 }
 
-export { hydrate, normalize, clone };
+export { hydrate, normalize, clone, normalizeChannel };

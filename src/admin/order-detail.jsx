@@ -283,7 +283,7 @@ function OrderDetail({ orderId, navigate, toast, initialTab, focusSubmissionId }
   };
   const markInstallmentPaid = (n) => {
     const installment = (order.installments || []).find(i => i.n === n);
-    EFActions.orders.markInstallmentPaid(orderId, n);
+    EFActions.orders.confirmPayment(orderId, { installmentN: n });
     toast({ text: `Installment ${n} marked as paid · ${U.EUR(installment?.amt)} via SEPA`, tone: 'success' });
   };
   // Direct release is intentionally removed: per business_rules §5 GW payments are released

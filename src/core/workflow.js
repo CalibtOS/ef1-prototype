@@ -91,7 +91,7 @@ const TRANSITIONS = {
   approve_claim:        { from: ['claimed_pending_approval'], to: 'active' },
   reject_claim:         { from: ['claimed_pending_approval'], to: 'available' },
   claim_job:            { from: ['available'], to: 'claimed_pending_approval' },
-  assign_gw:            { from: ['available','paid_assignment_started','active','delay_reported','extension_requested'], to: 'active' },
+  assign_gw:            { from: ['available','active','delay_reported','extension_requested'], to: 'active' },
   gw_submit_interim:    { from: ['active'], to: 'under_customer_review' },
   gw_submit_final:      { from: ['active','revision_required'], to: 'qa_review' },
   gw_submit_revision:   { from: ['revision_required'], to: 'qa_review' },
@@ -320,6 +320,12 @@ function firstInstallment(order) {
   return firstByDate(order?.installments || [], 'date');
 }
 
+// Returns a flat object of lifecycle timestamps for the order timeline.
+// Real timestamps (createdAt, offerSentAt, acceptedAt, …) are used when present.
+// When a stage is implied by status rank but no real timestamp exists, synthetic
+// values are derived from `anchor` — e.g. leadAt defaults to `anchor − 72h`.
+// Synthetic timestamps are not currently flagged on the return shape; consumers
+// that need to distinguish real-vs-synthetic should not rely on this helper alone.
 function lifecycleDates(order, submissions) {
   if (!order) return {};
   const rank = statusRank(order);

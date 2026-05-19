@@ -15,6 +15,8 @@ const D = EF;
 function GWFirstContact({ orderId, navigate, toast }) {
   const order = EFHooks.useOrder(orderId);
   const cust = order ? D.customer(order.customerId) : null;
+  const gwSelf = order?.gwId ? D.gw(order.gwId) : null;
+  const gwSignName = gwSelf?.name || 'Ihr Ghostwriter';
   const receiptAlreadyConfirmed = !!order?.firstContactReceiptConfirmedAt;
   const baseSubject = order ? `Auftrag #${orderId} · ${D.WORK_TYPE_LABELS[order.workType]} — Erstkontakt` : '';
   const baseBody = order ? `Hallo ${cust?.name?.split(' ')[0] || ''},
@@ -36,7 +38,7 @@ Wichtig — Bitte beachten:
 • Antwortzeit von meiner Seite: i. d. R. innerhalb von 24 Stunden, Mo–Fr 18–23 Uhr.
 
 Beste Grüße
-Isabel Walter` : '';
+${gwSignName}` : '';
   const [step, setStep] = useState(receiptAlreadyConfirmed ? 2 : 1);
   const [confirmed, setConfirmed] = useState(receiptAlreadyConfirmed);
   const [subject, setSubject] = useState(baseSubject);
