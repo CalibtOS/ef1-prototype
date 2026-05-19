@@ -105,6 +105,12 @@ function App() {
   const [tweaks, setTweaksState] = useState(TWEAK_DEFAULTS)
   const [tweakOpen, setTweakOpen] = useState(false)
   const [toasts, setToasts] = useState([])
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
+    try { return localStorage.getItem('ef-sidebar-collapsed') === '1' } catch { return false }
+  })
+  useEffect(() => {
+    try { localStorage.setItem('ef-sidebar-collapsed', sidebarCollapsed ? '1' : '0') } catch {}
+  }, [sidebarCollapsed])
   EFHooks.useStore(s => s.meta.version)
 
   useEffect(() => {
@@ -332,7 +338,7 @@ function App() {
 
   return (
     <div className="app-root">
-      <Sidebar route={route} navigate={navigate} role={role}/>
+      <Sidebar route={route} navigate={navigate} role={role} collapsed={sidebarCollapsed} setCollapsed={setSidebarCollapsed}/>
       <div className="app-main">
         {harnessBar}
         <Topbar role={role} setRole={setRole} selectPersona={selectPersona} navigate={navigate} toast={toast}/>

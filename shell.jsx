@@ -87,12 +87,34 @@ function Sidebar({ role, route, navigate, collapsed, setCollapsed }) {
       <div className="sidebar-brand">
         <div className="brand-mark">e1</div>
         {!collapsed && (
-          <div className="flex-col" style={{ lineHeight: 1.2 }}>
+          <div className="flex-col" style={{ lineHeight: 1.2, flex: 1, minWidth: 0 }}>
             <span className="brand-name">eFactory One</span>
             <span className="brand-sub">Bery Ventures GmbH</span>
           </div>
         )}
+        {setCollapsed && !collapsed && (
+          <button
+            type="button"
+            className="sidebar-toggle-top"
+            aria-label="Collapse sidebar"
+            title="Collapse sidebar"
+            onClick={() => setCollapsed(true)}
+          >
+            <Icon name="chevron-left" size={14} />
+          </button>
+        )}
       </div>
+      {setCollapsed && collapsed && (
+        <button
+          type="button"
+          className="sidebar-toggle-top sidebar-toggle-top-collapsed"
+          aria-label="Expand sidebar"
+          title="Expand sidebar"
+          onClick={() => setCollapsed(false)}
+        >
+          <Icon name="chevron-right" size={14} />
+        </button>
+      )}
       <nav className="sidebar-section" aria-label={`${roleMeta.label} navigation`} style={{ flex: 1, overflowY: 'auto' }}>
         {!collapsed && <div className="sidebar-section-label">{roleMeta.label}</div>}
         {nav.map(item => (
@@ -113,6 +135,19 @@ function Sidebar({ role, route, navigate, collapsed, setCollapsed }) {
         ))}
       </nav>
       <div className="sidebar-footer">
+        {setCollapsed && (
+          <button
+            type="button"
+            className="sidebar-toggle"
+            aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+            aria-expanded={!collapsed}
+            title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+            onClick={() => setCollapsed(!collapsed)}
+          >
+            <Icon name={collapsed ? 'chevron-right' : 'chevron-left'} size={14} />
+            {!collapsed && <span>Collapse</span>}
+          </button>
+        )}
         <div className="sidebar-user">
           <Avatar initials={roleMeta.initials} size={28} tone="blue" />
           {!collapsed && (

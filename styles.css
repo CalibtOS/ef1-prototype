@@ -78,6 +78,26 @@ body {
   height: 52px; flex-shrink: 0;
 }
 .sidebar.collapsed .sidebar-brand { justify-content: center; padding: 14px 0; }
+.sidebar-toggle {
+  display: flex; align-items: center; gap: 10px; width: 100%;
+  padding: 6px 10px; margin-bottom: 6px;
+  border-radius: 6px; background: transparent; border: none;
+  color: var(--text-3); cursor: pointer; font-family: inherit;
+  font-size: 12px; text-align: left;
+}
+.sidebar-toggle:hover { background: var(--surface-2); color: var(--text); }
+.sidebar-toggle:focus-visible { outline: 2px solid var(--blue); outline-offset: -2px; }
+.sidebar.collapsed .sidebar-toggle { justify-content: center; padding: 8px 0; }
+.sidebar-toggle-top {
+  display: grid; place-items: center; width: 24px; height: 24px;
+  border-radius: 6px; background: transparent; border: 1px solid transparent;
+  color: var(--text-3); cursor: pointer; flex-shrink: 0;
+}
+.sidebar-toggle-top:hover { background: var(--surface-2); color: var(--text); border-color: var(--border); }
+.sidebar-toggle-top:focus-visible { outline: 2px solid var(--blue); outline-offset: 1px; }
+.sidebar-toggle-top-collapsed {
+  align-self: center; margin: 8px auto 4px;
+}
 .brand-mark {
   width: 26px; height: 26px; border-radius: 7px; background: var(--text);
   color: var(--bg); display: grid; place-items: center; font-weight: 700; font-size: 13px;

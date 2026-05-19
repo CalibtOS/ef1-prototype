@@ -1434,7 +1434,7 @@ function CustDownloads({ toast }) {
 }
 
 function CustProfile({ toast }) {
-  const me = CUST_ME;
+  const me = activeCustomer();
   const orders = custOrders();
   const completedCount = orders.filter(o => custProgress(o) >= 100).length;
   const activeCount    = orders.length - completedCount;

@@ -8,6 +8,33 @@ import * as SimMail from '../sim/mail.js';
 import * as Scenarios from '../sim/scenarios.js';
 import EFActions from '../core/actions.js';
 
+// Minimal inline markdown renderer for demo email bodies. Handles **bold**,
+// _italic_, and `code` — patterns actually used in src/sim/mail.js templates.
+// Newlines are preserved by the surrounding whiteSpace: 'pre-wrap' container.
+function renderInlineMd(text) {
+  if (!text) return null;
+  const tokens = [];
+  const re = /\*\*([^*\n]+?)\*\*|_([^_\n]+?)_|`([^`\n]+?)`/g;
+  let lastIndex = 0;
+  let match;
+  let key = 0;
+  while ((match = re.exec(text)) !== null) {
+    if (match.index > lastIndex) {
+      tokens.push(text.slice(lastIndex, match.index));
+    }
+    if (match[1] != null) {
+      tokens.push(<strong key={key++}>{match[1]}</strong>);
+    } else if (match[2] != null) {
+      tokens.push(<em key={key++}>{match[2]}</em>);
+    } else if (match[3] != null) {
+      tokens.push(<code key={key++} style={{ fontFamily: 'monospace', fontSize: '0.92em' }}>{match[3]}</code>);
+    }
+    lastIndex = re.lastIndex;
+  }
+  if (lastIndex < text.length) tokens.push(text.slice(lastIndex));
+  return tokens;
+}
+
 function relTime(at) {
   if (!at) return '';
   const t = new Date(at).getTime();
@@ -152,7 +179,7 @@ function DemoInbox({ onClose, navigate, switchRole }) {
                 </div>
               </div>
               <div style={{ background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: 8, padding: 16, fontSize: 13, lineHeight: 1.55, whiteSpace: 'pre-wrap' }}>
-                {selected.bodyMd}
+                {renderInlineMd(selected.bodyMd)}
               </div>
               {selected.cta && (
                 <button type="button" onClick={() => handleCta(selected)}
