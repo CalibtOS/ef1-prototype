@@ -88,7 +88,14 @@ function lastMessageAt(messages, predicate) {
 
 // Per-thread message seeds. Keyed by thread id from data.js INBOX_THREADS.
 // Each message: { id, from: 'gw'|'customer'|'admin'|'system', body, at,
-// origin_channel?, delivery_channel?, attachments?, autoflag? }
+// origin_channel?, delivery_channel?, attachments?, autoflag?,
+// // System B-only email fields:
+// subject?, to?, cc?, bcc? }
+//
+// IMPORTANT (D-26): for threads with threadType='order' (System A) all
+// messages are normalized to delivery_channel='platform' at hydration time
+// — the per-message channel hints below are kept for historical fidelity but
+// cannot place a System A message on email/WhatsApp.
 const THREAD_MESSAGE_SEEDS = {
   t3492: [
     { from: 'customer', at: '2026-05-04T14:03:00', body: 'Hi, can we move interim #1 by 2 days?', origin_channel: 'whatsapp', delivery_channel: 'whatsapp' },
@@ -180,6 +187,44 @@ const THREAD_MESSAGE_SEEDS = {
     { from: 'customer', at: '2026-04-09T10:15:00', body: 'Outline passt — bitte mit Kapitel 3 weitermachen.' },
     { from: 'gw',       at: '2026-05-06T15:30:00', body: 'Zwischenstand 1 ist hochgeladen — bitte um Feedback bis Donnerstag.', attachments: [{ name: 'Zwischenstand_1.docx', meta: '1.2 MB', icon: 'file-text' }] },
   ],
+  // Demo spine — Berat ↔ Antigone Berisha on email + WhatsApp.
+  // System B (order_admin) thread for order #3518. Pre-payment offer chat
+  // and a later payment-plan WhatsApp — shows the email-card vs whatsapp-bubble
+  // render and the combined/email-only/whatsapp-only filter.
+  't8-admin': [
+    {
+      from: 'admin', at: '2026-03-28T11:02:00',
+      origin_channel: 'admin', delivery_channel: 'email',
+      subject: 'Angebot AN-2026-3518 — Strategisches Controlling im Maschinenbau',
+      to: ['antigone.berisha@example.com'],
+      cc: ['kundenservice@efactory1.de'],
+      body: 'Sehr geehrte Frau Berisha,\n\nanbei unser Angebot für Ihre Bachelorarbeit. Bei Fragen melden Sie sich jederzeit.\n\nBeste Grüße,\nefactory1',
+      attachments: [{ name: 'AN-2026-3518.pdf', meta: '212 KB', icon: 'file-text' }],
+    },
+    {
+      from: 'customer', at: '2026-03-29T08:14:00',
+      origin_channel: 'whatsapp', delivery_channel: 'whatsapp',
+      body: 'Hallo, Angebot sieht gut aus — können wir die Zahlung in 2 Raten splitten?',
+    },
+    {
+      from: 'admin', at: '2026-03-29T09:30:00',
+      origin_channel: 'admin', delivery_channel: 'whatsapp',
+      body: 'Sehr gerne — 2× 1.180 €, erste Rate sofort, zweite zum 15.05. Passt das?',
+    },
+    {
+      from: 'customer', at: '2026-03-29T09:42:00',
+      origin_channel: 'whatsapp', delivery_channel: 'whatsapp',
+      body: 'Perfekt, dann nehme ich an.',
+    },
+    {
+      from: 'admin', at: '2026-04-01T16:30:00',
+      origin_channel: 'admin', delivery_channel: 'email',
+      subject: 'Rechnung RG-2026-3518 — Rate 1 von 2',
+      to: ['antigone.berisha@example.com'],
+      body: 'Vielen Dank — anbei die Rechnung für die erste Rate. Sobald die Zahlung eingeht, weisen wir Ihre Ghostwriterin zu.',
+      attachments: [{ name: 'RG-2026-3518-Rate1.pdf', meta: '98 KB', icon: 'file-text' }],
+    },
+  ],
 };
 
 // Per-thread per-role unread counts. We pre-compute these against THREAD_MESSAGE_SEEDS
@@ -205,10 +250,13 @@ const THREAD_UNREAD_SEEDS = {
   tg1: { admin: 1, gw: 0, customer: 0 },
   t3612: { admin: 0, gw: 0, customer: 0 },
   t3613: { admin: 1, gw: 1, customer: 0 },
+  't8-admin': { admin: 0, gw: 0, customer: 0 },
 };
 
-// Synthetic thread for the demo spine order (#3518) so Antigone and Isabel
-// have a real chat history when the demo opens. Mirrors INBOX_THREADS shape.
+// Synthetic threads for the demo spine order (#3518). Two records:
+//   t8        — System A — platform_chat between Antigone (customer) and Isabel (GW)
+//   t8-admin  — System B — email + WhatsApp between Berat and Antigone
+// Both belong to the same order; the admin order-detail shows them side by side.
 function demoSpineThread() {
   return {
     id: 't8',
@@ -224,24 +272,56 @@ function demoSpineThread() {
   };
 }
 
+function demoSpineAdminThread() {
+  return {
+    id: 't8-admin',
+    threadType: 'order_admin',
+    orderId: 3518,
+    customerId: 'c-ab',
+    gwId: null, // admin↔customer; GW is reachable separately if needed
+    subject: 'Angebot & Ratenzahlung #3518',
+    channel: 'multi_channel',
+    sentiment: 'neutral',
+    lastAt: '2026-04-01T16:30:00',
+    flagged: false,
+  };
+}
+
 function hydrateThread(t) {
   const id = t.id;
   const seedMessages = THREAD_MESSAGE_SEEDS[id] || [];
   const threadChannel = t.channel || 'platform_chat';
+  // D-26: System A is platform-only. Force every message in an `order` thread
+  // to medium='platform' so no demo accident can suggest the customer↔GW chat
+  // ever ran over email or WhatsApp.
+  const isSystemA = t.threadType === 'order';
   const messages = seedMessages.map((m, i) => {
+    const origin = isSystemA
+      ? (m.from === 'system' ? 'system' : 'platform')
+      : (m.origin_channel || defaultOriginChannel(threadChannel, m.from));
+    const delivery = isSystemA
+      ? (m.from === 'system' ? 'internal' : 'platform')
+      : (m.delivery_channel || defaultDeliveryChannel(threadChannel, m.from));
     const msg = {
       id: `${id}-m${i + 1}`,
       threadId: id,
       from: m.from,
       body: m.body,
       at: m.at,
-      origin_channel: m.origin_channel || defaultOriginChannel(threadChannel, m.from),
-      delivery_channel: m.delivery_channel || defaultDeliveryChannel(threadChannel, m.from),
+      origin_channel: origin,
+      delivery_channel: delivery,
       external_ref: m.external_ref || null,
       autoflag: m.autoflag || null,
       system: m.from === 'system',
     };
     if (m.attachments && m.attachments.length) msg.attachments = m.attachments;
+    // Email-specific fields only meaningful on System B email messages.
+    if (!isSystemA && delivery === 'email') {
+      if (m.subject) msg.subject = m.subject;
+      if (m.to) msg.to = m.to;
+      if (m.cc) msg.cc = m.cc;
+      if (m.bcc) msg.bcc = m.bcc;
+    }
     return msg;
   });
   const lastAt = messages.length ? messages[messages.length - 1].at : t.lastAt;
@@ -264,6 +344,7 @@ function hydrateThread(t) {
 function buildThreads() {
   const baseThreads = [...(INBOX_THREADS || [])];
   if (!baseThreads.some(t => t.id === 't8')) baseThreads.push(demoSpineThread());
+  if (!baseThreads.some(t => t.id === 't8-admin')) baseThreads.push(demoSpineAdminThread());
   return baseThreads.map(hydrateThread);
 }
 

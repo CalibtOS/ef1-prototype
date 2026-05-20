@@ -159,20 +159,39 @@ const FRIDAY_BATCH = [
 ];
 
 // ---- Inbox threads ----
+//
+// Two thread types live here (D-26, May 21 2026):
+//   threadType 'order'        — System A — in-platform customer↔GW chat per order
+//                               (platform_chat only; admin reads + moderates).
+//   threadType 'order_admin'  — System B — Berat's email/WhatsApp with the customer
+//                               (or with the GW), surfaced in the admin inbox. The
+//                               customer/GW never see this thread; it is the platform's
+//                               mirror of what's happening on the wire.
+//   threadType 'lead'         — System B — admin↔unmatched contact (no order yet).
+//   threadType 'gw_direct'    — System B — admin↔GW not tied to a specific order.
+//
+// See docs/inbox_architecture_plan.md.
 const INBOX_THREADS = [
-  // Order threads — tied to an existing order
-  { id: 't3492', threadType: 'order', orderId: 3492, customerId: 'c-ab', gwId: 'gw-sk', subject: 'Schedule and brief updates', channel: 'multi_channel', sentiment: 'neutral', unread: 0, lastAt: '2026-05-06T11:18:00', flagged: false },
-  { id: 't1', threadType: 'order', orderId: 3522, customerId: 'c-ak', gwId: 'gw-iw', subject: 'Frage zum Aufbau Kapitel 3', channel: 'email_proxy', sentiment: 'neutral', unread: 2, lastAt: '2026-05-07T13:42:00', flagged: false },
-  { id: 't2', threadType: 'order', orderId: 3508, customerId: 'c-ls', gwId: 'gw-mp', subject: '⚠ Erneute Revision — bitte dringend', channel: 'whatsapp_proxy', sentiment: 'frustrated', unread: 4, lastAt: '2026-05-07T11:12:00', flagged: true },
-  { id: 't3', threadType: 'order', orderId: 3499, customerId: 'c-km', gwId: 'gw-lb', subject: 'Letzte Rate — Klärung', channel: 'email_proxy', sentiment: 'tense', unread: 1, lastAt: '2026-05-07T09:55:00', flagged: true, flaggedReason: 'financial_question' },
+  // ── System B (order_admin) — Berat ↔ customer/GW on email or WhatsApp ──────
+  // These threads bundle email + WhatsApp for a specific order. The Combined /
+  // Email-only / WhatsApp-only view filter in the admin inbox is a render-time
+  // filter over the messages array — there is no separate "email thread" entity.
+  { id: 't3492', threadType: 'order_admin', orderId: 3492, customerId: 'c-ab', gwId: 'gw-sk', subject: 'Schedule and brief updates', channel: 'multi_channel', sentiment: 'neutral', unread: 0, lastAt: '2026-05-06T11:18:00', flagged: false },
+  { id: 't5', threadType: 'order_admin', orderId: 3527, customerId: 'c-mh', gwId: null, subject: 'Wann wird Ghostwriter zugewiesen?', channel: 'email_proxy', sentiment: 'neutral', unread: 1, lastAt: '2026-05-07T10:00:00' },
+  { id: 't6', threadType: 'order_admin', orderId: 3517, customerId: 'c-sh', gwId: 'gw-ak', subject: 'Voicemail — 0:42s', channel: 'voice_metadata', sentiment: 'tense', unread: 1, lastAt: '2026-05-06T18:11:00' },
+  { id: 't7', threadType: 'order_admin', orderId: 3525, customerId: 'c-ml', gwId: 'gw-bo', subject: 'Coaching-Termin Bestätigung', channel: 'multi_channel', sentiment: 'positive', unread: 0, lastAt: '2026-05-05T14:00:00' },
+  { id: 't12', threadType: 'order_admin', orderId: 3562, customerId: 'c-dw', gwId: null, subject: 'Frage zum Angebot AN-2026-3562', channel: 'email_proxy', sentiment: 'neutral', unread: 1, lastAt: '2026-05-06T18:42:00', flagged: false },
+  { id: 't13', threadType: 'order_admin', orderId: 3563, customerId: 'c-fk', gwId: null, subject: 'Angebot AN-2026-3563 — keine Rückmeldung', channel: 'email_proxy', sentiment: 'neutral', unread: 0, lastAt: '2026-05-01T15:35:00', flagged: false },
+  { id: 't14', threadType: 'order_admin', orderId: 3566, customerId: 'c-bf', gwId: 'gw-sk', subject: 'Scope-Erweiterung — Kapitel zu EU-Taxonomie', channel: 'whatsapp_proxy', sentiment: 'neutral', unread: 1, lastAt: '2026-05-07T10:30:00', flagged: false },
+  { id: 't15', threadType: 'order_admin', orderId: 3567, customerId: 'c-tr', gwId: 'gw-pm', subject: 'Krankheit — kurze Verzögerung', channel: 'whatsapp_proxy', sentiment: 'neutral', unread: 2, lastAt: '2026-05-06T16:30:00', flagged: false },
+  // ── System A (order) — in-platform customer↔GW chat ────────────────────────
+  // All messages here are delivery_channel='platform' regardless of what the
+  // seeds say — hydrateThread normalizes them so the demo can't accidentally
+  // claim a System A message was sent over email/WhatsApp.
+  { id: 't1', threadType: 'order', orderId: 3522, customerId: 'c-ak', gwId: 'gw-iw', subject: 'Frage zum Aufbau Kapitel 3', channel: 'platform_chat', sentiment: 'neutral', unread: 2, lastAt: '2026-05-07T13:42:00', flagged: false },
+  { id: 't2', threadType: 'order', orderId: 3508, customerId: 'c-ls', gwId: 'gw-mp', subject: '⚠ Erneute Revision — bitte dringend', channel: 'platform_chat', sentiment: 'frustrated', unread: 4, lastAt: '2026-05-07T11:12:00', flagged: true },
+  { id: 't3', threadType: 'order', orderId: 3499, customerId: 'c-km', gwId: 'gw-lb', subject: 'Letzte Rate — Klärung', channel: 'platform_chat', sentiment: 'tense', unread: 1, lastAt: '2026-05-07T09:55:00', flagged: true, flaggedReason: 'financial_question' },
   { id: 't4', threadType: 'order', orderId: 3520, customerId: 'c-pn', gwId: 'gw-iw', subject: 'Zwischenstand erhalten — Danke', channel: 'platform_chat', sentiment: 'positive', unread: 0, lastAt: '2026-05-06T16:30:00' },
-  { id: 't5', threadType: 'order', orderId: 3527, customerId: 'c-mh', gwId: null, subject: 'Wann wird Ghostwriter zugewiesen?', channel: 'email_proxy', sentiment: 'neutral', unread: 1, lastAt: '2026-05-07T10:00:00' },
-  { id: 't6', threadType: 'order', orderId: 3517, customerId: 'c-sh', gwId: 'gw-ak', subject: 'Voicemail — 0:42s', channel: 'voice_metadata', sentiment: 'tense', unread: 1, lastAt: '2026-05-06T18:11:00' },
-  { id: 't7', threadType: 'order', orderId: 3525, customerId: 'c-ml', gwId: 'gw-bo', subject: 'Coaching-Termin Bestätigung', channel: 'platform_chat', sentiment: 'positive', unread: 0, lastAt: '2026-05-05T14:00:00' },
-  { id: 't12', threadType: 'order', orderId: 3562, customerId: 'c-dw', gwId: null, subject: 'Frage zum Angebot AN-2026-3562', channel: 'email_proxy', sentiment: 'neutral', unread: 1, lastAt: '2026-05-06T18:42:00', flagged: false },
-  { id: 't13', threadType: 'order', orderId: 3563, customerId: 'c-fk', gwId: null, subject: 'Angebot AN-2026-3563 — keine Rückmeldung', channel: 'email_proxy', sentiment: 'neutral', unread: 0, lastAt: '2026-05-01T15:35:00', flagged: false },
-  { id: 't14', threadType: 'order', orderId: 3566, customerId: 'c-bf', gwId: 'gw-sk', subject: 'Scope-Erweiterung — Kapitel zu EU-Taxonomie', channel: 'whatsapp_proxy', sentiment: 'neutral', unread: 1, lastAt: '2026-05-07T10:30:00', flagged: false },
-  { id: 't15', threadType: 'order', orderId: 3567, customerId: 'c-tr', gwId: 'gw-pm', subject: 'Krankheit — kurze Verzögerung', channel: 'whatsapp_proxy', sentiment: 'neutral', unread: 2, lastAt: '2026-05-06T16:30:00', flagged: false },
   // Lead threads — pre-order contacts with no existing order
   { id: 'tl1', threadType: 'lead', orderId: null, customerId: null, gwId: null, contactName: null, phone: '+49 152 3847 2910', subject: 'Frage zu Preisen und Ablauf', channel: 'whatsapp_proxy', sentiment: 'neutral', unread: 1, lastAt: '2026-05-07T12:10:00', flagged: false },
   { id: 'tl2', threadType: 'lead', orderId: null, customerId: null, gwId: null, contactName: 'TechVentures GmbH', phone: null, subject: 'B2B Anfrage — 5 Doktorarbeiten/Jahr', channel: 'email_proxy', sentiment: 'neutral', unread: 1, lastAt: '2026-05-06T14:30:00', flagged: false, isB2B: true },
@@ -182,7 +201,7 @@ const INBOX_THREADS = [
   // message history on her active master's order (#3612) and the revision
   // round on #3613, so the Messages tab is non-empty when switching in.
   { id: 't3612', threadType: 'order', orderId: 3612, customerId: 'c-ek', gwId: 'gw-lb', subject: 'XAI Medical Imaging — Kapitelaufbau & Datensatz', channel: 'platform_chat', sentiment: 'positive', unread: 0, lastAt: '2026-05-04T22:14:00', flagged: false },
-  { id: 't3613', threadType: 'order', orderId: 3613, customerId: 'c-dw', gwId: 'gw-lb', subject: 'MLOps-Pipelines — Revisionswunsch Kapitel 4', channel: 'email_proxy', sentiment: 'neutral', unread: 1, lastAt: '2026-05-05T17:55:00', flagged: false },
+  { id: 't3613', threadType: 'order', orderId: 3613, customerId: 'c-dw', gwId: 'gw-lb', subject: 'MLOps-Pipelines — Revisionswunsch Kapitel 4', channel: 'platform_chat', sentiment: 'neutral', unread: 1, lastAt: '2026-05-05T17:55:00', flagged: false },
 ];
 
 // ---- Notifications ----

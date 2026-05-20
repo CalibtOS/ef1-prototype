@@ -1085,6 +1085,32 @@ function setRoute(route) {
   store.setState(prev => ({ ...prev, ui: { ...prev.ui, route } }), 'ui.setRoute');
 }
 
+// ─── Inbox navigation (D-26 single source of truth) ──────────────────────────
+// All inbox selection/filter state lives in store.ui.inboxNav so deep links,
+// notification clicks, and component state cannot desync.
+function patchInboxNav(patch, label) {
+  store.setState(prev => ({
+    ...prev,
+    ui: { ...prev.ui, inboxNav: { ...prev.ui.inboxNav, ...patch } },
+  }), label || 'ui.inboxNav.patch');
+}
+
+function setInboxScope(scope) {
+  patchInboxNav({ scope }, 'ui.inboxNav.setScope');
+}
+
+function setInboxView(view) {
+  patchInboxNav({ view }, 'ui.inboxNav.setView');
+}
+
+function selectInboxThread(selectedId) {
+  patchInboxNav({ selectedId }, 'ui.inboxNav.select');
+  if (selectedId) {
+    // Mark the active thread read for admin atomically with the selection.
+    T.markRead(selectedId, 'admin');
+  }
+}
+
 const actions = {
   toast,
   notify,
@@ -1144,6 +1170,12 @@ const actions = {
     redirect: T.redirect,
     flagFollowUp: T.flagFollowUp,
     snooze: T.snooze,
+    ensureAdminThreadForOrder: T.ensureAdminThreadForOrder,
+  },
+  inboxNav: {
+    setScope: setInboxScope,
+    setView: setInboxView,
+    select: selectInboxThread,
   },
 };
 

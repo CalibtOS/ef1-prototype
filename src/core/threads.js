@@ -28,21 +28,27 @@ function newMessageId(threadId) {
   return `${threadId}-m-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 5)}`;
 }
 
-function ensureThreadForOrder(orderId) {
+function ensureThreadForOrder(orderId, threadType = 'order') {
   const state = store.getState();
-  const existing = selectThreadByOrder(state, orderId);
+  const existing = selectThreadByOrder(state, orderId, threadType);
   if (existing) return existing;
   const o = I.order(orderId);
   if (!o) return null;
-  const id = `t-live-${orderId}`;
+  const idPrefix = threadType === 'order_admin' ? 't-admin-live-' : 't-live-';
+  const id = `${idPrefix}${orderId}`;
   const thread = {
     id,
-    threadType: 'order',
+    threadType,
     orderId: Number(orderId),
     customerId: o.customerId,
-    gwId: o.gwId || null,
-    subject: o.title || `Auftrag #${orderId}`,
-    channel: 'multi_channel',
+    // For System B we omit gwId at creation — admin threads can carry both
+    // admin↔customer and admin↔GW correspondence; the message's `to` resolves
+    // the participant.
+    gwId: threadType === 'order' ? (o.gwId || null) : null,
+    subject: threadType === 'order_admin'
+      ? `Berat ↔ Customer · #${orderId}`
+      : (o.title || `Auftrag #${orderId}`),
+    channel: threadType === 'order_admin' ? 'multi_channel' : 'platform_chat',
     sentiment: 'neutral',
     lastAt: I.nowIso(),
     lastInboundAt: null,
@@ -53,8 +59,12 @@ function ensureThreadForOrder(orderId) {
     unread: { admin: 0, gw: 0, customer: 0 },
     messages: [],
   };
-  I.upsertEntity('threads', thread, 'threads.create');
+  I.upsertEntity('threads', thread, `threads.create.${threadType}`);
   return thread;
+}
+
+function ensureAdminThreadForOrder(orderId) {
+  return ensureThreadForOrder(orderId, 'order_admin');
 }
 
 function appendMessage(threadId, message, label) {
@@ -79,13 +89,19 @@ function bumpUnread(threadId, recipientRoles) {
 }
 
 function recipientsForThread(thread, senderRole) {
-  // Admin observes every operational thread. Customer/GW bells only exist when
-  // that role is an actual participant; lead-only threads stay in the admin inbox.
+  // D-26 hard guard: order_admin (System B) threads NEVER notify customer/GW.
+  // The customer/GW are on the *wire* (email/WhatsApp); they are not platform
+  // participants of this thread.
+  const type = thread?.threadType || 'order';
+  if (type === 'order_admin' || type === 'lead') {
+    return ['admin'].filter(r => r !== senderRole);
+  }
+  // System A (order) — customer + GW are participants; admin observes.
   const all = ['admin'];
-  if (thread?.threadType === 'order' || thread?.orderId != null) {
+  if (type === 'order' || thread?.orderId != null) {
     if (thread.customerId) all.push('customer');
     if (thread.gwId) all.push('gw');
-  } else if (thread?.threadType === 'gw_direct') {
+  } else if (type === 'gw_direct') {
     if (thread.gwId) all.push('gw');
   }
   return Array.from(new Set(all)).filter(r => r !== senderRole);
@@ -94,13 +110,14 @@ function recipientsForThread(thread, senderRole) {
 function send(payload = {}) {
   const role = payload.role || store.getState().session.role || 'admin';
   const orderId = payload.orderId;
+  const requestedThreadType = payload.threadType || 'order';
   let threadId = payload.threadId;
   let thread = threadId
     ? selectThread(store.getState(), threadId)
-    : (orderId != null ? selectThreadByOrder(store.getState(), orderId) : null);
+    : (orderId != null ? selectThreadByOrder(store.getState(), orderId, requestedThreadType) : null);
 
   if (!thread && orderId != null) {
-    thread = ensureThreadForOrder(orderId);
+    thread = ensureThreadForOrder(orderId, requestedThreadType);
   }
   if (!thread) {
     I.toast({ text: 'Thread not found', tone: 'danger' });
@@ -113,23 +130,41 @@ function send(payload = {}) {
 
   const at = I.nowIso();
   const isFinancial = !payload.financialPolicyExempt && role !== 'admin' && FINANCIAL_KEYWORD_RE.test(body);
+  const isSystemA = (thread.threadType || 'order') === 'order';
+  // System A is platform-only — no email/WhatsApp emission, period.
+  // System B respects the caller's delivery_channel (the composer picks email vs WhatsApp).
   const threadDefaultChannel = normalizeChannel(thread.channel);
-  const defaultDelivery = threadDefaultChannel === 'voice' || threadDefaultChannel === 'multi' ? 'email' : threadDefaultChannel;
+  const fallbackDelivery = threadDefaultChannel === 'voice' || threadDefaultChannel === 'multi'
+    ? 'email'
+    : threadDefaultChannel;
+  const deliveryChannel = isSystemA
+    ? 'platform'
+    : (payload.delivery_channel || payload.channel || fallbackDelivery);
+  const originChannel = isSystemA
+    ? (role === 'admin' ? 'admin' : 'platform')
+    : (payload.origin_channel || (role === 'admin' ? 'admin' : deliveryChannel));
   const message = {
     id: newMessageId(threadId),
     threadId,
     from: role,
     body,
     at,
-    origin_channel: payload.origin_channel || (role === 'admin' ? 'admin' : 'platform'),
-    delivery_channel: payload.delivery_channel || payload.channel || defaultDelivery,
+    origin_channel: originChannel,
+    delivery_channel: deliveryChannel,
     external_ref: payload.external_ref || null,
     policy_exemption: payload.policy_exemption || null,
     autoflag: isFinancial ? 'financial' : null,
     system: false,
   };
   if (payload.attachments && payload.attachments.length) message.attachments = payload.attachments;
-  appendMessage(threadId, message, 'threads.send');
+  // Email-specific fields — only retained on System B email messages.
+  if (!isSystemA && deliveryChannel === 'email') {
+    if (payload.subject) message.subject = payload.subject;
+    if (payload.to) message.to = payload.to;
+    if (payload.cc) message.cc = payload.cc;
+    if (payload.bcc) message.bcc = payload.bcc;
+  }
+  appendMessage(threadId, message, `threads.send.${thread.threadType || 'order'}`);
 
   // Always bump unread for non-sender roles. The financial system message
   // (below) bumps admin again so the redirect is unmistakable in the bell.
@@ -247,4 +282,5 @@ export {
   selectThread,
   selectThreadByOrder,
   ensureThreadForOrder,
+  ensureAdminThreadForOrder,
 };

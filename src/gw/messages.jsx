@@ -13,8 +13,12 @@ const D = EF;
 function GWMessages({ navigate }) {
   const [reply, setReply] = useState('');
   const allThreads = EFHooks.useThreads();
-  // Only threads tied to my (Isabel's) assignments are visible.
-  const myThreads = useMemo(() => allThreads.filter(t => t.gwId === D.GW_ME.id), [allThreads]);
+  // Only System A (order) threads tied to my (Isabel's) assignments are visible.
+  // Admin-side threads (order_admin / lead / gw_direct) are System B — GWs must
+  // never see them (D-26 hard guard).
+  const myThreads = useMemo(() => allThreads.filter(t =>
+    (t.threadType || 'order') === 'order' && t.gwId === D.GW_ME.id
+  ), [allThreads]);
   const [activeId, setActiveId] = useState(myThreads[0]?.id || null);
   const active = myThreads.find(t => t.id === activeId) || myThreads[0] || null;
 
