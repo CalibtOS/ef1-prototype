@@ -24,6 +24,7 @@ function WpHausarbeit({ navigate }) {
     e.preventDefault();
     if (submitting) return;
     if (!form.name.trim() || !form.email.trim()) return;
+    if (!form.field.trim() || !form.pages || !form.deadline) return;
     setSubmitting(true);
     const result = Scenarios.submitInquiry({
       name: form.name.trim(),
@@ -72,14 +73,14 @@ function WpHausarbeit({ navigate }) {
             <Field label="Telefon">
               <input type="tel" value={form.phone} onChange={update('phone')} placeholder="+49 …" style={inp}/>
             </Field>
-            <Field label="Fachrichtung">
-              <input type="text" value={form.field} onChange={update('field')} placeholder="z.B. BWL, Jura, Informatik" style={inp}/>
+            <Field label="Fachrichtung *">
+              <input required type="text" value={form.field} onChange={update('field')} placeholder="z.B. BWL, Jura, Informatik" style={inp}/>
             </Field>
-            <Field label="Seitenzahl">
-              <input type="number" min={1} max={200} value={form.pages} onChange={update('pages')} placeholder="z.B. 15" style={inp}/>
+            <Field label="Seitenzahl *">
+              <input required type="number" min={1} max={200} value={form.pages} onChange={update('pages')} placeholder="z.B. 15" style={inp}/>
             </Field>
-            <Field label="Abgabetermin">
-              <input type="date" value={form.deadline} onChange={update('deadline')} style={inp}/>
+            <Field label="Abgabetermin *">
+              <input required type="date" value={form.deadline} onChange={update('deadline')} style={inp}/>
             </Field>
             <div style={{ gridColumn: '1 / -1' }}>
               <Field label="Ihre Nachricht">
