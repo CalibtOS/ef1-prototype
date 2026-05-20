@@ -286,19 +286,17 @@ function GWJobBoard({ navigate, toast, role = 'gw' }) {
           </div>
         </div>
       </section>
-      {!isAdmin && claimingId && <ClaimModal job={unclaimed.find(j => j.id === claimingId)} onClose={() => setClaimingId(null)} toast={toast} navigate={navigate}/>}
+      {!isAdmin && claimingId && <ClaimModal job={unclaimed.find(j => j.id === claimingId)} gwId={currentGwId} onClose={() => setClaimingId(null)} toast={toast} navigate={navigate}/>}
     </div>
   );
 }
 
-function ClaimModal({ job, onClose, toast, navigate }) {
+function ClaimModal({ job, gwId, onClose, toast, navigate }) {
   const [step, setStep] = useState(1);
   const [acks, setAcks] = useState({ agb: false, ai: false, gdpr: false, deadline: false, fee: false, individual: false });
   const allAcked = Object.values(acks).every(Boolean);
   const submit = () => {
-    // Stateful transition: order moves to claimed_pending_approval and is bound
-    // to the logged-in GW (Isabel Walter, gw-iw). Visible across all role views.
-    EFActions.gw.claimJob(job.id, 'gw-iw');
+    EFActions.gw.claimJob(job.id, gwId);
     onClose();
     toast({
       tone: 'info',

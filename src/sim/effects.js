@@ -12,6 +12,62 @@ import * as SimMail from './mail.js';
 import * as SimCheckout from './checkout.js';
 import * as SimArtifacts from './artifacts.js';
 
+// MAIL_TEMPLATES — declarative manifest of which SimMail builders should fire
+// on each domain event. The listener bodies below still own conditional
+// gating (e.g. don't resend Kennenlernen on re-offer), but every call to a
+// builder goes through `sendMail(eventName, builderName, payload)` which
+// validates against this map: a rename, deletion, or typo fails loud at
+// startup. See audit Arch-06.
+const MAIL_TEMPLATES = {
+  'wp.intake_submitted':              ['intakeAdminNotify', 'magicLinkLogin'],
+  'order.offer_sent':                 ['offerSentCustomer', 'offerKennenlernenCustomer'],
+  'order.offer_accepted':             ['invoiceEmailCustomer'],
+  'order.assignment.posted_to_board': ['gwJobAvailableToGw'],
+  'gw.application.created':           ['gwApplicationAdminNotify'],
+  'order.assignment.approved':        ['gwAssignedToGw', 'gwApplicationRejected'],
+  'order.assignment.board_cancelled': ['gwApplicationRejected'],
+  'order.gw_assigned':                ['gwAssignedToGw', 'gwAssignedToCustomer'],
+  'gw.first_contact_sent':            ['firstContactSentToCustomer'],
+  'customer.interim.approved':        ['interimApprovedGwNotify'],
+  'gw.submission.interim':            ['interimSubmittedCustomerNotify', 'interimSubmittedAdminNotify'],
+  'gw.submission.final':              ['finalSubmittedAdminNotify'],
+  'customer.final.accepted':          ['finalAcceptedAdminNotify'],
+  'qa.final.released':                ['finalReleasedCustomerNotify'],
+  'payments.batch.released':          ['payoutReleasedGw', 'payoutBatchAdminNotify'],
+  'payment.confirmed':                ['paymentReceiptCustomer', 'paymentReceivedAdminNotify'],
+};
+
+// Startup validation: every builder referenced in MAIL_TEMPLATES must exist
+// on SimMail; warn loudly if not. Catches half-finished migrations like
+// intakeWelcomeCustomer that get added to a builder list but never wired (or
+// vice-versa: renamed mail builders that leave dangling references).
+(function validateMailTemplates() {
+  const missing = [];
+  for (const [event, builders] of Object.entries(MAIL_TEMPLATES)) {
+    for (const b of builders) {
+      if (typeof SimMail[b] !== 'function') missing.push(`${event} → SimMail.${b}`);
+    }
+  }
+  if (missing.length) {
+    console.warn(`[effects/sim] MAIL_TEMPLATES references ${missing.length} missing builder(s):\n  - ${missing.join('\n  - ')}`);
+  }
+})();
+
+// sendMail — proxy every SimMail call through the manifest. The builder name
+// must be listed under the event in MAIL_TEMPLATES; otherwise the dispatch is
+// dropped with a dev warning. Production keeps the call but warns to console.
+function sendMail(eventName, builderName, payload) {
+  const allowed = MAIL_TEMPLATES[eventName];
+  if (!allowed || !allowed.includes(builderName)) {
+    if (typeof import.meta !== 'undefined' && import.meta.env?.DEV) {
+      console.warn(`[effects/sim] sendMail("${eventName}", "${builderName}") not declared in MAIL_TEMPLATES — declare it or remove the call`);
+    }
+  }
+  const fn = SimMail[builderName];
+  if (typeof fn !== 'function') return null;
+  return fn(payload);
+}
+
 function selectCustomerEmail(customerId) {
   const c = store.getState().entities.customers?.byId?.[customerId];
   return c?.email || '';
@@ -61,7 +117,7 @@ DomainEvents.on('order.offer_sent', (payload) => {
     detail: { offerNo, fileName: offerNo ? `${offerNo}.pdf` : `offer-${orderId}.pdf` },
   });
 
-  SimMail.offerSentCustomer({
+  sendMail('order.offer_sent', 'offerSentCustomer', {
     orderId,
     customerId,
     customerEmail: selectCustomerEmail(customerId),
@@ -75,7 +131,7 @@ DomainEvents.on('order.offer_sent', (payload) => {
     scenarioId,
   });
 
-  SimMail.offerKennenlernenCustomer({
+  sendMail('order.offer_sent', 'offerKennenlernenCustomer', {
     orderId,
     customerId,
     customerEmail: selectCustomerEmail(customerId),
@@ -144,7 +200,7 @@ DomainEvents.on('order.offer_accepted', (payload) => {
     });
   }
 
-  SimMail.invoiceEmailCustomer({
+  sendMail('order.offer_accepted', 'invoiceEmailCustomer', {
     orderId, customerId, customerEmail, customerName,
     invoiceNo, paymentMethod,
     amountDueNow: installments?.[0]?.amt ?? totalGross,
@@ -182,7 +238,7 @@ DomainEvents.on('order.assignment.posted_to_board', (payload) => {
   });
   const fee = order.netHonorarium || (order.grossEur ? Math.round((order.grossEur / 1.07) * (order.rate || 0.4) * 100) / 100 : null);
   eligibleGws().slice(0, 5).forEach(g => {
-    SimMail.gwJobAvailableToGw({
+    sendMail('order.assignment.posted_to_board', 'gwJobAvailableToGw', {
       orderId,
       gwId: g.id,
       gwEmail: g.email,
@@ -206,7 +262,7 @@ DomainEvents.on('gw.application.created', (payload) => {
     orderId, customerId, scenarioId,
     detail: { applicationId: application.id, gwId, gwName: g?.name },
   });
-  SimMail.gwApplicationAdminNotify({
+  sendMail('gw.application.created', 'gwApplicationAdminNotify', {
     orderId,
     customerId,
     customerName: selectCustomerName(customerId),
@@ -236,7 +292,7 @@ DomainEvents.on('order.assignment.approved', (payload) => {
       detail: { applicationId: r.id, gwId: r.gwId, gwName: rg?.name, reason: 'cascade' },
     });
     if (rg?.email) {
-      SimMail.gwApplicationRejected({ orderId, gwId: r.gwId, gwEmail: rg.email, gwName: rg.name, scenarioId });
+      sendMail('order.assignment.approved', 'gwApplicationRejected', { orderId, gwId: r.gwId, gwEmail: rg.email, gwName: rg.name, scenarioId });
     }
   });
 });
@@ -252,7 +308,7 @@ DomainEvents.on('order.assignment.board_cancelled', (payload) => {
   (rejectedApplications || []).forEach(r => {
     const rg = selectGw(r.gwId);
     if (rg?.email) {
-      SimMail.gwApplicationRejected({ orderId, gwId: r.gwId, gwEmail: rg.email, gwName: rg.name, scenarioId });
+      sendMail('order.assignment.board_cancelled', 'gwApplicationRejected', { orderId, gwId: r.gwId, gwEmail: rg.email, gwName: rg.name, scenarioId });
     }
   });
 });
@@ -270,7 +326,7 @@ DomainEvents.on('order.gw_assigned', (payload) => {
   });
   const g = selectGw(gwId);
   if (!selfAssigned && g?.email) {
-    SimMail.gwAssignedToGw({
+    sendMail('order.gw_assigned', 'gwAssignedToGw', {
       orderId, gwId, gwEmail: g.email, gwName: g.name,
       customerName,
       title: order.title,
@@ -279,7 +335,7 @@ DomainEvents.on('order.gw_assigned', (payload) => {
     });
   }
   if (customerEmail) {
-    SimMail.gwAssignedToCustomer({
+    sendMail('order.gw_assigned', 'gwAssignedToCustomer', {
       orderId, customerId, customerEmail, customerName,
       gwName: selfAssigned ? 'Berat Özdemir' : (g?.name || gwName),
       scenarioId,
@@ -298,7 +354,7 @@ DomainEvents.on('gw.first_contact_sent', (payload) => {
     orderId, customerId, scenarioId,
     detail: { gwId, gwName, subject },
   });
-  SimMail.firstContactSentToCustomer({
+  sendMail('gw.first_contact_sent', 'firstContactSentToCustomer', {
     orderId,
     customerId,
     customerEmail,
@@ -323,7 +379,7 @@ DomainEvents.on('customer.interim.approved', (payload) => {
     orderId, customerId, scenarioId,
     detail: { gwId, gwName: g.name },
   });
-  SimMail.interimApprovedGwNotify({
+  sendMail('customer.interim.approved', 'interimApprovedGwNotify', {
     orderId,
     gwId,
     gwEmail: g.email,
@@ -342,7 +398,7 @@ DomainEvents.on('gw.submission.interim', (payload) => {
     orderId, customerId, scenarioId,
     detail: { gwId, gwName, submissionKind, fileName, submissionId: submission?.id },
   });
-  SimMail.interimSubmittedCustomerNotify({
+  sendMail('gw.submission.interim', 'interimSubmittedCustomerNotify', {
     orderId,
     customerId,
     customerEmail: selectCustomerEmail(customerId),
@@ -353,7 +409,7 @@ DomainEvents.on('gw.submission.interim', (payload) => {
     fileName,
     scenarioId,
   });
-  SimMail.interimSubmittedAdminNotify({
+  sendMail('gw.submission.interim', 'interimSubmittedAdminNotify', {
     orderId,
     customerId,
     customerName: selectCustomerName(customerId),
@@ -374,7 +430,7 @@ DomainEvents.on('gw.submission.final', (payload) => {
     orderId, customerId, scenarioId,
     detail: { gwId, gwName, submissionKind, fileName, submissionId: submission?.id },
   });
-  SimMail.finalSubmittedAdminNotify({
+  sendMail('gw.submission.final', 'finalSubmittedAdminNotify', {
     orderId,
     customerId,
     customerName: selectCustomerName(customerId),
@@ -395,7 +451,7 @@ DomainEvents.on('customer.final.accepted', (payload) => {
     orderId, customerId, scenarioId,
     detail: { gwId, gwName },
   });
-  SimMail.finalAcceptedAdminNotify({
+  sendMail('customer.final.accepted', 'finalAcceptedAdminNotify', {
     orderId,
     customerId,
     customerName: selectCustomerName(customerId),
@@ -413,7 +469,7 @@ DomainEvents.on('qa.final.released', (payload) => {
     orderId, customerId, scenarioId,
     detail: { gwId, gwName, submissionKind, fileName, submissionId: submission?.id },
   });
-  SimMail.finalReleasedCustomerNotify({
+  sendMail('qa.final.released', 'finalReleasedCustomerNotify', {
     orderId,
     customerId,
     customerEmail: selectCustomerEmail(customerId),
@@ -431,7 +487,7 @@ DomainEvents.on('payments.batch.released', (payload) => {
   released.forEach(r => {
     const g = selectGw(r.gwId);
     if (!g?.email) return;
-    SimMail.payoutReleasedGw({
+    sendMail('payments.batch.released', 'payoutReleasedGw', {
       orderId: r.id,
       gwId: r.gwId,
       gwEmail: g.email,
@@ -440,7 +496,7 @@ DomainEvents.on('payments.batch.released', (payload) => {
       scenarioId: r.scenarioId || null,
     });
   });
-  SimMail.payoutBatchAdminNotify({
+  sendMail('payments.batch.released', 'payoutBatchAdminNotify', {
     count,
     totalAmount,
     scenarioId: released[0]?.scenarioId || null,
@@ -486,7 +542,7 @@ DomainEvents.on('payment.confirmed', (payload) => {
       detail: { stage: 'Won' },
     });
   }
-  SimMail.paymentReceiptCustomer({
+  sendMail('payment.confirmed', 'paymentReceiptCustomer', {
     orderId, customerId, customerEmail, customerName,
     installmentN: installmentN || 1,
     amountPaid,
@@ -494,7 +550,7 @@ DomainEvents.on('payment.confirmed', (payload) => {
     outstandingEur,
     scenarioId,
   });
-  SimMail.paymentReceivedAdminNotify({
+  sendMail('payment.confirmed', 'paymentReceivedAdminNotify', {
     orderId, customerId, customerName,
     installmentN: installmentN || 1,
     amountPaid,

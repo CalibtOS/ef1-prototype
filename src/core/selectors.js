@@ -465,20 +465,27 @@ function selectKpis(state) {
     const age = daysSince(anchor, now);
     return age != null && age <= 7 ? s + (o.outstandingEur || 0) : s;
   }, 0);
+  // KPI counts are over real orders only (synthetic:false). Demo fixtures or
+  // wizard-marked rows that carry `_synthetic: true` are excluded so they
+  // don't inflate the dashboard. Submissions are likewise filtered.
+  const isReal = (o) => !o?._synthetic && !o?.synthetic;
+  const realOrders = orders.filter(isReal);
+  const realSubs = submissions.filter(isReal);
+  const closedStates = new Set(['completed', 'cancelled', 'bye']);
   return {
     openReceivables: Math.round(openReceivables * 100) / 100,
     newReceivables7d: Math.round(newReceivables7d * 100) / 100,
     agedReceivables: Math.round((openReceivables - newReceivables7d) * 100) / 100,
-    activeOrders: 645,
-    completedLifetime: 3359,
-    totalLifetime: 3522,
+    activeOrders: realOrders.filter(o => !closedStates.has(o.status)).length,
+    completedLifetime: realOrders.filter(o => o.status === 'completed').length,
+    totalLifetime: realOrders.length,
     fridayCount: friday.length,
     fridayEur: Math.round(fridayEur * 100) / 100,
-    qaPending: submissions.filter(s => W.isQaReviewKind(s.kind) && s.qaStatus === QA_STATUS.PENDING).length,
+    qaPending: realSubs.filter(s => W.isQaReviewKind(s.kind) && s.qaStatus === QA_STATUS.PENDING).length,
     overdueInterim: sla.filter(it => it.kind === 'interim_missed').length,
-    aiFlagged: submissions.filter(s => s.aiScore >= 70 || s.flagged).length,
-    disputesOpen: orders.filter(o => o.disputeOpen).length,
-    pipedriveSubs: '4,159 / 5,000',
+    aiFlagged: realSubs.filter(s => s.aiScore >= 70 || s.flagged).length,
+    disputesOpen: realOrders.filter(o => o.disputeOpen).length,
+    pipedriveSubs: `${realOrders.length} / 5,000`,
     eurAtRisk: Math.round(eurAtRisk * 100) / 100,
     riskItemCount: risk.length,
   };

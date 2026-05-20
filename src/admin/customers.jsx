@@ -6,12 +6,15 @@ import { Icon, StatusPill, Avatar, Money, Bi, ScoreBar, NotReady, PlannedTag, Em
 import * as U from '../../utils.jsx';
 import { CrumbBar } from '../../shell.jsx';
 import * as W from '../core/workflow.js';
+import * as EFHooks from '../core/hooks.js';
 import EF from '../core/ef.js';
 const D = EF;
 
 function CustomersPage({ navigate }) {
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState('all');
+  // Subscribe so reactive D.CUSTOMERS / D.liveOrders() reads re-render on edits.
+  EFHooks.useStore(s => s.meta.version);
 
   const liveOrders = D.liveOrders();
   const customersWithStats = D.CUSTOMERS.map(c => {

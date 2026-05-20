@@ -23,7 +23,6 @@ const EF = {
   FEATURE_FLAGS: Data.FEATURE_FLAGS,
   featureStatus: Data.featureStatus,
   isFeatureLive: Data.isFeatureLive,
-  GW_ME: Data.GW_ME,
   liveOrders: () => S.selectAllOrders(store.getState()),
   liveOrder: (id) => S.selectOrder(store.getState(), id),
   releaseGates: W.releaseGates,
@@ -44,5 +43,13 @@ defineGetter('CUSTOMERS', () => S.selectAllCustomers(store.getState()));
 defineGetter('GHOSTWRITERS', () => S.selectAllGhostwriters(store.getState()));
 defineGetter('NOTIFICATIONS', () => S.selectNotifications(store.getState(), store.getState().session.role));
 defineGetter('KPI', () => S.selectKpis(store.getState()));
+// GW_ME: live wrapper over selectGhostwriter(state, session.gwId). Falls back
+// to a minimal stub if the session hasn't been hydrated yet (boot edge case).
+defineGetter('GW_ME', () => {
+  const state = store.getState();
+  const gwId = state.session?.gwId;
+  const gw = gwId ? S.selectGhostwriter(state, gwId) : null;
+  return gw || { id: gwId, name: '—', initials: '—', email: '', onTime: 0, rating: 0, lifetime: 0 };
+});
 
 export default EF;

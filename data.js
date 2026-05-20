@@ -295,13 +295,8 @@ const FEATURE_FLAGS = {
 const featureStatus = (key) => FEATURE_FLAGS[key] || null;
 const isFeatureLive = (key) => (FEATURE_FLAGS[key]?.status === 'live');
 
-// Persona constant for the GW persona we ship in the demo — Isabel Walter.
-// Live, store-backed accessors (orders, customers, ghostwriters,
-// notifications) live in src/core/selectors.js. This module only exports
-// the seed snapshots that hydrate the store on boot.
-const GW_ME = GHOSTWRITERS.find(g => g.id === 'gw-iw') || {
-  name: 'Isabel Walter', initials: 'IW', email: 'isabel.walter@gw.efactory1.de'
-};
+// Reactive GW_ME wrapper lives on EF (src/core/ef.js) so it follows
+// session.gwId. Static fixture only.
 
 export {
   liveNow,
@@ -309,5 +304,4 @@ export {
   FRIDAY_BATCH, INBOX_THREADS, NOTIFICATIONS,
   WORK_TYPE_LABELS, STATUS_PILLS, FEATURE_FLAGS,
   featureStatus, isFeatureLive,
-  GW_ME,
 };

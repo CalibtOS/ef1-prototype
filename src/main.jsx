@@ -24,6 +24,38 @@ if (import.meta.env?.DEV && typeof window !== 'undefined') {
   })
 }
 
+// Per-role route registry. Mirrors the keys of `routeTable[role]` below; any
+// route name not listed here will silently fall through to `_default` (the
+// role's home view). Kept at module scope so `applyRoute` can warn in dev when
+// it receives a (role, name) pair that doesn't actually have a handler — that
+// silent fall-through used to mask wiring bugs (notif builders shipping the
+// wrong role/route combo). See audit Arch-10.
+const VALID_ROUTES_BY_ROLE = {
+  admin: new Set([
+    'admin-dashboard', 'orders', 'order-detail', 'friday-batch', 'qa', 'inbox',
+    'ai-bi', 'gw-job-board', 'ghostwriters', 'ghostwriter-detail', 'pipeline',
+    'admin-calendar', 'customers', 'customer-detail', 'disputes', 'reports',
+    'settings', 'order-new', 'offers',
+  ]),
+  gw: new Set([
+    'gw-dashboard', 'admin-dashboard', 'gw-active', 'orders', 'gw-job-board',
+    'gw-submit', 'gw-report-delay', 'gw-extension', 'gw-first-contact',
+    'gw-onboarding', 'gw-submissions-list', 'gw-templates', 'gw-payments',
+    'gw-messages', 'gw-profile', 'gw-assignment-detail', 'order-detail',
+    'gw-calendar',
+  ]),
+  qa: new Set([
+    'qa-queue', 'qa', 'admin-dashboard', 'qa-plagiarism', 'qa-ai', 'qa-history',
+    'order-detail',
+  ]),
+  customer: new Set([
+    'cust-orders', 'cust-messages', 'cust-invoices', 'cust-downloads',
+    'cust-profile', 'admin-dashboard',
+  ]),
+  wp: new Set(['wp-hausarbeit', 'wp-vielen-dank']),
+  sim: new Set(['sim-stripe-checkout']),
+};
+
 // Admin role
 import { AdminDashboard } from './admin/dashboard.jsx'
 import { OrdersTable } from './admin/orders-list.jsx'
@@ -170,6 +202,14 @@ function App() {
   }, [tweaks.theme, tweaks.density, tweaks.locale, tweaks.accent])
 
   const applyRoute = useCallback((nextRole, name, params = {}, options = {}) => {
+    if (import.meta.env?.DEV) {
+      const valid = VALID_ROUTES_BY_ROLE[nextRole];
+      if (valid && name && !valid.has(name)) {
+        console.warn(`[applyRoute] no handler for (${nextRole}, ${name}); falling back to ${nextRole}'s default. Caller passed:`, { params, options });
+      } else if (!valid) {
+        console.warn(`[applyRoute] unknown role "${nextRole}"; will use admin route table.`);
+      }
+    }
     const nextRoute = { name, params: params || {} }
     const nextHash = buildHash(nextRole, name, nextRoute.params)
     if (window.location.hash !== nextHash) {
@@ -183,8 +223,8 @@ function App() {
     if (options.scroll !== false) window.scrollTo(0, 0)
   }, [])
 
-  const navigate = useCallback((name, params = {}) => {
-    applyRoute(role, name, params)
+  const navigate = useCallback((name, params = {}, options = {}) => {
+    applyRoute(role, name, params, options)
   }, [applyRoute, role])
 
   const harnessGoTo = useCallback((targetRole, name, params = {}) => {
@@ -241,7 +281,7 @@ function App() {
       'qa-plagiarism':    () => <QAPlagiarismReports navigate={navigate}/>,
       'qa-ai':            () => <QAAIDetection navigate={navigate}/>,
       'qa-history':       () => <QAHistory navigate={navigate}/>,
-      'order-detail':     (p) => <QAOrderDetail orderId={p.id} navigate={navigate} toast={toast}/>,
+      'order-detail':     (p) => <QAOrderDetail orderId={p.id} initialTab={p.tab} navigate={navigate} toast={toast}/>,
       _default:           () => <QAQueue navigate={navigate} toast={toast}/>,
     },
     gw: {

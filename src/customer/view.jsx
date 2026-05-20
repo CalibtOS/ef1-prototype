@@ -1536,52 +1536,35 @@ function CustProfile({ toast }) {
 // for the active tab. Clicking an internal tab navigates so the URL/sidebar stay in sync.
 function CustomerView({ role, setRole, selectPersona, toast, section, navigate, goTo, focusOrderId, focusOrderTab }) {
   const tab = section || 'orders';
-  const [openOrderId, setOpenOrderId] = useState(null);
-  const [openOrderTab, setOpenOrderTab] = useState('status');
+  // Arch-04: customer order-detail is URL-driven substate of cust-orders.
+  // openOrderId/openOrderTab used to live in useState and a bridging effect
+  // synced them with focusOrderId/focusOrderTab — refresh and tab clicks
+  // dropped sub-state. Now the URL is the single source of truth.
+  const openOrderId = focusOrderId != null && !Number.isNaN(focusOrderId) ? focusOrderId : null;
+  // When a deep link omits tab, fall back to a state-appropriate default
+  // (messages if GW assigned, status pre-GW). Real-tab clicks always write
+  // tab into the URL so this branch only fires on first open.
+  const fallbackTab = (() => {
+    if (openOrderId == null) return 'status';
+    const o = EFSelectors.selectOrder(store.getState(), openOrderId);
+    const preGw = !o?.gwId || ['lead','qualified','offer_sent','invoice_sent','available','claimed_pending_approval'].includes(o?.status);
+    return preGw ? 'status' : 'messages';
+  })();
+  const openOrderTab = focusOrderTab || fallbackTab;
   const [checkoutOrderId, setCheckoutOrderId] = useState(null);
   EFHooks.useStore(s => s.session.customerId);
   EFHooks.useStore(s => s.meta.version);
 
-  useEffect(() => {
-    if (focusOrderId != null && !Number.isNaN(focusOrderId)) {
-      const orderChanged = focusOrderId !== openOrderId;
-      if (orderChanged) {
-        setOpenOrderId(focusOrderId);
-        window.scrollTo(0, 0);
-      }
-      // An explicit `tab=` param wins (deep links from mail CTAs, and our own
-      // internal tab clicks which push the tab into the URL — see openOrder
-      // and the onTabChange handler below). Re-sync on every change so that
-      // re-clicking the same email CTA while the order is already open still
-      // jumps to the right tab. When no tab is in the URL (only when the
-      // order first opens), fall back to a state-appropriate default.
-      if (focusOrderTab) {
-        if (focusOrderTab !== openOrderTab) setOpenOrderTab(focusOrderTab);
-      } else if (orderChanged) {
-        const o = EFSelectors.selectOrder(store.getState(), focusOrderId);
-        const preGw = !o?.gwId || ['lead','qualified','offer_sent','invoice_sent','available','claimed_pending_approval'].includes(o?.status);
-        setOpenOrderTab(preGw ? 'status' : 'messages');
-      }
-    } else if (focusOrderId == null && openOrderId != null) {
-      // URL no longer carries an orderId (e.g. user hit back) — close the detail.
-      setOpenOrderId(null);
-    }
-  }, [focusOrderId, focusOrderTab]);
-
   const openOrder = (id, subTab = 'status') => {
     const map = { messages: 'messages', files: 'files', payments: 'payments', status: 'status' };
     const nextTab = map[subTab] || 'status';
-    setOpenOrderId(id);
-    setOpenOrderTab(nextTab);
     if (navigate) navigate('cust-orders', { orderId: id, tab: nextTab });
     window.scrollTo(0, 0);
   };
   const changeOrderTab = (nextTab) => {
-    setOpenOrderTab(nextTab);
-    if (navigate && openOrderId != null) navigate('cust-orders', { orderId: openOrderId, tab: nextTab });
+    if (navigate && openOrderId != null) navigate('cust-orders', { orderId: openOrderId, tab: nextTab }, { replace: true });
   };
   const closeOrder = () => {
-    setOpenOrderId(null);
     if (navigate) navigate('cust-orders');
     window.scrollTo(0, 0);
   };
@@ -1605,18 +1588,15 @@ function CustomerView({ role, setRole, selectPersona, toast, section, navigate, 
   // and the sidebar highlight at the same time (no more divergent navigation state).
   const ROUTE_FOR_TAB = { orders: 'cust-orders', messages: 'cust-messages', invoices: 'cust-invoices', downloads: 'cust-downloads', profile: 'cust-profile' };
   const switchTab = (t) => {
-    setOpenOrderId(null);
     if (navigate && ROUTE_FOR_TAB[t]) navigate(ROUTE_FOR_TAB[t]);
   };
 
   const openNotification = (n) => {
     const target = EFShell?.resolveNotificationTarget?.(n, 'customer');
-    if (target?.customerOrderId != null) {
-      if (navigate) navigate(ROUTE_FOR_TAB.orders);
-      openOrder(target.customerOrderId, target.tab || 'status');
-      return;
-    }
-    if (target?.customerSection) switchTab(target.customerSection);
+    if (!target?.name) return;
+    // Unified target shape: { name, params }. With URL-driven sub-state the
+    // detail view will mount from focusOrderId/focusOrderTab automatically.
+    if (navigate) navigate(target.name, target.params || {});
   };
 
   let body;

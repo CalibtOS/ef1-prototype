@@ -6,12 +6,27 @@ import store from './store.js';
 
 // Extract an order id from any notification-shaped payload — prefer the
 // explicit `orderId` field, fall back to scanning `title`/`body` for `#NNNN`.
+// The regex fallback only sees the FIRST match — aggregate messages like
+// "released #3502 and #3508" route to whichever number appears first. Callers
+// should always set `orderId` explicitly; the fallback exists for legacy
+// fixtures and emits a dev warning when it fires.
 function inferOrderId(payload) {
   if (!payload) return null;
   if (payload.orderId != null) return Number(payload.orderId);
   const text = [payload.title, payload.body].filter(Boolean).join(' ');
   const match = text.match(/(?:#|order\s*#?|auftrag\s*#?)(\d{3,})/i);
-  return match ? Number(match[1]) : null;
+  if (match) {
+    if (typeof import.meta !== 'undefined' && import.meta.env?.DEV) {
+      const allMatches = text.match(/(?:#|order\s*#?|auftrag\s*#?)(\d{3,})/gi) || [];
+      if (allMatches.length > 1) {
+        console.warn(`[inferOrderId] notification mentions ${allMatches.length} orders but no explicit orderId set; routing to first match #${match[1]}. Payload kind=${payload.kind}`);
+      } else if (payload.kind) {
+        console.warn(`[inferOrderId] no orderId on payload (kind=${payload.kind}); inferred #${match[1]} from text. Pass orderId explicitly.`);
+      }
+    }
+    return Number(match[1]);
+  }
+  return null;
 }
 
 function matchesSessionAudience(note, role) {

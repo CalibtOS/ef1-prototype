@@ -10,6 +10,7 @@ import store from './src/core/store.js';
 import * as EFHooks from './src/core/hooks.js';
 import EFActions from './src/core/actions.js';
 import { inferOrderId as notificationOrderId } from './src/core/notifications.js';
+import { buildLink } from './src/core/links.js';
 
 // App-wide context
 const AppCtx = createContext(null);
@@ -229,6 +230,11 @@ function customerNotificationTab(kind) {
   return 'status';
 }
 
+// Returns a uniform `{ name, params }` for same-role navigation. Customer
+// callers used to receive a special `{ customerOrderId, tab }` shape; that
+// asymmetry is gone — customer notifications now resolve to the same
+// `cust-orders?orderId=…&tab=…` form that mail CTAs use, going through
+// `buildLink` so the route name + tab vocabulary live in one place.
 function resolveNotificationTarget(n, role) {
   if (!n) return null;
   if (n.route) return { name: n.route, params: n.params || {} };
@@ -239,18 +245,22 @@ function resolveNotificationTarget(n, role) {
   if (kind === 'subscriber_limit_warning') return { name: 'settings', params: {} };
   if (kind === 'gw_shadow_ban') return { name: 'ghostwriters', params: {} };
 
+  const linkParams = (link) => link ? { name: link.name, params: link.params } : null;
+
   if (['message_received', 'message_redirected'].includes(kind)) {
     if (role === 'customer') {
-      return orderId ? { customerOrderId: orderId, tab: 'messages' } : { customerSection: 'messages' };
+      return linkParams(buildLink(orderId
+        ? { kind: 'customer-order', orderId, tab: 'messages' }
+        : { kind: 'customer-section', section: 'messages' }));
     }
     if (role === 'gw') return { name: 'gw-messages', params: orderId ? { orderId } : {} };
-    return { name: 'inbox', params: n.threadId ? { thread: n.threadId } : (orderId ? { orderId } : {}) };
+    return linkParams(buildLink({ kind: 'admin-inbox', threadId: n.threadId, orderId }));
   }
 
   if (role === 'customer') {
-    return orderId
-      ? { customerOrderId: orderId, tab: customerNotificationTab(kind) }
-      : { customerSection: kind === 'payment_confirmed' ? 'invoices' : 'orders' };
+    return linkParams(buildLink(orderId
+      ? { kind: 'customer-order', orderId, tab: customerNotificationTab(kind) }
+      : { kind: 'customer-section', section: kind === 'payment_confirmed' ? 'invoices' : 'orders' }));
   }
 
   if (role === 'qa') {
@@ -258,17 +268,14 @@ function resolveNotificationTarget(n, role) {
   }
 
   if (role === 'gw') {
-    if (kind === 'payment_released') return { name: 'gw-payments', params: {} };
+    if (kind === 'payment_released') return linkParams(buildLink({ kind: 'gw-payments' }));
     if (['claim_rejected', 'assignment_cancelled', 'order_cancelled', 'order_on_hold'].includes(kind)) return { name: 'gw-active', params: {} };
-    if (kind === 'revision_required' && orderId) return { name: 'gw-submit', params: { id: orderId, kind: 'revision' } };
-    return orderId ? { name: 'gw-assignment-detail', params: { id: orderId } } : { name: 'gw-dashboard', params: {} };
+    if (kind === 'revision_required' && orderId) return linkParams(buildLink({ kind: 'gw-submit', orderId, submitKind: 'revision' }));
+    return orderId ? linkParams(buildLink({ kind: 'gw-assignment', orderId })) : { name: 'gw-dashboard', params: {} };
   }
 
   if (orderId) {
-    const params = { id: orderId };
-    const tab = adminNotificationTab(kind);
-    if (tab) params.tab = tab;
-    return { name: 'order-detail', params };
+    return linkParams(buildLink({ kind: 'admin-order', orderId, tab: adminNotificationTab(kind) }));
   }
 
   if (kind === 'order_created') return { name: 'orders', params: {} };

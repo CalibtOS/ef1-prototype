@@ -7,6 +7,7 @@ import * as EFHooks from '../core/hooks.js';
 import * as SimMail from '../sim/mail.js';
 import * as Scenarios from '../sim/scenarios.js';
 import EFActions from '../core/actions.js';
+import { buildLink, targetFromLegacyCta } from '../core/links.js';
 
 // Minimal inline markdown renderer for demo email bodies. Handles **bold**,
 // _italic_, and `code` — patterns actually used in src/sim/mail.js templates.
@@ -67,8 +68,13 @@ function DemoInbox({ onClose, navigate, switchRole }) {
     const cta = email.cta;
     if (!cta) return;
     if (!email.read) SimMail.markRead(email.id);
-    if (cta.action === 'consume_token' && cta.tokenId) {
-      const res = Scenarios.consumeFirstLoginAndAttach(cta.tokenId);
+
+    const target = targetFromLegacyCta(cta);
+
+    // Magic-link / first-login token consumption — must happen before the
+    // navigate so the persona is bound by the time the customer view mounts.
+    if (target?.kind === 'consume-token' && target.tokenId) {
+      const res = Scenarios.consumeFirstLoginAndAttach(target.tokenId);
       if (res.ok) {
         onClose && onClose();
         switchRole && switchRole('customer', 'cust-orders', {});
@@ -77,46 +83,18 @@ function DemoInbox({ onClose, navigate, switchRole }) {
       }
       return;
     }
-    if (cta.action === 'open_customer_dashboard') {
-      if (cta.customerId) {
-        EFActions.session.setPersona({ role: 'customer', customerId: cta.customerId });
-      }
-      onClose && onClose();
-      const params = {};
-      if (cta.orderId) params.orderId = cta.orderId;
-      if (cta.tab) params.tab = cta.tab;
-      switchRole && switchRole('customer', 'cust-orders', params);
-      return;
+
+    // open_customer_dashboard carries a persona side-effect (set customerId
+    // before navigating) that the unified link layer doesn't model. Keep it
+    // as an explicit step here.
+    if (cta.action === 'open_customer_dashboard' && cta.customerId) {
+      EFActions.session.setPersona({ role: 'customer', customerId: cta.customerId });
     }
-    if (cta.action === 'open_admin_order') {
-      onClose && onClose();
-      switchRole && switchRole('admin', 'order-detail', {
-        id: cta.orderId,
-        ...(cta.tab ? { tab: cta.tab } : {}),
-        ...(cta.submissionId ? { submissionId: cta.submissionId } : {}),
-      });
-      return;
-    }
-    if (cta.action === 'open_gw_job_board') {
-      onClose && onClose();
-      switchRole && switchRole('gw', 'gw-job-board', cta.orderId ? { orderId: cta.orderId } : {});
-      return;
-    }
-    if (cta.action === 'open_gw_assignment') {
-      onClose && onClose();
-      switchRole && switchRole('gw', 'gw-assignment-detail', { id: cta.orderId });
-      return;
-    }
-    if (cta.action === 'open_gw_payments') {
-      onClose && onClose();
-      switchRole && switchRole('gw', 'gw-payments', {});
-      return;
-    }
-    if (cta.action === 'open_admin_friday_batch') {
-      onClose && onClose();
-      switchRole && switchRole('admin', 'friday-batch', {});
-      return;
-    }
+
+    const link = buildLink(target);
+    if (!link) return;
+    onClose && onClose();
+    switchRole && switchRole(link.role, link.name, link.params);
   };
 
   return (

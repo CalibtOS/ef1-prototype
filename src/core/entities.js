@@ -20,8 +20,17 @@ function normalize(list) {
 }
 
 // Demo spine order: links Antigone Berisha (c-ab) ↔ Isabel Walter (gw-iw)
-// so the four canonical demo personas all touch one lifecycle order.
+// so the four canonical demo personas all touch one lifecycle order. paidEur
+// and outstandingEur are derived from installment state at construction time
+// rather than hardcoded — that way the same numbers can't drift between
+// `installments` (the source of truth) and the receivables-aging report.
 function customerDemoOrder() {
+  const installments = [
+    { n: 1, amt: 1180, status: 'paid', date: '2026-04-01', method: 'stripe_card' },
+    { n: 2, amt: 1180, status: 'scheduled', date: '2026-05-15', method: 'stripe_card' },
+  ];
+  const grossEur = installments.reduce((s, i) => s + i.amt, 0);
+  const paidEur = installments.filter(i => i.status === 'paid').reduce((s, i) => s + i.amt, 0);
   return {
     id: 3518,
     status: 'under_customer_review',
@@ -33,18 +42,15 @@ function customerDemoOrder() {
     finalDeadline: '2026-05-22T18:00:00',
     interimDeadline: '2026-05-08T18:00:00',
     interim2Deadline: '2026-05-15T18:00:00',
-    grossEur: 2360,
+    grossEur,
     netHonorarium: 793.46,
     rate: 0.36,
     gwId: 'gw-iw',
     acceptedAt: '2026-04-01',
     leadSource: 'ig',
-    paidEur: 1180,
-    outstandingEur: 1180,
-    installments: [
-      { n: 1, amt: 1180, status: 'paid', date: '2026-04-01', method: 'stripe_card' },
-      { n: 2, amt: 1180, status: 'scheduled', date: '2026-05-15', method: 'stripe_card' },
-    ],
+    paidEur,
+    outstandingEur: grossEur - paidEur,
+    installments,
     revisionRounds: 0,
     gwPaymentStatus: 'work_in_progress',
     customerNote: 'Fokus auf Industrie-4.0-Kennzahlen; Fallbeispiel Bosch.',
