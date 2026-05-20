@@ -414,14 +414,15 @@ function OrderDetail({ orderId, navigate, toast, initialTab, focusSubmissionId }
       )}
 
       <div className="tabs">
-        {['overview', ...(showOfferTab ? ['offer'] : []), 'assignment','submissions','communications','payments','audit'].map(t => (
-          <div key={t} className={`tab ${activeTab===t?'active':''}`} onClick={() => setTab(t)} style={{ textTransform: 'capitalize' }}>
-            {t === 'audit' ? 'Audit log' : t}
+        {['overview', ...(showOfferTab ? ['offer'] : []), 'assignment','submissions','communications','payments','audit','demo'].map(t => (
+          <div key={t} className={`tab ${activeTab===t?'active':''} ${t==='demo' ? 'tab-demo' : ''}`} onClick={() => setTab(t)} style={{ textTransform: 'capitalize' }}>
+            {t === 'audit' ? 'Audit log' : t === 'demo' ? 'Demo' : t}
             {t === 'offer' && order.status === 'qualified' && <span className="pill pill-blue">Next</span>}
             {t === 'offer' && order.status === 'offer_sent' && <span className="pill pill-blue">Sent</span>}
             {t === 'offer' && order.status === 'invoice_sent' && <span className="pill pill-amber">Invoice</span>}
             {t === 'submissions' && submissionsCount > 0 && <span className="pill pill-pink">{submissionsCount}</span>}
             {t === 'payments' && showReceivable && order.outstandingEur > 0 && <span className="pill pill-amber">!</span>}
+            {t === 'demo' && <span className="pill pill-amber">SIM</span>}
           </div>
         ))}
       </div>
@@ -802,6 +803,9 @@ function OrderDetail({ orderId, navigate, toast, initialTab, focusSubmissionId }
       {activeTab === 'audit' && (
         <AuditTab order={order} events={orderEvents} />
       )}
+      {activeTab === 'demo' && (
+        <CustomerSimulationPanel order={order} cust={cust} toast={toast}/>
+      )}
     </div>
   );
 }
@@ -986,12 +990,45 @@ function OfferEmailCard({ email, status }) {
   );
 }
 
-function InvoiceAutomationPanel({ order, cust, totalGross, toast }) {
+// =============================================================================
+// Customer Simulation Panel — admin-only demo surface
+// -----------------------------------------------------------------------------
+// This panel is NOT production business UI. It lets an admin fast-forward through
+// the customer-side lifecycle gates that would normally require the customer to
+// click their magic link, open the portal, and approve an interim/final.
+// Each action below calls the SAME `EFActions.customer.*` and `EFActions.orders.*`
+// functions the real customer portal calls — so there is no duplicated business
+// logic. Status guards in workflow.js decide what is allowed at each stage.
+// =============================================================================
+
+function SimStageHeader({ index, title, subtitle, state }) {
+  const stateMeta = {
+    available: { pill: 'pill-blue',  label: 'Ready to simulate' },
+    done:      { pill: 'pill-green', label: 'Already happened' },
+    blocked:   { pill: 'pill-slate', label: 'Not yet available' },
+  }[state] || { pill: 'pill-slate', label: '' };
+  return (
+    <div className="sim-stage-head">
+      <div className="sim-stage-index">{index}</div>
+      <div className="flex-col" style={{ flex: 1, minWidth: 0 }}>
+        <div className="sim-stage-title">{title}</div>
+        {subtitle && <div className="text-faint fs-11">{subtitle}</div>}
+      </div>
+      <span className={`pill ${stateMeta.pill}`}>{stateMeta.label}</span>
+    </div>
+  );
+}
+
+function OfferInvoiceSimSection({ order, cust, totalGross, toast }) {
   const [method, setMethod] = useState(order.paymentMethodChoice || 'stripe_card');
   const [phase, setPhase] = useState(null);
   const [paying, setPaying] = useState(false);
   const offerSent = ['offer_sent','invoice_sent'].includes(order.status) || order.offerSentAt;
   const invoiceSent = order.status === 'invoice_sent' || order.invoiceSentAt;
+  // Stage is "done" only once payment is actually confirmed or the order has
+  // moved into a post-payment status. `outstandingEur === 0` alone is misleading
+  // because pre-invoice orders also have 0 outstanding.
+  const paymentDone = !!order.paymentConfirmedAt || (invoiceSent && order.outstandingEur === 0);
   const invoiceNo = invoiceNoFor(order);
   const methodLabel = {
     bank_transfer_sepa: 'Bank transfer',
@@ -1000,6 +1037,7 @@ function InvoiceAutomationPanel({ order, cust, totalGross, toast }) {
     stripe_card: 'Credit Card',
   }[method] || method;
   const needsStripe = method !== 'bank_transfer_sepa';
+  const stageState = paymentDone ? 'done' : offerSent ? 'available' : 'blocked';
   const createInvoice = () => {
     if (!offerSent) return;
     const steps = ['accepted', 'invoice', 'stripe', 'email'];
@@ -1037,36 +1075,203 @@ function InvoiceAutomationPanel({ order, cust, totalGross, toast }) {
     }, 900);
   };
   return (
-    <div className="card">
-      <div className="card-head">
-        <div className="card-title flex items-center gap-2"><Icon name="wallet" size={14}/> Acceptance → invoice automation</div>
-        {invoiceSent ? <span className="pill pill-amber">Invoice sent</span> : <span className="pill pill-slate">Waiting for customer</span>}
-      </div>
-      <div className="card-pad flex-col gap-3">
-        <div className="offer-acceptance-box">
-          <div className="strong fs-12">Customer clicks invoice-request link</div>
-          <div className="text-faint fs-11">Personal data captured · payment method selected · contract accepted</div>
-          <div className="flex gap-1 mt-2" style={{ flexWrap: 'wrap' }}>
-            {[
-              ['bank_transfer_sepa', 'Bank transfer'],
-              ['stripe_paypal', 'PayPal'],
-              ['stripe_klarna', 'Klarna'],
-              ['stripe_card', 'Credit Card'],
-            ].map(([id, label]) => (
-              <button key={id} type="button" className={`chip ${method === id ? 'active' : ''}`} disabled={invoiceSent} onClick={() => setMethod(id)}>{label}</button>
-            ))}
+    <div className="sim-section">
+      <SimStageHeader
+        index="1"
+        title="Offer acceptance, invoice & payment"
+        subtitle="Real customer would: click magic link in offer email → pick payment method → accept contract → pay."
+        state={stageState}
+      />
+      {stageState === 'blocked' && (
+        <div className="sim-blocked-hint">Send the offer from the <strong>Offer</strong> tab first to unlock this stage.</div>
+      )}
+      {stageState !== 'blocked' && (
+        <>
+          <div className="offer-acceptance-box">
+            <div className="strong fs-12">Pick the payment method the customer would choose</div>
+            <div className="text-faint fs-11">Same magic-link flow that the real offer email links out to.</div>
+            <div className="flex gap-1 mt-2" style={{ flexWrap: 'wrap' }}>
+              {[
+                ['bank_transfer_sepa', 'Bank transfer'],
+                ['stripe_paypal', 'PayPal'],
+                ['stripe_klarna', 'Klarna'],
+                ['stripe_card', 'Credit Card'],
+              ].map(([id, label]) => (
+                <button key={id} type="button" className={`chip ${method === id ? 'active' : ''}`} disabled={invoiceSent} onClick={() => setMethod(id)}>{label}</button>
+              ))}
+            </div>
+          </div>
+          <div className="timeline">
+            <OfferFlowStep state={phase || invoiceSent ? 'done' : 'pending'} icon="external-link" title="Invoice request received" body={`${cust?.name || 'Customer'} selected ${methodLabel} and accepted the contract.`}/>
+            <OfferFlowStep state={phase === 'invoice' || invoiceSent ? 'done' : 'pending'} icon="file-text" title={`POST /Invoice/Factory/createInvoiceFromOrder → ${invoiceNo}`} body="Sevdesk inherits customer, line items, discount, VAT, and dates from the offer."/>
+            <OfferFlowStep state={(phase === 'stripe' || invoiceSent) ? 'done' : 'pending'} icon="wallet" title={needsStripe ? 'Stripe payment link generated' : 'SEPA payment instructions prepared'} body={needsStripe ? (order.stripePaymentLink || `https://pay.stripe.com/ef1/${order.id}`) : 'Bank transfer details inserted into invoice email.'}/>
+            <OfferFlowStep state={(phase === 'email' || invoiceSent) ? 'done' : 'pending'} icon="mail" title="Invoice email sent from kundenservice@efactory1.de" body="Rechnungsversand Mail template + invoice PDF + payment link."/>
+          </div>
+          <div className="flex gap-2" style={{ flexWrap: 'wrap' }}>
+            <button type="button" className="btn btn-primary" disabled={!offerSent || invoiceSent || phase} onClick={createInvoice}><Icon name="zap" size={14}/> Simulate accept + send invoice</button>
+            <button type="button" className="btn btn-success" disabled={!invoiceSent || order.outstandingEur === 0 || paying} onClick={confirmPayment}><Icon name="check" size={14}/> Simulate payment</button>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+function InterimSimSection({ order, toast }) {
+  const [busy, setBusy] = useState(false);
+  const [mode, setMode] = useState(null); // null | 'revise'
+  const [note, setNote] = useState('');
+  const approveOk = W.canTransition(order, 'customer_approve_interim').ok;
+  const reviseOk  = W.canTransition(order, 'customer_request_revision').ok;
+  const everApproved = !!order.interimCustomerSatisfied;
+  const state = approveOk ? 'available' : everApproved ? 'done' : 'blocked';
+  const approve = () => {
+    setBusy(true);
+    setTimeout(() => {
+      const ok = EFActions.customer.approveInterim(order.id);
+      if (ok) toast && toast({ tone: 'success', transition: { entity: `Order #${order.id}`, from: 'Interim review', to: 'Active' }, text: 'Simulated · interim approved by customer' });
+      setBusy(false);
+    }, 400);
+  };
+  const submitRevision = () => {
+    if (note.trim().length < 10) return;
+    setBusy(true);
+    setTimeout(() => {
+      const ok = EFActions.customer.requestRevision(order.id, note);
+      if (ok) toast && toast({ tone: 'info', transition: { entity: `Order #${order.id}`, from: 'Interim review', to: 'Revision required' }, text: 'Simulated · interim revision requested' });
+      setMode(null); setNote(''); setBusy(false);
+    }, 400);
+  };
+  return (
+    <div className="sim-section">
+      <SimStageHeader
+        index="2"
+        title="Interim review"
+        subtitle="Real customer would: open portal, review interim file, approve or request changes."
+        state={state}
+      />
+      {state === 'blocked' && !everApproved && (
+        <div className="sim-blocked-hint">Waiting for GW to submit an interim and QA to release it (status <span className="mono">under_customer_review</span>).</div>
+      )}
+      {state === 'done' && (
+        <div className="sim-blocked-hint">Customer already approved an interim · GW is back to work.</div>
+      )}
+      {state === 'available' && mode !== 'revise' && (
+        <div className="flex gap-2" style={{ flexWrap: 'wrap' }}>
+          <button type="button" className="btn btn-success" disabled={busy || !approveOk} onClick={approve}><Icon name="check" size={14}/> Simulate approve interim</button>
+          <button type="button" className="btn" disabled={busy || !reviseOk} onClick={() => setMode('revise')}><Icon name="rotate-ccw" size={14}/> Simulate revision request</button>
+          <button type="button" className="btn btn-ghost" disabled={busy} onClick={() => { EFActions.customer.escalate(order.id); toast && toast({ tone: 'danger', text: 'Simulated · customer opened a dispute' }); }}><Icon name="alert-triangle" size={14}/> Simulate dispute</button>
+        </div>
+      )}
+      {state === 'available' && mode === 'revise' && (
+        <div className="flex-col gap-2">
+          <label className="fs-12 text-muted">Note from customer (min. 10 chars):</label>
+          <textarea
+            style={{ width: '100%', minHeight: 70, resize: 'vertical', padding: 10, fontSize: 13, border: '1px solid var(--border)', borderRadius: 8, background: 'var(--surface)', color: 'var(--text)', fontFamily: 'inherit', boxSizing: 'border-box' }}
+            placeholder="e.g. Kapitel 2 bitte kürzen, mehr Praxisbeispiele…"
+            value={note}
+            onChange={(e) => setNote(e.target.value)}
+          />
+          <div className="flex gap-2">
+            <button type="button" className="btn" disabled={busy} onClick={() => { setMode(null); setNote(''); }}>Cancel</button>
+            <button type="button" className="btn btn-primary" disabled={busy || note.trim().length < 10} onClick={submitRevision}><Icon name="send" size={14}/> Send revision request</button>
           </div>
         </div>
-        <div className="timeline">
-          <OfferFlowStep state={phase || invoiceSent ? 'done' : 'pending'} icon="external-link" title="Invoice request received" body={`${cust?.name || 'Customer'} selected ${methodLabel} and accepted the contract.`}/>
-          <OfferFlowStep state={phase === 'invoice' || invoiceSent ? 'done' : 'pending'} icon="file-text" title={`POST /Invoice/Factory/createInvoiceFromOrder → ${invoiceNo}`} body="Sevdesk inherits customer, line items, discount, VAT, and dates from the offer."/>
-          <OfferFlowStep state={(phase === 'stripe' || invoiceSent) ? 'done' : 'pending'} icon="wallet" title={needsStripe ? 'Stripe payment link generated' : 'SEPA payment instructions prepared'} body={needsStripe ? (order.stripePaymentLink || `https://pay.stripe.com/ef1/${order.id}`) : 'Bank transfer details inserted into invoice email.'}/>
-          <OfferFlowStep state={(phase === 'email' || invoiceSent) ? 'done' : 'pending'} icon="mail" title="Invoice email sent from kundenservice@efactory1.de" body="Rechnungsversand Mail template + invoice PDF + payment link."/>
-        </div>
+      )}
+    </div>
+  );
+}
+
+function FinalSimSection({ order, toast }) {
+  const [busy, setBusy] = useState(false);
+  const [mode, setMode] = useState(null);
+  const [note, setNote] = useState('');
+  const acceptOk = W.canTransition(order, 'customer_accept_final').ok;
+  const reviseOk = W.canTransition(order, 'customer_request_revision').ok && order.status === 'delivered';
+  const everAccepted = !!order.customerSatisfied;
+  const state = acceptOk ? 'available' : everAccepted ? 'done' : 'blocked';
+  const accept = () => {
+    setBusy(true);
+    setTimeout(() => {
+      const ok = EFActions.customer.acceptFinal(order.id);
+      if (ok) toast && toast({ tone: 'success', transition: { entity: `Order #${order.id}`, from: 'Delivered', to: 'Payment pending' }, text: 'Simulated · final accepted by customer' });
+      setBusy(false);
+    }, 400);
+  };
+  const submitRevision = () => {
+    if (note.trim().length < 10) return;
+    setBusy(true);
+    setTimeout(() => {
+      const ok = EFActions.customer.requestRevision(order.id, note);
+      if (ok) toast && toast({ tone: 'info', transition: { entity: `Order #${order.id}`, from: 'Delivered', to: 'Revision required' }, text: 'Simulated · final revision requested' });
+      setMode(null); setNote(''); setBusy(false);
+    }, 400);
+  };
+  return (
+    <div className="sim-section">
+      <SimStageHeader
+        index="3"
+        title="Final acceptance"
+        subtitle="Real customer would: open portal once QA passes the final, accept or request last tweaks."
+        state={state}
+      />
+      {state === 'blocked' && !everAccepted && (
+        <div className="sim-blocked-hint">Waiting for QA to pass a final submission (status <span className="mono">delivered</span>).</div>
+      )}
+      {state === 'done' && (
+        <div className="sim-blocked-hint">Customer already accepted the final · payment_pending → Friday batch.</div>
+      )}
+      {state === 'available' && mode !== 'revise' && (
         <div className="flex gap-2" style={{ flexWrap: 'wrap' }}>
-          <button type="button" className="btn btn-primary" disabled={!offerSent || invoiceSent || phase} onClick={createInvoice}><Icon name="zap" size={14}/> Simulate customer acceptance + send invoice</button>
-          <button type="button" className="btn btn-success" disabled={!invoiceSent || order.outstandingEur === 0 || paying} onClick={confirmPayment}><Icon name="check" size={14}/> Confirm payment</button>
+          <button type="button" className="btn btn-success" disabled={busy || !acceptOk} onClick={accept}><Icon name="check" size={14}/> Simulate accept final</button>
+          <button type="button" className="btn" disabled={busy || !reviseOk} onClick={() => setMode('revise')}><Icon name="rotate-ccw" size={14}/> Simulate last-tweak request</button>
+          <button type="button" className="btn btn-ghost" disabled={busy} onClick={() => { EFActions.customer.escalate(order.id); toast && toast({ tone: 'danger', text: 'Simulated · customer opened a dispute' }); }}><Icon name="alert-triangle" size={14}/> Simulate dispute</button>
         </div>
+      )}
+      {state === 'available' && mode === 'revise' && (
+        <div className="flex-col gap-2">
+          <label className="fs-12 text-muted">Note from customer (min. 10 chars):</label>
+          <textarea
+            style={{ width: '100%', minHeight: 70, resize: 'vertical', padding: 10, fontSize: 13, border: '1px solid var(--border)', borderRadius: 8, background: 'var(--surface)', color: 'var(--text)', fontFamily: 'inherit', boxSizing: 'border-box' }}
+            placeholder="e.g. Quellenverzeichnis ergänzen…"
+            value={note}
+            onChange={(e) => setNote(e.target.value)}
+          />
+          <div className="flex gap-2">
+            <button type="button" className="btn" disabled={busy} onClick={() => { setMode(null); setNote(''); }}>Cancel</button>
+            <button type="button" className="btn btn-primary" disabled={busy || note.trim().length < 10} onClick={submitRevision}><Icon name="send" size={14}/> Send revision request</button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function CustomerSimulationPanel({ order, cust, toast }) {
+  // Derive totalGross the same way OfferTab does — falls back to order.grossEur
+  // once the offer has been sent and the figure is locked in.
+  const totalGross = order.grossEur || 0;
+  return (
+    <div className="card sim-panel">
+      <div className="card-head sim-panel-head">
+        <div className="card-title flex items-center gap-2">
+          <Icon name="sparkles" size={14}/> Demo · Simulate as customer
+        </div>
+        <span className="pill pill-amber">Simulation only</span>
+      </div>
+      <div className="card-pad flex-col gap-3">
+        <div className="banner warn sim-banner">
+          <Icon name="alert-triangle" size={13}/>
+          <span>
+            <strong>Admin-only shortcut.</strong> Each button below fires the <em>real</em> customer
+            action through <span className="mono">EFActions.customer.*</span> so you can drive the
+            full lifecycle from one place — no role-switch needed. Status guards in workflow.js
+            decide what's enabled.
+          </span>
+        </div>
+        <OfferInvoiceSimSection order={order} cust={cust} totalGross={totalGross} toast={toast}/>
+        <InterimSimSection order={order} toast={toast}/>
+        <FinalSimSection order={order} toast={toast}/>
       </div>
     </div>
   );
@@ -1218,7 +1423,10 @@ function OfferTab({ order, toast, setTab }) {
             />
           ))}
         </div>
-        <InvoiceAutomationPanel order={order} cust={cust} totalGross={totalGross} toast={toast}/>
+        <div className="banner info" style={{ fontSize: 11.5 }}>
+          <Icon name="sparkles" size={13}/>
+          <span>Once the offer is sent, open the <strong>Demo</strong> tab to simulate the customer accepting it, paying, and approving interim/final deliveries from one surface.</span>
+        </div>
       </div>
       <div className="offer-right">
         <SevdeskPdfPreview

@@ -1357,6 +1357,39 @@ button:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
 }
 .offer-email-attachments { display: flex; flex-wrap: wrap; gap: 6px; }
 .offer-acceptance-box { padding: 12px; border-radius: 8px; border: 1px dashed var(--border); background: var(--surface-2); }
+
+/* Customer simulation panel — admin-only demo surface, intentionally visually distinct */
+.sim-panel {
+  border: 1px dashed color-mix(in oklab, var(--amber) 55%, var(--border));
+  background:
+    repeating-linear-gradient(135deg, transparent 0 14px, color-mix(in oklab, var(--amber) 5%, transparent) 14px 15px),
+    var(--surface);
+}
+.sim-panel-head { background: color-mix(in oklab, var(--amber) 9%, var(--surface-2)); }
+.sim-banner { font-size: 12px; line-height: 1.5; }
+.sim-section {
+  padding: 12px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  display: flex; flex-direction: column; gap: 10px;
+}
+.sim-section + .sim-section { margin-top: 2px; }
+.sim-stage-head { display: flex; align-items: center; gap: 10px; }
+.sim-stage-index {
+  width: 22px; height: 22px; border-radius: 50%;
+  background: color-mix(in oklab, var(--amber) 22%, var(--surface-2));
+  color: var(--text); font-weight: 600; font-size: 12px;
+  display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+}
+.sim-stage-title { font-size: 13px; font-weight: 600; }
+.sim-blocked-hint {
+  font-size: 11.5px; color: var(--text-3);
+  padding: 8px 10px; border-radius: 6px;
+  background: var(--surface-2); border: 1px dashed var(--border);
+}
+.tab.tab-demo { color: color-mix(in oklab, var(--amber) 75%, var(--text-3)); }
+.tab.tab-demo.active { color: color-mix(in oklab, var(--amber) 90%, var(--text)); }
 .offer-pdf-shell { border: 1px solid var(--border); border-radius: 10px; overflow: hidden; background: var(--surface); box-shadow: var(--shadow-md); }
 .offer-pdf-toolbar {
   height: 34px; padding: 0 10px; display: flex; align-items: center; gap: 10px;
