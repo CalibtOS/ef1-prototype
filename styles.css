@@ -741,8 +741,10 @@ button:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
 .tab {
   padding: 8px 14px; font-size: 12.5px; font-weight: 500; color: var(--text-2); cursor: pointer;
   border-bottom: 2px solid transparent; margin-bottom: -1px;
+  border-radius: 6px 6px 0 0; transition: background-color 120ms ease, color 120ms ease, border-color 120ms ease;
 }
-.tab:hover { color: var(--text); }
+.tab:hover { color: var(--text); background: var(--surface-2); border-bottom-color: var(--border-strong, var(--text-3)); }
+.tab:focus-visible { outline: 2px solid var(--blue, #2563eb); outline-offset: -2px; }
 .tab.active { color: var(--text); border-bottom-color: var(--text); }
 .tab .pill { margin-left: 6px; }
 
