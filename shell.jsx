@@ -225,7 +225,7 @@ function adminNotificationTab(kind) {
 
 function customerNotificationTab(kind) {
   if (['message_received', 'message_redirected'].includes(kind)) return 'messages';
-  if (['payment_confirmed', 'payment_released', 'invoice_sent', 'invoice_unpaid_5d'].includes(kind)) return 'payments';
+  if (['payment_confirmed', 'payment_failed', 'payment_released', 'invoice_sent', 'invoice_unpaid_5d'].includes(kind)) return 'payments';
   if (['qa_passed', 'final_uploaded', 'interim_received', 'violation_cleared'].includes(kind)) return 'files';
   return 'status';
 }

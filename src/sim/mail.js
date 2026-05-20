@@ -232,7 +232,7 @@ function invoiceEmailCustomer({ orderId, customerId, customerEmail, customerName
   const isBank = paymentMethod === 'bank_transfer_sepa';
   const cta = isBank
     ? { label: 'Überweisungsdaten ansehen', action: 'open_customer_dashboard', orderId, customerId }
-    : { label: 'Jetzt bezahlen', action: 'open_stripe_checkout', sid: checkoutSessionId, orderId };
+    : { label: 'Jetzt bezahlen', action: 'open_stripe_checkout', sid: checkoutSessionId, orderId, customerId };
   return createEmail({
     to: customerEmail,
     toRole: 'customer',
@@ -250,6 +250,33 @@ function invoiceEmailCustomer({ orderId, customerId, customerEmail, customerName
     ].filter(Boolean).join('\n'),
     cta,
     kind: 'invoice_email',
+    orderId,
+    customerId,
+    scenarioId,
+  });
+}
+
+function paymentFailedRetryCustomer({ orderId, customerId, customerEmail, customerName, invoiceNo, installmentN, amountDueNow, paymentMethod, checkoutSessionId, scenarioId }) {
+  const money = (n) => `${Number(n || 0).toLocaleString('de-DE', { minimumFractionDigits: 2 })} €`;
+  return createEmail({
+    to: customerEmail,
+    toRole: 'customer',
+    from: 'noreply@stripe.com',
+    subject: `Zahlung fehlgeschlagen · Auftrag #${orderId}`,
+    bodyMd: [
+      `Hallo ${customerName || ''},`,
+      ``,
+      `Ihre Zahlung für Auftrag #${orderId} konnte leider nicht abgeschlossen werden.`,
+      ``,
+      invoiceNo ? `**Rechnungs-Nr.:** ${invoiceNo}` : null,
+      installmentN ? `**Rate:** ${installmentN}` : null,
+      amountDueNow != null ? `**Offener Betrag:** ${money(amountDueNow)}` : null,
+      paymentMethod ? `**Zahlmethode:** ${paymentMethodLabel(paymentMethod)}` : null,
+      ``,
+      `Bitte klicken Sie auf den Button unten, um die Zahlung erneut zu starten.`,
+    ].filter(Boolean).join('\n'),
+    cta: { label: 'Erneut bezahlen', action: 'open_stripe_checkout', sid: checkoutSessionId, orderId, customerId },
+    kind: 'payment_failed_retry',
     orderId,
     customerId,
     scenarioId,
@@ -658,6 +685,7 @@ export {
   offerSentCustomer,
   offerKennenlernenCustomer,
   invoiceEmailCustomer,
+  paymentFailedRetryCustomer,
   paymentReceiptCustomer,
   paymentReceivedAdminNotify,
   paymentMethodLabel,

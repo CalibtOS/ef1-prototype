@@ -38,6 +38,25 @@ function getSession(sid) {
   return store.getState().entities.checkout_sessions?.byId?.[sid] || null;
 }
 
+function listSessionsForOrder(orderId) {
+  const table = store.getState().entities.checkout_sessions;
+  return (table?.allIds || [])
+    .map(id => table.byId[id])
+    .filter(s => s && s.orderId === orderId)
+    .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+}
+
+function latestPendingForOrder(orderId) {
+  return listSessionsForOrder(orderId).find(s => s.status === 'pending') || null;
+}
+
+function ensureOpenSession({ orderId, customerId, method, amount, installmentN = 1, scenarioId = null }) {
+  if (!orderId) return null;
+  const pending = latestPendingForOrder(orderId);
+  if (pending) return pending;
+  return createSession({ orderId, customerId, method, amount, installmentN, scenarioId });
+}
+
 function patchSession(sid, patch) {
   store.setState(prev => ({
     ...prev,
@@ -62,4 +81,12 @@ function clearForScenario(scenarioId) {
   }, `sim.stripe.sessions.clearScenario:${scenarioId}`);
 }
 
-export { createSession, getSession, patchSession, clearForScenario };
+export {
+  createSession,
+  getSession,
+  listSessionsForOrder,
+  latestPendingForOrder,
+  ensureOpenSession,
+  patchSession,
+  clearForScenario,
+};

@@ -5,6 +5,7 @@ import React, { useMemo, useState } from 'react';
 import { Icon } from '../../utils.jsx';
 import * as EFHooks from '../core/hooks.js';
 import * as SimMail from '../sim/mail.js';
+import * as SimCheckout from '../sim/checkout.js';
 import * as Scenarios from '../sim/scenarios.js';
 import EFActions from '../core/actions.js';
 import { buildLink, targetFromLegacyCta } from '../core/links.js';
@@ -68,6 +69,25 @@ function DemoInbox({ onClose, navigate, switchRole }) {
     const cta = email.cta;
     if (!cta) return;
     if (!email.read) SimMail.markRead(email.id);
+
+    if (cta.action === 'open_stripe_checkout') {
+      const existing = cta.sid ? SimCheckout.getSession(cta.sid) : null;
+      const session = SimCheckout.ensureOpenSession({
+        orderId: cta.orderId || existing?.orderId || email.orderId,
+        customerId: cta.customerId || existing?.customerId || email.customerId,
+        scenarioId: existing?.scenarioId || email.scenarioId || null,
+        method: existing?.method || 'stripe_card',
+        amount: existing?.amount || 0,
+        installmentN: existing?.installmentN || 1,
+      });
+      if (!session) return;
+      if (cta.customerId || session.customerId || email.customerId) {
+        EFActions.session.setPersona({ role: 'customer', customerId: cta.customerId || session.customerId || email.customerId });
+      }
+      onClose && onClose();
+      switchRole && switchRole('sim', 'sim-stripe-checkout', { sid: session.id });
+      return;
+    }
 
     const target = targetFromLegacyCta(cta);
 

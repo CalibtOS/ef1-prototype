@@ -7,6 +7,7 @@
 // main.jsx for the side-effect.
 import * as DomainEvents from '../core/events.js';
 import store from '../core/store.js';
+import { notify } from '../core/notifications.js';
 import * as SimEvents from './events.js';
 import * as SimMail from './mail.js';
 import * as SimCheckout from './checkout.js';
@@ -34,6 +35,7 @@ const MAIL_TEMPLATES = {
   'customer.final.accepted':          ['finalAcceptedAdminNotify'],
   'qa.final.released':                ['finalReleasedCustomerNotify'],
   'payments.batch.released':          ['payoutReleasedGw', 'payoutBatchAdminNotify'],
+  'payment.failed':                   ['paymentFailedRetryCustomer'],
   'payment.confirmed':                ['paymentReceiptCustomer', 'paymentReceivedAdminNotify'],
 };
 
@@ -567,4 +569,51 @@ DomainEvents.on('payment.confirmed', (payload) => {
       detail: { status: order.status },
     });
   }
+});
+
+DomainEvents.on('payment.failed', (payload) => {
+  const { orderId, customerId, scenarioId, installmentN, method, sid } = payload || {};
+  const currentOrder = store.getState().entities.orders?.byId?.[orderId];
+  if (!currentOrder || !method || method === 'bank_transfer_sepa') return;
+  const customerEmail = selectCustomerEmail(customerId);
+  if (!customerEmail) return;
+  const customerName = selectCustomerName(customerId);
+  const installment = (currentOrder.installments || []).find(i => i.n === installmentN)
+    || (currentOrder.installments || []).find(i => i.status !== 'paid')
+    || null;
+  const retrySession = SimCheckout.ensureOpenSession({
+    orderId,
+    customerId,
+    scenarioId: scenarioId || currentOrder.scenarioId || null,
+    method,
+    amount: installment?.amt ?? currentOrder.outstandingEur ?? currentOrder.grossEur ?? 0,
+    installmentN: installment?.n || installmentN || 1,
+  });
+  if (!retrySession) return;
+  SimEvents.emit({
+    source: 'stripe',
+    kind: 'stripe.checkout_session.create',
+    orderId, customerId, scenarioId,
+    detail: { sid: retrySession.id, previousSid: sid || null, method, amount: retrySession.amount, reason: 'payment_failed_retry' },
+  });
+  sendMail('payment.failed', 'paymentFailedRetryCustomer', {
+    orderId,
+    customerId,
+    customerEmail,
+    customerName,
+    invoiceNo: currentOrder.sevdeskInvoiceNo || null,
+    installmentN: retrySession.installmentN,
+    amountDueNow: retrySession.amount,
+    paymentMethod: method,
+    checkoutSessionId: retrySession.id,
+    scenarioId,
+  });
+  notify({
+    to: 'customer',
+    kind: 'payment_failed',
+    orderId,
+    customerId,
+    title: 'Zahlung fehlgeschlagen',
+    body: `Auftrag #${orderId} · Bitte Zahlung erneut starten.`,
+  });
 });
