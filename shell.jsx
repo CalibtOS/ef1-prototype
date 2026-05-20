@@ -19,11 +19,18 @@ const useApp = () => useContext(AppCtx);
 // Static role baseline — admin/GW/QA personas. Customer personas are built
 // dynamically below so seeded customers and WP-intake (dynamic) residents
 // both appear in the dropdown as first-class peers.
+// First-class GW personas. Both ride on the same `role: 'gw'` session — only
+// `session.gwId` distinguishes them. To add another seeded GW persona, drop a
+// new entry here AND give the GW real orders/threads/notifications in
+// data.js + src/core/entities.js so the dashboards aren't empty.
 const STATIC_PERSONAS = [
   { id: 'admin', role: 'admin', label: 'Admin', user: 'Berat Özdemir', initials: 'BÖ', email: 'berat@efactory1.de' },
-  { id: 'gw:gw-iw', role: 'gw', gwId: 'gw-iw', label: 'Ghostwriter', user: 'Isabel Walter', initials: 'IW', email: 'isabel.walter@gw.efactory1.de' },
+  { id: 'gw:gw-iw', role: 'gw', gwId: 'gw-iw', label: 'Ghostwriter · Isabel', user: 'Isabel Walter', initials: 'IW', email: 'isabel.walter@gw.efactory1.de' },
+  { id: 'gw:gw-lb', role: 'gw', gwId: 'gw-lb', label: 'Ghostwriter · Lukas', user: 'Lukas Bauer', initials: 'LB', email: 'lukas.bauer@gw.efactory1.de' },
   { id: 'qa', role: 'qa', label: 'QA Reviewer', user: 'Lina Hoffmann', initials: 'LH', email: 'qa@efactory1.de' },
 ];
+
+const DEFAULT_GW_PERSONA_ID = 'gw-iw';
 
 const FEATURED_SEEDED_CUSTOMER_ID = 'c-ab';
 
@@ -58,7 +65,7 @@ function buildPersonas(state) {
 function activePersonaId(state) {
   const session = state?.session || {};
   if (session.role === 'customer') return `customer:${session.customerId}`;
-  if (session.role === 'gw') return `gw:${session.gwId || 'gw-iw'}`;
+  if (session.role === 'gw') return `gw:${session.gwId || DEFAULT_GW_PERSONA_ID}`;
   return session.role || 'admin';
 }
 

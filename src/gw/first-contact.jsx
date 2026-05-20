@@ -154,7 +154,7 @@ ${gwSignName}` : '';
             <div className="fs-12" style={{ lineHeight: 1.55 }}>
               Auftrag erhalten und bestätigt · ich nehme heute Kontakt zum Kunden auf.<br/>
               Zwischenstand 1 plane ich auf {order.interimDeadline ? U.fmtDate(order.interimDeadline) : U.fmtDate(order.finalDeadline)}, vor 18:00 Uhr.<br/>
-              Beste Grüße — Isabel
+              Beste Grüße — {gwSelf?.name?.split(' ')[0] || gwSignName}
             </div>
           </div>
           <button type="button" className="btn btn-primary" onClick={finishConfirm} style={{ alignSelf: 'flex-start' }}><Icon name="check" size={14}/> Confirm receipt to efactory1</button>

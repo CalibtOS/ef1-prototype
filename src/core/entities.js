@@ -159,6 +159,19 @@ const THREAD_MESSAGE_SEEDS = {
     { from: 'gw',       at: '2026-05-06T16:25:00', body: 'Hallo Berat, ich bin seit gestern krank (Grippe, Attest liegt vor) und brauche voraussichtlich 3 Tage Verlängerung. Neuer Termin 15.05. statt 12.05.' },
     { from: 'gw',       at: '2026-05-06T16:30:00', body: 'Attest folgt per WhatsApp.', attachments: [{ name: 'Attest.pdf', meta: '92 KB', icon: 'file-text' }] },
   ],
+  // Lukas Bauer (gw-lb) ↔ Elena Krüger (c-ek) — active master's thesis (#3612).
+  // Used by the GW Messages view when seated as Lukas, so the surface isn't empty.
+  t3612: [
+    { from: 'gw',       at: '2026-04-23T20:05:00', body: 'Hallo Frau Krüger, vielen Dank für den Auftrag. Ich schlage vor, Kapitel 2 als methodischen Vergleich (LIME vs. SHAP vs. Grad-CAM) zu strukturieren — passt das zu Ihrer Forschungsfrage?' },
+    { from: 'customer', at: '2026-04-23T22:18:00', body: 'Ja, perfekt. Datensatz wird CheXpert oder NIH ChestX-ray — abhängig von der Lizenz. Ich melde mich Mitte der Woche mit Klärung.' },
+    { from: 'customer', at: '2026-04-28T09:12:00', body: 'Update: NIH ist freigegeben, anbei das Lizenz-PDF.', attachments: [{ name: 'NIH_License.pdf', meta: '76 KB', icon: 'file-text' }] },
+    { from: 'gw',       at: '2026-04-28T19:30:00', body: 'Danke — ich starte direkt mit dem Preprocessing-Kapitel. Zwischenstand 1 lade ich bis 18.05. hoch.' },
+    { from: 'gw',       at: '2026-05-04T22:14:00', body: 'Zwischenstand 1 ist hochgeladen (Methodik + erste Modellbaseline). Feedback gern bis Donnerstag.', attachments: [{ name: 'XAI_Medical_Imaging_Zwischenstand_1.docx', meta: '1.4 MB', icon: 'file-text' }] },
+  ],
+  // Lukas Bauer (gw-lb) ↔ Daniel Weber (c-dw) — revision request thread (#3613).
+  t3613: [
+    { from: 'customer', at: '2026-05-05T17:55:00', body: 'Hallo Herr Bauer, Kapitel 4 ist inhaltlich solide, aber unser Reviewer möchte eine Cost-of-Ownership-Sicht im Kubeflow-vs-MLflow-Vergleich. Können Sie das bis 30.05. ergänzen?' },
+  ],
   // Demo spine — Antigone Berisha ↔ Isabel Walter ↔ Berat ↔ Lina (via QA)
   t8: [
     { from: 'gw',       at: '2026-04-02T09:14:00', body: 'Guten Tag Frau Berisha, vielen Dank für den Auftrag — ich freue mich auf die Zusammenarbeit. Senden Sie mir gerne das Briefing.' },
@@ -190,6 +203,8 @@ const THREAD_UNREAD_SEEDS = {
   tl1: { admin: 1, gw: 0, customer: 0 },
   tl2: { admin: 1, gw: 0, customer: 0 },
   tg1: { admin: 1, gw: 0, customer: 0 },
+  t3612: { admin: 0, gw: 0, customer: 0 },
+  t3613: { admin: 1, gw: 1, customer: 0 },
 };
 
 // Synthetic thread for the demo spine order (#3518) so Antigone and Isabel
@@ -260,10 +275,37 @@ function roleSeedNotifications() {
 	  { id: 'qn2', to: 'qa', kind: 'ai_violation', orderId: 3517, customerId: 'c-sh', gwId: 'gw-ak', submissionId: 's2', title: 'AI flag · #3517', body: 'Score 87% — verdict required', at: '2026-05-07T08:42:00', urgent: true, read: false },
 	  { id: 'gn1', to: 'gw', gwId: 'gw-iw', customerId: 'c-mh', orderId: 3602, kind: 'assignment_approved', title: 'Order #3602 assigned', body: 'Briefing email sent · customer was introduced', at: '2026-05-06T18:40:00', read: false },
 	  { id: 'gn2', to: 'gw', gwId: 'gw-iw', customerId: 'c-ak', orderId: 3522, kind: 'interim_due_d1', title: 'Interim deadline today', body: '#3522 · Zwischenstand 1 · 18:00', at: '2026-05-15T09:00:00', read: false },
+	  // Lukas Bauer (gw-lb) — second seeded GW persona. Notifications mirror Isabel's:
+	  // a fresh assignment, an upcoming deadline, and a returned revision so each surface
+	  // (dashboard, bell, assignment detail) is populated when switching into Lukas.
+	  { id: 'gn3', to: 'gw', gwId: 'gw-lb', customerId: 'c-rh', orderId: 3611, kind: 'claim_pending_your_approval', title: 'Claim awaiting approval · #3611', body: 'Berat is reviewing your acknowledgements for Edge-Computing Hausarbeit.', at: '2026-05-07T09:18:00', read: false },
+	  { id: 'gn4', to: 'gw', gwId: 'gw-lb', customerId: 'c-ek', orderId: 3612, kind: 'interim_due_d1', title: 'Interim 1 deadline tomorrow', body: '#3612 · Zwischenstand 1 · 18:00 · XAI Medical Imaging', at: '2026-05-17T09:00:00', read: false },
+	  { id: 'gn5', to: 'gw', gwId: 'gw-lb', customerId: 'c-dw', orderId: 3613, kind: 'revision_required', title: 'Kunde fordert Überarbeitung · #3613', body: 'Daniel Weber: Kapitel 4 — Cost-of-Ownership-Sicht ergänzen · neuer Termin 2026-05-30', at: '2026-05-05T17:55:00', read: false, urgent: true },
 	  { id: 'cn1', to: 'customer', customerId: 'c-ab', gwId: 'gw-iw', orderId: 3518, kind: 'interim_received', title: 'Zwischenstand verfügbar', body: 'Auftrag #3518 — Zwischenstand 1 hochgeladen · bitte prüfen', at: '2026-05-06T15:30:00', read: false, urgent: false },
 	  { id: 'cn2', to: 'customer', customerId: 'c-ab', gwId: 'gw-iw', orderId: 3518, kind: 'payment_confirmed', title: 'Zahlung bestätigt', body: 'Rate 1 von 2 · 1.180,00 € · Kreditkarte · Auftrag #3518', at: '2026-04-01T10:00:00', read: true },
 	  { id: 'cn3', to: 'customer', customerId: 'c-ab', gwId: 'gw-iw', orderId: 3518, kind: 'assignment_intro', title: 'Ihre Ghostwriterin ist zugewiesen', body: 'Isabel Walter übernimmt #3518 — sie meldet sich heute bei Ihnen.', at: '2026-04-01T16:30:00', read: true },
+	  // Multi-applicant approval surface — both Isabel and Lukas have a pending
+	  // application on #3550 (see seedGwApplications below). Admin sees both,
+	  // approves one, the other auto-rejects. Notifications mirror what
+	  // applyForJob() would have produced at runtime.
+	  { id: 'an-3550-iw', to: 'admin', gwId: 'gw-iw', customerId: 'c-jb', orderId: 3550, kind: 'claim_pending_your_approval', applicationId: 'app-seed-3550-gw-iw', title: 'New application · #3550', body: 'Isabel Walter applied — review & approve.', at: '2026-05-06T20:14:00', read: false },
+	  { id: 'an-3550-lb', to: 'admin', gwId: 'gw-lb', customerId: 'c-jb', orderId: 3550, kind: 'claim_pending_your_approval', applicationId: 'app-seed-3550-gw-lb', title: 'New application · #3550', body: 'Lukas Bauer applied — review & approve.', at: '2026-05-07T08:22:00', read: false },
+	  // The two GW direct claims (Isabel on #3601, Lukas on #3611) need matching
+	  // admin notifications so the dashboard "needs decision" surface sees them.
+	  // Times match the order.claimedAt timestamps.
+	  { id: 'an-claim-3601', to: 'admin', gwId: 'gw-iw', customerId: 'c-jb', orderId: 3601, kind: 'claim_pending_your_approval', title: 'Isabel Walter claimed Order #3601', body: 'Agile Skalierung mit SAFe in Großkonzernen — Hausarbeit, 16 Seiten · 6 acknowledgements signed', at: '2026-05-07T10:42:00', read: false },
+	  { id: 'an-claim-3611', to: 'admin', gwId: 'gw-lb', customerId: 'c-rh', orderId: 3611, kind: 'claim_pending_your_approval', title: 'Lukas Bauer claimed Order #3611', body: 'Edge-Computing in vernetzten Produktionslinien — Hausarbeit, 12 Seiten · 6 acknowledgements signed', at: '2026-05-07T09:18:00', read: false },
 	];
+}
+
+// Seeded GW applications — both Isabel and Lukas competing for #3550 so the
+// multi-applicant approval flow is testable on first load without any runtime
+// interaction. Shape mirrors what `applyForJob` produces in actions.js.
+function seedGwApplications() {
+  return [
+    { id: 'app-seed-3550-gw-iw', orderId: 3550, gwId: 'gw-iw', status: 'pending', appliedAt: '2026-05-06T20:14:00', pitch: 'BWL- und Marketing-Schwerpunkt, B2B-Cases bereits begleitet. Verfügbar ab heute.', termsAccepted: true, scenarioId: null },
+    { id: 'app-seed-3550-gw-lb', orderId: 3550, gwId: 'gw-lb', status: 'pending', appliedAt: '2026-05-07T08:22:00', pitch: 'Data-Science-Hintergrund mit Marketing-Analytics-Projekten — kann LinkedIn-Engagement-Metriken quantitativ unterlegen.', termsAccepted: true, scenarioId: null },
+  ];
 }
 
 function backfillAssignmentTimestamps(o) {
@@ -301,7 +343,7 @@ function hydrate() {
     tokens: normalize([]),
     checkout_sessions: normalize([]),
     offer_artifacts: normalize([]),
-    gw_applications: normalize([]),
+    gw_applications: normalize(seedGwApplications()),
   };
 }
 
