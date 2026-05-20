@@ -71,7 +71,7 @@ function DemoInbox({ onClose, navigate, switchRole }) {
       const res = Scenarios.consumeFirstLoginAndAttach(cta.tokenId);
       if (res.ok) {
         onClose && onClose();
-        switchRole && switchRole('customer', 'cust-orders', { orderId: cta.orderId });
+        switchRole && switchRole('customer', 'cust-orders', {});
       } else {
         alert(`Link ${res.reason === 'expired' ? 'ist abgelaufen' : res.reason === 'already_consumed' ? 'wurde bereits verwendet' : 'ist ungültig'}.`);
       }
