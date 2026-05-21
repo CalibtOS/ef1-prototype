@@ -99,28 +99,9 @@ function selectThread(state, id) {
   return byId(state.entities.threads, id);
 }
 
-// Per D-26 each order can have at most two thread records:
-//   System A — threadType='order'        — in-platform customer↔GW chat
-//   System B — threadType='order_admin'  — Berat's email/WhatsApp surface
-// Always disambiguate; never assume "one thread per order".
-function selectThreadByOrder(state, orderId, threadType = 'order') {
+function selectThreadByOrder(state, orderId) {
   if (orderId == null) return null;
-  return tableItems(state.entities.threads).find(t =>
-    Number(t.orderId) === Number(orderId) && (t.threadType || 'order') === threadType
-  ) || null;
-}
-
-function selectOrderAdminThread(state, orderId) {
-  return selectThreadByOrder(state, orderId, 'order_admin');
-}
-
-function selectInboxThreads(state) {
-  // Admin inbox is System B only — order_admin + lead + gw_direct.
-  // System A (order) threads are accessed via the order detail's chat tab.
-  return selectThreads(state).filter(t => {
-    const tt = t.threadType || 'order';
-    return tt === 'order_admin' || tt === 'lead' || tt === 'gw_direct';
-  });
+  return tableItems(state.entities.threads).find(t => Number(t.orderId) === Number(orderId)) || null;
 }
 
 function selectNotifications(state, role) {
@@ -543,8 +524,6 @@ export {
   selectThreads,
   selectThread,
   selectThreadByOrder,
-  selectOrderAdminThread,
-  selectInboxThreads,
   selectNotifications,
   selectAllNotifications,
   selectOrderEvents,

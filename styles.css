@@ -1079,7 +1079,7 @@ button:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
   opacity: 0.68;
   white-space: nowrap;
 }
-/* ─── CommsTab split (System A + System B side-by-side) ──────────────────── */
+/* ─── CommsTab split (placeholder for future side-by-side surface) ───────── */
 .comms-split {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
@@ -1089,7 +1089,7 @@ button:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
   .comms-split { grid-template-columns: 1fr; }
 }
 
-/* ─── EmailCard (System B email-medium messages) ─────────────────────────── */
+/* ─── EmailCard (email-medium message render) ────────────────────────────── */
 .email-card {
   display: flex;
   flex-direction: column;
