@@ -1,7 +1,7 @@
 // Admin · Order detail — overview, payments, submissions, comms, assignment, audit tabs.
 
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { Icon, StatusPill, Avatar, Money, Bi, ScoreBar, NotReady, PlannedTag, EmptyState, Skeleton, ChatNotice, ChatMessage, ChatComposer } from '../../utils.jsx';
+import { Icon, StatusPill, Avatar, Money, Bi, ScoreBar, NotReady, PlannedTag, EmptyState, Skeleton, ChatNotice, ChatMessage, ChatComposer, EmailCard } from '../../utils.jsx';
 import * as U from '../../utils.jsx';
 import { CrumbBar } from '../../shell.jsx';
 import { liveNow } from '../../data.js';
@@ -10,6 +10,11 @@ import * as EFHooks from '../core/hooks.js';
 import EFActions from '../core/actions.js';
 import EF from '../core/ef.js';
 import { QA_STATUS } from '../core/status.js';
+import { AuditTab } from './order-detail/audit-tab.jsx';
+import {
+  ExtensionResolutionPanel, DelayResolutionPanel,
+  DisputeResolutionPanel, ViolationResolutionPanel,
+} from './order-detail/resolution-panels.jsx';
 const D = EF;
 
 function initialsFor(name, email) {
@@ -36,179 +41,26 @@ function fallbackCustomer(order) {
 }
 
 // =============================================================================
-// A5 / A6 — Admin resolution panels
-// Each panel renders inline in OrderDetail when the order is in a state that
-// previously had no admin response path (extension/delay/dispute) or required
-// a verdict (AI / plagiarism violation). Every action calls EFActions.* so the
-// store mutates and notifies the affected personas.
+// A5 / A6 — Admin resolution panels live in ./order-detail/resolution-panels.jsx
+// (Arch-05 split). The original ExtensionResolutionPanel / DelayResolutionPanel /
+// DisputeResolutionPanel / ViolationResolutionPanel definitions were removed
+// here and are now imported above.
 // =============================================================================
 
-function ExtensionResolutionPanel({ order, toast }) {
-  const ext = order.extensionPending || {};
-  const [overrideDeadline, setOverrideDeadline] = useState('');
-  const [rejectReason, setRejectReason] = useState('');
-  const onApprove = () => {
-    EFActions.orders.approveExtension(order.id, overrideDeadline ? { newDeadline: overrideDeadline + 'T18:00:00' } : {});
-    toast && toast({ tone: 'success', transition: { entity: `Order #${order.id}`, from: 'Extension Requested', to: 'Active' }, text: 'Extension approved · GW + customer notified' });
-  };
-  const onReject = () => {
-    EFActions.orders.rejectExtension(order.id, rejectReason);
-    toast && toast({ tone: 'info', transition: { entity: `Order #${order.id}`, from: 'Extension Requested', to: 'Active' }, text: 'Extension rejected · GW notified to continue with original scope' });
-  };
-  return (
-    <div className="card mb-3" style={{ borderLeft: '4px solid var(--amber)' }}>
-      <div className="card-head">
-        <div className="card-title flex items-center gap-2"><Icon name="plus" size={14} style={{ color: 'var(--amber)' }}/> Extension request — awaiting your decision</div>
-        <span className="text-faint fs-11">requested {ext.requestedAt ? U.relTime(ext.requestedAt) : '—'}</span>
-      </div>
-      <div className="card-pad">
-        <div className="kv" style={{ fontSize: 12, marginBottom: 12 }}>
-          {ext.description && <div className="kv-row"><dt>Justification</dt><dd style={{ maxWidth: 480, textAlign: 'right' }}>{ext.description}</dd></div>}
-          {ext.extraPages && <div className="kv-row"><dt>Extra pages</dt><dd className="mono">+{ext.extraPages}</dd></div>}
-          {ext.extraFee && <div className="kv-row"><dt>Extra fee</dt><dd className="mono">+€{ext.extraFee}</dd></div>}
-          <div className="kv-row"><dt>Current final deadline</dt><dd className="mono">{U.fmtDate(order.finalDeadline)}, 18:00</dd></div>
-        </div>
-        <div className="flex gap-2 items-center" style={{ flexWrap: 'wrap' }}>
-          <label className="fs-11 text-muted">Override new deadline (optional):</label>
-          <input type="date" className="input" style={{ padding: '4px 8px', fontSize: 12 }} value={overrideDeadline} onChange={(e) => setOverrideDeadline(e.target.value)}/>
-        </div>
-        <div className="flex gap-2 mt-3" style={{ flexWrap: 'wrap' }}>
-          <button type="button" className="btn btn-success btn-sm" onClick={onApprove}><Icon name="check" size={12}/> Approve extension</button>
-          <button type="button" className="btn btn-sm" onClick={onReject}><Icon name="x" size={12}/> Reject</button>
-          <input type="text" className="input" placeholder="Reject reason (optional)" value={rejectReason} onChange={(e) => setRejectReason(e.target.value)} style={{ flex: 1, minWidth: 220, padding: '4px 8px', fontSize: 12 }}/>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function DelayResolutionPanel({ order, toast }) {
-  const [counter, setCounter] = useState('');
-  const onAccept = () => {
-    EFActions.orders.acceptDelay(order.id, {});
-    toast && toast({ tone: 'success', transition: { entity: `Order #${order.id}`, from: 'Delay Reported', to: 'Active' }, text: 'New deadline confirmed · customer + GW notified' });
-  };
-  const onCounter = () => {
-    if (!counter) return;
-    EFActions.orders.proposeNewDelay(order.id, counter + 'T18:00:00');
-    toast && toast({ tone: 'info', text: `Counter-deadline ${counter} proposed to customer + GW` });
-    setCounter('');
-  };
-  return (
-    <div className="card mb-3" style={{ borderLeft: '4px solid var(--orange)' }}>
-      <div className="card-head">
-        <div className="card-title flex items-center gap-2"><Icon name="clock" size={14} style={{ color: 'var(--orange)' }}/> Delay reported — your decision</div>
-        <span className="text-faint fs-11">reported {order.delayReportedAt ? U.relTime(order.delayReportedAt) : '—'}</span>
-      </div>
-      <div className="card-pad">
-        <div className="kv" style={{ fontSize: 12, marginBottom: 12 }}>
-          <div className="kv-row"><dt>Reason</dt><dd>{order.delayReason || '—'}</dd></div>
-          <div className="kv-row"><dt>Original deadline</dt><dd className="mono">{U.fmtDate(order.finalDeadline)}, 18:00</dd></div>
-          <div className="kv-row"><dt>GW proposed</dt><dd className="mono">{order.proposedNewDeadline ? U.fmtDate(order.proposedNewDeadline) : '—'}</dd></div>
-        </div>
-        <div className="flex gap-2 items-center" style={{ flexWrap: 'wrap' }}>
-          <button type="button" className="btn btn-success btn-sm" onClick={onAccept}><Icon name="check" size={12}/> Accept proposed deadline</button>
-          <span className="text-faint fs-11">or counter:</span>
-          <input type="date" className="input" style={{ padding: '4px 8px', fontSize: 12 }} value={counter} onChange={(e) => setCounter(e.target.value)}/>
-          <button type="button" className="btn btn-sm" onClick={onCounter} disabled={!counter}><Icon name="arrow-right" size={12}/> Send counter-proposal</button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function DisputeResolutionPanel({ order, toast }) {
-  const [resolution, setResolution] = useState('');
-  const canSubmit = resolution.trim().length >= 10;
-  const onClose = () => {
-    EFActions.orders.closeDispute(order.id, resolution);
-    toast && toast({ tone: 'success', text: 'Dispute closed · customer + GW notified' });
-    setResolution('');
-  };
-  return (
-    <div className="card mb-3" style={{ borderLeft: '4px solid var(--orange)' }}>
-      <div className="card-head">
-        <div className="card-title flex items-center gap-2"><Icon name="alert-triangle" size={14} style={{ color: 'var(--orange)' }}/> Dispute open — resolve and close</div>
-        <span className="text-faint fs-11">since {order.lastDisputeAt ? U.relTime(order.lastDisputeAt) : '—'}</span>
-      </div>
-      <div className="card-pad">
-        <div className="text-muted fs-12 mb-2" style={{ lineHeight: 1.5 }}>
-          Customer escalated this order. Document the resolution (mediation outcome, refund decision, scope change) before closing.
-        </div>
-        <textarea
-          style={{ width: '100%', minHeight: 80, resize: 'vertical', padding: 10, fontSize: 13, border: `1px solid ${canSubmit ? 'var(--border)' : 'var(--amber)'}`, borderRadius: 8, background: 'var(--surface)', color: 'var(--text)', fontFamily: 'inherit', boxSizing: 'border-box' }}
-          placeholder="Resolution note (min. 10 characters)…"
-          value={resolution}
-          onChange={(e) => setResolution(e.target.value)}
-        />
-        <div className="flex gap-2 mt-2">
-          <button type="button" className="btn btn-success btn-sm" disabled={!canSubmit} onClick={onClose}><Icon name="check" size={12}/> Close dispute</button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function ViolationResolutionPanel({ order, submissions, toast }) {
-  const isPlag = order.status === 'plagiarism_violation_review';
-  const flaggedSub = (submissions || []).find(s => s.flagged) || (submissions || [])[0];
-  const gw = D.gw(order.gwId);
-  const onConfirm = () => {
-    EFActions.orders.confirmViolation(order.id, { reason: order.qaFlagReason });
-    toast && toast({ tone: 'danger', transition: { entity: `Order #${order.id}`, from: isPlag ? 'Plagiarism Violation' : 'AI Violation', to: 'On Job Board (reassigning)' }, text: 'Violation confirmed · GW shadow-banned · customer notified about reassignment' });
-  };
-  const onClear = () => {
-    EFActions.orders.clearViolation(order.id, 'Reviewed and cleared after admin investigation');
-    toast && toast({ tone: 'success', transition: { entity: `Order #${order.id}`, from: isPlag ? 'Plagiarism Violation' : 'AI Violation', to: order.finalSubmittedAt ? 'Delivered' : 'QA Review' }, text: 'False positive · flag cleared · GW + customer notified' });
-  };
-  return (
-    <div className="card mb-3" style={{ borderLeft: '4px solid var(--red)' }}>
-      <div className="card-head">
-        <div className="card-title flex items-center gap-2">
-          <Icon name="alert-triangle" size={14} style={{ color: 'var(--red)' }}/>
-          {isPlag ? '🚨 Plagiarism flag — verdict required' : '🚨 AI use flag — verdict required'}
-        </div>
-        <span className="text-faint fs-11">flagged {order.qaFlaggedAt ? U.relTime(order.qaFlaggedAt) : '—'}</span>
-      </div>
-      <div className="card-pad">
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>
-          <div style={{ padding: 12, background: 'var(--surface-2)', borderRadius: 8 }}>
-            <div className="fs-11 text-muted mb-1">Submission</div>
-            <div className="strong fs-12">{flaggedSub?.fileName || '—'}</div>
-            <div className="fs-11 text-faint mt-1">
-              AI score <span className="mono">{flaggedSub?.aiScore ?? '—'}%</span> · Plagiarism <span className="mono">{flaggedSub?.plagiarismScore ?? '—'}%</span>
-            </div>
-          </div>
-          <div style={{ padding: 12, background: 'var(--surface-2)', borderRadius: 8 }}>
-            <div className="fs-11 text-muted mb-1">Ghostwriter</div>
-            <div className="strong fs-12">{gw?.name || '—'}</div>
-            <div className="fs-11 text-faint mt-1">
-              {gw?.lifetime || 0} jobs · ★{gw?.rating?.toFixed?.(1) || '—'} · on-time {Math.round((gw?.onTime || 0) * 100)}% {gw?.banned && '· already shadow-banned'}
-            </div>
-          </div>
-        </div>
-        <div className="text-muted fs-12 mb-2" style={{ lineHeight: 1.5 }}>
-          {isPlag
-            ? 'Confirm to shadow-ban the GW and return the order to the job board for reassignment. Customer is notified about the reassignment without mentioning the violation.'
-            : 'Confirm to shadow-ban the GW and reassign. Clear if the AI score is a false positive (legitimate writing flagged by GPTZero).'}
-        </div>
-        <div className="flex gap-2" style={{ flexWrap: 'wrap' }}>
-          <button type="button" className="btn btn-danger btn-sm" onClick={onConfirm}><Icon name="x" size={12}/> Confirm violation · ban + reassign</button>
-          <button type="button" className="btn btn-success btn-sm" onClick={onClear}><Icon name="check" size={12}/> False positive · clear flag</button>
-          <button type="button" className="btn btn-sm" onClick={() => toast && toast({ tone: 'info', text: `Audit thread opened with ${gw?.name || 'GW'}` })}><Icon name="message-square" size={12}/> Open audit thread</button>
-        </div>
-      </div>
-    </div>
-  );
-}
 
 function OrderDetail({ orderId, navigate, toast, initialTab, focusSubmissionId }) {
-  const [tab, setTab] = useState(initialTab || 'overview');
+  // Tab is URL-driven: ?tab=… is the single source of truth so refresh, share,
+  // back, and deep links all restore the right view. Tab clicks push via
+  // replaceState so back doesn't ping-pong between tabs. See Arch-04.
+  const tab = initialTab || 'overview';
+  const setTab = (t) => {
+    const params = { id: orderId };
+    if (t && t !== 'overview') params.tab = t;
+    if (focusSubmissionId != null) params.submissionId = focusSubmissionId;
+    navigate('order-detail', params, { replace: true });
+  };
   const [showRateSlider, setShowRateSlider] = useState(false);
   const [approving, setApproving] = useState(null);
-  useEffect(() => {
-    setTab(initialTab || 'overview');
-  }, [orderId, initialTab]);
   // Store-backed read so newly-created orders resolve across all role views.
   const order = EFHooks.useOrder(orderId);
   const submissions = EFHooks.useSubmissions({ orderId });
@@ -414,14 +266,15 @@ function OrderDetail({ orderId, navigate, toast, initialTab, focusSubmissionId }
       )}
 
       <div className="tabs">
-        {['overview', ...(showOfferTab ? ['offer'] : []), 'assignment','submissions','communications','payments','audit'].map(t => (
-          <div key={t} className={`tab ${activeTab===t?'active':''}`} onClick={() => setTab(t)} style={{ textTransform: 'capitalize' }}>
-            {t === 'audit' ? 'Audit log' : t}
+        {['overview', ...(showOfferTab ? ['offer'] : []), 'assignment','submissions','communications','payments','audit','demo'].map(t => (
+          <div key={t} className={`tab ${activeTab===t?'active':''} ${t==='demo' ? 'tab-demo' : ''}`} onClick={() => setTab(t)} style={{ textTransform: 'capitalize' }}>
+            {t === 'audit' ? 'Audit log' : t === 'demo' ? 'Demo' : t}
             {t === 'offer' && order.status === 'qualified' && <span className="pill pill-blue">Next</span>}
             {t === 'offer' && order.status === 'offer_sent' && <span className="pill pill-blue">Sent</span>}
             {t === 'offer' && order.status === 'invoice_sent' && <span className="pill pill-amber">Invoice</span>}
             {t === 'submissions' && submissionsCount > 0 && <span className="pill pill-pink">{submissionsCount}</span>}
             {t === 'payments' && showReceivable && order.outstandingEur > 0 && <span className="pill pill-amber">!</span>}
+            {t === 'demo' && <span className="pill pill-amber">SIM</span>}
           </div>
         ))}
       </div>
@@ -802,6 +655,9 @@ function OrderDetail({ orderId, navigate, toast, initialTab, focusSubmissionId }
       {activeTab === 'audit' && (
         <AuditTab order={order} events={orderEvents} />
       )}
+      {activeTab === 'demo' && (
+        <CustomerSimulationPanel order={order} cust={cust} toast={toast}/>
+      )}
     </div>
   );
 }
@@ -986,12 +842,45 @@ function OfferEmailCard({ email, status }) {
   );
 }
 
-function InvoiceAutomationPanel({ order, cust, totalGross, toast }) {
+// =============================================================================
+// Customer Simulation Panel — admin-only demo surface
+// -----------------------------------------------------------------------------
+// This panel is NOT production business UI. It lets an admin fast-forward through
+// the customer-side lifecycle gates that would normally require the customer to
+// click their magic link, open the portal, and approve an interim/final.
+// Each action below calls the SAME `EFActions.customer.*` and `EFActions.orders.*`
+// functions the real customer portal calls — so there is no duplicated business
+// logic. Status guards in workflow.js decide what is allowed at each stage.
+// =============================================================================
+
+function SimStageHeader({ index, title, subtitle, state }) {
+  const stateMeta = {
+    available: { pill: 'pill-blue',  label: 'Ready to simulate' },
+    done:      { pill: 'pill-green', label: 'Already happened' },
+    blocked:   { pill: 'pill-slate', label: 'Not yet available' },
+  }[state] || { pill: 'pill-slate', label: '' };
+  return (
+    <div className="sim-stage-head">
+      <div className="sim-stage-index">{index}</div>
+      <div className="flex-col" style={{ flex: 1, minWidth: 0 }}>
+        <div className="sim-stage-title">{title}</div>
+        {subtitle && <div className="text-faint fs-11">{subtitle}</div>}
+      </div>
+      <span className={`pill ${stateMeta.pill}`}>{stateMeta.label}</span>
+    </div>
+  );
+}
+
+function OfferInvoiceSimSection({ order, cust, totalGross, toast }) {
   const [method, setMethod] = useState(order.paymentMethodChoice || 'stripe_card');
   const [phase, setPhase] = useState(null);
   const [paying, setPaying] = useState(false);
   const offerSent = ['offer_sent','invoice_sent'].includes(order.status) || order.offerSentAt;
   const invoiceSent = order.status === 'invoice_sent' || order.invoiceSentAt;
+  // Stage is "done" only once payment is actually confirmed or the order has
+  // moved into a post-payment status. `outstandingEur === 0` alone is misleading
+  // because pre-invoice orders also have 0 outstanding.
+  const paymentDone = !!order.paymentConfirmedAt || (invoiceSent && order.outstandingEur === 0);
   const invoiceNo = invoiceNoFor(order);
   const methodLabel = {
     bank_transfer_sepa: 'Bank transfer',
@@ -1000,6 +889,7 @@ function InvoiceAutomationPanel({ order, cust, totalGross, toast }) {
     stripe_card: 'Credit Card',
   }[method] || method;
   const needsStripe = method !== 'bank_transfer_sepa';
+  const stageState = paymentDone ? 'done' : offerSent ? 'available' : 'blocked';
   const createInvoice = () => {
     if (!offerSent) return;
     const steps = ['accepted', 'invoice', 'stripe', 'email'];
@@ -1037,36 +927,203 @@ function InvoiceAutomationPanel({ order, cust, totalGross, toast }) {
     }, 900);
   };
   return (
-    <div className="card">
-      <div className="card-head">
-        <div className="card-title flex items-center gap-2"><Icon name="wallet" size={14}/> Acceptance → invoice automation</div>
-        {invoiceSent ? <span className="pill pill-amber">Invoice sent</span> : <span className="pill pill-slate">Waiting for customer</span>}
-      </div>
-      <div className="card-pad flex-col gap-3">
-        <div className="offer-acceptance-box">
-          <div className="strong fs-12">Customer clicks invoice-request link</div>
-          <div className="text-faint fs-11">Personal data captured · payment method selected · contract accepted</div>
-          <div className="flex gap-1 mt-2" style={{ flexWrap: 'wrap' }}>
-            {[
-              ['bank_transfer_sepa', 'Bank transfer'],
-              ['stripe_paypal', 'PayPal'],
-              ['stripe_klarna', 'Klarna'],
-              ['stripe_card', 'Credit Card'],
-            ].map(([id, label]) => (
-              <button key={id} type="button" className={`chip ${method === id ? 'active' : ''}`} disabled={invoiceSent} onClick={() => setMethod(id)}>{label}</button>
-            ))}
+    <div className="sim-section">
+      <SimStageHeader
+        index="1"
+        title="Offer acceptance, invoice & payment"
+        subtitle="Real customer would: click magic link in offer email → pick payment method → accept contract → pay."
+        state={stageState}
+      />
+      {stageState === 'blocked' && (
+        <div className="sim-blocked-hint">Send the offer from the <strong>Offer</strong> tab first to unlock this stage.</div>
+      )}
+      {stageState !== 'blocked' && (
+        <>
+          <div className="offer-acceptance-box">
+            <div className="strong fs-12">Pick the payment method the customer would choose</div>
+            <div className="text-faint fs-11">Same magic-link flow that the real offer email links out to.</div>
+            <div className="flex gap-1 mt-2" style={{ flexWrap: 'wrap' }}>
+              {[
+                ['bank_transfer_sepa', 'Bank transfer'],
+                ['stripe_paypal', 'PayPal'],
+                ['stripe_klarna', 'Klarna'],
+                ['stripe_card', 'Credit Card'],
+              ].map(([id, label]) => (
+                <button key={id} type="button" className={`chip ${method === id ? 'active' : ''}`} disabled={invoiceSent} onClick={() => setMethod(id)}>{label}</button>
+              ))}
+            </div>
+          </div>
+          <div className="timeline">
+            <OfferFlowStep state={phase || invoiceSent ? 'done' : 'pending'} icon="external-link" title="Invoice request received" body={`${cust?.name || 'Customer'} selected ${methodLabel} and accepted the contract.`}/>
+            <OfferFlowStep state={phase === 'invoice' || invoiceSent ? 'done' : 'pending'} icon="file-text" title={`POST /Invoice/Factory/createInvoiceFromOrder → ${invoiceNo}`} body="Sevdesk inherits customer, line items, discount, VAT, and dates from the offer."/>
+            <OfferFlowStep state={(phase === 'stripe' || invoiceSent) ? 'done' : 'pending'} icon="wallet" title={needsStripe ? 'Stripe payment link generated' : 'SEPA payment instructions prepared'} body={needsStripe ? (order.stripePaymentLink || `https://pay.stripe.com/ef1/${order.id}`) : 'Bank transfer details inserted into invoice email.'}/>
+            <OfferFlowStep state={(phase === 'email' || invoiceSent) ? 'done' : 'pending'} icon="mail" title="Invoice email sent from kundenservice@efactory1.de" body="Rechnungsversand Mail template + invoice PDF + payment link."/>
+          </div>
+          <div className="flex gap-2" style={{ flexWrap: 'wrap' }}>
+            <button type="button" className="btn btn-primary" disabled={!offerSent || invoiceSent || phase} onClick={createInvoice}><Icon name="zap" size={14}/> Simulate accept + send invoice</button>
+            <button type="button" className="btn btn-success" disabled={!invoiceSent || order.outstandingEur === 0 || paying} onClick={confirmPayment}><Icon name="check" size={14}/> Simulate payment</button>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+function InterimSimSection({ order, toast }) {
+  const [busy, setBusy] = useState(false);
+  const [mode, setMode] = useState(null); // null | 'revise'
+  const [note, setNote] = useState('');
+  const approveOk = W.canTransition(order, 'customer_approve_interim').ok;
+  const reviseOk  = W.canTransition(order, 'customer_request_revision').ok;
+  const everApproved = !!order.interimCustomerSatisfied;
+  const state = approveOk ? 'available' : everApproved ? 'done' : 'blocked';
+  const approve = () => {
+    setBusy(true);
+    setTimeout(() => {
+      const ok = EFActions.customer.approveInterim(order.id);
+      if (ok) toast && toast({ tone: 'success', transition: { entity: `Order #${order.id}`, from: 'Interim review', to: 'Active' }, text: 'Simulated · interim approved by customer' });
+      setBusy(false);
+    }, 400);
+  };
+  const submitRevision = () => {
+    if (note.trim().length < 10) return;
+    setBusy(true);
+    setTimeout(() => {
+      const ok = EFActions.customer.requestRevision(order.id, note);
+      if (ok) toast && toast({ tone: 'info', transition: { entity: `Order #${order.id}`, from: 'Interim review', to: 'Revision required' }, text: 'Simulated · interim revision requested' });
+      setMode(null); setNote(''); setBusy(false);
+    }, 400);
+  };
+  return (
+    <div className="sim-section">
+      <SimStageHeader
+        index="2"
+        title="Interim review"
+        subtitle="Real customer would: open portal, review interim file, approve or request changes."
+        state={state}
+      />
+      {state === 'blocked' && !everApproved && (
+        <div className="sim-blocked-hint">Waiting for GW to submit an interim and QA to release it (status <span className="mono">under_customer_review</span>).</div>
+      )}
+      {state === 'done' && (
+        <div className="sim-blocked-hint">Customer already approved an interim · GW is back to work.</div>
+      )}
+      {state === 'available' && mode !== 'revise' && (
+        <div className="flex gap-2" style={{ flexWrap: 'wrap' }}>
+          <button type="button" className="btn btn-success" disabled={busy || !approveOk} onClick={approve}><Icon name="check" size={14}/> Simulate approve interim</button>
+          <button type="button" className="btn" disabled={busy || !reviseOk} onClick={() => setMode('revise')}><Icon name="rotate-ccw" size={14}/> Simulate revision request</button>
+          <button type="button" className="btn btn-ghost" disabled={busy} onClick={() => { EFActions.customer.escalate(order.id); toast && toast({ tone: 'danger', text: 'Simulated · customer opened a dispute' }); }}><Icon name="alert-triangle" size={14}/> Simulate dispute</button>
+        </div>
+      )}
+      {state === 'available' && mode === 'revise' && (
+        <div className="flex-col gap-2">
+          <label className="fs-12 text-muted">Note from customer (min. 10 chars):</label>
+          <textarea
+            style={{ width: '100%', minHeight: 70, resize: 'vertical', padding: 10, fontSize: 13, border: '1px solid var(--border)', borderRadius: 8, background: 'var(--surface)', color: 'var(--text)', fontFamily: 'inherit', boxSizing: 'border-box' }}
+            placeholder="e.g. Kapitel 2 bitte kürzen, mehr Praxisbeispiele…"
+            value={note}
+            onChange={(e) => setNote(e.target.value)}
+          />
+          <div className="flex gap-2">
+            <button type="button" className="btn" disabled={busy} onClick={() => { setMode(null); setNote(''); }}>Cancel</button>
+            <button type="button" className="btn btn-primary" disabled={busy || note.trim().length < 10} onClick={submitRevision}><Icon name="send" size={14}/> Send revision request</button>
           </div>
         </div>
-        <div className="timeline">
-          <OfferFlowStep state={phase || invoiceSent ? 'done' : 'pending'} icon="external-link" title="Invoice request received" body={`${cust?.name || 'Customer'} selected ${methodLabel} and accepted the contract.`}/>
-          <OfferFlowStep state={phase === 'invoice' || invoiceSent ? 'done' : 'pending'} icon="file-text" title={`POST /Invoice/Factory/createInvoiceFromOrder → ${invoiceNo}`} body="Sevdesk inherits customer, line items, discount, VAT, and dates from the offer."/>
-          <OfferFlowStep state={(phase === 'stripe' || invoiceSent) ? 'done' : 'pending'} icon="wallet" title={needsStripe ? 'Stripe payment link generated' : 'SEPA payment instructions prepared'} body={needsStripe ? (order.stripePaymentLink || `https://pay.stripe.com/ef1/${order.id}`) : 'Bank transfer details inserted into invoice email.'}/>
-          <OfferFlowStep state={(phase === 'email' || invoiceSent) ? 'done' : 'pending'} icon="mail" title="Invoice email sent from kundenservice@efactory1.de" body="Rechnungsversand Mail template + invoice PDF + payment link."/>
-        </div>
+      )}
+    </div>
+  );
+}
+
+function FinalSimSection({ order, toast }) {
+  const [busy, setBusy] = useState(false);
+  const [mode, setMode] = useState(null);
+  const [note, setNote] = useState('');
+  const acceptOk = W.canTransition(order, 'customer_accept_final').ok;
+  const reviseOk = W.canTransition(order, 'customer_request_revision').ok && order.status === 'delivered';
+  const everAccepted = !!order.customerSatisfied;
+  const state = acceptOk ? 'available' : everAccepted ? 'done' : 'blocked';
+  const accept = () => {
+    setBusy(true);
+    setTimeout(() => {
+      const ok = EFActions.customer.acceptFinal(order.id);
+      if (ok) toast && toast({ tone: 'success', transition: { entity: `Order #${order.id}`, from: 'Delivered', to: 'Payment pending' }, text: 'Simulated · final accepted by customer' });
+      setBusy(false);
+    }, 400);
+  };
+  const submitRevision = () => {
+    if (note.trim().length < 10) return;
+    setBusy(true);
+    setTimeout(() => {
+      const ok = EFActions.customer.requestRevision(order.id, note);
+      if (ok) toast && toast({ tone: 'info', transition: { entity: `Order #${order.id}`, from: 'Delivered', to: 'Revision required' }, text: 'Simulated · final revision requested' });
+      setMode(null); setNote(''); setBusy(false);
+    }, 400);
+  };
+  return (
+    <div className="sim-section">
+      <SimStageHeader
+        index="3"
+        title="Final acceptance"
+        subtitle="Real customer would: open portal once QA passes the final, accept or request last tweaks."
+        state={state}
+      />
+      {state === 'blocked' && !everAccepted && (
+        <div className="sim-blocked-hint">Waiting for QA to pass a final submission (status <span className="mono">delivered</span>).</div>
+      )}
+      {state === 'done' && (
+        <div className="sim-blocked-hint">Customer already accepted the final · payment_pending → Friday batch.</div>
+      )}
+      {state === 'available' && mode !== 'revise' && (
         <div className="flex gap-2" style={{ flexWrap: 'wrap' }}>
-          <button type="button" className="btn btn-primary" disabled={!offerSent || invoiceSent || phase} onClick={createInvoice}><Icon name="zap" size={14}/> Simulate customer acceptance + send invoice</button>
-          <button type="button" className="btn btn-success" disabled={!invoiceSent || order.outstandingEur === 0 || paying} onClick={confirmPayment}><Icon name="check" size={14}/> Confirm payment</button>
+          <button type="button" className="btn btn-success" disabled={busy || !acceptOk} onClick={accept}><Icon name="check" size={14}/> Simulate accept final</button>
+          <button type="button" className="btn" disabled={busy || !reviseOk} onClick={() => setMode('revise')}><Icon name="rotate-ccw" size={14}/> Simulate last-tweak request</button>
+          <button type="button" className="btn btn-ghost" disabled={busy} onClick={() => { EFActions.customer.escalate(order.id); toast && toast({ tone: 'danger', text: 'Simulated · customer opened a dispute' }); }}><Icon name="alert-triangle" size={14}/> Simulate dispute</button>
         </div>
+      )}
+      {state === 'available' && mode === 'revise' && (
+        <div className="flex-col gap-2">
+          <label className="fs-12 text-muted">Note from customer (min. 10 chars):</label>
+          <textarea
+            style={{ width: '100%', minHeight: 70, resize: 'vertical', padding: 10, fontSize: 13, border: '1px solid var(--border)', borderRadius: 8, background: 'var(--surface)', color: 'var(--text)', fontFamily: 'inherit', boxSizing: 'border-box' }}
+            placeholder="e.g. Quellenverzeichnis ergänzen…"
+            value={note}
+            onChange={(e) => setNote(e.target.value)}
+          />
+          <div className="flex gap-2">
+            <button type="button" className="btn" disabled={busy} onClick={() => { setMode(null); setNote(''); }}>Cancel</button>
+            <button type="button" className="btn btn-primary" disabled={busy || note.trim().length < 10} onClick={submitRevision}><Icon name="send" size={14}/> Send revision request</button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function CustomerSimulationPanel({ order, cust, toast }) {
+  // Derive totalGross the same way OfferTab does — falls back to order.grossEur
+  // once the offer has been sent and the figure is locked in.
+  const totalGross = order.grossEur || 0;
+  return (
+    <div className="card sim-panel">
+      <div className="card-head sim-panel-head">
+        <div className="card-title flex items-center gap-2">
+          <Icon name="sparkles" size={14}/> Demo · Simulate as customer
+        </div>
+        <span className="pill pill-amber">Simulation only</span>
+      </div>
+      <div className="card-pad flex-col gap-3">
+        <div className="banner warn sim-banner">
+          <Icon name="alert-triangle" size={13}/>
+          <span>
+            <strong>Admin-only shortcut.</strong> Each button below fires the <em>real</em> customer
+            action through <span className="mono">EFActions.customer.*</span> so you can drive the
+            full lifecycle from one place — no role-switch needed. Status guards in workflow.js
+            decide what's enabled.
+          </span>
+        </div>
+        <OfferInvoiceSimSection order={order} cust={cust} totalGross={totalGross} toast={toast}/>
+        <InterimSimSection order={order} toast={toast}/>
+        <FinalSimSection order={order} toast={toast}/>
       </div>
     </div>
   );
@@ -1218,7 +1275,10 @@ function OfferTab({ order, toast, setTab }) {
             />
           ))}
         </div>
-        <InvoiceAutomationPanel order={order} cust={cust} totalGross={totalGross} toast={toast}/>
+        <div className="banner info" style={{ fontSize: 11.5 }}>
+          <Icon name="sparkles" size={13}/>
+          <span>Once the offer is sent, open the <strong>Demo</strong> tab to simulate the customer accepting it, paying, and approving interim/final deliveries from one surface.</span>
+        </div>
       </div>
       <div className="offer-right">
         <SevdeskPdfPreview
@@ -1333,72 +1393,59 @@ function SubmissionsTab({ order, navigate, focusSubmissionId }) {
   );
 }
 
+// ─── CommsTab: side-by-side System A + System B per order (D-26) ───────────
+// Two distinct threads for the same order, two distinct composers, one screen.
+// System A (left) = in-platform customer↔GW chat (delivery 'platform' only).
+// System B (right) = Berat's email/WhatsApp with the customer/GW (View filter:
+// Combined / Email only / WhatsApp only — render-time filter over one stream).
 function CommsTab({ order, toast }) {
-  const [channelFilter, setChannelFilter] = useState('all');
+  return (
+    <div className="comms-split">
+      <SystemAPane order={order} toast={toast}/>
+      <SystemBPane order={order} toast={toast}/>
+    </div>
+  );
+}
+
+function mediumOfMsg(m) {
+  if (!m) return 'platform';
+  if (m.from === 'system') return 'system';
+  return m.delivery_channel || m.origin_channel || 'platform';
+}
+
+function channelLabel(ch) {
+  if (ch === 'whatsapp') return 'WhatsApp';
+  if (ch === 'platform') return 'Platform';
+  if (ch === 'voice') return 'Voice';
+  if (ch === 'system' || ch === 'internal') return 'System';
+  return 'Email';
+}
+
+// System A — platform_chat between customer and GW (admin reads + moderates).
+function SystemAPane({ order, toast }) {
   const [reply, setReply] = useState('');
-  const [deliveryRail, setDeliveryRail] = useState('email');
   const cust = D.customer(order.customerId);
   const gw = D.gw(order.gwId);
-  const customerInitials = cust?.initials || 'CU';
-  const gwInitials = gw?.initials || 'GW';
-  const thread = EFHooks.useThreadByOrder(order.id);
+  const liveThread = EFHooks.useThreadByOrder(order.id);
+  const messages = (liveThread?.messages || []).slice().sort((a, b) => new Date(a.at) - new Date(b.at));
 
-  const normalizeLegacyChannel = (value) => {
-    if (value === 'email_proxy') return 'email';
-    if (value === 'whatsapp_proxy') return 'whatsapp';
-    if (value === 'platform_chat') return 'platform';
-    if (value === 'voice_metadata') return 'voice';
-    if (value === 'multi_channel') return 'multi';
-    return value || 'platform';
-  };
-  const fallbackOrigin = normalizeLegacyChannel(thread?.channel);
-  const enriched = useMemo(() => {
-    return [...(thread?.messages || [])]
-      .map(m => ({
-        ...m,
-        origin_channel: m.origin_channel || (m.from === 'admin' ? 'admin' : m.from === 'system' ? 'system' : fallbackOrigin),
-        delivery_channel: m.delivery_channel || (m.from === 'system' ? 'internal' : fallbackOrigin === 'multi' ? 'email' : fallbackOrigin),
-      }))
-      .sort((a, b) => new Date(a.at) - new Date(b.at));
-  }, [thread?.messages, fallbackOrigin]);
-
-  const channelLabel = (channel) => {
-    if (channel === 'whatsapp') return 'WhatsApp';
-    if (channel === 'platform') return 'Platform';
-    if (channel === 'voice') return 'Voice';
-    if (channel === 'system' || channel === 'internal') return 'System';
-    return 'Email';
-  };
-  const displayChannel = (m) => {
-    if (m.from === 'admin') return m.delivery_channel || 'email';
-    return m.origin_channel || m.delivery_channel || 'platform';
-  };
-  const matchesFilter = (m) => {
-    if (channelFilter === 'all') return true;
-    if (channelFilter === 'email') return m.origin_channel === 'email' || (m.from === 'admin' && m.delivery_channel === 'email');
-    if (channelFilter === 'whatsapp') return m.origin_channel === 'whatsapp' || (m.from === 'admin' && m.delivery_channel === 'whatsapp');
-    if (channelFilter === 'platform') return m.origin_channel === 'platform' || (m.from === 'admin' && m.delivery_channel === 'platform');
-    return true;
-  };
-  const visibleMessages = enriched.filter(matchesFilter);
-  const hiddenCount = enriched.length - visibleMessages.length;
-  const hiddenLabel = channelFilter === 'all' ? '' : ['email', 'whatsapp', 'platform']
-    .filter(ch => ch !== channelFilter)
-    .map(channelLabel)
-    .join('/');
+  // D-26 payment-flex: single derived predicate. When the real installment
+  // workflow lands we change this one place — not chat code scattered around.
+  const unlocked = !!order.gwId && !['lead', 'qualified', 'offer_sent', 'invoice_sent'].includes(order.status);
 
   const sendReply = () => {
     if (!reply.trim()) return;
     const msg = EFActions.threads.send({
-      threadId: thread?.id,
+      threadId: liveThread?.id,
+      threadType: 'order',
       orderId: order.id,
       role: 'admin',
       body: reply,
       origin_channel: 'admin',
-      delivery_channel: deliveryRail,
+      delivery_channel: 'platform',
     });
     if (msg) {
-      toast && toast({ tone: 'success', text: `Reply sent via ${channelLabel(deliveryRail)} · order #${order.id}` });
+      toast && toast({ tone: 'success', text: `Posted in order chat · #${order.id}` });
       setReply('');
     }
   };
@@ -1408,48 +1455,33 @@ function CommsTab({ order, toast }) {
       <div className="chat-header">
         <div className="chat-title">
           <div>
-            <span className="chat-title-main">Unified communications</span>
-            <span className="chat-title-sub">Order #{order.id} · channel is metadata on each bubble</span>
+            <span className="chat-title-main">Order Chat <span className="pill pill-slate" style={{ fontSize: 10, marginLeft: 6 }}>System A</span></span>
+            <span className="chat-title-sub">Group chat · {cust?.name || 'Customer'} · {gw?.name || 'Ghostwriter'} · efactory1</span>
           </div>
         </div>
-        <div className="flex gap-1">
-          {[
-            ['all', 'All'],
-            ['email', 'Email'],
-            ['whatsapp', 'WhatsApp'],
-            ['platform', 'Platform'],
-          ].map(([id, label]) => (
-            <button type="button" key={id} className={`chip ${channelFilter === id ? 'active' : ''}`} onClick={() => setChannelFilter(id)}>{label}</button>
-          ))}
-        </div>
       </div>
-      <ChatNotice compact>
-        One order thread, multiple doors in. Email, WhatsApp and portal rows stay chronological; filters only hide rows temporarily.
+      <ChatNotice compact icon="users">
+        Three-way group chat for this order. All messages visible to {cust?.name || 'customer'}, {gw?.name || 'GW'}, and efactory1. Pricing keywords auto-redirect to kundenservice.
       </ChatNotice>
-      {hiddenCount > 0 && (
-        <ChatNotice compact icon="eye-off">
-          {hiddenCount} message{hiddenCount === 1 ? '' : 's'} hidden while filtered to {channelLabel(channelFilter)} ({hiddenLabel}).
+      {!unlocked && (
+        <ChatNotice compact icon="alert-triangle" tone="warn">
+          Chat unlocks once the order is paid and a Ghostwriter is assigned.
         </ChatNotice>
       )}
-      <div className="chat-stream" style={{ maxHeight: 560 }}>
-        {visibleMessages.length === 0 && (
-          <EmptyState compact icon="message-square" title="No messages in this view" body={enriched.length ? 'Switch back to All to see the full order thread.' : 'Messages for this order will appear here.'}/>
-        )}
-        {visibleMessages.map((m, i) => {
+      <div className="chat-stream" style={{ maxHeight: 480 }}>
+        {messages.length === 0 ? (
+          <EmptyState compact icon="message-square" title="No messages yet" body="Customer ↔ GW chat will appear here once the order is paid + assigned."/>
+        ) : messages.map((m, i) => {
           const sys = m.from === 'system' || m.system;
           if (sys) return <ChatMessage key={m.id || i} system at={m.at}>{m.body}</ChatMessage>;
           const mine = m.from === 'admin';
-          const sender = m.from === 'gw'
-            ? (gw?.name || 'Ghostwriter')
-            : m.from === 'customer'
-              ? (cust?.name || 'Customer')
-              : 'efactory1';
-          const initials = m.from === 'gw'
-            ? gwInitials
-            : m.from === 'customer'
-              ? customerInitials
-              : 'EF';
-          const prev = visibleMessages[i - 1];
+          const sender = m.from === 'gw' ? (gw?.name || 'Ghostwriter')
+            : m.from === 'customer' ? (cust?.name || 'Customer')
+            : 'efactory1';
+          const initials = m.from === 'gw' ? (gw?.initials || 'GW')
+            : m.from === 'customer' ? (cust?.initials || 'CU')
+            : 'EF';
+          const prev = messages[i - 1];
           const grouped = !!prev && prev.from === m.from && !(prev.from === 'system' || prev.system);
           return (
             <ChatMessage
@@ -1459,9 +1491,8 @@ function CommsTab({ order, toast }) {
               initials={initials}
               at={m.at}
               grouped={grouped}
-              channel={!grouped ? channelLabel(displayChannel(m)) : null}
               attachments={m.attachments}
-              status={mine ? `sent via ${channelLabel(m.delivery_channel)}` : null}
+              tone={mine ? 'blue' : 'slate'}
             >
               {m.body}
             </ChatMessage>
@@ -1472,7 +1503,136 @@ function CommsTab({ order, toast }) {
         value={reply}
         onChange={(e) => setReply(e.target.value)}
         onSend={sendReply}
-        placeholder={`Reply about order #${order.id}...`}
+        placeholder={`Post to ${cust?.name || 'customer'} & ${gw?.name || 'GW'} as efactory1…`}
+        sendLabel="Send to group"
+      />
+    </div>
+  );
+}
+
+// System B — Berat's email/WhatsApp with the customer (and/or GW) for this order.
+function SystemBPane({ order, toast }) {
+  const [view, setView] = useState('combined');  // combined | email | whatsapp
+  const [reply, setReply] = useState('');
+  const [deliveryRail, setDeliveryRail] = useState('email');
+  const cust = D.customer(order.customerId);
+  const gw = D.gw(order.gwId);
+
+  const adminThread = EFHooks.useOrderAdminThread(order.id);
+
+  const enriched = useMemo(() => {
+    return [...(adminThread?.messages || [])]
+      .map(m => ({ ...m, _medium: mediumOfMsg(m) }))
+      .sort((a, b) => new Date(a.at) - new Date(b.at));
+  }, [adminThread?.messages]);
+
+  const visibleMessages = enriched.filter(m => {
+    if (view === 'combined') return true;
+    if (m._medium === 'system' || m._medium === 'internal') return true;
+    return m._medium === view;
+  });
+  const hiddenCount = enriched.length - visibleMessages.length;
+
+  // Default composer channel = the latest inbound message's channel
+  useEffect(() => {
+    const lastInbound = [...enriched].reverse().find(m => m.from !== 'admin' && m.from !== 'system');
+    if (lastInbound && (lastInbound._medium === 'email' || lastInbound._medium === 'whatsapp')) {
+      setDeliveryRail(lastInbound._medium);
+    }
+  }, [adminThread?.id]);
+
+  const sendReply = () => {
+    if (!reply.trim()) return;
+    const msg = EFActions.threads.send({
+      threadId: adminThread?.id,
+      threadType: 'order_admin',
+      orderId: order.id,
+      role: 'admin',
+      body: reply,
+      origin_channel: 'admin',
+      delivery_channel: deliveryRail,
+    });
+    if (msg) {
+      toast && toast({ tone: 'success', text: `Sent via ${channelLabel(deliveryRail)} · #${order.id}` });
+      setReply('');
+    }
+  };
+
+  return (
+    <div className="chat-shell chat-shell-soft">
+      <div className="chat-header">
+        <div className="chat-title">
+          <div>
+            <span className="chat-title-main">Admin Thread <span className="pill pill-blue" style={{ fontSize: 10, marginLeft: 6 }}>System B</span></span>
+            <span className="chat-title-sub">Berat ↔ {cust?.name || 'customer'} · email + WhatsApp</span>
+          </div>
+        </div>
+        <div className="flex gap-1">
+          {[
+            ['combined', 'Combined'],
+            ['email', 'Email'],
+            ['whatsapp', 'WhatsApp'],
+          ].map(([id, label]) => (
+            <button type="button" key={id} className={`chip ${view === id ? 'active' : ''}`} onClick={() => setView(id)}>{label}</button>
+          ))}
+        </div>
+      </div>
+      <ChatNotice compact icon="lock">
+        Not visible to {cust?.name || 'customer'} or {gw?.name || 'the GW'}. They see this conversation in their own email/WhatsApp inbox.
+      </ChatNotice>
+      {hiddenCount > 0 && (
+        <ChatNotice compact icon="eye-off">
+          {hiddenCount} message{hiddenCount === 1 ? '' : 's'} hidden by view filter.
+        </ChatNotice>
+      )}
+      <div className="chat-stream" style={{ maxHeight: 480 }}>
+        {visibleMessages.length === 0 ? (
+          <EmptyState compact icon="mail" title="No external messages yet" body="Emails and WhatsApp between Berat and the customer for this order will appear here."/>
+        ) : visibleMessages.map((m, i) => {
+          const sys = m.from === 'system' || m.system;
+          if (sys) return <ChatMessage key={m.id || i} system at={m.at}>{m.body}</ChatMessage>;
+          const mine = m.from === 'admin';
+          const senderName = m.from === 'gw' ? (gw?.name || 'Ghostwriter')
+            : m.from === 'customer' ? (cust?.name || 'Customer')
+            : 'efactory1';
+          if (m._medium === 'email') {
+            return (
+              <EmailCard
+                key={m.id || i}
+                message={m}
+                direction={mine ? 'outbound' : 'inbound'}
+                senderName={senderName}
+                initialExpanded={i === visibleMessages.length - 1}
+              />
+            );
+          }
+          const initials = m.from === 'gw' ? (gw?.initials || 'GW')
+            : m.from === 'customer' ? (cust?.initials || 'CU')
+            : 'EF';
+          const prev = visibleMessages[i - 1];
+          const grouped = !!prev && prev.from === m.from && !(prev.from === 'system' || prev.system) && prev._medium === m._medium;
+          return (
+            <ChatMessage
+              key={m.id || i}
+              mine={mine}
+              sender={senderName}
+              initials={initials}
+              at={m.at}
+              grouped={grouped}
+              attachments={m.attachments}
+              channel={!grouped ? channelLabel(m._medium) : null}
+              tone={mine ? 'blue' : 'slate'}
+            >
+              {m.body}
+            </ChatMessage>
+          );
+        })}
+      </div>
+      <ChatComposer
+        value={reply}
+        onChange={(e) => setReply(e.target.value)}
+        onSend={sendReply}
+        placeholder={`Email or WhatsApp ${cust?.name || 'customer'}…`}
         sendLabel={`Send via ${channelLabel(deliveryRail)}`}
         actions={<>
           <div className="flex gap-1">
@@ -1764,33 +1924,7 @@ function PostToBoardModal({ order, onCancel, onConfirm }) {
   );
 }
 
-function AuditTab({ order, events }) {
-  const fallbackRows = EFHooks.useOrderEvents(order.id);
-  const rows = events || fallbackRows;
-  return (
-    <div className="card">
-      <div className="card-head"><div className="card-title">Audit log</div><span className="text-faint fs-11">{rows.length} synchronized event(s)</span></div>
-      <div className="card-pad">
-        {rows.length === 0 ? (
-          <EmptyState compact icon="history" title="No audit events" body="This order has no lifecycle events yet."/>
-        ) : (
-          <div className="timeline">
-            {rows.map(e => (
-            <div key={`${e.key}-${e.at}`} className="timeline-item">
-              <div className={`timeline-dot ${e.dot || ''}`}><Icon name={e.icon || 'dot'} size={10}/></div>
-              <div className="timeline-content">
-                <div className="timeline-title">{e.title} <span className="pill pill-slate" style={{ fontSize: 9, marginLeft: 6 }}>{e.domain}</span></div>
-                {e.detail && <div className="timeline-meta">{e.detail}</div>}
-                <div className="timeline-meta mono">{U.fmtDateTime(e.at)}</div>
-              </div>
-            </div>
-            ))}
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
+// AuditTab moved to ./order-detail/audit-tab.jsx (Arch-05 split).
 
 // ============ QA ORDER DETAIL (no financials) ============
 // Q-01: QA reviewers must NOT see release gate, gross/honorarium, margin, payments, Stripe webhooks,

@@ -78,6 +78,26 @@ body {
   height: 52px; flex-shrink: 0;
 }
 .sidebar.collapsed .sidebar-brand { justify-content: center; padding: 14px 0; }
+.sidebar-toggle {
+  display: flex; align-items: center; gap: 10px; width: 100%;
+  padding: 6px 10px; margin-bottom: 6px;
+  border-radius: 6px; background: transparent; border: none;
+  color: var(--text-3); cursor: pointer; font-family: inherit;
+  font-size: 12px; text-align: left;
+}
+.sidebar-toggle:hover { background: var(--surface-2); color: var(--text); }
+.sidebar-toggle:focus-visible { outline: 2px solid var(--blue); outline-offset: -2px; }
+.sidebar.collapsed .sidebar-toggle { justify-content: center; padding: 8px 0; }
+.sidebar-toggle-top {
+  display: grid; place-items: center; width: 24px; height: 24px;
+  border-radius: 6px; background: transparent; border: 1px solid transparent;
+  color: var(--text-3); cursor: pointer; flex-shrink: 0;
+}
+.sidebar-toggle-top:hover { background: var(--surface-2); color: var(--text); border-color: var(--border); }
+.sidebar-toggle-top:focus-visible { outline: 2px solid var(--blue); outline-offset: 1px; }
+.sidebar-toggle-top-collapsed {
+  align-self: center; margin: 8px auto 4px;
+}
 .brand-mark {
   width: 26px; height: 26px; border-radius: 7px; background: var(--text);
   color: var(--bg); display: grid; place-items: center; font-weight: 700; font-size: 13px;
@@ -1059,6 +1079,133 @@ button:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
   opacity: 0.68;
   white-space: nowrap;
 }
+/* ─── CommsTab split (System A + System B side-by-side) ──────────────────── */
+.comms-split {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 12px;
+}
+@media (max-width: 1100px) {
+  .comms-split { grid-template-columns: 1fr; }
+}
+
+/* ─── EmailCard (System B email-medium messages) ─────────────────────────── */
+.email-card {
+  display: flex;
+  flex-direction: column;
+  margin: 8px 0;
+  border: 1px solid color-mix(in oklab, var(--border) 80%, transparent);
+  border-radius: 10px;
+  background: var(--surface);
+  overflow: hidden;
+}
+.email-card-outbound { border-left: 3px solid var(--blue); }
+.email-card-inbound { border-left: 3px solid color-mix(in oklab, var(--text) 30%, transparent); }
+.email-card-head {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 10px;
+  padding: 10px 12px;
+  background: color-mix(in oklab, var(--surface-2) 60%, var(--surface));
+  border-bottom: 1px solid color-mix(in oklab, var(--border) 60%, transparent);
+}
+.email-card-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--blue) 12%, var(--surface));
+  color: var(--blue);
+}
+.email-card-headline { min-width: 0; }
+.email-card-subject {
+  font-weight: 600;
+  font-size: 13px;
+  margin-bottom: 4px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.email-card-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+.email-card-meta strong { font-weight: 600; color: var(--text); margin-right: 3px; }
+.email-card-when {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+  font-size: 11px;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+.email-card-attach-count {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+.email-card-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin: 0;
+  padding: 6px 12px;
+  background: transparent;
+  border: none;
+  border-top: 1px dashed color-mix(in oklab, var(--border) 50%, transparent);
+  color: var(--text-muted);
+  font-size: 11px;
+  cursor: pointer;
+  text-align: left;
+}
+.email-card-toggle:hover { color: var(--text); background: color-mix(in oklab, var(--surface-2) 50%, transparent); }
+.email-card-body {
+  padding: 12px;
+  font-size: 13px;
+  line-height: 1.5;
+  border-top: 1px solid color-mix(in oklab, var(--border) 40%, transparent);
+}
+.email-card-attachments {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 10px;
+}
+.email-card-attachment {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 7px 9px;
+  border-radius: 8px;
+  background: var(--surface-2);
+  border: 1px solid color-mix(in oklab, var(--border) 50%, transparent);
+  font-size: 12px;
+}
+.email-card-attachment small { opacity: 0.68; }
+.email-card-actions { margin-top: 10px; }
+
+/* ─── MediumChip (channel tag) ────────────────────────────────────────────── */
+.medium-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+.medium-chip-email { background: color-mix(in oklab, var(--blue) 12%, var(--surface)); color: var(--blue); }
+.medium-chip-whatsapp { background: color-mix(in oklab, var(--green) 15%, var(--surface)); color: var(--green); }
+.medium-chip-voice { background: color-mix(in oklab, var(--amber) 15%, var(--surface)); color: color-mix(in oklab, var(--amber) 80%, var(--text)); }
+
 .chat-composer {
   border-top: 1px solid color-mix(in oklab, var(--border) 70%, transparent);
   padding: 10px 12px 12px;
@@ -1337,6 +1484,39 @@ button:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
 }
 .offer-email-attachments { display: flex; flex-wrap: wrap; gap: 6px; }
 .offer-acceptance-box { padding: 12px; border-radius: 8px; border: 1px dashed var(--border); background: var(--surface-2); }
+
+/* Customer simulation panel — admin-only demo surface, intentionally visually distinct */
+.sim-panel {
+  border: 1px dashed color-mix(in oklab, var(--amber) 55%, var(--border));
+  background:
+    repeating-linear-gradient(135deg, transparent 0 14px, color-mix(in oklab, var(--amber) 5%, transparent) 14px 15px),
+    var(--surface);
+}
+.sim-panel-head { background: color-mix(in oklab, var(--amber) 9%, var(--surface-2)); }
+.sim-banner { font-size: 12px; line-height: 1.5; }
+.sim-section {
+  padding: 12px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  display: flex; flex-direction: column; gap: 10px;
+}
+.sim-section + .sim-section { margin-top: 2px; }
+.sim-stage-head { display: flex; align-items: center; gap: 10px; }
+.sim-stage-index {
+  width: 22px; height: 22px; border-radius: 50%;
+  background: color-mix(in oklab, var(--amber) 22%, var(--surface-2));
+  color: var(--text); font-weight: 600; font-size: 12px;
+  display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+}
+.sim-stage-title { font-size: 13px; font-weight: 600; }
+.sim-blocked-hint {
+  font-size: 11.5px; color: var(--text-3);
+  padding: 8px 10px; border-radius: 6px;
+  background: var(--surface-2); border: 1px dashed var(--border);
+}
+.tab.tab-demo { color: color-mix(in oklab, var(--amber) 75%, var(--text-3)); }
+.tab.tab-demo.active { color: color-mix(in oklab, var(--amber) 90%, var(--text)); }
 .offer-pdf-shell { border: 1px solid var(--border); border-radius: 10px; overflow: hidden; background: var(--surface); box-shadow: var(--shadow-md); }
 .offer-pdf-toolbar {
   height: 34px; padding: 0 10px; display: flex; align-items: center; gap: 10px;

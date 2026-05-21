@@ -99,9 +99,28 @@ function selectThread(state, id) {
   return byId(state.entities.threads, id);
 }
 
-function selectThreadByOrder(state, orderId) {
+// Per D-26 each order can have at most two thread records:
+//   System A — threadType='order'        — in-platform customer↔GW chat
+//   System B — threadType='order_admin'  — Berat's email/WhatsApp surface
+// Always disambiguate; never assume "one thread per order".
+function selectThreadByOrder(state, orderId, threadType = 'order') {
   if (orderId == null) return null;
-  return tableItems(state.entities.threads).find(t => Number(t.orderId) === Number(orderId)) || null;
+  return tableItems(state.entities.threads).find(t =>
+    Number(t.orderId) === Number(orderId) && (t.threadType || 'order') === threadType
+  ) || null;
+}
+
+function selectOrderAdminThread(state, orderId) {
+  return selectThreadByOrder(state, orderId, 'order_admin');
+}
+
+function selectInboxThreads(state) {
+  // Admin inbox is System B only — order_admin + lead + gw_direct.
+  // System A (order) threads are accessed via the order detail's chat tab.
+  return selectThreads(state).filter(t => {
+    const tt = t.threadType || 'order';
+    return tt === 'order_admin' || tt === 'lead' || tt === 'gw_direct';
+  });
 }
 
 function selectNotifications(state, role) {
@@ -465,20 +484,27 @@ function selectKpis(state) {
     const age = daysSince(anchor, now);
     return age != null && age <= 7 ? s + (o.outstandingEur || 0) : s;
   }, 0);
+  // KPI counts are over real orders only (synthetic:false). Demo fixtures or
+  // wizard-marked rows that carry `_synthetic: true` are excluded so they
+  // don't inflate the dashboard. Submissions are likewise filtered.
+  const isReal = (o) => !o?._synthetic && !o?.synthetic;
+  const realOrders = orders.filter(isReal);
+  const realSubs = submissions.filter(isReal);
+  const closedStates = new Set(['completed', 'cancelled', 'bye']);
   return {
     openReceivables: Math.round(openReceivables * 100) / 100,
     newReceivables7d: Math.round(newReceivables7d * 100) / 100,
     agedReceivables: Math.round((openReceivables - newReceivables7d) * 100) / 100,
-    activeOrders: 645,
-    completedLifetime: 3359,
-    totalLifetime: 3522,
+    activeOrders: realOrders.filter(o => !closedStates.has(o.status)).length,
+    completedLifetime: realOrders.filter(o => o.status === 'completed').length,
+    totalLifetime: realOrders.length,
     fridayCount: friday.length,
     fridayEur: Math.round(fridayEur * 100) / 100,
-    qaPending: submissions.filter(s => W.isQaReviewKind(s.kind) && s.qaStatus === QA_STATUS.PENDING).length,
+    qaPending: realSubs.filter(s => W.isQaReviewKind(s.kind) && s.qaStatus === QA_STATUS.PENDING).length,
     overdueInterim: sla.filter(it => it.kind === 'interim_missed').length,
-    aiFlagged: submissions.filter(s => s.aiScore >= 70 || s.flagged).length,
-    disputesOpen: orders.filter(o => o.disputeOpen).length,
-    pipedriveSubs: '4,159 / 5,000',
+    aiFlagged: realSubs.filter(s => s.aiScore >= 70 || s.flagged).length,
+    disputesOpen: realOrders.filter(o => o.disputeOpen).length,
+    pipedriveSubs: `${realOrders.length} / 5,000`,
     eurAtRisk: Math.round(eurAtRisk * 100) / 100,
     riskItemCount: risk.length,
   };
@@ -517,6 +543,8 @@ export {
   selectThreads,
   selectThread,
   selectThreadByOrder,
+  selectOrderAdminThread,
+  selectInboxThreads,
   selectNotifications,
   selectAllNotifications,
   selectOrderEvents,

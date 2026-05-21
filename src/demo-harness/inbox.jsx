@@ -5,8 +5,37 @@ import React, { useMemo, useState } from 'react';
 import { Icon } from '../../utils.jsx';
 import * as EFHooks from '../core/hooks.js';
 import * as SimMail from '../sim/mail.js';
+import * as SimCheckout from '../sim/checkout.js';
 import * as Scenarios from '../sim/scenarios.js';
 import EFActions from '../core/actions.js';
+import { buildLink, targetFromLegacyCta } from '../core/links.js';
+
+// Minimal inline markdown renderer for demo email bodies. Handles **bold**,
+// _italic_, and `code` — patterns actually used in src/sim/mail.js templates.
+// Newlines are preserved by the surrounding whiteSpace: 'pre-wrap' container.
+function renderInlineMd(text) {
+  if (!text) return null;
+  const tokens = [];
+  const re = /\*\*([^*\n]+?)\*\*|_([^_\n]+?)_|`([^`\n]+?)`/g;
+  let lastIndex = 0;
+  let match;
+  let key = 0;
+  while ((match = re.exec(text)) !== null) {
+    if (match.index > lastIndex) {
+      tokens.push(text.slice(lastIndex, match.index));
+    }
+    if (match[1] != null) {
+      tokens.push(<strong key={key++}>{match[1]}</strong>);
+    } else if (match[2] != null) {
+      tokens.push(<em key={key++}>{match[2]}</em>);
+    } else if (match[3] != null) {
+      tokens.push(<code key={key++} style={{ fontFamily: 'monospace', fontSize: '0.92em' }}>{match[3]}</code>);
+    }
+    lastIndex = re.lastIndex;
+  }
+  if (lastIndex < text.length) tokens.push(text.slice(lastIndex));
+  return tokens;
+}
 
 function relTime(at) {
   if (!at) return '';
@@ -40,56 +69,52 @@ function DemoInbox({ onClose, navigate, switchRole }) {
     const cta = email.cta;
     if (!cta) return;
     if (!email.read) SimMail.markRead(email.id);
-    if (cta.action === 'consume_token' && cta.tokenId) {
-      const res = Scenarios.consumeFirstLoginAndAttach(cta.tokenId);
+
+    if (cta.action === 'open_stripe_checkout') {
+      const existing = cta.sid ? SimCheckout.getSession(cta.sid) : null;
+      const session = SimCheckout.ensureOpenSession({
+        orderId: cta.orderId || existing?.orderId || email.orderId,
+        customerId: cta.customerId || existing?.customerId || email.customerId,
+        scenarioId: existing?.scenarioId || email.scenarioId || null,
+        method: existing?.method || 'stripe_card',
+        amount: existing?.amount || 0,
+        installmentN: existing?.installmentN || 1,
+      });
+      if (!session) return;
+      if (cta.customerId || session.customerId || email.customerId) {
+        EFActions.session.setPersona({ role: 'customer', customerId: cta.customerId || session.customerId || email.customerId });
+      }
+      onClose && onClose();
+      switchRole && switchRole('sim', 'sim-stripe-checkout', { sid: session.id });
+      return;
+    }
+
+    const target = targetFromLegacyCta(cta);
+
+    // Magic-link / first-login token consumption — must happen before the
+    // navigate so the persona is bound by the time the customer view mounts.
+    if (target?.kind === 'consume-token' && target.tokenId) {
+      const res = Scenarios.consumeFirstLoginAndAttach(target.tokenId);
       if (res.ok) {
         onClose && onClose();
-        switchRole && switchRole('customer', 'cust-orders', { orderId: cta.orderId });
+        switchRole && switchRole('customer', 'cust-orders', {});
       } else {
         alert(`Link ${res.reason === 'expired' ? 'ist abgelaufen' : res.reason === 'already_consumed' ? 'wurde bereits verwendet' : 'ist ungültig'}.`);
       }
       return;
     }
-    if (cta.action === 'open_customer_dashboard') {
-      if (cta.customerId) {
-        EFActions.session.setPersona({ role: 'customer', customerId: cta.customerId });
-      }
-      onClose && onClose();
-      const params = {};
-      if (cta.orderId) params.orderId = cta.orderId;
-      if (cta.tab) params.tab = cta.tab;
-      switchRole && switchRole('customer', 'cust-orders', params);
-      return;
+
+    // open_customer_dashboard carries a persona side-effect (set customerId
+    // before navigating) that the unified link layer doesn't model. Keep it
+    // as an explicit step here.
+    if (cta.action === 'open_customer_dashboard' && cta.customerId) {
+      EFActions.session.setPersona({ role: 'customer', customerId: cta.customerId });
     }
-    if (cta.action === 'open_admin_order') {
-      onClose && onClose();
-      switchRole && switchRole('admin', 'order-detail', {
-        id: cta.orderId,
-        ...(cta.tab ? { tab: cta.tab } : {}),
-        ...(cta.submissionId ? { submissionId: cta.submissionId } : {}),
-      });
-      return;
-    }
-    if (cta.action === 'open_gw_job_board') {
-      onClose && onClose();
-      switchRole && switchRole('gw', 'gw-job-board', cta.orderId ? { orderId: cta.orderId } : {});
-      return;
-    }
-    if (cta.action === 'open_gw_assignment') {
-      onClose && onClose();
-      switchRole && switchRole('gw', 'gw-assignment-detail', { id: cta.orderId });
-      return;
-    }
-    if (cta.action === 'open_gw_payments') {
-      onClose && onClose();
-      switchRole && switchRole('gw', 'gw-payments', {});
-      return;
-    }
-    if (cta.action === 'open_admin_friday_batch') {
-      onClose && onClose();
-      switchRole && switchRole('admin', 'friday-batch', {});
-      return;
-    }
+
+    const link = buildLink(target);
+    if (!link) return;
+    onClose && onClose();
+    switchRole && switchRole(link.role, link.name, link.params);
   };
 
   return (
@@ -152,7 +177,7 @@ function DemoInbox({ onClose, navigate, switchRole }) {
                 </div>
               </div>
               <div style={{ background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: 8, padding: 16, fontSize: 13, lineHeight: 1.55, whiteSpace: 'pre-wrap' }}>
-                {selected.bodyMd}
+                {renderInlineMd(selected.bodyMd)}
               </div>
               {selected.cta && (
                 <button type="button" onClick={() => handleCta(selected)}

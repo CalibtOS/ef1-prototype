@@ -20,8 +20,17 @@ function normalize(list) {
 }
 
 // Demo spine order: links Antigone Berisha (c-ab) ↔ Isabel Walter (gw-iw)
-// so the four canonical demo personas all touch one lifecycle order.
+// so the four canonical demo personas all touch one lifecycle order. paidEur
+// and outstandingEur are derived from installment state at construction time
+// rather than hardcoded — that way the same numbers can't drift between
+// `installments` (the source of truth) and the receivables-aging report.
 function customerDemoOrder() {
+  const installments = [
+    { n: 1, amt: 1180, status: 'paid', date: '2026-04-01', method: 'stripe_card' },
+    { n: 2, amt: 1180, status: 'scheduled', date: '2026-05-15', method: 'stripe_card' },
+  ];
+  const grossEur = installments.reduce((s, i) => s + i.amt, 0);
+  const paidEur = installments.filter(i => i.status === 'paid').reduce((s, i) => s + i.amt, 0);
   return {
     id: 3518,
     status: 'under_customer_review',
@@ -33,18 +42,15 @@ function customerDemoOrder() {
     finalDeadline: '2026-05-22T18:00:00',
     interimDeadline: '2026-05-08T18:00:00',
     interim2Deadline: '2026-05-15T18:00:00',
-    grossEur: 2360,
+    grossEur,
     netHonorarium: 793.46,
     rate: 0.36,
     gwId: 'gw-iw',
     acceptedAt: '2026-04-01',
     leadSource: 'ig',
-    paidEur: 1180,
-    outstandingEur: 1180,
-    installments: [
-      { n: 1, amt: 1180, status: 'paid', date: '2026-04-01', method: 'stripe_card' },
-      { n: 2, amt: 1180, status: 'scheduled', date: '2026-05-15', method: 'stripe_card' },
-    ],
+    paidEur,
+    outstandingEur: grossEur - paidEur,
+    installments,
     revisionRounds: 0,
     gwPaymentStatus: 'work_in_progress',
     customerNote: 'Fokus auf Industrie-4.0-Kennzahlen; Fallbeispiel Bosch.',
@@ -82,7 +88,14 @@ function lastMessageAt(messages, predicate) {
 
 // Per-thread message seeds. Keyed by thread id from data.js INBOX_THREADS.
 // Each message: { id, from: 'gw'|'customer'|'admin'|'system', body, at,
-// origin_channel?, delivery_channel?, attachments?, autoflag? }
+// origin_channel?, delivery_channel?, attachments?, autoflag?,
+// // System B-only email fields:
+// subject?, to?, cc?, bcc? }
+//
+// IMPORTANT (D-26): for threads with threadType='order' (System A) all
+// messages are normalized to delivery_channel='platform' at hydration time
+// — the per-message channel hints below are kept for historical fidelity but
+// cannot place a System A message on email/WhatsApp.
 const THREAD_MESSAGE_SEEDS = {
   t3492: [
     { from: 'customer', at: '2026-05-04T14:03:00', body: 'Hi, can we move interim #1 by 2 days?', origin_channel: 'whatsapp', delivery_channel: 'whatsapp' },
@@ -153,6 +166,19 @@ const THREAD_MESSAGE_SEEDS = {
     { from: 'gw',       at: '2026-05-06T16:25:00', body: 'Hallo Berat, ich bin seit gestern krank (Grippe, Attest liegt vor) und brauche voraussichtlich 3 Tage Verlängerung. Neuer Termin 15.05. statt 12.05.' },
     { from: 'gw',       at: '2026-05-06T16:30:00', body: 'Attest folgt per WhatsApp.', attachments: [{ name: 'Attest.pdf', meta: '92 KB', icon: 'file-text' }] },
   ],
+  // Lukas Bauer (gw-lb) ↔ Elena Krüger (c-ek) — active master's thesis (#3612).
+  // Used by the GW Messages view when seated as Lukas, so the surface isn't empty.
+  t3612: [
+    { from: 'gw',       at: '2026-04-23T20:05:00', body: 'Hallo Frau Krüger, vielen Dank für den Auftrag. Ich schlage vor, Kapitel 2 als methodischen Vergleich (LIME vs. SHAP vs. Grad-CAM) zu strukturieren — passt das zu Ihrer Forschungsfrage?' },
+    { from: 'customer', at: '2026-04-23T22:18:00', body: 'Ja, perfekt. Datensatz wird CheXpert oder NIH ChestX-ray — abhängig von der Lizenz. Ich melde mich Mitte der Woche mit Klärung.' },
+    { from: 'customer', at: '2026-04-28T09:12:00', body: 'Update: NIH ist freigegeben, anbei das Lizenz-PDF.', attachments: [{ name: 'NIH_License.pdf', meta: '76 KB', icon: 'file-text' }] },
+    { from: 'gw',       at: '2026-04-28T19:30:00', body: 'Danke — ich starte direkt mit dem Preprocessing-Kapitel. Zwischenstand 1 lade ich bis 18.05. hoch.' },
+    { from: 'gw',       at: '2026-05-04T22:14:00', body: 'Zwischenstand 1 ist hochgeladen (Methodik + erste Modellbaseline). Feedback gern bis Donnerstag.', attachments: [{ name: 'XAI_Medical_Imaging_Zwischenstand_1.docx', meta: '1.4 MB', icon: 'file-text' }] },
+  ],
+  // Lukas Bauer (gw-lb) ↔ Daniel Weber (c-dw) — revision request thread (#3613).
+  t3613: [
+    { from: 'customer', at: '2026-05-05T17:55:00', body: 'Hallo Herr Bauer, Kapitel 4 ist inhaltlich solide, aber unser Reviewer möchte eine Cost-of-Ownership-Sicht im Kubeflow-vs-MLflow-Vergleich. Können Sie das bis 30.05. ergänzen?' },
+  ],
   // Demo spine — Antigone Berisha ↔ Isabel Walter ↔ Berat ↔ Lina (via QA)
   t8: [
     { from: 'gw',       at: '2026-04-02T09:14:00', body: 'Guten Tag Frau Berisha, vielen Dank für den Auftrag — ich freue mich auf die Zusammenarbeit. Senden Sie mir gerne das Briefing.' },
@@ -160,6 +186,44 @@ const THREAD_MESSAGE_SEEDS = {
     { from: 'gw',       at: '2026-04-08T11:02:00', body: 'Outline ist fertig — habe sie unter „Dokumente" hochgeladen.' },
     { from: 'customer', at: '2026-04-09T10:15:00', body: 'Outline passt — bitte mit Kapitel 3 weitermachen.' },
     { from: 'gw',       at: '2026-05-06T15:30:00', body: 'Zwischenstand 1 ist hochgeladen — bitte um Feedback bis Donnerstag.', attachments: [{ name: 'Zwischenstand_1.docx', meta: '1.2 MB', icon: 'file-text' }] },
+  ],
+  // Demo spine — Berat ↔ Antigone Berisha on email + WhatsApp.
+  // System B (order_admin) thread for order #3518. Pre-payment offer chat
+  // and a later payment-plan WhatsApp — shows the email-card vs whatsapp-bubble
+  // render and the combined/email-only/whatsapp-only filter.
+  't8-admin': [
+    {
+      from: 'admin', at: '2026-03-28T11:02:00',
+      origin_channel: 'admin', delivery_channel: 'email',
+      subject: 'Angebot AN-2026-3518 — Strategisches Controlling im Maschinenbau',
+      to: ['antigone.berisha@example.com'],
+      cc: ['kundenservice@efactory1.de'],
+      body: 'Sehr geehrte Frau Berisha,\n\nanbei unser Angebot für Ihre Bachelorarbeit. Bei Fragen melden Sie sich jederzeit.\n\nBeste Grüße,\nefactory1',
+      attachments: [{ name: 'AN-2026-3518.pdf', meta: '212 KB', icon: 'file-text' }],
+    },
+    {
+      from: 'customer', at: '2026-03-29T08:14:00',
+      origin_channel: 'whatsapp', delivery_channel: 'whatsapp',
+      body: 'Hallo, Angebot sieht gut aus — können wir die Zahlung in 2 Raten splitten?',
+    },
+    {
+      from: 'admin', at: '2026-03-29T09:30:00',
+      origin_channel: 'admin', delivery_channel: 'whatsapp',
+      body: 'Sehr gerne — 2× 1.180 €, erste Rate sofort, zweite zum 15.05. Passt das?',
+    },
+    {
+      from: 'customer', at: '2026-03-29T09:42:00',
+      origin_channel: 'whatsapp', delivery_channel: 'whatsapp',
+      body: 'Perfekt, dann nehme ich an.',
+    },
+    {
+      from: 'admin', at: '2026-04-01T16:30:00',
+      origin_channel: 'admin', delivery_channel: 'email',
+      subject: 'Rechnung RG-2026-3518 — Rate 1 von 2',
+      to: ['antigone.berisha@example.com'],
+      body: 'Vielen Dank — anbei die Rechnung für die erste Rate. Sobald die Zahlung eingeht, weisen wir Ihre Ghostwriterin zu.',
+      attachments: [{ name: 'RG-2026-3518-Rate1.pdf', meta: '98 KB', icon: 'file-text' }],
+    },
   ],
 };
 
@@ -184,10 +248,15 @@ const THREAD_UNREAD_SEEDS = {
   tl1: { admin: 1, gw: 0, customer: 0 },
   tl2: { admin: 1, gw: 0, customer: 0 },
   tg1: { admin: 1, gw: 0, customer: 0 },
+  t3612: { admin: 0, gw: 0, customer: 0 },
+  t3613: { admin: 1, gw: 1, customer: 0 },
+  't8-admin': { admin: 0, gw: 0, customer: 0 },
 };
 
-// Synthetic thread for the demo spine order (#3518) so Antigone and Isabel
-// have a real chat history when the demo opens. Mirrors INBOX_THREADS shape.
+// Synthetic threads for the demo spine order (#3518). Two records:
+//   t8        — System A — platform_chat between Antigone (customer) and Isabel (GW)
+//   t8-admin  — System B — email + WhatsApp between Berat and Antigone
+// Both belong to the same order; the admin order-detail shows them side by side.
 function demoSpineThread() {
   return {
     id: 't8',
@@ -203,24 +272,56 @@ function demoSpineThread() {
   };
 }
 
+function demoSpineAdminThread() {
+  return {
+    id: 't8-admin',
+    threadType: 'order_admin',
+    orderId: 3518,
+    customerId: 'c-ab',
+    gwId: null, // admin↔customer; GW is reachable separately if needed
+    subject: 'Angebot & Ratenzahlung #3518',
+    channel: 'multi_channel',
+    sentiment: 'neutral',
+    lastAt: '2026-04-01T16:30:00',
+    flagged: false,
+  };
+}
+
 function hydrateThread(t) {
   const id = t.id;
   const seedMessages = THREAD_MESSAGE_SEEDS[id] || [];
   const threadChannel = t.channel || 'platform_chat';
+  // D-26: System A is platform-only. Force every message in an `order` thread
+  // to medium='platform' so no demo accident can suggest the customer↔GW chat
+  // ever ran over email or WhatsApp.
+  const isSystemA = t.threadType === 'order';
   const messages = seedMessages.map((m, i) => {
+    const origin = isSystemA
+      ? (m.from === 'system' ? 'system' : 'platform')
+      : (m.origin_channel || defaultOriginChannel(threadChannel, m.from));
+    const delivery = isSystemA
+      ? (m.from === 'system' ? 'internal' : 'platform')
+      : (m.delivery_channel || defaultDeliveryChannel(threadChannel, m.from));
     const msg = {
       id: `${id}-m${i + 1}`,
       threadId: id,
       from: m.from,
       body: m.body,
       at: m.at,
-      origin_channel: m.origin_channel || defaultOriginChannel(threadChannel, m.from),
-      delivery_channel: m.delivery_channel || defaultDeliveryChannel(threadChannel, m.from),
+      origin_channel: origin,
+      delivery_channel: delivery,
       external_ref: m.external_ref || null,
       autoflag: m.autoflag || null,
       system: m.from === 'system',
     };
     if (m.attachments && m.attachments.length) msg.attachments = m.attachments;
+    // Email-specific fields only meaningful on System B email messages.
+    if (!isSystemA && delivery === 'email') {
+      if (m.subject) msg.subject = m.subject;
+      if (m.to) msg.to = m.to;
+      if (m.cc) msg.cc = m.cc;
+      if (m.bcc) msg.bcc = m.bcc;
+    }
     return msg;
   });
   const lastAt = messages.length ? messages[messages.length - 1].at : t.lastAt;
@@ -243,6 +344,7 @@ function hydrateThread(t) {
 function buildThreads() {
   const baseThreads = [...(INBOX_THREADS || [])];
   if (!baseThreads.some(t => t.id === 't8')) baseThreads.push(demoSpineThread());
+  if (!baseThreads.some(t => t.id === 't8-admin')) baseThreads.push(demoSpineAdminThread());
   return baseThreads.map(hydrateThread);
 }
 
@@ -254,10 +356,37 @@ function roleSeedNotifications() {
 	  { id: 'qn2', to: 'qa', kind: 'ai_violation', orderId: 3517, customerId: 'c-sh', gwId: 'gw-ak', submissionId: 's2', title: 'AI flag · #3517', body: 'Score 87% — verdict required', at: '2026-05-07T08:42:00', urgent: true, read: false },
 	  { id: 'gn1', to: 'gw', gwId: 'gw-iw', customerId: 'c-mh', orderId: 3602, kind: 'assignment_approved', title: 'Order #3602 assigned', body: 'Briefing email sent · customer was introduced', at: '2026-05-06T18:40:00', read: false },
 	  { id: 'gn2', to: 'gw', gwId: 'gw-iw', customerId: 'c-ak', orderId: 3522, kind: 'interim_due_d1', title: 'Interim deadline today', body: '#3522 · Zwischenstand 1 · 18:00', at: '2026-05-15T09:00:00', read: false },
+	  // Lukas Bauer (gw-lb) — second seeded GW persona. Notifications mirror Isabel's:
+	  // a fresh assignment, an upcoming deadline, and a returned revision so each surface
+	  // (dashboard, bell, assignment detail) is populated when switching into Lukas.
+	  { id: 'gn3', to: 'gw', gwId: 'gw-lb', customerId: 'c-rh', orderId: 3611, kind: 'claim_pending_your_approval', title: 'Claim awaiting approval · #3611', body: 'Berat is reviewing your acknowledgements for Edge-Computing Hausarbeit.', at: '2026-05-07T09:18:00', read: false },
+	  { id: 'gn4', to: 'gw', gwId: 'gw-lb', customerId: 'c-ek', orderId: 3612, kind: 'interim_due_d1', title: 'Interim 1 deadline tomorrow', body: '#3612 · Zwischenstand 1 · 18:00 · XAI Medical Imaging', at: '2026-05-17T09:00:00', read: false },
+	  { id: 'gn5', to: 'gw', gwId: 'gw-lb', customerId: 'c-dw', orderId: 3613, kind: 'revision_required', title: 'Kunde fordert Überarbeitung · #3613', body: 'Daniel Weber: Kapitel 4 — Cost-of-Ownership-Sicht ergänzen · neuer Termin 2026-05-30', at: '2026-05-05T17:55:00', read: false, urgent: true },
 	  { id: 'cn1', to: 'customer', customerId: 'c-ab', gwId: 'gw-iw', orderId: 3518, kind: 'interim_received', title: 'Zwischenstand verfügbar', body: 'Auftrag #3518 — Zwischenstand 1 hochgeladen · bitte prüfen', at: '2026-05-06T15:30:00', read: false, urgent: false },
 	  { id: 'cn2', to: 'customer', customerId: 'c-ab', gwId: 'gw-iw', orderId: 3518, kind: 'payment_confirmed', title: 'Zahlung bestätigt', body: 'Rate 1 von 2 · 1.180,00 € · Kreditkarte · Auftrag #3518', at: '2026-04-01T10:00:00', read: true },
 	  { id: 'cn3', to: 'customer', customerId: 'c-ab', gwId: 'gw-iw', orderId: 3518, kind: 'assignment_intro', title: 'Ihre Ghostwriterin ist zugewiesen', body: 'Isabel Walter übernimmt #3518 — sie meldet sich heute bei Ihnen.', at: '2026-04-01T16:30:00', read: true },
+	  // Multi-applicant approval surface — both Isabel and Lukas have a pending
+	  // application on #3550 (see seedGwApplications below). Admin sees both,
+	  // approves one, the other auto-rejects. Notifications mirror what
+	  // applyForJob() would have produced at runtime.
+	  { id: 'an-3550-iw', to: 'admin', gwId: 'gw-iw', customerId: 'c-jb', orderId: 3550, kind: 'claim_pending_your_approval', applicationId: 'app-seed-3550-gw-iw', title: 'New application · #3550', body: 'Isabel Walter applied — review & approve.', at: '2026-05-06T20:14:00', read: false },
+	  { id: 'an-3550-lb', to: 'admin', gwId: 'gw-lb', customerId: 'c-jb', orderId: 3550, kind: 'claim_pending_your_approval', applicationId: 'app-seed-3550-gw-lb', title: 'New application · #3550', body: 'Lukas Bauer applied — review & approve.', at: '2026-05-07T08:22:00', read: false },
+	  // The two GW direct claims (Isabel on #3601, Lukas on #3611) need matching
+	  // admin notifications so the dashboard "needs decision" surface sees them.
+	  // Times match the order.claimedAt timestamps.
+	  { id: 'an-claim-3601', to: 'admin', gwId: 'gw-iw', customerId: 'c-jb', orderId: 3601, kind: 'claim_pending_your_approval', title: 'Isabel Walter claimed Order #3601', body: 'Agile Skalierung mit SAFe in Großkonzernen — Hausarbeit, 16 Seiten · 6 acknowledgements signed', at: '2026-05-07T10:42:00', read: false },
+	  { id: 'an-claim-3611', to: 'admin', gwId: 'gw-lb', customerId: 'c-rh', orderId: 3611, kind: 'claim_pending_your_approval', title: 'Lukas Bauer claimed Order #3611', body: 'Edge-Computing in vernetzten Produktionslinien — Hausarbeit, 12 Seiten · 6 acknowledgements signed', at: '2026-05-07T09:18:00', read: false },
 	];
+}
+
+// Seeded GW applications — both Isabel and Lukas competing for #3550 so the
+// multi-applicant approval flow is testable on first load without any runtime
+// interaction. Shape mirrors what `applyForJob` produces in actions.js.
+function seedGwApplications() {
+  return [
+    { id: 'app-seed-3550-gw-iw', orderId: 3550, gwId: 'gw-iw', status: 'pending', appliedAt: '2026-05-06T20:14:00', pitch: 'BWL- und Marketing-Schwerpunkt, B2B-Cases bereits begleitet. Verfügbar ab heute.', termsAccepted: true, scenarioId: null },
+    { id: 'app-seed-3550-gw-lb', orderId: 3550, gwId: 'gw-lb', status: 'pending', appliedAt: '2026-05-07T08:22:00', pitch: 'Data-Science-Hintergrund mit Marketing-Analytics-Projekten — kann LinkedIn-Engagement-Metriken quantitativ unterlegen.', termsAccepted: true, scenarioId: null },
+  ];
 }
 
 function backfillAssignmentTimestamps(o) {
@@ -295,7 +424,7 @@ function hydrate() {
     tokens: normalize([]),
     checkout_sessions: normalize([]),
     offer_artifacts: normalize([]),
-    gw_applications: normalize([]),
+    gw_applications: normalize(seedGwApplications()),
   };
 }
 

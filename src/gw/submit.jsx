@@ -6,6 +6,7 @@ import * as U from '../../utils.jsx';
 import { CrumbBar } from '../../shell.jsx';
 import * as W from '../core/workflow.js';
 import EFActions from '../core/actions.js';
+import * as EFHooks from '../core/hooks.js';
 import EF from '../core/ef.js';
 const D = EF;
 
@@ -83,11 +84,12 @@ function FilePicker({ label, current, err, onPicked, accept, allowedExt, inputRe
 // Per PRD/SOP: final requires TWO files (work + Honorarrechnung) and shows the
 // legal invoice address. All variants gate Submit behind a self-check checklist.
 function GWSubmit({ orderId, kind, navigate, toast }) {
+  const currentGwId = EFHooks.useStore(s => s.session.gwId);
   // No orderId → show picker of my active assignments.
   if (!orderId) return <GWSubmitPicker navigate={navigate}/>;
   const order = D.liveOrder(orderId);
   if (!order) return <div className="page">Assignment #{orderId} not found.</div>;
-  if (order.gwId !== 'gw-iw') return <div className="page">This assignment isn't yours.</div>;
+  if (order.gwId !== currentGwId) return <div className="page">This assignment isn't yours.</div>;
 
   // Resolve kind from route + order context
   const resolvedKind = (() => {

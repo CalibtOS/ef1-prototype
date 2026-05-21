@@ -17,6 +17,7 @@ import * as EFSelectors from '../core/selectors.js';
 import store from '../core/store.js';
 import EF from '../core/ef.js';
 import { QA_STATUS } from '../core/status.js';
+import * as SimCheckout from '../sim/checkout.js';
 import { CheckoutModal } from './checkout-modal.jsx';
 const D = EF;
 
@@ -325,11 +326,18 @@ function CustOrderCard({ o, onOpen, startCheckout, goTo }) {
 }
 
 function resumeStripeCheckout(orderId, goTo) {
-  const sessions = Object.values(store.getState().entities.checkout_sessions?.byId || {});
-  const open = sessions
-    .filter(s => s.orderId === orderId && s.status === 'pending')
-    .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))[0];
-  if (open && goTo) goTo('sim', 'sim-stripe-checkout', { sid: open.id });
+  const o = EFSelectors.selectOrder(store.getState(), orderId);
+  if (!o || o.paymentMethodChoice === 'bank_transfer_sepa') return;
+  const nextInstallment = (o.installments || []).find(i => i.status !== 'paid') || o.installments?.[0] || null;
+  const session = SimCheckout.ensureOpenSession({
+    orderId: o.id,
+    customerId: o.customerId,
+    scenarioId: o.scenarioId || null,
+    method: o.paymentMethodChoice || nextInstallment?.method || 'stripe_card',
+    amount: nextInstallment?.amt ?? o.outstandingEur ?? o.grossEur ?? 0,
+    installmentN: nextInstallment?.n || 1,
+  });
+  if (session && goTo) goTo('sim', 'sim-stripe-checkout', { sid: session.id });
 }
 
 function BankTransferPanel({ order }) {
@@ -1031,7 +1039,20 @@ function CustOrderFiles({ o, toast }) {
   );
 }
 
-function CustOrderPayments({ o }) {
+function openInstallmentCheckout(o, inst, goTo) {
+  if (!goTo || !o || !inst || !String(inst.method || '').startsWith('stripe')) return;
+  const session = SimCheckout.ensureOpenSession({
+    orderId: o.id,
+    customerId: o.customerId,
+    scenarioId: o.scenarioId || null,
+    method: inst.method,
+    amount: inst.amt ?? 0,
+    installmentN: inst.n || 1,
+  });
+  if (session) goTo('sim', 'sim-stripe-checkout', { sid: session.id });
+}
+
+function CustOrderPayments({ o, goTo }) {
   const installments = o.installments || [];
   const showMoney = W.canShowMoney(o);
   const showReceivable = W.canShowReceivable(o);
@@ -1087,8 +1108,10 @@ function CustOrderPayments({ o }) {
                     <td>
                       {inst.status === 'paid' ? (
                         <NotReady className="btn btn-sm" feature="invoice-pdf" style={{ width: '100%' }}><Icon name="download" size={11}/> PDF</NotReady>
-                      ) : inst.status === 'overdue' ? (
-                        <NotReady className="btn btn-sm btn-danger" feature="invoice-pay" style={{ width: '100%' }}><Icon name="alert-triangle" size={11}/> Jetzt zahlen</NotReady>
+                      ) : (inst.status === 'overdue' || inst.status === 'pending') && String(inst.method || '').startsWith('stripe') ? (
+                        <button type="button" className={`btn btn-sm ${inst.status === 'overdue' ? 'btn-danger' : 'btn-primary'}`} style={{ width: '100%' }} onClick={() => openInstallmentCheckout(o, inst, goTo)}>
+                          <Icon name={inst.status === 'overdue' ? 'alert-triangle' : 'wallet'} size={11}/> Jetzt zahlen
+                        </button>
                       ) : <span className="text-faint fs-11">—</span>}
                     </td>
                   </tr>
@@ -1125,7 +1148,7 @@ function CustOrderPayments({ o }) {
   );
 }
 
-function CustOrderDetail({ orderId, tab, onTabChange, onBack, toast, startCheckout }) {
+function CustOrderDetail({ orderId, tab, onTabChange, onBack, toast, startCheckout, goTo }) {
   const setTab = (next) => { if (onTabChange) onTabChange(next); };
   const all = custOrders();
   const o = all.find(x => x.id === orderId);
@@ -1191,7 +1214,7 @@ function CustOrderDetail({ orderId, tab, onTabChange, onBack, toast, startChecko
       {tab === 'status'   && <CustOrderStatus o={o} startCheckout={startCheckout}/>}
       {tab === 'messages' && <CustOrderChat o={o} toast={toast}/>}
       {tab === 'files'    && <CustOrderFiles o={o} toast={toast}/>}
-      {tab === 'payments' && <CustOrderPayments o={o}/>}
+      {tab === 'payments' && <CustOrderPayments o={o} goTo={goTo}/>}
 
       <CustFooterBanner/>
     </div>
@@ -1201,9 +1224,13 @@ function CustOrderDetail({ orderId, tab, onTabChange, onBack, toast, startChecko
 function CustMessagesList({ openOrder }) {
   const orders = custOrders().filter(o => o.gwId);
   const allThreads = EFHooks.useThreads();
+  // Customer surface only ever sees System A (in-platform order chat).
+  // System B (admin's email/WhatsApp) must never appear here (D-26 hard guard).
   const threadsByOrder = useMemo(() => {
     const m = {};
-    allThreads.forEach(t => { m[t.orderId] = t; });
+    allThreads
+      .filter(t => (t.threadType || 'order') === 'order')
+      .forEach(t => { m[t.orderId] = t; });
     return m;
   }, [allThreads]);
 
@@ -1434,7 +1461,7 @@ function CustDownloads({ toast }) {
 }
 
 function CustProfile({ toast }) {
-  const me = CUST_ME;
+  const me = activeCustomer();
   const orders = custOrders();
   const completedCount = orders.filter(o => custProgress(o) >= 100).length;
   const activeCount    = orders.length - completedCount;
@@ -1536,52 +1563,35 @@ function CustProfile({ toast }) {
 // for the active tab. Clicking an internal tab navigates so the URL/sidebar stay in sync.
 function CustomerView({ role, setRole, selectPersona, toast, section, navigate, goTo, focusOrderId, focusOrderTab }) {
   const tab = section || 'orders';
-  const [openOrderId, setOpenOrderId] = useState(null);
-  const [openOrderTab, setOpenOrderTab] = useState('status');
+  // Arch-04: customer order-detail is URL-driven substate of cust-orders.
+  // openOrderId/openOrderTab used to live in useState and a bridging effect
+  // synced them with focusOrderId/focusOrderTab — refresh and tab clicks
+  // dropped sub-state. Now the URL is the single source of truth.
+  const openOrderId = focusOrderId != null && !Number.isNaN(focusOrderId) ? focusOrderId : null;
+  // When a deep link omits tab, fall back to a state-appropriate default
+  // (messages if GW assigned, status pre-GW). Real-tab clicks always write
+  // tab into the URL so this branch only fires on first open.
+  const fallbackTab = (() => {
+    if (openOrderId == null) return 'status';
+    const o = EFSelectors.selectOrder(store.getState(), openOrderId);
+    const preGw = !o?.gwId || ['lead','qualified','offer_sent','invoice_sent','available','claimed_pending_approval'].includes(o?.status);
+    return preGw ? 'status' : 'messages';
+  })();
+  const openOrderTab = focusOrderTab || fallbackTab;
   const [checkoutOrderId, setCheckoutOrderId] = useState(null);
   EFHooks.useStore(s => s.session.customerId);
   EFHooks.useStore(s => s.meta.version);
 
-  useEffect(() => {
-    if (focusOrderId != null && !Number.isNaN(focusOrderId)) {
-      const orderChanged = focusOrderId !== openOrderId;
-      if (orderChanged) {
-        setOpenOrderId(focusOrderId);
-        window.scrollTo(0, 0);
-      }
-      // An explicit `tab=` param wins (deep links from mail CTAs, and our own
-      // internal tab clicks which push the tab into the URL — see openOrder
-      // and the onTabChange handler below). Re-sync on every change so that
-      // re-clicking the same email CTA while the order is already open still
-      // jumps to the right tab. When no tab is in the URL (only when the
-      // order first opens), fall back to a state-appropriate default.
-      if (focusOrderTab) {
-        if (focusOrderTab !== openOrderTab) setOpenOrderTab(focusOrderTab);
-      } else if (orderChanged) {
-        const o = EFSelectors.selectOrder(store.getState(), focusOrderId);
-        const preGw = !o?.gwId || ['lead','qualified','offer_sent','invoice_sent','available','claimed_pending_approval'].includes(o?.status);
-        setOpenOrderTab(preGw ? 'status' : 'messages');
-      }
-    } else if (focusOrderId == null && openOrderId != null) {
-      // URL no longer carries an orderId (e.g. user hit back) — close the detail.
-      setOpenOrderId(null);
-    }
-  }, [focusOrderId, focusOrderTab]);
-
   const openOrder = (id, subTab = 'status') => {
     const map = { messages: 'messages', files: 'files', payments: 'payments', status: 'status' };
     const nextTab = map[subTab] || 'status';
-    setOpenOrderId(id);
-    setOpenOrderTab(nextTab);
     if (navigate) navigate('cust-orders', { orderId: id, tab: nextTab });
     window.scrollTo(0, 0);
   };
   const changeOrderTab = (nextTab) => {
-    setOpenOrderTab(nextTab);
-    if (navigate && openOrderId != null) navigate('cust-orders', { orderId: openOrderId, tab: nextTab });
+    if (navigate && openOrderId != null) navigate('cust-orders', { orderId: openOrderId, tab: nextTab }, { replace: true });
   };
   const closeOrder = () => {
-    setOpenOrderId(null);
     if (navigate) navigate('cust-orders');
     window.scrollTo(0, 0);
   };
@@ -1605,23 +1615,20 @@ function CustomerView({ role, setRole, selectPersona, toast, section, navigate, 
   // and the sidebar highlight at the same time (no more divergent navigation state).
   const ROUTE_FOR_TAB = { orders: 'cust-orders', messages: 'cust-messages', invoices: 'cust-invoices', downloads: 'cust-downloads', profile: 'cust-profile' };
   const switchTab = (t) => {
-    setOpenOrderId(null);
     if (navigate && ROUTE_FOR_TAB[t]) navigate(ROUTE_FOR_TAB[t]);
   };
 
   const openNotification = (n) => {
     const target = EFShell?.resolveNotificationTarget?.(n, 'customer');
-    if (target?.customerOrderId != null) {
-      if (navigate) navigate(ROUTE_FOR_TAB.orders);
-      openOrder(target.customerOrderId, target.tab || 'status');
-      return;
-    }
-    if (target?.customerSection) switchTab(target.customerSection);
+    if (!target?.name) return;
+    // Unified target shape: { name, params }. With URL-driven sub-state the
+    // detail view will mount from focusOrderId/focusOrderTab automatically.
+    if (navigate) navigate(target.name, target.params || {});
   };
 
   let body;
   if (openOrderId != null) {
-    body = <CustOrderDetail orderId={openOrderId} tab={openOrderTab} onTabChange={changeOrderTab} onBack={closeOrder} toast={toast} startCheckout={startCheckout}/>;
+    body = <CustOrderDetail orderId={openOrderId} tab={openOrderTab} onTabChange={changeOrderTab} onBack={closeOrder} toast={toast} startCheckout={startCheckout} goTo={goTo}/>;
   } else if (tab === 'messages') {
     body = <CustMessagesList openOrder={openOrder}/>;
   } else if (tab === 'invoices') {

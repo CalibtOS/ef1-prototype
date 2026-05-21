@@ -915,7 +915,11 @@ function releaseBatch(orderIds) {
 
 function approveExtension(orderId, payload = {}) {
   const o = order(orderId);
-  if (!o) return false;
+  const guard = W.canResolve(o, 'approve_extension');
+  if (!guard.ok) {
+    if (import.meta.env?.DEV) console.warn(`[approveExtension] ${guard.reason}`);
+    return false;
+  }
   const ext = o.extensionPending || {};
   const extraPages = Number(ext.extraPages) || 0;
   const extraFee = Number(ext.extraFee) || 0;
@@ -936,7 +940,11 @@ function approveExtension(orderId, payload = {}) {
 
 function rejectExtension(orderId, reason) {
   const o = order(orderId);
-  if (!o) return false;
+  const guard = W.canResolve(o, 'reject_extension');
+  if (!guard.ok) {
+    if (import.meta.env?.DEV) console.warn(`[rejectExtension] ${guard.reason}`);
+    return false;
+  }
   patchOrder(orderId, { status: 'active', extensionPending: null, extensionRejectedAt: nowIso(), extensionRejectReason: reason || null });
   notifyOrder(orderId, { to: 'gw', kind: 'extension_rejected', title: `Extension declined · #${orderId}`, body: reason ? `Reason: ${reason}` : 'Please continue with the original scope.' });
   return true;
@@ -944,7 +952,11 @@ function rejectExtension(orderId, reason) {
 
 function acceptDelay(orderId, payload = {}) {
   const o = order(orderId);
-  if (!o) return false;
+  const guard = W.canResolve(o, 'accept_delay');
+  if (!guard.ok) {
+    if (import.meta.env?.DEV) console.warn(`[acceptDelay] ${guard.reason}`);
+    return false;
+  }
   const newDeadline = payload.newDeadline || o.proposedNewDeadline || o.finalDeadline;
   patchOrder(orderId, {
     status: 'active',
@@ -959,7 +971,11 @@ function acceptDelay(orderId, payload = {}) {
 
 function proposeNewDelay(orderId, newDeadline) {
   const o = order(orderId);
-  if (!o) return false;
+  const guard = W.canResolve(o, 'propose_delay');
+  if (!guard.ok) {
+    if (import.meta.env?.DEV) console.warn(`[proposeNewDelay] ${guard.reason}`);
+    return false;
+  }
   patchOrder(orderId, { proposedNewDeadline: newDeadline });
   notifyOrder(orderId, { to: 'customer', kind: 'delay_counter', title: 'Gegenvorschlag für Liefertermin', body: `Auftrag #${orderId} · vorgeschlagen: ${newDeadline?.slice?.(0,10) || ''}` });
   notifyOrder(orderId, { to: 'gw', kind: 'delay_counter', title: `Admin proposed new deadline · #${orderId}`, body: newDeadline?.slice?.(0,10) || '' });
@@ -968,7 +984,11 @@ function proposeNewDelay(orderId, newDeadline) {
 
 function closeDispute(orderId, resolution) {
   const o = order(orderId);
-  if (!o) return false;
+  const guard = W.canResolve(o, 'close_dispute');
+  if (!guard.ok) {
+    if (import.meta.env?.DEV) console.warn(`[closeDispute] ${guard.reason}`);
+    return false;
+  }
   patchOrder(orderId, { disputeOpen: false, disputeResolution: resolution || 'resolved', disputeClosedAt: nowIso() });
   notifyOrder(orderId, { to: 'customer', kind: 'dispute_closed', title: `Streitfall gelöst · Auftrag #${orderId}`, body: resolution ? resolution.slice(0, 140) : 'Der Streitfall wurde geschlossen.' });
   notifyOrder(orderId, { to: 'gw', kind: 'dispute_closed', title: `Dispute closed · #${orderId}`, body: resolution ? resolution.slice(0, 140) : 'Closed by admin.' });
@@ -979,7 +999,11 @@ function closeDispute(orderId, resolution) {
 
 function confirmViolation(orderId, payload = {}) {
   const o = order(orderId);
-  if (!o) return false;
+  const guard = W.canResolve(o, 'confirm_violation');
+  if (!guard.ok) {
+    if (import.meta.env?.DEV) console.warn(`[confirmViolation] ${guard.reason}`);
+    return false;
+  }
   const reasonText = payload.reason || o.qaFlagReason || 'Quality violation confirmed';
   const violationType = o.status === 'plagiarism_violation_review' ? 'plagiarism' : 'ai';
   const originalGwId = o.gwId;
@@ -1007,7 +1031,11 @@ function confirmViolation(orderId, payload = {}) {
 
 function clearViolation(orderId, reason) {
   const o = order(orderId);
-  if (!o) return false;
+  const guard = W.canResolve(o, 'clear_violation');
+  if (!guard.ok) {
+    if (import.meta.env?.DEV) console.warn(`[clearViolation] ${guard.reason}`);
+    return false;
+  }
   // Restore the order to the appropriate prior state: if a final was already
   // submitted treat as delivered; otherwise back to qa_review.
   const restoreTo = o.lastSubmissionKind === 'final' || o.finalSubmittedAt ? 'delivered' : 'qa_review';
@@ -1055,6 +1083,32 @@ function setPersona({ role, customerId, gwId }) {
 
 function setRoute(route) {
   store.setState(prev => ({ ...prev, ui: { ...prev.ui, route } }), 'ui.setRoute');
+}
+
+// ─── Inbox navigation (D-26 single source of truth) ──────────────────────────
+// All inbox selection/filter state lives in store.ui.inboxNav so deep links,
+// notification clicks, and component state cannot desync.
+function patchInboxNav(patch, label) {
+  store.setState(prev => ({
+    ...prev,
+    ui: { ...prev.ui, inboxNav: { ...prev.ui.inboxNav, ...patch } },
+  }), label || 'ui.inboxNav.patch');
+}
+
+function setInboxScope(scope) {
+  patchInboxNav({ scope }, 'ui.inboxNav.setScope');
+}
+
+function setInboxView(view) {
+  patchInboxNav({ view }, 'ui.inboxNav.setView');
+}
+
+function selectInboxThread(selectedId) {
+  patchInboxNav({ selectedId }, 'ui.inboxNav.select');
+  if (selectedId) {
+    // Mark the active thread read for admin atomically with the selection.
+    T.markRead(selectedId, 'admin');
+  }
 }
 
 const actions = {
@@ -1116,6 +1170,12 @@ const actions = {
     redirect: T.redirect,
     flagFollowUp: T.flagFollowUp,
     snooze: T.snooze,
+    ensureAdminThreadForOrder: T.ensureAdminThreadForOrder,
+  },
+  inboxNav: {
+    setScope: setInboxScope,
+    setView: setInboxView,
+    select: selectInboxThread,
   },
 };
 

@@ -6,6 +6,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Icon } from '../../utils.jsx';
 import * as EFHooks from '../core/hooks.js';
 import EFActions from '../core/actions.js';
+import * as DomainEvents from '../core/events.js';
 import * as SimCheckout from './checkout.js';
 import * as SimEvents from './events.js';
 import { paymentMethodLabel } from './mail.js';
@@ -29,9 +30,9 @@ function FakeStripeCheckout({ params, navigate, switchRole }) {
     return undefined;
   }, [session?.status, session?.orderId]);
 
-  function returnToCustomer(orderId) {
-    if (switchRole) switchRole('customer', 'cust-orders', orderId ? { orderId } : {});
-    else if (navigate) navigate('cust-orders', orderId ? { orderId } : {});
+  function returnToCustomer() {
+    if (switchRole) switchRole('customer', 'cust-orders', {});
+    else if (navigate) navigate('cust-orders', {});
   }
 
   if (!session) {
@@ -68,6 +69,15 @@ function FakeStripeCheckout({ params, navigate, switchRole }) {
     setBusy('fail');
     setTimeout(() => {
       SimCheckout.patchSession(session.id, { status: 'failed', resolvedAt: new Date().toISOString() });
+      DomainEvents.emit('payment.failed', {
+        orderId: session.orderId,
+        customerId: session.customerId,
+        scenarioId: session.scenarioId,
+        sid: session.id,
+        installmentN: session.installmentN,
+        amount: session.amount,
+        method: session.method,
+      });
       SimEvents.emit({
         source: 'stripe',
         kind: 'stripe.webhook.payment_intent.failed',

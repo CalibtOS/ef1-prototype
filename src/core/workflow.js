@@ -121,6 +121,36 @@ function canTransition(order, name) {
   return { ok: true, to: rule.to };
 }
 
+// Admin resolution actions (approveExtension, rejectExtension, acceptDelay,
+// closeDispute, confirmViolation, clearViolation) don't fit the normal
+// transition graph because they exit a "stuck" state by patching multiple
+// fields at once. Rather than add transitions for every admin verb (and lose
+// the action-body semantics), each admin action declares its required
+// preconditions here and calls canResolve(order, kind) before patching.
+//
+// Missing this guard is how A-008 / A-010 slipped past review: extension
+// approval could be triggered from any status because nothing asserted that
+// the order was actually in `extension_requested`.
+const RESOLUTION_PRECONDITIONS = {
+  approve_extension: (o) => o.status === 'extension_requested' || !!o.extensionPending,
+  reject_extension:  (o) => o.status === 'extension_requested' || !!o.extensionPending,
+  accept_delay:      (o) => o.status === 'delay_reported',
+  propose_delay:     (o) => o.status === 'delay_reported',
+  close_dispute:     (o) => !!o.disputeOpen,
+  confirm_violation: (o) => o.status === 'ai_violation_review' || o.status === 'plagiarism_violation_review',
+  clear_violation:   (o) => o.status === 'ai_violation_review' || o.status === 'plagiarism_violation_review',
+};
+
+function canResolve(order, kind) {
+  const check = RESOLUTION_PRECONDITIONS[kind];
+  if (!order) return { ok: false, reason: 'Order not found' };
+  if (!check) return { ok: false, reason: `Unknown resolution kind: ${kind}` };
+  if (!check(order)) {
+    return { ok: false, reason: `Cannot ${kind.replace(/_/g, ' ')} while order is ${order.status}` };
+  }
+  return { ok: true };
+}
+
 function allowedSubmissionKinds(order, gwId) {
   if (!order || order.gwId !== gwId) return [];
   if (order.status === 'revision_required') return ['revision'];
@@ -324,8 +354,9 @@ function firstInstallment(order) {
 // Real timestamps (createdAt, offerSentAt, acceptedAt, …) are used when present.
 // When a stage is implied by status rank but no real timestamp exists, synthetic
 // values are derived from `anchor` — e.g. leadAt defaults to `anchor − 72h`.
-// Synthetic timestamps are not currently flagged on the return shape; consumers
-// that need to distinguish real-vs-synthetic should not rely on this helper alone.
+// Each returned date is paired with a `_synthetic` set on the result under
+// `.__synthetic` (a set of keys that were fabricated) so consumers can render
+// fabricated values differently and selectors can exclude them from KPIs.
 function lifecycleDates(order, submissions) {
   if (!order) return {};
   const rank = statusRank(order);
@@ -336,33 +367,64 @@ function lifecycleDates(order, submissions) {
   const firstPaid = firstPaidInstallment(order);
   const firstInst = firstInstallment(order);
   const anchor = order.createdAt || order.leadCreatedAt || order.acceptedAt || firstPaid?.date || firstInst?.date || latestSub?.submittedAt || '2026-05-07T10:00:00';
-  const leadAt = order.createdAt || order.leadCreatedAt || addHours(anchor, -72);
-  const qualifiedAt = order.qualifiedAt || (rank >= 1 ? addHours(leadAt, 2) : null);
-  const paymentAt = order.paymentConfirmedAt || ((order.paidEur || 0) > 0 || (rank >= 4 && order.status !== 'invoice_sent')
-    ? asIso(firstPaid?.date || order.acceptedAt || firstInst?.date, '12:20:00')
-    : null);
-  const offerAt = order.offerSentAt || (rank >= 2 || canShowMoney(order)
-    ? addHours(order.acceptedAt || paymentAt || qualifiedAt, -24)
-    : null);
-  const invoiceAt = order.invoiceSentAt || order.invoiceRequestAt || (rank >= 3 || (canShowReceivable(order) && ((order.installments || []).length || (order.outstandingEur || 0) > 0))
-    ? addHours(order.acceptedAt || paymentAt || firstInst?.date || offerAt, -2)
-    : null);
-  const acceptedAt = order.acceptedAt || (rank >= 3 ? addHours(invoiceAt || offerAt, 1) : null);
+  const synth = new Set();
+  const mark = (key, real, derived) => {
+    if (real) return real;
+    if (derived) synth.add(key);
+    return derived;
+  };
+  const leadAt = mark('leadAt', order.createdAt || order.leadCreatedAt, addHours(anchor, -72));
+  const qualifiedAt = mark('qualifiedAt', order.qualifiedAt, rank >= 1 ? addHours(leadAt, 2) : null);
+  const paymentAt = mark('paymentAt', order.paymentConfirmedAt,
+    (order.paidEur || 0) > 0 || (rank >= 4 && order.status !== 'invoice_sent')
+      ? asIso(firstPaid?.date || order.acceptedAt || firstInst?.date, '12:20:00')
+      : null);
+  const offerAt = mark('offerAt', order.offerSentAt,
+    rank >= 2 || canShowMoney(order)
+      ? addHours(order.acceptedAt || paymentAt || qualifiedAt, -24)
+      : null);
+  const invoiceAt = mark('invoiceAt', order.invoiceSentAt || order.invoiceRequestAt,
+    rank >= 3 || (canShowReceivable(order) && ((order.installments || []).length || (order.outstandingEur || 0) > 0))
+      ? addHours(order.acceptedAt || paymentAt || firstInst?.date || offerAt, -2)
+      : null);
+  const acceptedAt = mark('acceptedAt', order.acceptedAt, rank >= 3 ? addHours(invoiceAt || offerAt, 1) : null);
   const boardAt = order.jobBoardPublishedAt || null;
   const claimedAt = order.claimedAt || null;
   const assignedAt = order.assignedAt || order.claimApprovedAt || null;
-  const interimAt = latestInterim?.submittedAt || order.interimSubmittedAt || (rank >= 7 && order.interimDeadline ? asIso(order.interimDeadline, '17:50:00') : null);
-  const finalSubmittedAt = order.finalSubmittedAt || latestFinal?.submittedAt || (rank >= 10 ? addHours(order.finalDeadline, -3) : null);
-  const qaReviewedAt = latestFinal?.reviewedAt || order.qaReviewedAt || order.deliveredAt || ((order.qaPassed || rank >= 13) && finalSubmittedAt ? addHours(finalSubmittedAt, 2) : null);
-  const deliveredAt = order.deliveredAt || latestFinal?.forwardedAt || (rank >= 13 ? addHours(qaReviewedAt || finalSubmittedAt, 0.1) : null);
-  const finalAcceptedAt = order.finalAcceptedAt || ((order.customerSatisfied || rank >= 14) ? addHours(order.completedAt || deliveredAt, order.completedAt ? -24 : 24) : null);
-  const paidToGwAt = order.paidToGwAt || (order.gwPaymentStatus === 'paid' ? (order.completedAt || addHours(finalAcceptedAt, 48)) : null);
-  const completedAt = order.completedAt || (order.status === 'completed' ? paidToGwAt || finalAcceptedAt : null);
-  return {
+  const interimAt = mark('interimAt',
+    latestInterim?.submittedAt || order.interimSubmittedAt,
+    rank >= 7 && order.interimDeadline ? asIso(order.interimDeadline, '17:50:00') : null);
+  const finalSubmittedAt = mark('finalSubmittedAt',
+    order.finalSubmittedAt || latestFinal?.submittedAt,
+    rank >= 10 ? addHours(order.finalDeadline, -3) : null);
+  const qaReviewedAt = mark('qaReviewedAt',
+    latestFinal?.reviewedAt || order.qaReviewedAt || order.deliveredAt,
+    (order.qaPassed || rank >= 13) && finalSubmittedAt ? addHours(finalSubmittedAt, 2) : null);
+  const deliveredAt = mark('deliveredAt',
+    order.deliveredAt || latestFinal?.forwardedAt,
+    rank >= 13 ? addHours(qaReviewedAt || finalSubmittedAt, 0.1) : null);
+  const finalAcceptedAt = mark('finalAcceptedAt',
+    order.finalAcceptedAt,
+    (order.customerSatisfied || rank >= 14) ? addHours(order.completedAt || deliveredAt, order.completedAt ? -24 : 24) : null);
+  const paidToGwAt = mark('paidToGwAt',
+    order.paidToGwAt,
+    order.gwPaymentStatus === 'paid' ? (order.completedAt || addHours(finalAcceptedAt, 48)) : null);
+  const completedAt = mark('completedAt',
+    order.completedAt,
+    order.status === 'completed' ? paidToGwAt || finalAcceptedAt : null);
+  const result = {
     leadAt, qualifiedAt, offerAt, invoiceAt, acceptedAt, paymentAt, boardAt,
     claimedAt, assignedAt, interimAt, finalSubmittedAt, qaReviewedAt,
     deliveredAt, finalAcceptedAt, paidToGwAt, completedAt,
   };
+  // Non-enumerable so existing JSON snapshots and shallow copies don't change.
+  Object.defineProperty(result, '__synthetic', { value: synth, enumerable: false });
+  return result;
+}
+
+// Helper for consumers that want to know whether a specific date is fabricated.
+function isSyntheticDate(lifecycle, key) {
+  return !!(lifecycle && lifecycle.__synthetic && lifecycle.__synthetic.has(key));
 }
 
 function qaStatusForDerivedFinal(order) {
@@ -590,6 +652,7 @@ export {
   TRANSITIONS,
   CLOSED_SUBMISSION_REASONS,
   canTransition,
+  canResolve,
   allowedSubmissionKinds,
   submissionClosedReason,
   submissionKindToEntityKind,
@@ -610,6 +673,7 @@ export {
   asIso,
   addHours,
   lifecycleDates,
+  isSyntheticDate,
   deriveSubmissions,
   buildOrderEvents,
   allInstallmentsPaid,

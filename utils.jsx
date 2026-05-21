@@ -369,6 +369,87 @@ const ChatMessage = ({
   );
 };
 
+// EmailCard — Renders an email-medium message (System B) as a card with
+// subject, recipients, attachments, and an expand/collapse body. Distinct from
+// ChatMessage on purpose: emails are structurally richer (subject, To/CC/BCC,
+// attachments) and rendering them as chat bubbles flattens that — Ferhat's
+// correction from the 2026-05-21 meeting. See docs/inbox_architecture_plan.md.
+const EmailCard = ({ message, direction = 'inbound', senderName, initialExpanded = false, onReply }) => {
+  const [expanded, setExpanded] = React.useState(!!initialExpanded);
+  const subject = message.subject || '(no subject)';
+  const to = Array.isArray(message.to) ? message.to : (message.to ? [message.to] : []);
+  const cc = Array.isArray(message.cc) ? message.cc : (message.cc ? [message.cc] : []);
+  const bcc = Array.isArray(message.bcc) ? message.bcc : (message.bcc ? [message.bcc] : []);
+  const attachments = message.attachments || [];
+  const fromLabel = direction === 'outbound' ? 'efactory1' : (senderName || 'Customer');
+  return (
+    <div className={`email-card email-card-${direction}`}>
+      <div className="email-card-head">
+        <div className="email-card-icon"><Icon name="mail" size={14}/></div>
+        <div className="email-card-headline">
+          <div className="email-card-subject">{subject}</div>
+          <div className="email-card-meta">
+            <span><strong>From:</strong> {fromLabel}</span>
+            {to.length > 0 && <span><strong>To:</strong> {to.join(', ')}</span>}
+            {cc.length > 0 && <span><strong>CC:</strong> {cc.join(', ')}</span>}
+            {bcc.length > 0 && <span><strong>BCC:</strong> {bcc.join(', ')}</span>}
+          </div>
+        </div>
+        <div className="email-card-when">
+          {message.at && <span>{fmtDateTime(message.at)}</span>}
+          {attachments.length > 0 && <span className="email-card-attach-count"><Icon name="paperclip" size={11}/> {attachments.length}</span>}
+        </div>
+      </div>
+      <button
+        type="button"
+        className="email-card-toggle"
+        onClick={() => setExpanded(v => !v)}
+        aria-expanded={expanded}
+      >
+        <Icon name={expanded ? 'chevron-up' : 'chevron-down'} size={12}/>
+        <span>{expanded ? 'Collapse' : 'Show body'}</span>
+      </button>
+      {expanded && (
+        <div className="email-card-body">
+          <div style={{ whiteSpace: 'pre-wrap' }}>{message.body}</div>
+          {attachments.length > 0 && (
+            <div className="email-card-attachments">
+              {attachments.map((a, i) => (
+                <div key={i} className="email-card-attachment">
+                  <Icon name={a.icon || 'paperclip'} size={12}/>
+                  <span>{a.name}</span>
+                  {a.meta && <small>{a.meta}</small>}
+                </div>
+              ))}
+            </div>
+          )}
+          {onReply && (
+            <div className="email-card-actions">
+              <button type="button" className="btn-quiet" onClick={onReply}>
+                <Icon name="reply" size={12}/> Reply
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+};
+
+// Tiny chip that shows the medium an inbound/outbound message used. Useful in
+// the System B combined view so Berat can see at a glance whether a row was
+// email or WhatsApp. System A messages don't need this (they're all platform).
+const MediumChip = ({ medium }) => {
+  if (!medium || medium === 'platform') return null;
+  const label = medium === 'email' ? 'Email' : medium === 'whatsapp' ? 'WhatsApp' : medium === 'voice' ? 'Voice' : medium;
+  const icon = medium === 'email' ? 'mail' : medium === 'whatsapp' ? 'message-circle' : 'phone';
+  return (
+    <span className={`medium-chip medium-chip-${medium}`}>
+      <Icon name={icon} size={10}/> {label}
+    </span>
+  );
+};
+
 const ChatComposer = ({ value, onChange, onSend, placeholder, disabled, helper, actions, sendLabel = 'Senden' }) => (
   <div className="chat-composer">
     {helper}
@@ -427,7 +508,7 @@ export {
   EUR, fmtDate, fmtDateTime, fmtTime, now, useNow, fmtClock, fmtWeekdayDate,
   greetingFor, fridayBatchLabel, relTime, daysTo, deadlineMeta,
   Icon, StatusPill, Avatar, Money, Bi, ScoreBar, NotReady, PlannedTag,
-  EmptyState, Skeleton, ChatNotice, ChatMessage, ChatComposer, ChatThreadRow,
+  EmptyState, Skeleton, ChatNotice, ChatMessage, EmailCard, MediumChip, ChatComposer, ChatThreadRow,
   WORK_TYPE_TONES,
 };
 
@@ -435,7 +516,7 @@ export {
 // Tokens are CSS variables (see :root in styles.css); EFDS.tokens documents the canonical names
 // so future code can read them via getComputedStyle() or simply consult this map.
 export const EFDS = {
-  components: { Icon, StatusPill, Avatar, Money, Bi, ScoreBar, NotReady, PlannedTag, EmptyState, Skeleton, ChatNotice, ChatMessage, ChatComposer, ChatThreadRow },
+  components: { Icon, StatusPill, Avatar, Money, Bi, ScoreBar, NotReady, PlannedTag, EmptyState, Skeleton, ChatNotice, ChatMessage, EmailCard, MediumChip, ChatComposer, ChatThreadRow },
   tokens: {
     color: {
       // semantics → css var name

@@ -186,8 +186,8 @@ function GWJobBoard({ navigate, toast, role = 'gw' }) {
             <col style={{ width: 138 }} />
             {isAdmin && <col style={{ width: 112 }} />}
             {isAdmin && <col style={{ width: 160 }} />}
-            <col style={{ width: 280 }} />
             <col style={{ width: 154 }} />
+            <col style={{ width: 280 }} />
           </colgroup>
           <thead>
             <tr>
@@ -201,8 +201,8 @@ function GWJobBoard({ navigate, toast, role = 'gw' }) {
               <th className="num">{isAdmin ? 'GW-Honorar' : 'Gesamthonorar'} <span>Netto</span></th>
               {isAdmin && <th className="num">Brutto</th>}
               {isAdmin && <th>Kunde</th>}
-              <th>Weitere Notiz von efactory1.de</th>
               <th aria-label="Aktion"></th>
+              <th>Weitere Notiz von efactory1.de</th>
             </tr>
           </thead>
           <tbody>
@@ -247,11 +247,6 @@ function GWJobBoard({ navigate, toast, role = 'gw' }) {
                       </div>
                     </td>
                   )}
-                  <td className="gw-board-note-cell">
-                    {j.adminNote ? (
-                      <div title={j.adminNote}>{j.adminNote}</div>
-                    ) : <span className="text-faint">—</span>}
-                  </td>
                   <td onClick={(e) => e.stopPropagation()} className="num">
                     {isAdmin ? (
                       <div className="flex gap-1" style={{ justifyContent: 'flex-end' }}>
@@ -278,6 +273,11 @@ function GWJobBoard({ navigate, toast, role = 'gw' }) {
                       </button>
                     )}
                   </td>
+                  <td className="gw-board-note-cell">
+                    {j.adminNote ? (
+                      <div title={j.adminNote}>{j.adminNote}</div>
+                    ) : <span className="text-faint">—</span>}
+                  </td>
                 </tr>
               );
             })}
@@ -286,19 +286,17 @@ function GWJobBoard({ navigate, toast, role = 'gw' }) {
           </div>
         </div>
       </section>
-      {!isAdmin && claimingId && <ClaimModal job={unclaimed.find(j => j.id === claimingId)} onClose={() => setClaimingId(null)} toast={toast} navigate={navigate}/>}
+      {!isAdmin && claimingId && <ClaimModal job={unclaimed.find(j => j.id === claimingId)} gwId={currentGwId} onClose={() => setClaimingId(null)} toast={toast} navigate={navigate}/>}
     </div>
   );
 }
 
-function ClaimModal({ job, onClose, toast, navigate }) {
+function ClaimModal({ job, gwId, onClose, toast, navigate }) {
   const [step, setStep] = useState(1);
   const [acks, setAcks] = useState({ agb: false, ai: false, gdpr: false, deadline: false, fee: false, individual: false });
   const allAcked = Object.values(acks).every(Boolean);
   const submit = () => {
-    // Stateful transition: order moves to claimed_pending_approval and is bound
-    // to the logged-in GW (Isabel Walter, gw-iw). Visible across all role views.
-    EFActions.gw.claimJob(job.id, 'gw-iw');
+    EFActions.gw.claimJob(job.id, gwId);
     onClose();
     toast({
       tone: 'info',

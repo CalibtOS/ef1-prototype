@@ -12,8 +12,14 @@ import { QA_STATUS } from '../core/status.js';
 import { SubmissionsTab } from '../admin/order-detail.jsx';
 const D = EF;
 
-function QAOrderDetail({ orderId, navigate, toast }) {
-  const [tab, setTab] = useState('overview');
+function QAOrderDetail({ orderId, navigate, toast, initialTab }) {
+  // URL-bound (Arch-04): tab clicks push via replaceState; ?tab= is the source.
+  const tab = initialTab || 'overview';
+  const setTab = (t) => {
+    const params = { id: orderId };
+    if (t && t !== 'overview') params.tab = t;
+    navigate('order-detail', params, { replace: true });
+  };
   const order = EFHooks.useOrder(orderId);
   const actualSubs = EFHooks.useSubmissions({ orderId });
   const displaySubs = EFHooks.useDisplaySubmissions(orderId);

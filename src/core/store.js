@@ -13,6 +13,14 @@ const initialState = {
   ui: {
     route: { name: 'admin-dashboard', params: {} },
     tweaks: null,
+    // Single source of truth for the admin Inbox selection / filter state.
+    // Components subscribe to this slice instead of holding their own
+    // local useState — prevents nav/deep-link/notification-click desync (D-26).
+    inboxNav: {
+      scope: 'all',        // 'all' | 'orders' | 'leads' | 'gws'
+      view: 'combined',    // 'combined' | 'email' | 'whatsapp'
+      selectedId: null,    // active thread id
+    },
   },
   meta: { version: 0 },
 };
