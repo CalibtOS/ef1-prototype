@@ -1,7 +1,7 @@
 // Admin · Order detail — overview, payments, submissions, comms, assignment, audit tabs.
 
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { Icon, StatusPill, Avatar, Money, Bi, ScoreBar, NotReady, PlannedTag, EmptyState, Skeleton, ChatNotice, ChatMessage, ChatComposer, EmailCard } from '../../utils.jsx';
+import { Icon, StatusPill, Avatar, Money, Bi, ScoreBar, NotReady, PlannedTag, EmptyState, Skeleton, ChatNotice, ChatMessage, ChatComposer } from '../../utils.jsx';
 import * as U from '../../utils.jsx';
 import { CrumbBar } from '../../shell.jsx';
 import { liveNow } from '../../data.js';
@@ -1393,59 +1393,72 @@ function SubmissionsTab({ order, navigate, focusSubmissionId }) {
   );
 }
 
-// ─── CommsTab: side-by-side System A + System B per order (D-26) ───────────
-// Two distinct threads for the same order, two distinct composers, one screen.
-// System A (left) = in-platform customer↔GW chat (delivery 'platform' only).
-// System B (right) = Berat's email/WhatsApp with the customer/GW (View filter:
-// Combined / Email only / WhatsApp only — render-time filter over one stream).
 function CommsTab({ order, toast }) {
-  return (
-    <div className="comms-split">
-      <SystemAPane order={order} toast={toast}/>
-      <SystemBPane order={order} toast={toast}/>
-    </div>
-  );
-}
-
-function mediumOfMsg(m) {
-  if (!m) return 'platform';
-  if (m.from === 'system') return 'system';
-  return m.delivery_channel || m.origin_channel || 'platform';
-}
-
-function channelLabel(ch) {
-  if (ch === 'whatsapp') return 'WhatsApp';
-  if (ch === 'platform') return 'Platform';
-  if (ch === 'voice') return 'Voice';
-  if (ch === 'system' || ch === 'internal') return 'System';
-  return 'Email';
-}
-
-// System A — platform_chat between customer and GW (admin reads + moderates).
-function SystemAPane({ order, toast }) {
+  const [channelFilter, setChannelFilter] = useState('all');
   const [reply, setReply] = useState('');
+  const [deliveryRail, setDeliveryRail] = useState('email');
   const cust = D.customer(order.customerId);
   const gw = D.gw(order.gwId);
-  const liveThread = EFHooks.useThreadByOrder(order.id);
-  const messages = (liveThread?.messages || []).slice().sort((a, b) => new Date(a.at) - new Date(b.at));
+  const customerInitials = cust?.initials || 'CU';
+  const gwInitials = gw?.initials || 'GW';
+  const thread = EFHooks.useThreadByOrder(order.id);
 
-  // D-26 payment-flex: single derived predicate. When the real installment
-  // workflow lands we change this one place — not chat code scattered around.
-  const unlocked = !!order.gwId && !['lead', 'qualified', 'offer_sent', 'invoice_sent'].includes(order.status);
+  const normalizeLegacyChannel = (value) => {
+    if (value === 'email_proxy') return 'email';
+    if (value === 'whatsapp_proxy') return 'whatsapp';
+    if (value === 'platform_chat') return 'platform';
+    if (value === 'voice_metadata') return 'voice';
+    if (value === 'multi_channel') return 'multi';
+    return value || 'platform';
+  };
+  const fallbackOrigin = normalizeLegacyChannel(thread?.channel);
+  const enriched = useMemo(() => {
+    return [...(thread?.messages || [])]
+      .map(m => ({
+        ...m,
+        origin_channel: m.origin_channel || (m.from === 'admin' ? 'admin' : m.from === 'system' ? 'system' : fallbackOrigin),
+        delivery_channel: m.delivery_channel || (m.from === 'system' ? 'internal' : fallbackOrigin === 'multi' ? 'email' : fallbackOrigin),
+      }))
+      .sort((a, b) => new Date(a.at) - new Date(b.at));
+  }, [thread?.messages, fallbackOrigin]);
+
+  const channelLabel = (channel) => {
+    if (channel === 'whatsapp') return 'WhatsApp';
+    if (channel === 'platform') return 'Platform';
+    if (channel === 'voice') return 'Voice';
+    if (channel === 'system' || channel === 'internal') return 'System';
+    return 'Email';
+  };
+  const displayChannel = (m) => {
+    if (m.from === 'admin') return m.delivery_channel || 'email';
+    return m.origin_channel || m.delivery_channel || 'platform';
+  };
+  const matchesFilter = (m) => {
+    if (channelFilter === 'all') return true;
+    if (channelFilter === 'email') return m.origin_channel === 'email' || (m.from === 'admin' && m.delivery_channel === 'email');
+    if (channelFilter === 'whatsapp') return m.origin_channel === 'whatsapp' || (m.from === 'admin' && m.delivery_channel === 'whatsapp');
+    if (channelFilter === 'platform') return m.origin_channel === 'platform' || (m.from === 'admin' && m.delivery_channel === 'platform');
+    return true;
+  };
+  const visibleMessages = enriched.filter(matchesFilter);
+  const hiddenCount = enriched.length - visibleMessages.length;
+  const hiddenLabel = channelFilter === 'all' ? '' : ['email', 'whatsapp', 'platform']
+    .filter(ch => ch !== channelFilter)
+    .map(channelLabel)
+    .join('/');
 
   const sendReply = () => {
     if (!reply.trim()) return;
     const msg = EFActions.threads.send({
-      threadId: liveThread?.id,
-      threadType: 'order',
+      threadId: thread?.id,
       orderId: order.id,
       role: 'admin',
       body: reply,
       origin_channel: 'admin',
-      delivery_channel: 'platform',
+      delivery_channel: deliveryRail,
     });
     if (msg) {
-      toast && toast({ tone: 'success', text: `Posted in order chat · #${order.id}` });
+      toast && toast({ tone: 'success', text: `Reply sent via ${channelLabel(deliveryRail)} · order #${order.id}` });
       setReply('');
     }
   };
@@ -1455,33 +1468,48 @@ function SystemAPane({ order, toast }) {
       <div className="chat-header">
         <div className="chat-title">
           <div>
-            <span className="chat-title-main">Order Chat <span className="pill pill-slate" style={{ fontSize: 10, marginLeft: 6 }}>System A</span></span>
-            <span className="chat-title-sub">Group chat · {cust?.name || 'Customer'} · {gw?.name || 'Ghostwriter'} · efactory1</span>
+            <span className="chat-title-main">Unified communications</span>
+            <span className="chat-title-sub">Order #{order.id} · channel is metadata on each bubble</span>
           </div>
         </div>
+        <div className="flex gap-1">
+          {[
+            ['all', 'All'],
+            ['email', 'Email'],
+            ['whatsapp', 'WhatsApp'],
+            ['platform', 'Platform'],
+          ].map(([id, label]) => (
+            <button type="button" key={id} className={`chip ${channelFilter === id ? 'active' : ''}`} onClick={() => setChannelFilter(id)}>{label}</button>
+          ))}
+        </div>
       </div>
-      <ChatNotice compact icon="users">
-        Three-way group chat for this order. All messages visible to {cust?.name || 'customer'}, {gw?.name || 'GW'}, and efactory1. Pricing keywords auto-redirect to kundenservice.
+      <ChatNotice compact>
+        One order thread, multiple doors in. Email, WhatsApp and portal rows stay chronological; filters only hide rows temporarily.
       </ChatNotice>
-      {!unlocked && (
-        <ChatNotice compact icon="alert-triangle" tone="warn">
-          Chat unlocks once the order is paid and a Ghostwriter is assigned.
+      {hiddenCount > 0 && (
+        <ChatNotice compact icon="eye-off">
+          {hiddenCount} message{hiddenCount === 1 ? '' : 's'} hidden while filtered to {channelLabel(channelFilter)} ({hiddenLabel}).
         </ChatNotice>
       )}
-      <div className="chat-stream" style={{ maxHeight: 480 }}>
-        {messages.length === 0 ? (
-          <EmptyState compact icon="message-square" title="No messages yet" body="Customer ↔ GW chat will appear here once the order is paid + assigned."/>
-        ) : messages.map((m, i) => {
+      <div className="chat-stream" style={{ maxHeight: 560 }}>
+        {visibleMessages.length === 0 && (
+          <EmptyState compact icon="message-square" title="No messages in this view" body={enriched.length ? 'Switch back to All to see the full order thread.' : 'Messages for this order will appear here.'}/>
+        )}
+        {visibleMessages.map((m, i) => {
           const sys = m.from === 'system' || m.system;
           if (sys) return <ChatMessage key={m.id || i} system at={m.at}>{m.body}</ChatMessage>;
           const mine = m.from === 'admin';
-          const sender = m.from === 'gw' ? (gw?.name || 'Ghostwriter')
-            : m.from === 'customer' ? (cust?.name || 'Customer')
-            : 'efactory1';
-          const initials = m.from === 'gw' ? (gw?.initials || 'GW')
-            : m.from === 'customer' ? (cust?.initials || 'CU')
-            : 'EF';
-          const prev = messages[i - 1];
+          const sender = m.from === 'gw'
+            ? (gw?.name || 'Ghostwriter')
+            : m.from === 'customer'
+              ? (cust?.name || 'Customer')
+              : 'efactory1';
+          const initials = m.from === 'gw'
+            ? gwInitials
+            : m.from === 'customer'
+              ? customerInitials
+              : 'EF';
+          const prev = visibleMessages[i - 1];
           const grouped = !!prev && prev.from === m.from && !(prev.from === 'system' || prev.system);
           return (
             <ChatMessage
@@ -1491,8 +1519,9 @@ function SystemAPane({ order, toast }) {
               initials={initials}
               at={m.at}
               grouped={grouped}
+              channel={!grouped ? channelLabel(displayChannel(m)) : null}
               attachments={m.attachments}
-              tone={mine ? 'blue' : 'slate'}
+              status={mine ? `sent via ${channelLabel(m.delivery_channel)}` : null}
             >
               {m.body}
             </ChatMessage>
@@ -1503,136 +1532,7 @@ function SystemAPane({ order, toast }) {
         value={reply}
         onChange={(e) => setReply(e.target.value)}
         onSend={sendReply}
-        placeholder={`Post to ${cust?.name || 'customer'} & ${gw?.name || 'GW'} as efactory1…`}
-        sendLabel="Send to group"
-      />
-    </div>
-  );
-}
-
-// System B — Berat's email/WhatsApp with the customer (and/or GW) for this order.
-function SystemBPane({ order, toast }) {
-  const [view, setView] = useState('combined');  // combined | email | whatsapp
-  const [reply, setReply] = useState('');
-  const [deliveryRail, setDeliveryRail] = useState('email');
-  const cust = D.customer(order.customerId);
-  const gw = D.gw(order.gwId);
-
-  const adminThread = EFHooks.useOrderAdminThread(order.id);
-
-  const enriched = useMemo(() => {
-    return [...(adminThread?.messages || [])]
-      .map(m => ({ ...m, _medium: mediumOfMsg(m) }))
-      .sort((a, b) => new Date(a.at) - new Date(b.at));
-  }, [adminThread?.messages]);
-
-  const visibleMessages = enriched.filter(m => {
-    if (view === 'combined') return true;
-    if (m._medium === 'system' || m._medium === 'internal') return true;
-    return m._medium === view;
-  });
-  const hiddenCount = enriched.length - visibleMessages.length;
-
-  // Default composer channel = the latest inbound message's channel
-  useEffect(() => {
-    const lastInbound = [...enriched].reverse().find(m => m.from !== 'admin' && m.from !== 'system');
-    if (lastInbound && (lastInbound._medium === 'email' || lastInbound._medium === 'whatsapp')) {
-      setDeliveryRail(lastInbound._medium);
-    }
-  }, [adminThread?.id]);
-
-  const sendReply = () => {
-    if (!reply.trim()) return;
-    const msg = EFActions.threads.send({
-      threadId: adminThread?.id,
-      threadType: 'order_admin',
-      orderId: order.id,
-      role: 'admin',
-      body: reply,
-      origin_channel: 'admin',
-      delivery_channel: deliveryRail,
-    });
-    if (msg) {
-      toast && toast({ tone: 'success', text: `Sent via ${channelLabel(deliveryRail)} · #${order.id}` });
-      setReply('');
-    }
-  };
-
-  return (
-    <div className="chat-shell chat-shell-soft">
-      <div className="chat-header">
-        <div className="chat-title">
-          <div>
-            <span className="chat-title-main">Admin Thread <span className="pill pill-blue" style={{ fontSize: 10, marginLeft: 6 }}>System B</span></span>
-            <span className="chat-title-sub">Berat ↔ {cust?.name || 'customer'} · email + WhatsApp</span>
-          </div>
-        </div>
-        <div className="flex gap-1">
-          {[
-            ['combined', 'Combined'],
-            ['email', 'Email'],
-            ['whatsapp', 'WhatsApp'],
-          ].map(([id, label]) => (
-            <button type="button" key={id} className={`chip ${view === id ? 'active' : ''}`} onClick={() => setView(id)}>{label}</button>
-          ))}
-        </div>
-      </div>
-      <ChatNotice compact icon="lock">
-        Not visible to {cust?.name || 'customer'} or {gw?.name || 'the GW'}. They see this conversation in their own email/WhatsApp inbox.
-      </ChatNotice>
-      {hiddenCount > 0 && (
-        <ChatNotice compact icon="eye-off">
-          {hiddenCount} message{hiddenCount === 1 ? '' : 's'} hidden by view filter.
-        </ChatNotice>
-      )}
-      <div className="chat-stream" style={{ maxHeight: 480 }}>
-        {visibleMessages.length === 0 ? (
-          <EmptyState compact icon="mail" title="No external messages yet" body="Emails and WhatsApp between Berat and the customer for this order will appear here."/>
-        ) : visibleMessages.map((m, i) => {
-          const sys = m.from === 'system' || m.system;
-          if (sys) return <ChatMessage key={m.id || i} system at={m.at}>{m.body}</ChatMessage>;
-          const mine = m.from === 'admin';
-          const senderName = m.from === 'gw' ? (gw?.name || 'Ghostwriter')
-            : m.from === 'customer' ? (cust?.name || 'Customer')
-            : 'efactory1';
-          if (m._medium === 'email') {
-            return (
-              <EmailCard
-                key={m.id || i}
-                message={m}
-                direction={mine ? 'outbound' : 'inbound'}
-                senderName={senderName}
-                initialExpanded={i === visibleMessages.length - 1}
-              />
-            );
-          }
-          const initials = m.from === 'gw' ? (gw?.initials || 'GW')
-            : m.from === 'customer' ? (cust?.initials || 'CU')
-            : 'EF';
-          const prev = visibleMessages[i - 1];
-          const grouped = !!prev && prev.from === m.from && !(prev.from === 'system' || prev.system) && prev._medium === m._medium;
-          return (
-            <ChatMessage
-              key={m.id || i}
-              mine={mine}
-              sender={senderName}
-              initials={initials}
-              at={m.at}
-              grouped={grouped}
-              attachments={m.attachments}
-              channel={!grouped ? channelLabel(m._medium) : null}
-              tone={mine ? 'blue' : 'slate'}
-            >
-              {m.body}
-            </ChatMessage>
-          );
-        })}
-      </div>
-      <ChatComposer
-        value={reply}
-        onChange={(e) => setReply(e.target.value)}
-        onSend={sendReply}
-        placeholder={`Email or WhatsApp ${cust?.name || 'customer'}…`}
+        placeholder={`Reply about order #${order.id}...`}
         sendLabel={`Send via ${channelLabel(deliveryRail)}`}
         actions={<>
           <div className="flex gap-1">

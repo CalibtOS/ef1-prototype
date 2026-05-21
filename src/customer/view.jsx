@@ -1224,13 +1224,9 @@ function CustOrderDetail({ orderId, tab, onTabChange, onBack, toast, startChecko
 function CustMessagesList({ openOrder }) {
   const orders = custOrders().filter(o => o.gwId);
   const allThreads = EFHooks.useThreads();
-  // Customer surface only ever sees System A (in-platform order chat).
-  // System B (admin's email/WhatsApp) must never appear here (D-26 hard guard).
   const threadsByOrder = useMemo(() => {
     const m = {};
-    allThreads
-      .filter(t => (t.threadType || 'order') === 'order')
-      .forEach(t => { m[t.orderId] = t; });
+    allThreads.forEach(t => { m[t.orderId] = t; });
     return m;
   }, [allThreads]);
 

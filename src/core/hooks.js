@@ -106,14 +106,8 @@ function useThreads() {
   return useStore(S.selectThreads, shallowEqual);
 }
 
-// Admin inbox = System B only (order_admin + lead + gw_direct). System A
-// threads live on the order detail's chat tab, not in the inbox.
-function useInboxThreads() {
-  return useStore(S.selectInboxThreads, shallowEqual);
-}
-
-// Subscribes the consumer to ui.inboxNav — the single source of truth for
-// scope/view/selectedId. Components never hold local copies of these.
+// Subscribes to ui.inboxNav — the single source of truth for the admin inbox
+// selection + view filter. Components never hold local copies of these.
 function useInboxNav() {
   return useStore(state => state.ui.inboxNav, shallowEqual);
 }
@@ -125,11 +119,6 @@ function useThread(id) {
 
 function useThreadByOrder(orderId) {
   const selector = React.useMemo(() => (state) => S.selectThreadByOrder(state, orderId), [orderId]);
-  return useStore(selector, shallowEqual);
-}
-
-function useOrderAdminThread(orderId) {
-  const selector = React.useMemo(() => (state) => S.selectOrderAdminThread(state, orderId), [orderId]);
   return useStore(selector, shallowEqual);
 }
 
@@ -185,11 +174,9 @@ export {
   useGhostwriters,
   useCustomers,
   useThreads,
-  useInboxThreads,
   useInboxNav,
   useThread,
   useThreadByOrder,
-  useOrderAdminThread,
   useNotifications,
   useCurrentRole,
   useNavigation,

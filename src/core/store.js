@@ -13,13 +13,17 @@ const initialState = {
   ui: {
     route: { name: 'admin-dashboard', params: {} },
     tweaks: null,
-    // Single source of truth for the admin Inbox selection / filter state.
-    // Components subscribe to this slice instead of holding their own
-    // local useState — prevents nav/deep-link/notification-click desync (D-26).
+    // Single source of truth for the admin Inbox surface (selection + view
+    // filter). Components subscribe to this slice instead of holding their own
+    // local useState — prevents nav/deep-link/notification-click desync.
+    //
+    // Deliberately minimal — no `scope` field. The admin inbox under the
+    // (forthcoming) contact-keyed model is one flat chronological list of
+    // conversations; there is no Orders/Leads/GWs primary axis. The medium
+    // filter stays because it's a pure render-time filter.
     inboxNav: {
-      scope: 'all',        // 'all' | 'orders' | 'leads' | 'gws'
       view: 'combined',    // 'combined' | 'email' | 'whatsapp'
-      selectedId: null,    // active thread id
+      selectedId: null,    // active conversation/thread id (set by the upcoming impl)
     },
   },
   meta: { version: 0 },

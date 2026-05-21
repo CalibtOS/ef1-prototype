@@ -369,11 +369,11 @@ const ChatMessage = ({
   );
 };
 
-// EmailCard — Renders an email-medium message (System B) as a card with
-// subject, recipients, attachments, and an expand/collapse body. Distinct from
-// ChatMessage on purpose: emails are structurally richer (subject, To/CC/BCC,
-// attachments) and rendering them as chat bubbles flattens that — Ferhat's
-// correction from the 2026-05-21 meeting. See docs/inbox_architecture_plan.md.
+// EmailCard — Renders an email-medium message as a card with subject,
+// recipients (To/CC/BCC), attachments, and an expand/collapse body. Distinct
+// from ChatMessage on purpose: emails are structurally richer than chat
+// bubbles, and rendering them as bubbles flattens that. Pure presentational
+// scaffolding — no ties to any thread/entity model.
 const EmailCard = ({ message, direction = 'inbound', senderName, initialExpanded = false, onReply }) => {
   const [expanded, setExpanded] = React.useState(!!initialExpanded);
   const subject = message.subject || '(no subject)';
@@ -436,9 +436,8 @@ const EmailCard = ({ message, direction = 'inbound', senderName, initialExpanded
   );
 };
 
-// Tiny chip that shows the medium an inbound/outbound message used. Useful in
-// the System B combined view so Berat can see at a glance whether a row was
-// email or WhatsApp. System A messages don't need this (they're all platform).
+// MediumChip — small visual tag indicating an external transport medium
+// (email / WhatsApp / voice). Pure presentational, no model coupling.
 const MediumChip = ({ medium }) => {
   if (!medium || medium === 'platform') return null;
   const label = medium === 'email' ? 'Email' : medium === 'whatsapp' ? 'WhatsApp' : medium === 'voice' ? 'Voice' : medium;
