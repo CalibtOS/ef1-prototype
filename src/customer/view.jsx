@@ -17,6 +17,7 @@ import * as EFSelectors from '../core/selectors.js';
 import store from '../core/store.js';
 import EF from '../core/ef.js';
 import { QA_STATUS } from '../core/status.js';
+import * as SimCheckout from '../sim/checkout.js';
 import { CheckoutModal } from './checkout-modal.jsx';
 const D = EF;
 
@@ -325,11 +326,18 @@ function CustOrderCard({ o, onOpen, startCheckout, goTo }) {
 }
 
 function resumeStripeCheckout(orderId, goTo) {
-  const sessions = Object.values(store.getState().entities.checkout_sessions?.byId || {});
-  const open = sessions
-    .filter(s => s.orderId === orderId && s.status === 'pending')
-    .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))[0];
-  if (open && goTo) goTo('sim', 'sim-stripe-checkout', { sid: open.id });
+  const o = EFSelectors.selectOrder(store.getState(), orderId);
+  if (!o || o.paymentMethodChoice === 'bank_transfer_sepa') return;
+  const nextInstallment = (o.installments || []).find(i => i.status !== 'paid') || o.installments?.[0] || null;
+  const session = SimCheckout.ensureOpenSession({
+    orderId: o.id,
+    customerId: o.customerId,
+    scenarioId: o.scenarioId || null,
+    method: o.paymentMethodChoice || nextInstallment?.method || 'stripe_card',
+    amount: nextInstallment?.amt ?? o.outstandingEur ?? o.grossEur ?? 0,
+    installmentN: nextInstallment?.n || 1,
+  });
+  if (session && goTo) goTo('sim', 'sim-stripe-checkout', { sid: session.id });
 }
 
 function BankTransferPanel({ order }) {
@@ -1031,7 +1039,20 @@ function CustOrderFiles({ o, toast }) {
   );
 }
 
-function CustOrderPayments({ o }) {
+function openInstallmentCheckout(o, inst, goTo) {
+  if (!goTo || !o || !inst || !String(inst.method || '').startsWith('stripe')) return;
+  const session = SimCheckout.ensureOpenSession({
+    orderId: o.id,
+    customerId: o.customerId,
+    scenarioId: o.scenarioId || null,
+    method: inst.method,
+    amount: inst.amt ?? 0,
+    installmentN: inst.n || 1,
+  });
+  if (session) goTo('sim', 'sim-stripe-checkout', { sid: session.id });
+}
+
+function CustOrderPayments({ o, goTo }) {
   const installments = o.installments || [];
   const showMoney = W.canShowMoney(o);
   const showReceivable = W.canShowReceivable(o);
@@ -1087,8 +1108,10 @@ function CustOrderPayments({ o }) {
                     <td>
                       {inst.status === 'paid' ? (
                         <NotReady className="btn btn-sm" feature="invoice-pdf" style={{ width: '100%' }}><Icon name="download" size={11}/> PDF</NotReady>
-                      ) : inst.status === 'overdue' ? (
-                        <NotReady className="btn btn-sm btn-danger" feature="invoice-pay" style={{ width: '100%' }}><Icon name="alert-triangle" size={11}/> Jetzt zahlen</NotReady>
+                      ) : (inst.status === 'overdue' || inst.status === 'pending') && String(inst.method || '').startsWith('stripe') ? (
+                        <button type="button" className={`btn btn-sm ${inst.status === 'overdue' ? 'btn-danger' : 'btn-primary'}`} style={{ width: '100%' }} onClick={() => openInstallmentCheckout(o, inst, goTo)}>
+                          <Icon name={inst.status === 'overdue' ? 'alert-triangle' : 'wallet'} size={11}/> Jetzt zahlen
+                        </button>
                       ) : <span className="text-faint fs-11">—</span>}
                     </td>
                   </tr>
@@ -1125,7 +1148,7 @@ function CustOrderPayments({ o }) {
   );
 }
 
-function CustOrderDetail({ orderId, tab, onTabChange, onBack, toast, startCheckout }) {
+function CustOrderDetail({ orderId, tab, onTabChange, onBack, toast, startCheckout, goTo }) {
   const setTab = (next) => { if (onTabChange) onTabChange(next); };
   const all = custOrders();
   const o = all.find(x => x.id === orderId);
@@ -1191,7 +1214,7 @@ function CustOrderDetail({ orderId, tab, onTabChange, onBack, toast, startChecko
       {tab === 'status'   && <CustOrderStatus o={o} startCheckout={startCheckout}/>}
       {tab === 'messages' && <CustOrderChat o={o} toast={toast}/>}
       {tab === 'files'    && <CustOrderFiles o={o} toast={toast}/>}
-      {tab === 'payments' && <CustOrderPayments o={o}/>}
+      {tab === 'payments' && <CustOrderPayments o={o} goTo={goTo}/>}
 
       <CustFooterBanner/>
     </div>
@@ -1605,7 +1628,7 @@ function CustomerView({ role, setRole, selectPersona, toast, section, navigate, 
 
   let body;
   if (openOrderId != null) {
-    body = <CustOrderDetail orderId={openOrderId} tab={openOrderTab} onTabChange={changeOrderTab} onBack={closeOrder} toast={toast} startCheckout={startCheckout}/>;
+    body = <CustOrderDetail orderId={openOrderId} tab={openOrderTab} onTabChange={changeOrderTab} onBack={closeOrder} toast={toast} startCheckout={startCheckout} goTo={goTo}/>;
   } else if (tab === 'messages') {
     body = <CustMessagesList openOrder={openOrder}/>;
   } else if (tab === 'invoices') {
