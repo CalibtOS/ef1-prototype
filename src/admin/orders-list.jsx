@@ -6,10 +6,14 @@ import * as U from '../../utils.jsx';
 import { CrumbBar } from '../../shell.jsx';
 import * as W from '../core/workflow.js';
 import * as EFHooks from '../core/hooks.js';
+import { DeadlineCalendar } from '../shared/deadline-calendar.jsx';
+import { IN_DELIVERY_STATUSES } from '../core/selectors.js';
 import EF from '../core/ef.js';
 const D = EF;
+const IN_DELIVERY = new Set(IN_DELIVERY_STATUSES);
 
 function OrdersTable({ navigate, route }) {
+  const [activeTab, setActiveTab] = useState('orders');
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const initialView = route?.params?.view || 'all';
@@ -64,6 +68,8 @@ function OrdersTable({ navigate, route }) {
     });
   }
 
+  const calendarOrders = useMemo(() => orders.filter(o => IN_DELIVERY.has(o.status)), [orders]);
+
   return (
     <div className="page">
       <div className="page-header">
@@ -78,7 +84,20 @@ function OrdersTable({ navigate, route }) {
         </div>
       </div>
 
-      <div className="card mb-3">
+      <div className="tabs" style={{ marginBottom: 16 }}>
+        <div className={`tab ${activeTab === 'orders' ? 'active' : ''}`} onClick={() => setActiveTab('orders')}>
+          <Icon name="package" size={13}/> Orders
+        </div>
+        <div className={`tab ${activeTab === 'calendar' ? 'active' : ''}`} onClick={() => setActiveTab('calendar')}>
+          <Icon name="calendar-days" size={13}/> Calendar
+        </div>
+      </div>
+
+      {activeTab === 'calendar' && (
+        <DeadlineCalendar orders={calendarOrders} navigate={navigate} embedded />
+      )}
+
+      {activeTab === 'orders' && <div className="card mb-3">
         <div className="tbl-toolbar">
           <input type="text" placeholder="Search ID, customer, paper title…" value={search} onChange={e => setSearch(e.target.value)} />
           <div className="saved-views">
@@ -202,7 +221,7 @@ function OrdersTable({ navigate, route }) {
             />
           )}
         </div>
-      </div>
+      </div>}
     </div>
   );
 }

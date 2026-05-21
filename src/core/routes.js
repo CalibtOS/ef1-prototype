@@ -36,6 +36,7 @@ const ROUTES = {
   GW_PROFILE: 'gw-profile',
   GW_ASSIGNMENT_DETAIL: 'gw-assignment-detail',
   GW_CALENDAR: 'gw-calendar',
+  GW_TIMELINE: 'gw-timeline',
   ADMIN_CALENDAR: 'admin-calendar',
   QA_QUEUE: 'qa-queue',
   QA_PLAGIARISM: 'qa-plagiarism',
@@ -105,6 +106,7 @@ const NAV_ROUTE_MAP = {
   'gw-messages': ROUTES.GW_MESSAGES,
   'gw-profile': ROUTES.GW_PROFILE,
   'gw-calendar': ROUTES.GW_CALENDAR,
+  'gw-timeline': ROUTES.GW_TIMELINE,
   'admin-calendar': ROUTES.ADMIN_CALENDAR,
   'qa-queue': ROUTES.QA_QUEUE,
   'qa-plagiarism': ROUTES.QA_PLAGIARISM,
@@ -130,7 +132,6 @@ function navItems(role, state) {
       { id: 'disputes', label: 'Disputes', icon: 'alert-triangle', badge: disputes ? String(disputes) : null },
       { id: 'inbox', label: 'Inbox', icon: 'inbox' },
       { id: 'pipeline', label: 'Pipeline', icon: 'git-branch' },
-      { id: 'admin-calendar', label: 'Calendar', icon: 'calendar-days' },
       { id: 'bi', label: 'AI BI', icon: 'sparkles', tag: 'Beta' },
       { id: 'reports', label: 'Reports', icon: 'bar-chart-3' },
       { id: 'settings', label: 'Settings', icon: 'settings' },
@@ -148,7 +149,6 @@ function navItems(role, state) {
       { id: 'gw-templates', label: 'Templates', icon: 'folder' },
       { id: 'gw-payments', label: 'Payments', icon: 'wallet' },
       { id: 'gw-messages', label: 'Messages', icon: 'message-square' },
-      { id: 'gw-calendar', label: 'Calendar', icon: 'calendar' },
       { id: 'gw-profile', label: 'Profile', icon: 'user' },
     ];
   }

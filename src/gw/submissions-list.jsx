@@ -98,7 +98,6 @@ function GWSubmissionsList({ navigate }) {
           </button>
         </div>
       </div>
-
       {/* Summary KPIs */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12, marginBottom: 16 }}>
         <div className="card" style={{ padding: 14 }}>

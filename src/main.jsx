@@ -91,6 +91,7 @@ import { GWFirstContact } from './gw/first-contact.jsx'
 import { GWReportDelay } from './gw/report-delay.jsx'
 import { GWExtensionRequest } from './gw/extension-request.jsx'
 import { GWCalendar } from './gw/calendar.jsx'
+import { GWTimeline } from './gw/timeline.jsx'
 
 // QA role
 import { QAQueue } from './qa/queue.jsx'
@@ -303,6 +304,7 @@ function App() {
       'gw-assignment-detail': (p) => <GWAssignmentDetail orderId={p.id} navigate={navigate} toast={toast}/>,
       'order-detail':         (p) => <GWAssignmentDetail orderId={p.id} navigate={navigate} toast={toast}/>,
       'gw-calendar':          () => <GWCalendar navigate={navigate}/>,
+      'gw-timeline':          () => <GWTimeline navigate={navigate}/>,
       _default:               () => <GWDashboard navigate={navigate}/>,
     },
     wp: {

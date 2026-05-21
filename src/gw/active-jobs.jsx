@@ -5,15 +5,24 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { Icon, StatusPill, Avatar, Money, Bi, ScoreBar, NotReady, PlannedTag, EmptyState, Skeleton } from '../../utils.jsx';
 import * as U from '../../utils.jsx';
 import { CrumbBar } from '../../shell.jsx';
+import { DeadlineCalendar } from '../shared/deadline-calendar.jsx';
+import { GWTimeline } from './timeline.jsx';
 import * as EFHooks from '../core/hooks.js';
+import { ACTIVE_GW_ORDER_STATUSES } from '../core/selectors.js';
 import EF from '../core/ef.js';
 const D = EF;
+const ACTIVE_STATUS_SET = new Set(ACTIVE_GW_ORDER_STATUSES);
 
 function GWActiveJobs({ navigate }) {
   const [filter, setFilter] = useState('all');
+  const [viewTab, setViewTab] = useState('list');
 
   // The list and the detail route must read the same live order source.
   const realMine = EFHooks.useOrders({ gwId: D.GW_ME.id });
+  const calendarOrders = useMemo(
+    () => realMine.filter(o => ACTIVE_STATUS_SET.has(o.status)),
+    [realMine],
+  );
 
   // Augment real with derived stage info
   const realAugmented = realMine.map(o => {
@@ -86,6 +95,32 @@ function GWActiveJobs({ navigate }) {
           <button className="btn btn-primary" onClick={() => navigate('gw-job-board')}><Icon name="clipboard-list" size={14}/> Browse job board</button>
         </div>
       </div>
+
+      <div className="tabs" style={{ marginBottom: 16 }}>
+        <div className={`tab ${viewTab === 'list' ? 'active' : ''}`} onClick={() => setViewTab('list')}>
+          <Icon name="briefcase" size={13}/> Assignments
+        </div>
+        <div className={`tab ${viewTab === 'calendar' ? 'active' : ''}`} onClick={() => setViewTab('calendar')}>
+          <Icon name="calendar" size={13}/> Calendar
+        </div>
+        <div className={`tab ${viewTab === 'timeline' ? 'active' : ''}`} onClick={() => setViewTab('timeline')}>
+          <Icon name="git-branch" size={13}/> Timeline
+        </div>
+      </div>
+
+      {viewTab === 'calendar' && (
+        <DeadlineCalendar
+          orders={calendarOrders}
+          navigate={navigate}
+          embedded
+        />
+      )}
+
+      {viewTab === 'timeline' && (
+        <GWTimeline navigate={navigate} embedded />
+      )}
+
+      {viewTab === 'list' && (<>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 12, marginBottom: 16 }}>
         <div className="card" style={{ padding: 12 }}>
@@ -189,6 +224,8 @@ function GWActiveJobs({ navigate }) {
           </tbody>
         </table>
       </div>
+
+      </>)}
     </div>
   );
 }
