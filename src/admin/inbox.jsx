@@ -13,8 +13,6 @@ import { Icon, Avatar, EmptyState, ChatNotice, ChatMessage, EmailCard, MediumChi
 import * as U from '../../utils.jsx';
 import * as EFHooks from '../core/hooks.js';
 import EFActions from '../core/actions.js';
-import EF from '../core/ef.js';
-const D = EF;
 
 function Inbox({ toast, route, navigate }) {
   const _toast = toast || (m => console.log(m));
@@ -98,23 +96,6 @@ function Inbox({ toast, route, navigate }) {
       setReplyBody('');
       setReplySubject('');
     }
-  };
-
-  // Orders this contact has — pure navigation convenience, NOT a claim
-  // that any external message is about any specific order.
-  const contactOrders = useMemo(() => {
-    if (!active) return [];
-    if (active.contactType === 'customer') {
-      return (D.ORDERS || []).filter(o => o.customerId === active.contactId);
-    }
-    if (active.contactType === 'gw') {
-      return (D.ORDERS || []).filter(o => o.gwId === active.contactId);
-    }
-    return [];
-  }, [active?.key]);
-
-  const onJumpToOrder = (orderId) => {
-    if (navigate) navigate('order-detail', { id: orderId, tab: 'communications' });
   };
 
   return (
@@ -259,59 +240,6 @@ function Inbox({ toast, route, navigate }) {
                 />
               )}
             />
-          </div>
-        )}
-
-        {/* Contact sidecar — navigation only. Lists orders this contact has,
-            so Berat can jump into an order's chat. The platform makes no
-            claim that the current conversation is about any of these orders. */}
-        {active && (
-          <div className="chat-shell">
-            <div className="chat-header">
-              <div className="chat-title-main flex items-center gap-2">
-                <Icon name="user" size={14}/> {active.name}
-              </div>
-              {active.contactType === 'gw' && <span className="pill pill-slate" style={{ fontSize: 10 }}>GW</span>}
-            </div>
-            <div className="card-pad flex-col gap-3" style={{ flex: 1, overflowY: 'auto' }}>
-              <div>
-                <div className="fs-11 text-muted mb-1">Contact</div>
-                <div className="fs-12">
-                  {active.email && <div><Icon name="mail" size={11}/> {active.email}</div>}
-                  {active.phone && <div className="mono"><Icon name="phone" size={11}/> {active.phone}</div>}
-                  {active.isB2B && <div className="mt-1"><span className="pill pill-purple" style={{ fontSize: 10 }}>B2B</span></div>}
-                </div>
-              </div>
-              {contactOrders.length > 0 && (
-                <div>
-                  <div className="fs-11 text-muted mb-1">
-                    Orders by this contact
-                  </div>
-                  <div className="fs-10 text-faint mb-2" style={{ lineHeight: 1.4 }}>
-                    Navigation only. External messages are <strong>not</strong> attributed to any order — clicking jumps you into that order's platform chat.
-                  </div>
-                  <div className="flex-col gap-1">
-                    {contactOrders.map(o => (
-                      <button
-                        key={o.id}
-                        type="button"
-                        className="btn btn-sm"
-                        onClick={() => onJumpToOrder(o.id)}
-                        style={{ justifyContent: 'flex-start', textAlign: 'left' }}
-                      >
-                        <Icon name="briefcase" size={11}/>
-                        <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                          #{o.id} · {(o.title || '').slice(0, 32)}
-                        </span>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
-              <ChatNotice compact icon="info">
-                Reply medium defaults to the channel the contact last used. Override per message.
-              </ChatNotice>
-            </div>
           </div>
         )}
       </div>
