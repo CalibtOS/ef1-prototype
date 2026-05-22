@@ -23,7 +23,7 @@ function QAOrderDetail({ orderId, navigate, toast, initialTab }) {
   const order = EFHooks.useOrder(orderId);
   const actualSubs = EFHooks.useSubmissions({ orderId });
   const displaySubs = EFHooks.useDisplaySubmissions(orderId);
-  const thread = EFHooks.useThreadByOrder(orderId);
+  const chat = EFHooks.useOrderChat(orderId);
   if (!order) return <div className="page">Order not found.</div>;
   const cust = D.customer(order.customerId);
   const gw = D.gw(order.gwId);
@@ -34,7 +34,7 @@ function QAOrderDetail({ orderId, navigate, toast, initialTab }) {
   const latestActionable = latest && actualSubs.find(s => s.id === latest.id && W.isQaReviewKind(s.kind));
   const canReviewLatest = !!(latestActionable && latestActionable.qaStatus === QA_STATUS.PENDING);
   const specAttachments = [order.outlineAttachment, order.exposeAttachment].filter(Boolean);
-  const qaMessages = [...(thread?.messages || [])]
+  const qaMessages = [...(chat?.messages || [])]
     .filter(m => !/preis|kosten|rabatt|nachlass|raten|geld|honorar|bezahl|rechnung|euro|€/i.test(m.body || ''))
     .slice(-6);
 
@@ -219,30 +219,29 @@ function QAOrderDetail({ orderId, navigate, toast, initialTab }) {
             <div className="chat-title">
               <div>
                 <span className="chat-title-main">Customer-facing communications</span>
-                <span className="chat-title-sub">QA-relevant excerpts only · financial threads hidden</span>
+                <span className="chat-title-sub">QA-relevant excerpts only · pricing messages hidden</span>
               </div>
             </div>
           </div>
           <ChatNotice compact icon="lock">
-            Threads containing pricing/payment keywords are auto-redirected to <code>kundenservice@efactory1.de</code> and not visible to QA.
+            Messages mentioning pricing or payment are hidden from QA — QA has no financial permission on the order chat.
           </ChatNotice>
           <div className="chat-stream" style={{ maxHeight: 520 }}>
             {qaMessages.length === 0 && (
-              <EmptyState compact icon="message-square" title="No QA-visible messages" body="Financial or missing threads are hidden from QA."/>
+              <EmptyState compact icon="message-square" title="No QA-visible messages" body="No order chat messages, or all are pricing-related and hidden from QA."/>
             )}
             {qaMessages.map((m, i) => {
-              const sender = m.from === 'gw' ? (gw?.name || 'GW') : m.from === 'customer' ? (cust?.name || 'Customer') : m.from === 'admin' ? 'efactory1' : 'System';
-              const initials = m.from === 'gw' ? (gw?.initials || 'GW') : m.from === 'customer' ? (cust?.initials || 'CU') : 'EF';
+              const sender = m.authorRole === 'gw' ? (gw?.name || 'GW') : m.authorRole === 'customer' ? (cust?.name || 'Customer') : 'efactory1';
+              const initials = m.authorRole === 'gw' ? (gw?.initials || 'GW') : m.authorRole === 'customer' ? (cust?.initials || 'CU') : 'EF';
               return (
                 <ChatMessage
                   key={m.id || i}
-                  mine={m.from === 'gw'}
-                  system={m.from === 'system' || m.system}
+                  mine={m.authorRole === 'gw'}
                   sender={sender}
                   initials={initials}
                   at={m.at}
                   attachments={m.attachments}
-                  channel={m.origin_channel || m.delivery_channel || 'platform'}
+                  channel="platform"
                 >
                   {m.body}
                 </ChatMessage>

@@ -1206,6 +1206,32 @@ button:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
 .medium-chip-whatsapp { background: color-mix(in oklab, var(--green) 15%, var(--surface)); color: var(--green); }
 .medium-chip-voice { background: color-mix(in oklab, var(--amber) 15%, var(--surface)); color: color-mix(in oklab, var(--amber) 80%, var(--text)); }
 
+/* ─── OrderChat participants row ──────────────────────────────────────────── */
+.order-chat-participants {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  align-items: center;
+  font-size: 12px;
+}
+.order-chat-participant {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.order-chat-name {
+  font-weight: 500;
+}
+.order-chat-role {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-3);
+  background: var(--surface-2);
+  padding: 1px 6px;
+  border-radius: 4px;
+}
+
 .chat-composer {
   border-top: 1px solid color-mix(in oklab, var(--border) 70%, transparent);
   padding: 10px 12px 12px;

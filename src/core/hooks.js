@@ -3,6 +3,7 @@ import React from 'react';
 import store from './store.js';
 import * as S from './selectors.js';
 import * as W from './workflow.js';
+import * as Comms from './comms.js';
 import A from './actions.js';
 
 function shallowEqual(a, b) {
@@ -102,23 +103,30 @@ function useCustomers() {
   return useStore(S.selectAllCustomers, shallowEqual);
 }
 
-function useThreads() {
-  return useStore(S.selectThreads, shallowEqual);
-}
+// ---- Communication hooks (D-28) -------------------------------------------
 
-// Subscribes to ui.inboxNav — the single source of truth for the admin inbox
-// selection + view filter. Components never hold local copies of these.
-function useInboxNav() {
-  return useStore(state => state.ui.inboxNav, shallowEqual);
-}
-
-function useThread(id) {
-  const selector = React.useMemo(() => (state) => S.selectThread(state, id), [id]);
+function useOrderChat(orderId) {
+  const selector = React.useMemo(() => (state) => Comms.select.orderChat(state, orderId), [orderId]);
   return useStore(selector, shallowEqual);
 }
 
-function useThreadByOrder(orderId) {
-  const selector = React.useMemo(() => (state) => S.selectThreadByOrder(state, orderId), [orderId]);
+function useExternalContacts() {
+  return useStore(Comms.select.externalContacts, shallowEqual);
+}
+
+function useContactMessages(contactType, contactId) {
+  const selector = React.useMemo(
+    () => (state) => Comms.select.externalMessagesForContact(state, contactType, contactId),
+    [contactType, contactId]
+  );
+  return useStore(selector, shallowEqual);
+}
+
+function useContactEntity(contactType, contactId) {
+  const selector = React.useMemo(
+    () => (state) => Comms.select.resolveContactEntity(state, contactType, contactId),
+    [contactType, contactId]
+  );
   return useStore(selector, shallowEqual);
 }
 
@@ -173,10 +181,10 @@ export {
   useCustomer,
   useGhostwriters,
   useCustomers,
-  useThreads,
-  useInboxNav,
-  useThread,
-  useThreadByOrder,
+  useOrderChat,
+  useExternalContacts,
+  useContactMessages,
+  useContactEntity,
   useNotifications,
   useCurrentRole,
   useNavigation,

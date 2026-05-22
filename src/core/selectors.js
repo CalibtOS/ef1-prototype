@@ -91,17 +91,16 @@ function selectOrdersByCustomer(state, customerId) {
   return selectAllOrders(state).filter(o => o.customerId === customerId);
 }
 
-function selectThreads(state) {
-  return tableItems(state.entities.threads).sort((a, b) => new Date(b.lastAt || 0) - new Date(a.lastAt || 0));
-}
+// --- Communication selectors -----------------------------------------------
+// The polymorphic `threads` table was retired (D-28, 2026-05-22). The model
+// now has two slices: `external_messages` (contact-keyed) and `order_chats`
+// (per-order). See docs/communication_architecture.md and core/comms.js for
+// the contact-keyed selectors; this file only needs the per-order chat lookup.
 
-function selectThread(state, id) {
-  return byId(state.entities.threads, id);
-}
-
-function selectThreadByOrder(state, orderId) {
+function selectOrderChat(state, orderId) {
   if (orderId == null) return null;
-  return tableItems(state.entities.threads).find(t => Number(t.orderId) === Number(orderId)) || null;
+  return tableItems(state.entities.order_chats || { byId: {}, allIds: [] })
+    .find(c => Number(c.orderId) === Number(orderId)) || null;
 }
 
 function selectNotifications(state, role) {
@@ -140,7 +139,7 @@ function selectOrderEvents(state, orderId) {
   if (order.gwId && !gwById[order.gwId]) gwById[order.gwId] = selectGhostwriter(state, order.gwId);
   return W.buildOrderEvents(order, {
     submissions: selectSubmissionsForOrder(state, orderId),
-    thread: selectThreadByOrder(state, orderId),
+    chat: selectOrderChat(state, orderId),
     notifications: selectAllNotifications(state).filter(n => Number(n.orderId) === Number(orderId) || String(n.title || '').includes(`#${orderId}`) || String(n.body || '').includes(`#${orderId}`)),
     customer: selectCustomer(state, order.customerId),
     gw: selectGhostwriter(state, order.gwId),
@@ -199,25 +198,28 @@ function overdueInstallments(order) {
   return (order.installments || []).filter(i => i.status === 'overdue');
 }
 
-function latestThreadActivityAt(state, orderId) {
-  const thread = selectThreadByOrder(state, orderId);
-  if (!thread) return null;
-  const messageTimes = (thread.messages || []).map(m => m.at).filter(Boolean);
-  const times = [thread.lastAt, ...messageTimes].filter(Boolean);
+// Order-chat activity. Order chats only exist once an order is paid + assigned,
+// so for early-funnel orders these return null/false — pre-payment customer
+// contact lives in contact-keyed external_messages, which (per D-28) the
+// platform deliberately does not attribute to any order.
+function latestChatActivityAt(state, orderId) {
+  const chat = selectOrderChat(state, orderId);
+  if (!chat) return null;
+  const times = [chat.lastAt, chat.openedAt, ...(chat.messages || []).map(m => m.at)].filter(Boolean);
   if (!times.length) return null;
   return times.reduce((latest, iso) => new Date(iso) > new Date(latest) ? iso : latest);
 }
 
-function hasThreadActivityAfter(state, orderId, iso) {
-  const lastAt = latestThreadActivityAt(state, orderId);
+function hasChatActivityAfter(state, orderId, iso) {
+  const lastAt = latestChatActivityAt(state, orderId);
   if (!lastAt || !iso) return false;
   return new Date(lastAt) > new Date(iso);
 }
 
-function hasCustomerThreadActivityAfter(state, orderId, iso) {
-  const thread = selectThreadByOrder(state, orderId);
-  if (!thread || !iso) return false;
-  return (thread.messages || []).some(m => m.from === 'customer' && m.at && new Date(m.at) > new Date(iso));
+function hasCustomerChatActivityAfter(state, orderId, iso) {
+  const chat = selectOrderChat(state, orderId);
+  if (!chat || !iso) return false;
+  return (chat.messages || []).some(m => m.authorRole === 'customer' && m.at && new Date(m.at) > new Date(iso));
 }
 
 // -------- Revenue at risk --------
@@ -245,7 +247,7 @@ function selectRevenueAtRisk(state) {
       });
     }
     // 2. Offer sent and customer is sitting on it.
-    if (o.status === 'offer_sent' && o.offerSentAt && !hasCustomerThreadActivityAfter(state, o.id, o.offerSentAt)) {
+    if (o.status === 'offer_sent' && o.offerSentAt && !hasCustomerChatActivityAfter(state, o.id, o.offerSentAt)) {
       const age = daysSince(o.offerSentAt, now);
       if (age != null && age >= QUEUE_THRESHOLDS.staleOfferDays) {
         push('stale_offer', o, { ageDays: age, atRiskEur: o.grossEur || 0, urgency: age >= 5 ? 1 : 2 });
@@ -272,7 +274,7 @@ function selectRevenueAtRisk(state) {
     if (['lead','qualified','offer_sent'].includes(o.status)) {
       const anchor = o.offerSentAt || o.qualifiedAt || o.leadCreatedAt;
       const age = daysSince(anchor, now);
-      if (age != null && age >= QUEUE_THRESHOLDS.idleLeadDays && !hasThreadActivityAfter(state, o.id, anchor)) {
+      if (age != null && age >= QUEUE_THRESHOLDS.idleLeadDays && !hasChatActivityAfter(state, o.id, anchor)) {
         push('cancellation_risk', o, { ageDays: age, atRiskEur: o.grossEur || 0, urgency: 3 });
       }
     }
@@ -286,14 +288,13 @@ function selectRevenueAtRisk(state) {
 // Items that require Berat's subjective judgement — not data-fixable.
 function selectNeedsDecision(state) {
   const orders = selectAllOrders(state);
-  const threads = selectThreads(state);
   const items = [];
   const seen = new Set();
   const push = (kind, urgency, order, opts) => {
-    const key = `${kind}:${order ? order.id : opts?.threadId}`;
+    const key = `${kind}:${order.id}`;
     if (seen.has(key)) return;
     seen.add(key);
-    items.push({ kind, urgency, orderId: order ? order.id : null, order, ...opts });
+    items.push({ kind, urgency, orderId: order.id, order, ...opts });
   };
 
   orders.forEach(o => {
@@ -312,11 +313,10 @@ function selectNeedsDecision(state) {
       push('dispute', 4, o);
     }
   });
-  threads.forEach(t => {
-    if (t.flagged === 'financial' || t.followUp) {
-      push('thread_flag', 5, t.orderId ? selectOrder(state, t.orderId) : null, { threadId: t.id, subject: t.subject, lastAt: t.lastAt });
-    }
-  });
+  // thread_flag entries removed in D-28: financial-keyword auto-redirect is
+  // no longer architecturally relevant because admin participates directly in
+  // the order chat. If a customer raises pricing inside the order chat, Berat
+  // sees it in real time and responds — no redirect mechanism needed.
 
   items.sort((a, b) => a.urgency - b.urgency);
   return items;
@@ -521,9 +521,7 @@ export {
   selectGhostwriter,
   selectOrdersByGw,
   selectOrdersByCustomer,
-  selectThreads,
-  selectThread,
-  selectThreadByOrder,
+  selectOrderChat,
   selectNotifications,
   selectAllNotifications,
   selectOrderEvents,

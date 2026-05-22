@@ -107,7 +107,7 @@ function SettingsPage({ navigate, toast }) {
                   { name: 'Pipedrive', sub: 'CRM source of truth', status: 'warn', detail: '4,159 / 5,000 subscribers (83%)', icon: 'git-branch' },
                   { name: 'Sevdesk', sub: 'Invoicing (Rechnung)', status: 'ok', detail: 'Last sync 3 min ago · 645 invoices YTD', icon: 'file-text' },
                   { name: 'Stripe', sub: 'Payments (card · Klarna · PayPal)', status: 'ok', detail: 'Webhook payment_intent.succeeded · 0 failures last 7d', icon: 'wallet' },
-                  { name: 'Cloudflare Email Routing', sub: 'Email proxy', status: 'ok', detail: 'Worker order-proxy-router v4', icon: 'mail' },
+                  { name: 'External comms ingestion', sub: 'WhatsApp + Email → Admin Inbox', status: 'ok', detail: 'Contact-keyed · no per-order routing', icon: 'mail' },
                   { name: 'WhatsApp Proxy', sub: 'Channel — under exploration', status: 'pending', detail: 'Decision: virtual numbers vs groups', icon: 'message-circle' },
                   { name: 'Voice (Twilio / SIPGATE)', sub: 'Metadata only · no recordings', status: 'pending', detail: 'Provider TBD (D-16)', icon: 'phone' },
                   { name: 'Plagiarism (Turnitin / PlagScan)', sub: 'QA submission gate', status: 'ok', detail: 'API quota 87% remaining', icon: 'search' },
@@ -133,52 +133,26 @@ function SettingsPage({ navigate, toast }) {
             <div className="flex-col gap-3">
               <div className="card">
                 <div className="card-head">
-                  <div className="card-title">Cloudflare Email Routing</div>
-                  <span className="pill pill-green"><Icon name="check" size={10}/> Worker active</span>
+                  <div className="card-title">External communication ingestion</div>
+                  <span className="pill pill-green"><Icon name="check" size={10}/> Connected</span>
                 </div>
                 <div className="card-pad">
                   <div className="banner info" style={{ fontSize: 11.5 }}>
                     <Icon name="zap" size={12}/>
-                    <span>Worker <code className="mono">order-proxy-router v4</code> · per-order disposable address routes through Cloudflare → backend webhook → unified inbox.</span>
+                    <span>Berat's WhatsApp and Email feed the Admin Inbox as one contact-keyed stream. There is no per-order routing — external messages are never tagged to an order.</span>
                   </div>
                   <div className="kv mt-3">
-                    <div className="kv-row"><dt>Catch-all domain</dt><dd className="mono">orders.efactory1.de</dd></div>
-                    <div className="kv-row"><dt>Active mappings</dt><dd className="mono">23 orders · 1 catch-all rule</dd></div>
-                    <div className="kv-row"><dt>Auto-CC enforcement</dt><dd><span className="pill pill-green">kundenservice@efactory1.de always CC'd</span></dd></div>
-                    <div className="kv-row"><dt>Last delivery</dt><dd className="text-faint">{U.relTime('2026-05-07T13:42:00')}</dd></div>
+                    <div className="kv-row"><dt>WhatsApp</dt><dd>Cloud API mirror of Berat's number</dd></div>
+                    <div className="kv-row"><dt>Email</dt><dd className="mono">berat@efactory1.de</dd></div>
+                    <div className="kv-row"><dt>Keying</dt><dd>By contact — customer · ghostwriter · lead</dd></div>
+                    <div className="kv-row"><dt>Source of truth</dt><dd className="text-faint">Berat's phone + mailbox; the platform is a read/reply surface, not a sync target</dd></div>
                   </div>
                 </div>
               </div>
               <div className="card">
-                <div className="card-head"><div className="card-title">Per-order proxy mapping</div><span className="text-faint fs-11">5 most recent</span></div>
-                <table className="tbl" style={{ fontSize: 12 }}>
-                  <thead><tr><th>Proxy address</th><th>Order</th><th>GW</th><th>Customer</th><th>Last activity</th></tr></thead>
-                  <tbody>
-                    {[
-                      { addr: 'order-3522@orders.efactory1.de', oid: 3522, gw: 'Isabel Walter', cust: 'Adrian Kurt', at: '2026-05-07T13:42:00' },
-                      { addr: 'order-3508@orders.efactory1.de', oid: 3508, gw: 'Maja Petrović', cust: 'Lea Schmidt', at: '2026-05-07T11:14:00' },
-                      { addr: 'order-3526@orders.efactory1.de', oid: 3526, gw: 'Maja Petrović', cust: 'Jana Brandt', at: '2026-05-07T10:43:00' },
-                      { addr: 'order-3520@orders.efactory1.de', oid: 3520, gw: 'Isabel Walter', cust: 'Paul Neumann', at: '2026-05-06T16:30:00' },
-                      { addr: 'order-3530@orders.efactory1.de', oid: 3530, gw: 'Felix Becker', cust: 'Nina Iversen', at: '2026-05-06T09:14:00' },
-                    ].map(m => (
-                      <tr key={m.oid}>
-                        <td className="mono fs-11">{m.addr}</td>
-                        <td className="mono">#{m.oid}</td>
-                        <td className="fs-12">{m.gw}</td>
-                        <td className="fs-12">{m.cust}</td>
-                        <td className="text-faint fs-11">{U.relTime(m.at)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-              <div className="card">
-                <div className="card-head"><div className="card-title">Worker logs</div><button type="button" className="btn btn-sm" onClick={() => toast && toast({ text: 'Worker logs streamed · last 24h imported', tone: 'info' })}><Icon name="download" size={12}/> Tail</button></div>
-                <div className="card-pad fs-11 mono" style={{ background: 'var(--surface-2)', borderRadius: 8, padding: 12, lineHeight: 1.7 }}>
-                  <div>14:32:01 · email.received · order-3522 · sender=adrian.kurt@example.com · routed to Isabel Walter + CC kundenservice@</div>
-                  <div>13:42:18 · email.received · order-3522 · sender=isabel.walter@gw.efactory1.de · routed to Adrian Kurt + CC kundenservice@</div>
-                  <div>11:14:07 · email.received · order-3508 · sender=lea.schmidt@example.com · sentiment=tense → flagged</div>
-                  <div>09:55:42 · email.received · order-3499 · keyword=Rate → auto-redirected to kundenservice@</div>
+                <div className="card-head"><div className="card-title">Order communication</div></div>
+                <div className="card-pad fs-12 text-muted" style={{ lineHeight: 1.6 }}>
+                  Per-order conversations live in the platform <strong>order chat</strong> (Customer + GW + Admin), which opens once an order is paid and a ghostwriter is assigned. It shares no addresses or routing with the external inbox above — open it from an order's Communications tab.
                 </div>
               </div>
             </div>

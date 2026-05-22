@@ -322,11 +322,14 @@ const ChatMessage = ({
   tone = 'blue',
   at,
   children,
-  attachments = [],
+  attachments,
   channel,
   status,
   grouped,
 }) => {
+  // Callers commonly pass `attachments={msg.attachments}` where the field is
+  // explicitly null — coerce so the default only needs to cover `undefined`.
+  const atts = attachments || [];
   if (system) {
     return (
       <div className="chat-system">
@@ -348,9 +351,9 @@ const ChatMessage = ({
         )}
         <div className="chat-bubble">
           <div style={{ whiteSpace: 'pre-wrap' }}>{children}</div>
-          {attachments.length > 0 && (
+          {atts.length > 0 && (
             <div className="chat-attachments">
-              {attachments.map((a, i) => (
+              {atts.map((a, i) => (
                 <div key={i} className="chat-attachment">
                   <Icon name={a.icon || 'paperclip'} size={12}/>
                   <span>{a.name}</span>

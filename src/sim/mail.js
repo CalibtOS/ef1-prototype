@@ -579,7 +579,10 @@ function firstContactSentToCustomer({ orderId, customerId, customerEmail, custom
     from: gwEmail || 'kundenservice@efactory1.de',
     subject: subject || `Auftrag #${orderId} · Erstkontakt`,
     bodyMd: body || '',
-    cta: { label: 'Im Dashboard antworten', action: 'open_customer_dashboard', orderId, customerId },
+    // CTA lands the customer directly in the order chat — the email's whole
+    // job is to funnel them into the platform, where all further
+    // communication continues.
+    cta: { label: 'Im Auftragschat antworten', action: 'open_customer_dashboard', orderId, customerId, tab: 'messages' },
     kind: 'gw_first_contact',
     orderId,
     customerId,

@@ -73,7 +73,7 @@ function OutOfBandIntroModal({ orderId, customerName, onClose, onConfirm }) {
 }
 
 function GWAssignmentDetail({ orderId, navigate, toast }) {
-  const thread = EFHooks.useThreadByOrder(orderId);
+  const chat = EFHooks.useOrderChat(orderId);
   const displaySubs = EFHooks.useDisplaySubmissions(orderId);
   const order = EFHooks.useOrder(orderId);
   const [outOfBandOpen, setOutOfBandOpen] = useState(false);
@@ -109,24 +109,19 @@ function GWAssignmentDetail({ orderId, navigate, toast }) {
   const isApproved = !isPending && !['available','qualified','offer_sent','invoice_sent','paid','lead'].includes(order.status);
   const isRevision = order.status === 'revision_required';
   const specAttachments = [order.outlineAttachment, order.exposeAttachment].filter(Boolean);
-  const hasGwContact = (thread?.messages || []).some(m => m.from === 'gw' || m.from === 'customer');
-  const hasFirstContactThread = !!(
+  const hasFirstContactRecord = !!(
     order.firstContactDone ||
     order.firstContactDoneAt ||
     order.firstContactMessageId ||
-    order.firstContactThreadId ||
-    (thread?.messages || []).some(m => m.policy_exemption === 'sop_first_contact_template' || m.origin_channel === 'first_contact_wizard')
+    order.firstContactChatId
   );
-  const latestCustomerMessage = [...(thread?.messages || [])].reverse().find(m => m.from === 'customer');
+  const latestCustomerMessage = [...(chat?.messages || [])].reverse().find(m => m.authorRole === 'customer');
   const revisionAt = order.lastFeedbackAt || order.lastCustomerFeedbackAt || latestCustomerMessage?.at;
-  const visibleMessages = [...(thread?.messages || [])]
-    .filter(m => m.policy_exemption === 'sop_first_contact_template' || !/preis|kosten|rabatt|nachlass|raten|geld|honorar|bezahl|rechnung|euro|€/i.test(m.body || ''))
-    .slice(-3);
+  const visibleMessages = [...(chat?.messages || [])].slice(-3);
   // Intro is the first task after approval. Required before any submission per SOP D.
-  // We treat it as "done" when either (a) the SOP D wizard recorded firstContactDoneAt,
-  // or (b) a thread message marked as the first-contact template exists. An out-of-band
-  // record (firstContactSkippedTemplate) also sets firstContactDoneAt.
-  const introDone = !!order.firstContactDoneAt || hasFirstContactThread;
+  // We treat it as "done" when the SOP D wizard recorded firstContactDoneAt, or an
+  // out-of-band record (firstContactSkippedTemplate) set it.
+  const introDone = !!order.firstContactDoneAt || hasFirstContactRecord;
   const showFirstContact = isApproved && order.status === 'active' && !introDone;
 
   const stages = [
@@ -180,11 +175,11 @@ function GWAssignmentDetail({ orderId, navigate, toast }) {
           </div>
           <div className="card-pad flex-col gap-3">
             <div className="fs-12 text-muted" style={{ lineHeight: 1.55 }}>
-              We&apos;ll prefill the email with topic confirmation, scope, deadlines, the file-flow rule, the financial firewall, and your response hours. <strong>efactory1 is auto-CC&apos;d</strong> on every message.
+              The introduction goes out <strong>two ways at once</strong> — as an email to {cust?.name?.split(' ')[0] || 'the customer'} (CC efactory1) and as the first message in the order chat. It&apos;s the only email you send directly: it onboards the customer into the platform, and every message after it stays in the order chat.
             </div>
             <div className="flex items-center gap-3" style={{ flexWrap: 'wrap' }}>
               <button className="btn btn-primary btn-sm" onClick={() => navigate('gw-first-contact', { id: order.id })}>
-                <Icon name="send" size={12}/> Send intro email
+                <Icon name="send" size={12}/> Send introduction
               </button>
               <a
                 role="button"
@@ -379,7 +374,7 @@ function GWAssignmentDetail({ orderId, navigate, toast }) {
           <div className="card">
             <div className="card-head">
               <div className="card-title">Messages with customer</div>
-              <button className="btn btn-sm" onClick={() => navigate('gw-messages')}>Open thread →</button>
+              <button className="btn btn-sm" onClick={() => navigate('gw-messages')}>Open chat →</button>
             </div>
             <div className="card-pad">
               {!isApproved ? (
@@ -388,15 +383,14 @@ function GWAssignmentDetail({ orderId, navigate, toast }) {
                 <div className="chat-shell chat-shell-soft" style={{ minHeight: 0 }}>
                   <div className="chat-stream" style={{ padding: 12, maxHeight: 170 }}>
                     {visibleMessages.length === 0 && (
-                      <EmptyState compact icon="message-square" title="No customer thread yet" body="The first-contact wizard starts the shared order thread after approval."/>
+                      <EmptyState compact icon="message-square" title="No customer messages yet" body="The first-contact wizard starts the order chat after approval."/>
                     )}
                     {visibleMessages.map((m, i) => (
                       <ChatMessage
                         key={m.id || i}
-                        mine={m.from === 'gw'}
-                        system={m.from === 'system' || m.system}
-                        sender={m.from === 'gw' ? 'You' : m.from === 'customer' ? (D.customer(order.customerId)?.name || 'Customer') : 'efactory1'}
-                        initials={m.from === 'customer' ? (D.customer(order.customerId)?.initials || 'CU') : m.from === 'gw' ? me.initials : 'EF'}
+                        mine={m.authorRole === 'gw'}
+                        sender={m.authorRole === 'gw' ? 'You' : m.authorRole === 'customer' ? (D.customer(order.customerId)?.name || 'Customer') : 'efactory1'}
+                        initials={m.authorRole === 'customer' ? (D.customer(order.customerId)?.initials || 'CU') : m.authorRole === 'gw' ? me.initials : 'EF'}
                         at={m.at}
                         attachments={m.attachments}
                       >
@@ -404,7 +398,7 @@ function GWAssignmentDetail({ orderId, navigate, toast }) {
                       </ChatMessage>
                     ))}
                   </div>
-                  <ChatNotice compact>Auto-CC kundenservice@efactory1.de · financial keywords intercepted.</ChatNotice>
+                  <ChatNotice compact>Platform-owned order chat · Berat (admin) is a participant and sees every message.</ChatNotice>
                 </div>
               )}
             </div>

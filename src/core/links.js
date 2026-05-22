@@ -68,8 +68,7 @@ function buildLink(target) {
 
   if (k === 'admin-inbox') {
     const params = {};
-    if (target.threadId) params.thread = target.threadId;
-    if (target.orderId != null) params.orderId = Number(target.orderId);
+    if (target.contact) params.contact = target.contact;
     return { role: 'admin', name: 'inbox', params };
   }
 

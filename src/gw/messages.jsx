@@ -1,60 +1,64 @@
-// GW · Messages — anonymized customer threads (admin always CC).
+// GW · Messages — list of the GW's active order chats.
+//
+// Per D-28: GW only ever sees ORDER chats (per-order, platform-owned). The
+// admin's external WhatsApp/Email inbox is admin-only.
 
-// ============ GW MESSAGES ============
 import React, { useState, useEffect, useMemo } from 'react';
-import { Icon, Avatar, NotReady, EmptyState, ChatNotice, ChatMessage, ChatComposer, ChatThreadRow } from '../../utils.jsx';
+import { Icon, Avatar, EmptyState, ChatNotice, ChatThreadRow } from '../../utils.jsx';
 import * as U from '../../utils.jsx';
 import * as EFHooks from '../core/hooks.js';
-import EFActions from '../core/actions.js';
-import { showToast } from '../core/toast.js';
+import * as EFSelectors from '../core/selectors.js';
+import store from '../core/store.js';
 import EF from '../core/ef.js';
+import { OrderChat } from '../shared/order-chat.jsx';
 const D = EF;
 
-function GWMessages({ navigate }) {
-  const [reply, setReply] = useState('');
-  const allThreads = EFHooks.useThreads();
-  // Only threads tied to my (Isabel's) assignments are visible.
-  const myThreads = useMemo(() => allThreads.filter(t => t.gwId === D.GW_ME.id), [allThreads]);
-  const [activeId, setActiveId] = useState(myThreads[0]?.id || null);
-  const active = myThreads.find(t => t.id === activeId) || myThreads[0] || null;
+function GWMessages({ navigate, initialOrderId }) {
+  // Re-render on store version bumps so new messages appear immediately.
+  EFHooks.useStore(s => s.meta.version);
+  const myId = D.GW_ME.id;
+  const myOrders = EFHooks.useOrders({ gwId: myId });
 
-  // Mark as read when a thread is opened.
-  useEffect(() => {
-    if (active?.id && (active.unread?.gw || 0) > 0) {
-      EFActions.threads.markRead(active.id, 'gw');
-    }
-  }, [active?.id]);
-
-  const onSend = () => {
-    if (!active || !reply.trim()) return;
-    const msg = EFActions.threads.send({
-      threadId: active.id,
-      orderId: active.orderId,
-      role: 'gw',
-      body: reply,
-    });
-    if (msg) {
-      showToast({
-        text: msg.autoflag === 'financial'
-          ? 'Finanzbezug erkannt — Anfrage wurde an Kundenservice umgeleitet.'
-          : `Nachricht an ${D.customer(active.customerId)?.name || 'Kunde'} gesendet · CC kundenservice@efactory1.de`,
-        tone: msg.autoflag ? 'info' : 'success',
+  const orderChats = useMemo(() => {
+    const state = store.getState();
+    return myOrders
+      .map(o => ({
+        order: o,
+        chat: EFSelectors.selectOrderChat(state, o.id),
+      }))
+      .filter(({ chat }) => chat) // only orders with an actual chat
+      .sort((a, b) => {
+        const aAt = a.chat.messages?.slice(-1)[0]?.at || a.chat.openedAt;
+        const bAt = b.chat.messages?.slice(-1)[0]?.at || b.chat.openedAt;
+        return new Date(bAt) - new Date(aAt);
       });
-      setReply('');
-    }
-  };
+  }, [myOrders.map(o => o.id).join(','), store.getState().meta.version]);
+
+  const [activeOrderId, setActiveOrderId] = useState(
+    initialOrderId != null ? Number(initialOrderId) : (orderChats[0]?.order.id || null)
+  );
+  const activeEntry = orderChats.find(e => e.order.id === activeOrderId) || orderChats[0] || null;
+
+  useEffect(() => {
+    if (!activeOrderId && orderChats[0]) setActiveOrderId(orderChats[0].order.id);
+  }, [orderChats.length]);
+
+  // A notification deep-link (gw-messages?orderId=…) selects that chat.
+  useEffect(() => {
+    if (initialOrderId != null) setActiveOrderId(Number(initialOrderId));
+  }, [initialOrderId]);
 
   return (
     <div className="page">
       <div className="page-header">
         <div>
           <h1 className="page-title">Messages</h1>
-          <div className="page-subtitle">Customer chats · one thread per assignment · efactory1 always in CC</div>
+          <div className="page-subtitle">Customer chats · one thread per assignment · Berat (admin) is in every thread</div>
         </div>
       </div>
 
-      <ChatNotice compact tone="warn">
-        Auto-CC is enforced. Financial questions are redirected to <span className="mono">kundenservice@efactory1.de</span>; do not negotiate pricing or invoices in chat.
+      <ChatNotice compact icon="users">
+        Each order chat has three participants: you, the customer, and Berat (admin). All three see every message.
       </ChatNotice>
 
       <div className="chat-app-grid mt-3">
@@ -62,101 +66,44 @@ function GWMessages({ navigate }) {
           <div className="chat-header">
             <div className="chat-title">
               <div>
-                <span className="chat-title-main">Active threads</span>
-                <span className="chat-title-sub">{myThreads.length} assignments</span>
+                <span className="chat-title-main">Active orders</span>
+                <span className="chat-title-sub">{orderChats.length} chat{orderChats.length === 1 ? '' : 's'}</span>
               </div>
             </div>
           </div>
           <div className="chat-thread-list">
-            {myThreads.map(t => {
-              const cust = D.customer(t.customerId);
-              const lastMsg = t.messages?.[t.messages.length - 1];
-              const previewText = lastMsg ? (lastMsg.body || '').slice(0, 110) : t.subject;
-              const isFromGw = lastMsg?.from === 'gw';
+            {orderChats.length === 0 && <EmptyState compact icon="message-square" title="No active chats" body="Customer chat unlocks after assignment approval."/>}
+            {orderChats.map(({ order: o, chat }) => {
+              const cust = D.customer(o.customerId);
+              const lastMsg = chat.messages?.[chat.messages.length - 1];
+              const previewText = lastMsg ? (lastMsg.body || '').slice(0, 110) : 'Auftragschat öffnen…';
+              const isMine = lastMsg?.authorRole === 'gw';
+              const fromLabel = lastMsg?.authorRole === 'admin' ? 'Berat: ' : isMine ? 'You: ' : '';
               return (
                 <ChatThreadRow
-                  key={t.id}
-                  active={active?.id === t.id}
-                  unread={t.unread?.gw || 0}
+                  key={o.id}
+                  active={activeEntry?.order.id === o.id}
+                  unread={chat.unread?.gw || 0}
                   initials={cust?.initials || '··'}
                   title={cust?.name || 'Customer'}
-                  subtitle={`#${t.orderId} · ${t.subject}`}
-                  preview={<>{isFromGw && 'You: '}{previewText}</>}
-                  meta={U.relTime(t.lastAt)}
-                  onClick={() => setActiveId(t.id)}
-                  badges={t.flagged === 'financial' && <span className="pill pill-amber" style={{ fontSize: 10 }}><Icon name="alert-triangle" size={9}/> redirected</span>}
+                  subtitle={`#${o.id} · ${o.title?.slice(0, 50) || ''}`}
+                  preview={<>{fromLabel}{previewText}</>}
+                  meta={U.relTime(lastMsg?.at || chat.openedAt)}
+                  onClick={() => setActiveOrderId(o.id)}
                 />
               );
             })}
-            {myThreads.length === 0 && <EmptyState compact icon="message-square" title="No active chats" body="Customer chat unlocks after assignment approval."/>}
           </div>
         </div>
 
-        {active && (
-          <div className="chat-shell chat-shell-soft">
-            <div className="chat-header">
-              <div className="chat-title">
-                <Avatar initials={D.customer(active.customerId)?.initials || '··'} size={34} tone="blue"/>
-                <div style={{ minWidth: 0 }}>
-                  <span className="chat-title-main">{D.customer(active.customerId)?.name || 'Customer'}</span>
-                  <span className="chat-title-sub">Order #{active.orderId} · {active.subject}</span>
-                </div>
-              </div>
-              <button type="button" className="btn btn-sm" onClick={() => navigate('gw-assignment-detail', { id: active.orderId })}>
-                <Icon name="external-link" size={12}/> Auftrag
+        {activeEntry && (
+          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+            <OrderChat orderId={activeEntry.order.id} currentRole="gw"/>
+            <div className="flex gap-2 mt-2">
+              <button type="button" className="btn btn-sm" onClick={() => navigate('gw-assignment-detail', { id: activeEntry.order.id })}>
+                <Icon name="external-link" size={12}/> Open assignment
               </button>
             </div>
-
-            <ChatNotice compact>
-              Files stay on-platform. Customer-visible attachments are sent through the document area and mirrored in chat.
-            </ChatNotice>
-
-            <div className="chat-stream">
-              {(active.messages || []).length === 0 && (
-                <EmptyState compact icon="message-square" title="Noch keine Nachrichten" body="Schreiben Sie unten den ersten Beitrag."/>
-              )}
-              {(active.messages || []).map((m, i) => {
-                const mine = m.from === 'gw';
-                const sys = m.from === 'system';
-                const isAdmin = m.from === 'admin';
-                const senderName = mine
-                  ? D.GW_ME.name
-                  : (m.from === 'customer'
-                      ? (D.customer(active.customerId)?.name || 'Customer')
-                      : (isAdmin ? 'efactory1' : 'System'));
-                const senderInits = mine
-                  ? D.GW_ME.initials
-                  : (m.from === 'customer'
-                      ? (D.customer(active.customerId)?.initials || '··')
-                      : (isAdmin ? 'EF' : 'SY'));
-                const prev = active.messages[i - 1];
-                const grouped = !!prev && prev.from === m.from && !sys;
-                return (
-                  <ChatMessage
-                    key={m.id}
-                    mine={mine}
-                    system={sys}
-                    sender={senderName}
-                    initials={senderInits}
-                    at={m.at}
-                    grouped={grouped}
-                    attachments={m.attachments}
-                    status={mine ? 'CC aktiv' : null}
-                  >
-                    {m.body}
-                  </ChatMessage>
-                );
-              })}
-            </div>
-
-            <ChatComposer
-              value={reply}
-              onChange={(e) => setReply(e.target.value)}
-              onSend={onSend}
-              placeholder={`Reply to ${D.customer(active.customerId)?.name || 'customer'}...`}
-              sendLabel="Send"
-              actions={<NotReady className="chat-icon-action" ariaLabel="Attach file" feature="attach-file"><Icon name="paperclip" size={15}/></NotReady>}
-            />
           </div>
         )}
       </div>

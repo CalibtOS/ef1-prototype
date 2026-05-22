@@ -312,26 +312,23 @@ function NeedsYourDecision({ navigate }) {
           extension: { title: `Extension requested · #${o?.id}`, tone: 'amber', icon: 'plus', cta: 'Decide' },
           delay: { title: `Delay reported · #${o?.id}`, tone: 'amber', icon: 'clock', cta: 'Decide' },
           dispute: { title: `Dispute open · #${o?.id}`, tone: 'orange', icon: 'alert-triangle', cta: 'Open' },
-          thread_flag: { title: it.subject ? `Flagged thread · ${o ? '#' + o.id : 'lead'}` : 'Flagged thread', tone: 'blue', icon: 'message-square', cta: 'Inbox' },
         };
         const L = labels[it.kind] || { title: it.kind, tone: 'slate', icon: 'help-circle', cta: 'Open' };
-        const body = it.kind === 'thread_flag'
-          ? it.subject + ' · ' + (it.lastAt ? U.relTime(it.lastAt) : '')
-          : it.kind === 'ai_violation' || it.kind === 'plagiarism_violation' ? `${o?.title} · GW ${D.gw(o?.gwId)?.name || 'unknown'} · ${it.reason || ''}`
+        const body = it.kind === 'ai_violation' || it.kind === 'plagiarism_violation' ? `${o?.title} · GW ${D.gw(o?.gwId)?.name || 'unknown'} · ${it.reason || ''}`
           : it.kind === 'extension' && o?.extensionPending ? `${o.extensionPending.extraPages ? '+' + o.extensionPending.extraPages + 'p · ' : ''}${o.extensionPending.requestedAt ? U.relTime(o.extensionPending.requestedAt) : ''}`
           : it.kind === 'delay' && o ? `${o.delayReason || ''}${o.proposedNewDeadline ? ' · new ' + U.fmtDate(o.proposedNewDeadline) : ''}`
           : it.kind === 'dispute' && o ? `${cust?.name || ''} · revision round ${o.revisionRounds || 0}`
           : it.kind === 'claim_approval' && o ? `${D.WORK_TYPE_LABELS[o.workType] || o.workType} · ${o.pages || '—'}p · ${o.netHonorarium ? U.EUR(o.netHonorarium) : ''}${o.claimedAt ? ' · ' + U.relTime(o.claimedAt) : ''}` : '';
         return (
           <ActionRow
-            key={`${it.kind}-${o ? o.id : it.threadId}-${i}`}
+            key={`${it.kind}-${o.id}-${i}`}
             icon={L.icon}
             iconTone={L.tone}
             title={L.title}
             body={body}
             cta={L.cta}
             ctaTone={L.tone === 'red' ? 'red' : L.tone === 'blue' ? 'blue' : null}
-            onClick={() => it.kind === 'thread_flag' ? navigate('inbox', it.threadId ? { thread: it.threadId } : {}) : navigate('order-detail', { id: o.id })}
+            onClick={() => navigate('order-detail', { id: o.id })}
             dangerLeft={L.tone === 'red'}
           />
         );
@@ -564,12 +561,12 @@ const LIVE_SEED = [
   { kind: 'pipedrive', icon: 'git-branch', color: 'var(--blue)', text: 'deal.update · #3526 · stage=Won', detail: 'syncCheck OK' },
   { kind: 'plag', icon: 'shield-check', color: 'var(--green)', text: 'plagiarism.scanned · sub s4 · 6%', detail: 'PlagScan · 2.4s' },
   { kind: 'sevdesk', icon: 'file-text', color: 'var(--blue)', text: 'invoice.changeStatus · RG-2026-3540 · paid', detail: 'sevUser=ef1-platform' },
-  { kind: 'cloudflare', icon: 'mail', color: 'var(--text-2)', text: 'email.received · order-3499@orders.efactory1.de', detail: 'keyword=Rate → redirected' },
+  { kind: 'cloudflare', icon: 'mail', color: 'var(--text-2)', text: 'email.received · kurt.mueller@example.com → Admin Inbox', detail: 'contact: Kurt Müller' },
   { kind: 'ai', icon: 'bot', color: 'var(--red)', text: 'gptzero.flag · sub s2 · 87% (#3517)', detail: 'GPT-4 burstiness signature' },
   { kind: 'pipedrive', icon: 'git-branch', color: 'var(--blue)', text: 'person.update · marketing_status=subscribed', detail: 'PE-2114' },
   { kind: 'stripe', icon: 'wallet', color: 'var(--green)', text: 'payment_intent.succeeded · #3539 · €293.08 · SEPA', detail: 'pi_3QAa1cWv' },
   { kind: 'plag', icon: 'shield-check', color: 'var(--green)', text: 'plagiarism.scanned · sub s7 · 4%', detail: 'PlagScan · 1.9s' },
-  { kind: 'cloudflare', icon: 'mail', color: 'var(--text-2)', text: 'email.received · order-3522@orders.efactory1.de', detail: 'GW → customer · CC efactory1' },
+  { kind: 'cloudflare', icon: 'message-circle', color: 'var(--text-2)', text: 'whatsapp.received · +49 152 3847 2910 → Admin Inbox', detail: 'contact: lead' },
   { kind: 'sevdesk', icon: 'file-text', color: 'var(--blue)', text: 'order.sendViaEmail · AN-2026-3527', detail: 'Angebot sent' },
 ];
 function LiveActivityFeed() {
@@ -667,7 +664,7 @@ function IntegrationsHealth({ navigate }) {
     { k: 'pipedrive', name: 'Pipedrive', sub: 'CRM · 4,159/5,000 subs', icon: 'git-branch', status: 'warn' },
     { k: 'sevdesk', name: 'Sevdesk', sub: 'Invoicing · 645 RG YTD', icon: 'file-text', status: 'ok' },
     { k: 'stripe', name: 'Stripe', sub: 'payment_intent · 0 fail/7d', icon: 'wallet', status: 'ok' },
-    { k: 'cloudflare', name: 'Cloudflare Email', sub: 'Worker order-proxy v4', icon: 'mail', status: 'ok' },
+    { k: 'cloudflare', name: 'External comms', sub: 'WhatsApp + Email ingestion', icon: 'mail', status: 'ok' },
     { k: 'plag', name: 'PlagScan / Turnitin', sub: 'API quota 87% remaining', icon: 'shield-check', status: 'ok' },
     { k: 'ai', name: 'GPTZero', sub: 'Per-paragraph score', icon: 'bot', status: 'ok' },
   ];

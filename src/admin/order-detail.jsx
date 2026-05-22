@@ -15,6 +15,7 @@ import {
   ExtensionResolutionPanel, DelayResolutionPanel,
   DisputeResolutionPanel, ViolationResolutionPanel,
 } from './order-detail/resolution-panels.jsx';
+import { OrderChat } from '../shared/order-chat.jsx';
 const D = EF;
 
 function initialsFor(name, email) {
@@ -168,7 +169,7 @@ function OrderDetail({ orderId, navigate, toast, initialTab, focusSubmissionId }
           ) : (
             <>
               <NotReady className="btn" feature="edit-record" label="Edit order"><Icon name="edit" size={14}/> Edit</NotReady>
-              <button type="button" className="btn" onClick={() => navigate('inbox')}><Icon name="message-square" size={14}/> Open chat</button>
+              <button type="button" className="btn" onClick={() => navigate('order-detail', { id: order.id, tab: 'communications' })}><Icon name="message-square" size={14}/> Open chat</button>
               <NotReady className="btn" ariaLabel="More actions" feature="row-more-actions"><Icon name="more-horizontal" size={14}/></NotReady>
             </>
           )}
@@ -1394,157 +1395,7 @@ function SubmissionsTab({ order, navigate, focusSubmissionId }) {
 }
 
 function CommsTab({ order, toast }) {
-  const [channelFilter, setChannelFilter] = useState('all');
-  const [reply, setReply] = useState('');
-  const [deliveryRail, setDeliveryRail] = useState('email');
-  const cust = D.customer(order.customerId);
-  const gw = D.gw(order.gwId);
-  const customerInitials = cust?.initials || 'CU';
-  const gwInitials = gw?.initials || 'GW';
-  const thread = EFHooks.useThreadByOrder(order.id);
-
-  const normalizeLegacyChannel = (value) => {
-    if (value === 'email_proxy') return 'email';
-    if (value === 'whatsapp_proxy') return 'whatsapp';
-    if (value === 'platform_chat') return 'platform';
-    if (value === 'voice_metadata') return 'voice';
-    if (value === 'multi_channel') return 'multi';
-    return value || 'platform';
-  };
-  const fallbackOrigin = normalizeLegacyChannel(thread?.channel);
-  const enriched = useMemo(() => {
-    return [...(thread?.messages || [])]
-      .map(m => ({
-        ...m,
-        origin_channel: m.origin_channel || (m.from === 'admin' ? 'admin' : m.from === 'system' ? 'system' : fallbackOrigin),
-        delivery_channel: m.delivery_channel || (m.from === 'system' ? 'internal' : fallbackOrigin === 'multi' ? 'email' : fallbackOrigin),
-      }))
-      .sort((a, b) => new Date(a.at) - new Date(b.at));
-  }, [thread?.messages, fallbackOrigin]);
-
-  const channelLabel = (channel) => {
-    if (channel === 'whatsapp') return 'WhatsApp';
-    if (channel === 'platform') return 'Platform';
-    if (channel === 'voice') return 'Voice';
-    if (channel === 'system' || channel === 'internal') return 'System';
-    return 'Email';
-  };
-  const displayChannel = (m) => {
-    if (m.from === 'admin') return m.delivery_channel || 'email';
-    return m.origin_channel || m.delivery_channel || 'platform';
-  };
-  const matchesFilter = (m) => {
-    if (channelFilter === 'all') return true;
-    if (channelFilter === 'email') return m.origin_channel === 'email' || (m.from === 'admin' && m.delivery_channel === 'email');
-    if (channelFilter === 'whatsapp') return m.origin_channel === 'whatsapp' || (m.from === 'admin' && m.delivery_channel === 'whatsapp');
-    if (channelFilter === 'platform') return m.origin_channel === 'platform' || (m.from === 'admin' && m.delivery_channel === 'platform');
-    return true;
-  };
-  const visibleMessages = enriched.filter(matchesFilter);
-  const hiddenCount = enriched.length - visibleMessages.length;
-  const hiddenLabel = channelFilter === 'all' ? '' : ['email', 'whatsapp', 'platform']
-    .filter(ch => ch !== channelFilter)
-    .map(channelLabel)
-    .join('/');
-
-  const sendReply = () => {
-    if (!reply.trim()) return;
-    const msg = EFActions.threads.send({
-      threadId: thread?.id,
-      orderId: order.id,
-      role: 'admin',
-      body: reply,
-      origin_channel: 'admin',
-      delivery_channel: deliveryRail,
-    });
-    if (msg) {
-      toast && toast({ tone: 'success', text: `Reply sent via ${channelLabel(deliveryRail)} · order #${order.id}` });
-      setReply('');
-    }
-  };
-
-  return (
-    <div className="chat-shell chat-shell-soft">
-      <div className="chat-header">
-        <div className="chat-title">
-          <div>
-            <span className="chat-title-main">Unified communications</span>
-            <span className="chat-title-sub">Order #{order.id} · channel is metadata on each bubble</span>
-          </div>
-        </div>
-        <div className="flex gap-1">
-          {[
-            ['all', 'All'],
-            ['email', 'Email'],
-            ['whatsapp', 'WhatsApp'],
-            ['platform', 'Platform'],
-          ].map(([id, label]) => (
-            <button type="button" key={id} className={`chip ${channelFilter === id ? 'active' : ''}`} onClick={() => setChannelFilter(id)}>{label}</button>
-          ))}
-        </div>
-      </div>
-      <ChatNotice compact>
-        One order thread, multiple doors in. Email, WhatsApp and portal rows stay chronological; filters only hide rows temporarily.
-      </ChatNotice>
-      {hiddenCount > 0 && (
-        <ChatNotice compact icon="eye-off">
-          {hiddenCount} message{hiddenCount === 1 ? '' : 's'} hidden while filtered to {channelLabel(channelFilter)} ({hiddenLabel}).
-        </ChatNotice>
-      )}
-      <div className="chat-stream" style={{ maxHeight: 560 }}>
-        {visibleMessages.length === 0 && (
-          <EmptyState compact icon="message-square" title="No messages in this view" body={enriched.length ? 'Switch back to All to see the full order thread.' : 'Messages for this order will appear here.'}/>
-        )}
-        {visibleMessages.map((m, i) => {
-          const sys = m.from === 'system' || m.system;
-          if (sys) return <ChatMessage key={m.id || i} system at={m.at}>{m.body}</ChatMessage>;
-          const mine = m.from === 'admin';
-          const sender = m.from === 'gw'
-            ? (gw?.name || 'Ghostwriter')
-            : m.from === 'customer'
-              ? (cust?.name || 'Customer')
-              : 'efactory1';
-          const initials = m.from === 'gw'
-            ? gwInitials
-            : m.from === 'customer'
-              ? customerInitials
-              : 'EF';
-          const prev = visibleMessages[i - 1];
-          const grouped = !!prev && prev.from === m.from && !(prev.from === 'system' || prev.system);
-          return (
-            <ChatMessage
-              key={m.id || i}
-              mine={mine}
-              sender={sender}
-              initials={initials}
-              at={m.at}
-              grouped={grouped}
-              channel={!grouped ? channelLabel(displayChannel(m)) : null}
-              attachments={m.attachments}
-              status={mine ? `sent via ${channelLabel(m.delivery_channel)}` : null}
-            >
-              {m.body}
-            </ChatMessage>
-          );
-        })}
-      </div>
-      <ChatComposer
-        value={reply}
-        onChange={(e) => setReply(e.target.value)}
-        onSend={sendReply}
-        placeholder={`Reply about order #${order.id}...`}
-        sendLabel={`Send via ${channelLabel(deliveryRail)}`}
-        actions={<>
-          <div className="flex gap-1">
-            {['email', 'whatsapp'].map(ch => (
-              <button type="button" key={ch} className={`chip ${deliveryRail === ch ? 'active' : ''}`} onClick={() => setDeliveryRail(ch)}>{channelLabel(ch)}</button>
-            ))}
-          </div>
-          <NotReady className="chat-icon-action" ariaLabel="Attach file" feature="attach-file"><Icon name="paperclip" size={15}/></NotReady>
-        </>}
-      />
-    </div>
-  );
+  return <OrderChat orderId={order.id} currentRole="admin" toast={toast}/>;
 }
 
 function AssignmentTab({ order, navigate, toast }) {

@@ -1,16 +1,16 @@
 // Named business actions. All entity writes should go through here.
 //
 // Plumbing (patchEntity/upsertEntity/selector shortcuts/toast) lives in
-// `internals.js`. Notifications live in `notifications.js`. Threads/messaging
-// lives in `threads.js`. This file is the order-lifecycle state machine:
-// claim → assign → submit → QA → customer accept → payment release, plus
-// admin resolution paths (extension/delay/dispute/violation).
+// `internals.js`. Notifications live in `notifications.js`. Messaging lives in
+// `comms.js` (order chats + external messages). This file is the order-
+// lifecycle state machine: claim → assign → submit → QA → customer accept →
+// payment release, plus admin resolution paths (extension/delay/dispute/violation).
 import store from './store.js';
 import * as S from './selectors.js';
 import * as W from './workflow.js';
 import * as I from './internals.js';
 import * as N from './notifications.js';
-import * as T from './threads.js';
+import { orderChats as OC, externalMessages as EM } from './comms.js';
 import * as DomainEvents from './events.js';
 import { QA_STATUS } from './status.js';
 
@@ -64,6 +64,9 @@ function approveClaim(orderId) {
   const g = gw(o.gwId);
   notifyOrder(orderId, { to: 'gw', kind: 'assignment_approved', gwId: o.gwId, title: `Order #${orderId} approved — you may begin`, body: 'Briefing email sent · customer was introduced' });
   notifyOrder(orderId, { to: 'customer', kind: 'assignment_intro', customerId: o.customerId, title: 'Ihr Ghostwriter wurde zugewiesen', body: `${g?.name || 'Ihr Ghostwriter'} meldet sich heute bei Ihnen.` });
+  // No-op on a first assignment (no chat yet); on a re-claim after a prior
+  // GW left, this records the handover in the existing transcript.
+  OC.postSystem(orderId, `${g?.name || 'Der Ghostwriter'} hat die Bearbeitung dieses Auftrags übernommen.`);
   return true;
 }
 
@@ -137,6 +140,9 @@ function assignGw(orderId, gwId, opts = {}) {
       reason: 'direct_assigned_outside_board',
     });
   }
+  // No-op on a first assignment (no chat yet); on a reassignment this records
+  // the new GW joining the existing transcript.
+  OC.postSystem(orderId, `${targetGw.name} hat die Bearbeitung dieses Auftrags übernommen.`);
   return true;
 }
 
@@ -472,6 +478,7 @@ function cancelAssignment(orderId, reason) {
   });
   notifyOrder(orderId, { to: 'gw', kind: 'assignment_cancelled', gwId: oldGwId, title: `Assignment cancelled · #${orderId}`, body: reason || 'efactory1 cancelled this assignment. Please stop work until contacted.' });
   notifyOrder(orderId, { to: 'customer', kind: 'assignment_cancelled', gwId: oldGwId, title: 'Ghostwriter-Zuweisung geändert', body: `Auftrag #${orderId} · wir organisieren die weitere Bearbeitung und melden uns kurzfristig.` });
+  OC.postSystem(orderId, `${gw(oldGwId)?.name || 'Der Ghostwriter'} wurde von diesem Auftrag abgezogen. efactory1 organisiert die weitere Bearbeitung.`);
   return true;
 }
 
@@ -486,6 +493,7 @@ function cancelOrder(orderId, reason) {
   if (o.customerId) {
     notifyOrder(orderId, { to: 'customer', kind: 'order_cancelled', gwId: oldGwId, title: 'Auftrag storniert', body: `Auftrag #${orderId} wurde storniert. efactory1 meldet sich zur Abwicklung.` });
   }
+  OC.close(orderId, 'Auftrag storniert — dieser Chat ist archiviert.');
   return true;
 }
 
@@ -542,43 +550,42 @@ function confirmFirstContactReceipt(orderId) {
   return true;
 }
 
+// The GW introduction is the one dual-channel message in the system: the same
+// body is posted into the order chat AND sent to the customer as an email (via
+// the `gw.first_contact_sent` event → firstContactSentToCustomer mail). It is
+// the only GW-initiated email to the customer — it onboards them into the
+// platform, and every message after this stays in the order chat.
 function completeFirstContact(orderId, payload = {}) {
   const o = order(orderId);
   if (!o) return null;
   if (!confirmFirstContactReceipt(orderId)) return null;
 
-  const beforeThread = T.selectThreadByOrder(store.getState(), orderId);
-  const msg = T.send({
+  // Channel 1 — post the introduction into the platform order chat.
+  const msg = OC.send({
     orderId,
     role: 'gw',
     body: payload.body || '',
-    origin_channel: 'first_contact_wizard',
-    delivery_channel: 'email',
-    external_ref: `first-contact-${orderId}`,
-    financialPolicyExempt: true,
-    policy_exemption: 'sop_first_contact_template',
   });
   if (!msg) {
-    toast({ text: 'Intro email body is empty.', tone: 'danger' });
+    toast({ text: 'Introduction body is empty.', tone: 'danger' });
     return null;
   }
 
   const subject = (payload.subject || '').trim();
-  if (!beforeThread && subject) {
-    patchEntity('threads', msg.threadId, prev => ({ ...prev, subject }), 'threads.firstContact.subject');
-  }
   patchOrder(orderId, prev => ({
     ...prev,
     firstContactDone: true,
     firstContactDoneAt: prev.firstContactDoneAt || msg.at,
     firstContactMessageId: msg.id,
-    firstContactThreadId: msg.threadId,
+    firstContactChatId: msg.chatId,
     firstContactSubject: subject || prev.firstContactSubject || null,
     firstContactReceiptConfirmedAt: prev.firstContactReceiptConfirmedAt || msg.at,
     firstContactReceiptConfirmedBy: prev.firstContactReceiptConfirmedBy || store.getState().session.gwId,
   }));
   const after = order(orderId);
   const sendingGw = gw(store.getState().session.gwId);
+  // Channel 2 — the same body goes out to the customer as an email. The sim
+  // effects layer turns this event into firstContactSentToCustomer.
   DomainEvents.emit('gw.first_contact_sent', {
     order: after,
     orderId,
@@ -889,6 +896,7 @@ function releaseBatch(orderIds) {
     const gates = W.releaseGates(o);
     if (!gates.releasable) return;
     patchOrder(id, { status: 'completed', gwPaymentStatus: 'paid', paidToGwAt: nowIso(), completedAt: nowIso() });
+    OC.close(id, 'Auftrag abgeschlossen — dieser Chat ist archiviert.');
     released.push({ id, amount: o.netHonorarium || 0, gwId: o.gwId, customerId: o.customerId, scenarioId: o.scenarioId || null });
   });
   released.forEach(x => notifyOrder(x.id, { to: 'gw', kind: 'payment_released', gwId: x.gwId, title: `€${Number(x.amount).toLocaleString('de-DE', { minimumFractionDigits: 2 })} released · #${x.id}`, body: 'See your bank in 1–3 business days' }));
@@ -1026,6 +1034,7 @@ function confirmViolation(orderId, payload = {}) {
   }
   notifyOrder(orderId, { to: 'customer', kind: 'violation_confirmed', gwId: originalGwId, title: 'Wir setzen Ihren Auftrag mit einem neuen Ghostwriter fort', body: `Auftrag #${orderId} · die Qualitätsprüfung hat eine Auffälligkeit bestätigt. Wir weisen Ihnen kurzfristig einen neuen Ghostwriter zu — ohne Mehrkosten.` });
   notifyOrder(orderId, { to: 'admin', kind: 'violation_confirmed', gwId: originalGwId, title: `Violation confirmed · #${orderId}`, body: `Order returned to job board · GW shadow-banned · payment block lifted (no honorarium owed).` });
+  OC.postSystem(orderId, `${gw(originalGwId)?.name || 'Der Ghostwriter'} wurde nach einer bestätigten Qualitätsverletzung von diesem Auftrag entfernt. efactory1 weist kurzfristig einen neuen Ghostwriter zu.`);
   return true;
 }
 
@@ -1085,27 +1094,6 @@ function setRoute(route) {
   store.setState(prev => ({ ...prev, ui: { ...prev.ui, route } }), 'ui.setRoute');
 }
 
-// ─── Inbox navigation (single source of truth for the admin Inbox surface) ──
-// Deliberately minimal post-revert: only the parts that survive the move to a
-// contact-keyed admin inbox. View filter (combined/email/whatsapp) is pure
-// render-time. selectInboxThread sets the active conversation and marks it
-// read for admin atomically.
-function patchInboxNav(patch, label) {
-  store.setState(prev => ({
-    ...prev,
-    ui: { ...prev.ui, inboxNav: { ...prev.ui.inboxNav, ...patch } },
-  }), label || 'ui.inboxNav.patch');
-}
-
-function setInboxView(view) {
-  patchInboxNav({ view }, 'ui.inboxNav.setView');
-}
-
-function selectInboxThread(selectedId) {
-  patchInboxNav({ selectedId }, 'ui.inboxNav.select');
-  if (selectedId) T.markRead(selectedId, 'admin');
-}
-
 const actions = {
   toast,
   notify,
@@ -1159,16 +1147,14 @@ const actions = {
   payments: { releaseBatch },
   gws: { shadowBan },
   notifications: { markAllRead: N.markAllRead, markRead: N.markRead },
-  threads: {
-    send: T.send,
-    markRead: T.markRead,
-    redirect: T.redirect,
-    flagFollowUp: T.flagFollowUp,
-    snooze: T.snooze,
+  orderChats: {
+    send: OC.send,
+    markRead: OC.markRead,
+    ensure: OC.ensure,
   },
-  inboxNav: {
-    setView: setInboxView,
-    select: selectInboxThread,
+  externalMessages: {
+    send: EM.send,
+    markContactRead: EM.markContactRead,
   },
 };
 

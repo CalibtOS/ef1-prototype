@@ -19,6 +19,7 @@ import EF from '../core/ef.js';
 import { QA_STATUS } from '../core/status.js';
 import * as SimCheckout from '../sim/checkout.js';
 import { CheckoutModal } from './checkout-modal.jsx';
+import { OrderChat } from '../shared/order-chat.jsx';
 const D = EF;
 
 const CUST_PERSONA = (EFShell?.ROLES || []).find(r => r.id === 'customer') ||
@@ -205,7 +206,7 @@ function CustFooterBanner() {
     <div className="banner info" style={{ marginTop: 24 }}>
       <Icon name="lock" size={14}/>
       <span>
-        <strong>efactory1 ist Ihre Vertragspartnerin.</strong> Alle Zahlungen, Korrespondenz und Lieferungen laufen über diese Plattform — auch wenn Sie direkt mit Ihrem Ghostwriter chatten. Finanzfragen werden automatisch an <span className="mono">kundenservice@efactory1.de</span> weitergeleitet.
+        <strong>efactory1 ist Ihre Vertragspartnerin.</strong> Alle Zahlungen, Korrespondenz und Lieferungen laufen über diese Plattform — auch wenn Sie direkt mit Ihrem Ghostwriter chatten. Berat (efactory1) ist in jedem Auftragschat dabei; Finanzfragen klären Sie direkt mit efactory1.
       </span>
     </div>
   );
@@ -589,137 +590,17 @@ function CustOrderStatus({ o, startCheckout }) {
 }
 
 function CustOrderChat({ o, toast }) {
-  const [text, setText] = useState('');
-  const [draftFlag, setDraftFlag] = useState(null);
-  const thread = EFHooks.useThreadByOrder(o.id);
-  const dates = W.lifecycleDates(o, []);
-
-  // Pre-GW / pre-payment status messages — synthetic system entries for stages
-  // where no thread exists yet because the order has no GW.
-  const syntheticConv = (() => {
-    if (o.status === 'qualified' || o.status === 'offer_sent') {
-      return [{ from: 'system', at: dates.qualifiedAt || dates.leadAt, body: o.status === 'offer_sent' ? 'Ihr Angebot wurde versendet. Sobald Sie es annehmen, erstellen wir die Rechnung.' : 'Ihre Anfrage ist eingegangen. Wir bereiten Ihr Angebot vor.' }];
-    }
-    if (o.status === 'invoice_sent') {
-      return [{ from: 'system', at: dates.invoiceAt, body: 'Rechnung versendet · Sobald Ihre Zahlung eingegangen ist, starten wir die Ghostwriter-Suche.' }];
-    }
-    if (o.status === 'available' || o.status === 'claimed_pending_approval') {
-      return [{ from: 'system', at: dates.paymentAt || dates.boardAt, body: 'Zahlung erhalten · Ghostwriter-Suche gestartet · Sie werden benachrichtigt sobald ein passender GW zugewiesen ist.' }];
-    }
-    return null;
-  })();
-
-  const messages = syntheticConv ? syntheticConv : (thread?.messages || []);
-
-  // Mark unread customer messages as read once the chat is opened.
-  useEffect(() => {
-    if (thread?.id && (thread.unread?.customer || 0) > 0) {
-      EFActions.threads.markRead(thread.id, 'customer');
-    }
-  }, [thread?.id]);
-
-  const detectFinancial = (txt) => /preis|kosten|rabatt|nachlass|raten|geld|honorar|bezahl|rechnung|euro|€/i.test(txt);
-  const onChange = (v) => { setText(v); setDraftFlag(detectFinancial(v) ? 'financial' : null); };
-  const onSend = () => {
-    if (!text.trim()) return;
-    const msg = EFActions.threads.send({
-      orderId: o.id,
-      role: 'customer',
-      body: text,
-    });
-    if (msg) {
-      if (msg.autoflag === 'financial') {
-        toast && toast({ tone: 'info', text: 'Finanzfrage erkannt — automatisch an kundenservice@efactory1.de weitergeleitet.' });
-      } else {
-        toast && toast({ tone: 'success', text: 'Nachricht gesendet · efactory1 in CC' });
-      }
-      setText(''); setDraftFlag(null);
-    }
-  };
-  const isLocked = !o.gwId || ['claimed_pending_approval','available','qualified','offer_sent','invoice_sent'].includes(o.status);
-  const gwLabel = custGwLabel(o) || 'GW';
-  const gwInits = gwLabel.split(' ').map(s=>s[0]).join('').slice(0,2).toUpperCase();
-
-  const activeTitle = isLocked ? 'Chat noch gesperrt' : gwLabel;
-
   return (
     <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 280px', gap: 12 }}>
-      <div className="chat-shell chat-shell-soft">
-        <div className="chat-header">
-          <div className="chat-title">
-            <Avatar initials={isLocked ? 'EF' : gwInits} size={34} tone="blue"/>
-            <div style={{ minWidth: 0 }}>
-              <span className="chat-title-main">{activeTitle}</span>
-              <span className="chat-title-sub">{messages.length} Nachrichten · Antwortzeit meist innerhalb 24h</span>
-            </div>
-          </div>
-          <span className="pill pill-blue" style={{ fontSize: 10 }}><Icon name="lock" size={9}/> CC aktiv</span>
-        </div>
-
-        <ChatNotice compact>
-          Jede Nachricht läuft über efactory1. Finanzfragen gehen automatisch an <span className="mono">kundenservice@efactory1.de</span>.
-        </ChatNotice>
-
-        <div className="chat-stream" style={{ maxHeight: 520 }}>
-          {messages.length === 0 && (
-            <EmptyState compact icon="message-square" title="Noch keine Nachrichten" body="Sobald der Ghostwriter zugewiesen ist, erscheint hier die Unterhaltung."/>
-          )}
-          {messages.map((m, i) => {
-            const mine = m.from === 'customer';
-            const sys  = m.from === 'system' || m.from === 'platform' || m.from === 'admin';
-            const senderName = mine ? CUST_PERSONA.user
-              : m.from === 'gw' ? gwLabel
-              : m.from === 'admin' ? 'efactory1' : 'System';
-            const senderInits = mine ? CUST_PERSONA.initials
-              : m.from === 'gw' ? gwInits
-              : m.from === 'admin' ? 'EF' : 'EF';
-            const prev = messages[i - 1];
-            const grouped = !!prev && prev.from === m.from && !sys;
-            return (
-              <ChatMessage
-                key={m.id || i}
-                mine={mine}
-                system={sys}
-                sender={senderName}
-                initials={senderInits}
-                at={m.at}
-                grouped={grouped}
-                attachments={m.attachments}
-                status={mine ? 'zugestellt' : null}
-              >
-                {m.body || m.text}
-              </ChatMessage>
-            );
-          })}
-        </div>
-
-        {isLocked ? (
-          <div className="chat-composer">
-            <ChatNotice compact icon="lock">Chat wird aktiviert, sobald Ihnen ein Ghostwriter zugewiesen ist.</ChatNotice>
-          </div>
-        ) : (
-          <ChatComposer
-            value={text}
-            onChange={(e)=>onChange(e.target.value)}
-            onSend={onSend}
-            placeholder="Nachricht an Ihren Ghostwriter..."
-            actions={<NotReady className="chat-icon-action" ariaLabel="Datei anhängen" feature="attach-file"><Icon name="paperclip" size={15}/></NotReady>}
-            helper={draftFlag === 'financial' && (
-              <ChatNotice compact tone="warn" icon="alert-triangle">
-                <strong>Finanzfrage erkannt.</strong> Diese Nachricht wird an <span className="mono">kundenservice@efactory1.de</span> umgeleitet.
-              </ChatNotice>
-            )}
-          />
-        )}
-      </div>
+      <OrderChat orderId={o.id} currentRole="customer" toast={toast}/>
 
       <div className="flex-col gap-3">
         <div className="card">
           <div className="card-head"><div className="card-title">Kontaktregeln</div></div>
           <div className="card-pad flex-col gap-2">
             <ChatNotice compact icon="clock">Antwortzeit: 24 Stunden</ChatNotice>
-            <ChatNotice compact icon="euro" tone="warn">Preise, Raten und Rechnungen laufen über den Kundenservice.</ChatNotice>
-            <ChatNotice compact icon="lock">efactory1 bleibt bei Direktnachrichten in CC.</ChatNotice>
+            <ChatNotice compact icon="users">Berat (efactory1) ist Teilnehmer im Chat — er liest mit und kann jederzeit eingreifen.</ChatNotice>
+            <ChatNotice compact icon="mail">Allgemeine Fragen außerhalb des Auftrags gerne weiterhin per E-Mail an Berat.</ChatNotice>
           </div>
         </div>
 
@@ -881,7 +762,7 @@ function CustFinalAcceptance({ o, toast }) {
   );
 }
 
-function customerVisibleFiles(o, displaySubs, thread) {
+function customerVisibleFiles(o, displaySubs, chat) {
   const dates = W.lifecycleDates(o, displaySubs || []);
   const rank = W.statusRank(o);
   const files = [];
@@ -896,14 +777,14 @@ function customerVisibleFiles(o, displaySubs, thread) {
       icon: 'file-text',
     });
   }
-  (thread?.messages || []).forEach((m, mi) => {
+  (chat?.messages || []).forEach((m, mi) => {
     (m.attachments || []).forEach((a, ai) => {
       files.push({
-        id: `thread-${m.id || mi}-${ai}`,
+        id: `chat-${m.id || mi}-${ai}`,
         kind: 'briefing',
         name: a.name,
         sizeLabel: a.meta || 'attachment',
-        uploadedBy: m.from === 'gw' ? 'gw' : m.from === 'admin' ? 'platform' : 'customer',
+        uploadedBy: m.authorRole === 'gw' ? 'gw' : m.authorRole === 'admin' ? 'platform' : 'customer',
         at: m.at,
         icon: a.icon || 'file-text',
       });
@@ -952,8 +833,8 @@ function customerVisibleFiles(o, displaySubs, thread) {
 
 function CustOrderFiles({ o, toast }) {
   const displaySubs = EFHooks.useDisplaySubmissions(o.id);
-  const thread = EFHooks.useThreadByOrder(o.id);
-  const baseFiles = customerVisibleFiles(o, displaySubs, thread);
+  const chat = EFHooks.useOrderChat(o.id);
+  const baseFiles = customerVisibleFiles(o, displaySubs, chat);
 
   const formatSize = (bytes) => {
     if (bytes == null) return '—';
@@ -1223,12 +1104,18 @@ function CustOrderDetail({ orderId, tab, onTabChange, onBack, toast, startChecko
 
 function CustMessagesList({ openOrder }) {
   const orders = custOrders().filter(o => o.gwId);
-  const allThreads = EFHooks.useThreads();
-  const threadsByOrder = useMemo(() => {
+  // Subscribe to store version so this list re-renders when chats update.
+  EFHooks.useStore(s => s.meta.version);
+  const chatsByOrder = useMemo(() => {
     const m = {};
-    allThreads.forEach(t => { m[t.orderId] = t; });
+    orders.forEach(o => {
+      const chat = EFSelectors.selectOrderChat(store.getState(), o.id);
+      if (chat) m[o.id] = chat;
+    });
     return m;
-  }, [allThreads]);
+    // meta.version in the deps so new messages (not just new orders)
+    // recompute previews and unread counts.
+  }, [orders.map(o => o.id).join(','), store.getState().meta.version]);
 
   return (
     <div>
@@ -1236,7 +1123,7 @@ function CustMessagesList({ openOrder }) {
       <div className="text-muted mb-4">Eine Konversation pro Auftrag · efactory1 immer in CC</div>
 
       <ChatNotice compact>
-        Direktnachrichten an Ihren Ghostwriter laufen über die Plattform. Finanzfragen werden an <span className="mono">kundenservice@efactory1.de</span> weitergeleitet.
+        Direktnachrichten an Ihren Ghostwriter laufen über die Plattform. Berat (efactory1) ist in jedem Auftragschat dabei.
       </ChatNotice>
 
       {orders.length === 0 ? (
@@ -1256,15 +1143,15 @@ function CustMessagesList({ openOrder }) {
               const gw = custGwLabel(o);
               const wt = D.WORK_TYPE_LABELS[o.workType];
               const initials = gw ? gw.split(' ').map(s=>s[0]).join('').slice(0,2).toUpperCase() : '··';
-              const t = threadsByOrder[o.id];
-              const lastMsg = t?.messages?.[t.messages.length - 1];
+              const chat = chatsByOrder[o.id];
+              const lastMsg = chat?.messages?.[chat.messages.length - 1];
               const previewText = lastMsg
                 ? (lastMsg.body || '').slice(0, 110)
                 : 'Konversation öffnen…';
-              const previewPrefix = lastMsg?.from === 'customer' ? 'Sie: '
-                : lastMsg?.from === 'system' || lastMsg?.from === 'admin' ? 'System: '
+              const previewPrefix = lastMsg?.authorRole === 'customer' ? 'Sie: '
+                : lastMsg?.authorRole === 'admin' ? 'Berat: '
                 : '';
-              const unreadCount = t?.unread?.customer || 0;
+              const unreadCount = chat?.unread?.customer || 0;
               return (
                 <ChatThreadRow
                   key={o.id}
@@ -1272,7 +1159,7 @@ function CustMessagesList({ openOrder }) {
                   title={gw || 'GW-Suche'}
                   subtitle={`#${o.id} · ${wt}`}
                   preview={<>{previewPrefix}{previewText}</>}
-                  meta={U.relTime(lastMsg?.at || t?.lastAt || o.acceptedAt)}
+                  meta={U.relTime(lastMsg?.at || chat?.lastAt || o.acceptedAt)}
                   unread={unreadCount}
                   onClick={()=>openOrder(o.id, 'messages')}
                   badges={unreadCount > 0 && <span className="pill pill-red" style={{ fontSize: 10 }}>{unreadCount} neu</span>}
@@ -1393,7 +1280,7 @@ function CustDownloads({ toast }) {
     const files = customerVisibleFiles(
       o,
       EFSelectors.selectDisplaySubmissionsForOrder(storeState, o.id),
-      EFSelectors.selectThreadByOrder(storeState, o.id)
+      EFSelectors.selectOrderChat(storeState, o.id)
     ).map(f => ({
       ...f,
       sizeText: f.sizeLabel || (f.size < 1048576 ? `${Math.round((f.size || 0) / 1024)} KB` : `${((f.size || 0) / 1048576).toFixed(1)} MB`),

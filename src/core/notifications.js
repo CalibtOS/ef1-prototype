@@ -55,7 +55,6 @@ function notify(payload) {
     customerId: payload.customerId || relatedOrder?.customerId || null,
     gwId: payload.gwId || relatedOrder?.gwId || null,
     submissionId: payload.submissionId || null,
-    threadId: payload.threadId || null,
     route: payload.route || null,
     params: payload.params || null,
   };

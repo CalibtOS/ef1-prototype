@@ -112,36 +112,55 @@
  */
 
 /**
- * @typedef {Object} Message
+ * A single message inside an order chat — the 3-party platform conversation
+ * (customer + ghostwriter + admin) scoped to one order.
+ * @typedef {Object} OrderChatMessage
  * @property {string} id
- * @property {string} threadId
- * @property {'admin'|'gw'|'customer'|'system'} from
- * @property {string} body
+ * @property {string} chatId
+ * @property {number} orderId
+ * @property {'customer'|'gw'|'admin'} authorRole
+ * @property {string|null} authorId
  * @property {string} at                   ISO datetime
- * @property {string} [origin_channel]
- * @property {string} [delivery_channel]
- * @property {string} [autoflag]
- * @property {boolean} [system]
+ * @property {string} body
+ * @property {Array|null} [attachments]
  */
 
 /**
- * @typedef {Object} Thread
+ * @typedef {Object} OrderChat
  * @property {string} id
- * @property {number} [orderId]
- * @property {string} [customerId]
- * @property {string} [gwId]
- * @property {string} subject
- * @property {string} channel
- * @property {'positive'|'neutral'|'tense'} [sentiment]
- * @property {string} lastAt
- * @property {boolean|'financial'} [flagged]
- * @property {boolean} [followUp]
- * @property {string|null} [snoozeUntil]
- * @property {string|null} [lastInboundAt]
- * @property {string|null} [lastOutboundAt]
+ * @property {number} orderId
+ * @property {string} openedAt
+ * @property {string|null} [closedAt]
+ * @property {string} [lastAt]
  * @property {{ admin: number, gw: number, customer: number }} unread
- * @property {Message[]} messages
- * @property {'order'|'lead'|'gw_direct'} [threadType]
+ * @property {OrderChatMessage[]} messages
+ */
+
+/**
+ * One WhatsApp or Email message in the admin inbox. Keyed by CONTACT, never
+ * by order — per D-28, external channels carry no order scope.
+ * @typedef {Object} ExternalMessage
+ * @property {string} id
+ * @property {'customer'|'gw'|'lead'} contactType
+ * @property {string} contactId
+ * @property {'email'|'whatsapp'} medium
+ * @property {'in'|'out'} direction
+ * @property {string} at                   ISO datetime
+ * @property {string} body
+ * @property {string|null} [subject]
+ * @property {Array|null} [attachments]
+ * @property {boolean} readByAdmin
+ */
+
+/**
+ * Minimal contact entity for non-customer / non-gw inbox contacts.
+ * @typedef {Object} Lead
+ * @property {string} id
+ * @property {string|null} [name]
+ * @property {string|null} [phone]
+ * @property {string|null} [email]
+ * @property {boolean} isB2B
+ * @property {string} initials
  */
 
 /**
@@ -158,7 +177,6 @@
  * @property {string} [customerId]
  * @property {string} [gwId]
  * @property {string} [submissionId]
- * @property {string} [threadId]
  * @property {string} [route]
  * @property {Object} [params]
  */
@@ -185,7 +203,7 @@
 
 /**
  * @typedef {Object} State
- * @property {{ orders: Table<Order>, submissions: Table<Submission>, customers: Table<Customer>, ghostwriters: Table<Ghostwriter>, threads: Table<Thread>, notifications: Table<Notification> }} entities
+ * @property {{ orders: Table<Order>, submissions: Table<Submission>, customers: Table<Customer>, ghostwriters: Table<Ghostwriter>, order_chats: Table<OrderChat>, external_messages: Table<ExternalMessage>, leads: Table<Lead>, notifications: Table<Notification> }} entities
  * @property {Session} session
  * @property {{ route: RouteState, tweaks: Object|null }} ui
  * @property {{ version: number, lastAction: string|null }} meta

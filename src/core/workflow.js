@@ -195,6 +195,17 @@ function isPrePayment(orderOrStatus) {
   return PRE_PAYMENT_STATES.indexOf(status) >= 0;
 }
 
+// Has the customer's first payment landed? Real money recorded against the
+// order, any paid installment, or simply being past the invoice stage all
+// count. Single source of truth for "is this order paid" — used by the order
+// chat gate (comms.js) and anywhere else that branches on payment.
+function isOrderPaid(order) {
+  if (!order) return false;
+  if ((order.paidEur || 0) > 0) return true;
+  if ((order.installments || []).some(i => i.status === 'paid')) return true;
+  return !isPrePayment(order);
+}
+
 function canShowMoney(orderOrStatus) {
   return !isPreProposal(orderOrStatus);
 }
@@ -521,7 +532,7 @@ function buildOrderEvents(order, context) {
   if (!order) return [];
   const ctx = context || {};
   const submissions = deriveSubmissions(order, ctx.submissions || []);
-  const thread = ctx.thread || null;
+  const chat = ctx.chat || null;
   const gw = ctx.gw || null;
   const cust = ctx.customer || null;
   const dates = lifecycleDates(order, submissions);
@@ -629,9 +640,9 @@ function buildOrderEvents(order, context) {
   if (order.status === 'payment_pending') addEvent(events, event('release.gate', dates.finalAcceptedAt, releaseGates(order).releasable ? 'Friday release gates clear' : 'Friday release gate evaluated with blockers', { icon: 'shield-check', dot: releaseGates(order).releasable ? 'green' : 'amber', domain: 'payment', detail: releaseGates(order).reasons.filter(r => r !== 'Order is not awaiting Friday release').join(' · ') }));
   if (dates.paidToGwAt || dates.completedAt) addEvent(events, event('gw.paid', dates.paidToGwAt || dates.completedAt, 'Friday batch released GW honorarium', { icon: 'wallet', dot: 'green', domain: 'payment' }));
 
-  (thread?.messages || []).forEach(m => {
-    const sender = m.from === 'customer' ? (cust?.name || 'Customer') : m.from === 'gw' ? (gw?.name || 'GW') : m.from === 'admin' ? 'efactory1' : 'System';
-    addEvent(events, event(`message.${m.id}`, m.at, `${sender} message`, { icon: m.from === 'system' ? 'zap' : 'message-square', dot: m.from === 'system' ? 'amber' : '', domain: 'communications', detail: bodyPreview(m.body) }));
+  (chat?.messages || []).forEach(m => {
+    const sender = m.authorRole === 'customer' ? (cust?.name || 'Customer') : m.authorRole === 'gw' ? (gw?.name || 'GW') : 'efactory1';
+    addEvent(events, event(`message.${m.id}`, m.at, `${sender} message`, { icon: 'message-square', dot: '', domain: 'communications', detail: bodyPreview(m.body) }));
   });
   (ctx.notifications || []).forEach((n, i) => {
     addEvent(events, event(`notification.${n.id || i}`, n.at, `Notification sent: ${n.title}`, {
@@ -661,6 +672,7 @@ export {
   isQaReviewKind,
   isPreProposal,
   isPrePayment,
+  isOrderPaid,
   canShowMoney,
   canShowReceivable,
   isPostFinal,
