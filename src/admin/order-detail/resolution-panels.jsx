@@ -126,7 +126,7 @@ function ViolationResolutionPanel({ order, submissions, toast }) {
   };
   const onClear = () => {
     EFActions.orders.clearViolation(order.id, 'Reviewed and cleared after admin investigation');
-    toast && toast({ tone: 'success', transition: { entity: `Order #${order.id}`, from: isPlag ? 'Plagiarism Violation' : 'AI Violation', to: order.finalSubmittedAt ? 'Delivered' : 'QA Review' }, text: 'False positive · flag cleared · GW + customer notified' });
+    toast && toast({ tone: 'success', transition: { entity: `Order #${order.id}`, from: isPlag ? 'Plagiarism Violation' : 'AI Violation', to: order.finalSubmittedAt ? 'Customer Review' : 'QA Review' }, text: 'False positive · flag cleared · GW + customer notified' });
   };
   return (
     <div className="card mb-3" style={{ borderLeft: '4px solid var(--red)' }}>

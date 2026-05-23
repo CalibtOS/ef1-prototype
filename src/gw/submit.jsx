@@ -10,8 +10,8 @@ import * as EFHooks from '../core/hooks.js';
 import EF from '../core/ef.js';
 const D = EF;
 
-function allowedSubmissionKinds(order) {
-  return W.allowedSubmissionKinds(order, D.GW_ME.id);
+function allowedSubmissionKinds(order, submissions = []) {
+  return W.allowedSubmissionKinds(order, D.GW_ME.id, submissions);
 }
 
 function submissionClosedReason(order) {
@@ -90,6 +90,7 @@ function GWSubmit({ orderId, kind, navigate, toast }) {
   const order = D.liveOrder(orderId);
   if (!order) return <div className="page">Assignment #{orderId} not found.</div>;
   if (order.gwId !== currentGwId) return <div className="page">This assignment isn't yours.</div>;
+  const submissions = EFHooks.useSubmissions({ orderId });
 
   // Resolve kind from route + order context
   const resolvedKind = (() => {
@@ -115,7 +116,7 @@ function GWSubmit({ orderId, kind, navigate, toast }) {
     };
   }, []);
 
-  const allowedKinds = allowedSubmissionKinds(order);
+  const allowedKinds = allowedSubmissionKinds(order, submissions);
   if (step === 0 && !allowedKinds.includes(resolvedKind)) {
     return (
       <div className="page" style={{ maxWidth: 640, margin: '0 auto' }}>
@@ -486,7 +487,18 @@ function GWSubmit({ orderId, kind, navigate, toast }) {
 
 // Sub-component: when GW navigates to /gw/gw-submit without an id, list active assignments.
 function GWSubmitPicker({ navigate }) {
-  const myActive = D.liveOrders().filter(o => allowedSubmissionKinds(o).length > 0);
+  const submissions = EFHooks.useSubmissions();
+  const submissionsByOrder = useMemo(() => {
+    const byOrder = new Map();
+    (submissions || []).forEach(s => {
+      const key = Number(s.orderId);
+      if (!byOrder.has(key)) byOrder.set(key, []);
+      byOrder.get(key).push(s);
+    });
+    return byOrder;
+  }, [submissions]);
+  const submissionsFor = (orderId) => submissionsByOrder.get(Number(orderId)) || [];
+  const myActive = D.liveOrders().filter(o => allowedSubmissionKinds(o, submissionsFor(o.id)).length > 0);
   return (
     <div className="page" style={{ maxWidth: 720, margin: '0 auto' }}>
       <div className="page-header">
@@ -500,7 +512,7 @@ function GWSubmitPicker({ navigate }) {
       ) : (
         <div className="card" style={{ padding: 0 }}>
           {myActive.map(o => {
-            const allowedKinds = allowedSubmissionKinds(o);
+            const allowedKinds = allowedSubmissionKinds(o, submissionsFor(o.id));
             const interimDue = o.interimDeadline && U.daysTo(o.interimDeadline);
             const finalDue = U.daysTo(o.finalDeadline);
             return (

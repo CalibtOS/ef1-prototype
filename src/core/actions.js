@@ -667,13 +667,13 @@ function submitWork(orderId, payload = {}) {
   const o = order(orderId);
   const currentGwId = payload.gwId || store.getState().session.gwId;
   const kind = payload.kind || 'final';
-  if (!W.allowedSubmissionKinds(o, currentGwId).includes(kind)) {
+  const existing = S.selectSubmissionsForOrder(store.getState(), orderId);
+  if (!W.allowedSubmissionKinds(o, currentGwId, existing).includes(kind)) {
     toast({ text: W.submissionClosedReason(o), tone: 'danger' });
     return null;
   }
   const entityKind = W.submissionKindToEntityKind(kind);
   const nextStatus = W.nextStateAfterSubmit(kind);
-  const existing = S.selectSubmissionsForOrder(store.getState(), orderId);
   const isInterim = W.isInterimKind(kind);
   const submission = {
     id: 's-live-' + Date.now() + '-' + Math.random().toString(36).slice(2, 6),
@@ -692,7 +692,7 @@ function submitWork(orderId, payload = {}) {
     selfChecks: payload.selfChecks || { noAi: true, ready: true, individual: true, spelling: true, grammar: true, plagiarism: true, requirements: true },
   };
   upsertEntity('submissions', submission, 'gw.submit.submission');
-  patchOrder(orderId, {
+  const orderPatch = {
     status: nextStatus,
     lastSubmissionAt: submission.submittedAt,
     lastSubmissionFile: submission.fileName,
@@ -701,7 +701,17 @@ function submitWork(orderId, payload = {}) {
     finalSubmittedAt: kind === 'final' ? submission.submittedAt : o.finalSubmittedAt,
     revisionRounds: kind === 'revision' ? (o.revisionRounds || 0) + 1 : (o.revisionRounds || 0),
     gwPaymentStatus: kind === 'final' && o.gwPaymentStatus !== 'paid' ? 'invoice_received' : o.gwPaymentStatus,
-  });
+    nextExpectedSubmissionKind: null,
+  };
+  if (isInterim) {
+    orderPatch.interimSubmittedAt = submission.submittedAt;
+    orderPatch.lastSubmittedInterimKind = kind;
+    orderPatch.pendingCustomerReviewKind = kind;
+    orderPatch[kind === 'interim_2' ? 'interim2SubmittedAt' : 'interim1SubmittedAt'] = submission.submittedAt;
+  } else {
+    orderPatch.pendingCustomerReviewKind = null;
+  }
+  patchOrder(orderId, orderPatch);
   const g = gw(currentGwId);
   if (isInterim) {
     // Interim submissions go DIRECTLY to the customer. No QA review stage.
@@ -741,6 +751,8 @@ function qaPass(submissionId) {
   if (!sub) return false;
   const o = order(sub.orderId);
   const isFinal = sub.kind === 'final_work' || sub.kind === 'revision';
+  const guard = W.canTransition(o, isFinal ? 'qa_pass_final' : 'qa_pass_interim');
+  if (!guard.ok) { toast({ text: guard.reason, tone: 'danger' }); return false; }
   patchEntity('submissions', submissionId, { qaStatus: QA_STATUS.PASSED, reviewedAt: nowIso(), reviewer: 'qa@efactory1.de' }, 'qa.pass.submission');
   patchOrder(sub.orderId, {
     status: isFinal ? 'delivered' : 'under_customer_review',
@@ -776,6 +788,8 @@ function qaRequestRevision(submissionId) {
   const sub = S.byId(store.getState().entities.submissions, submissionId);
   if (!sub) return false;
   const o = order(sub.orderId);
+  const guard = W.canTransition(o, 'qa_request_revision');
+  if (!guard.ok) { toast({ text: guard.reason, tone: 'danger' }); return false; }
   patchEntity('submissions', submissionId, { qaStatus: QA_STATUS.REVISION_REQUESTED, reviewedAt: nowIso() }, 'qa.revision.submission');
   patchOrder(sub.orderId, {
     status: 'revision_required',
@@ -791,6 +805,8 @@ function qaFlag(submissionId, type) {
   const sub = S.byId(store.getState().entities.submissions, submissionId);
   if (!sub) return false;
   const o = order(sub.orderId);
+  const guard = W.canTransition(o, type === 'plagiarism' ? 'qa_flag_plagiarism' : 'qa_flag_ai');
+  if (!guard.ok) { toast({ text: guard.reason, tone: 'danger' }); return false; }
   const status = type === 'plagiarism' ? 'plagiarism_violation_review' : 'ai_violation_review';
   const reason = type === 'plagiarism' ? 'Plagiarism suspected' : 'AI use suspected';
   patchEntity('submissions', submissionId, { qaStatus: QA_STATUS.FLAGGED, flagged: true, flagType: type, reviewedAt: nowIso() }, `qa.flag.${type}.submission`);
@@ -810,7 +826,27 @@ function approveInterim(orderId) {
   const o = order(orderId);
   const guard = W.canTransition(o, 'customer_approve_interim');
   if (!guard.ok) { toast({ text: guard.reason, tone: 'danger' }); return false; }
-  patchOrder(orderId, { status: 'active', interimCustomerSatisfied: true, lastCustomerFeedbackAt: nowIso() });
+  const submissions = S.selectSubmissionsForOrder(store.getState(), orderId);
+  const progress = W.deliveryProgress(o, submissions);
+  const approvedKind = W.isInterimKind(o.pendingCustomerReviewKind)
+    ? o.pendingCustomerReviewKind
+    : W.isInterimKind(progress.currentKind)
+      ? progress.currentKind
+      : W.isInterimKind(o.lastSubmissionKind)
+        ? o.lastSubmissionKind
+        : 'interim_1';
+  const nextExpected = approvedKind === 'interim_1' && o.interim2Deadline ? 'interim_2' : 'final';
+  const at = nowIso();
+  patchOrder(orderId, {
+    status: 'active',
+    interimCustomerSatisfied: true,
+    lastApprovedInterimKind: approvedKind,
+    interimApprovedAt: at,
+    [approvedKind === 'interim_2' ? 'interim2ApprovedAt' : 'interim1ApprovedAt']: at,
+    pendingCustomerReviewKind: null,
+    nextExpectedSubmissionKind: nextExpected,
+    lastCustomerFeedbackAt: at,
+  });
   notifyOrder(orderId, { to: 'gw', kind: 'interim_approved', title: 'Zwischenstand freigegeben', body: `Kunde hat Zwischenstand #${orderId} freigegeben` });
   notifyOrder(orderId, { to: 'admin', kind: 'interim_approved', title: `Customer approved interim · #${orderId}`, body: 'GW can continue to the next milestone' });
   DomainEvents.emit('customer.interim.approved', {

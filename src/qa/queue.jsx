@@ -402,7 +402,7 @@ function QAQueue({ navigate, toast, initialOrderId }) {
       EFActions.qa.pass(active.id);
       toast({
         tone: 'success',
-        transition: { entity: `Order #${order.id}`, from: 'QA Review', to: (active.kind === 'final_work' || active.kind === 'revision') ? 'Delivered' : 'Customer Review' },
+        transition: { entity: `Order #${order.id}`, from: 'QA Review', to: 'Customer Review' },
         text: `Forwarded to ${cust.name} · 14-day review timer started`,
       });
     } else if (kind === 'request_revision') {

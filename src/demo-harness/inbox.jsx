@@ -1,7 +1,7 @@
 // Demo Inbox drawer. Lives in the demo harness — never appears as a
 // Customer/Admin/GW sidebar route. Shows simulated emails filtered by
 // persona. Magic-link CTAs consume tokens and route the visitor.
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Icon } from '../../utils.jsx';
 import * as EFHooks from '../core/hooks.js';
 import * as SimMail from '../sim/mail.js';
@@ -62,8 +62,23 @@ function useEmailsForRole(role) {
 function DemoInbox({ onClose, navigate, switchRole }) {
   const [persona, setPersona] = useState('customer');
   const [selectedId, setSelectedId] = useState(null);
+  const lastNewestIdRef = useRef(null);
   const list = useEmailsForRole(persona);
   const selected = list.find(e => e.id === selectedId) || null;
+
+  useEffect(() => {
+    const newestId = list[0]?.id || null;
+    const selectedStillExists = !selectedId || list.some(e => e.id === selectedId);
+    if (!newestId) {
+      lastNewestIdRef.current = null;
+      if (selectedId) setSelectedId(null);
+      return;
+    }
+    if (!selectedStillExists || !selectedId || lastNewestIdRef.current !== newestId) {
+      setSelectedId(newestId);
+    }
+    lastNewestIdRef.current = newestId;
+  }, [list, selectedId]);
 
   const handleCta = (email) => {
     const cta = email.cta;
@@ -165,7 +180,7 @@ function DemoInbox({ onClose, navigate, switchRole }) {
             </div>
           )}
           {selected && (
-            <div>
+            <div key={selected.id}>
               <div style={{ marginBottom: 14 }}>
                 <div style={{ fontSize: 11, color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 4 }}>{selected.kind}</div>
                 <div style={{ fontSize: 18, fontWeight: 600, marginBottom: 4 }}>{selected.subject}</div>
@@ -176,7 +191,7 @@ function DemoInbox({ onClose, navigate, switchRole }) {
                   <strong>Gesendet:</strong> {new Date(selected.sentAt).toLocaleString('de-DE')}
                 </div>
               </div>
-              <div style={{ background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: 8, padding: 16, fontSize: 13, lineHeight: 1.55, whiteSpace: 'pre-wrap' }}>
+              <div key={`body-${selected.id}`} style={{ background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: 8, padding: 16, fontSize: 13, lineHeight: 1.55, whiteSpace: 'pre-wrap' }}>
                 {renderInlineMd(selected.bodyMd)}
               </div>
               {selected.cta && (

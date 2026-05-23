@@ -1047,7 +1047,7 @@ function FinalSimSection({ order, toast }) {
     setBusy(true);
     setTimeout(() => {
       const ok = EFActions.customer.acceptFinal(order.id);
-      if (ok) toast && toast({ tone: 'success', transition: { entity: `Order #${order.id}`, from: 'Delivered', to: 'Payment pending' }, text: 'Simulated · final accepted by customer' });
+      if (ok) toast && toast({ tone: 'success', transition: { entity: `Order #${order.id}`, from: 'Customer Review', to: 'Payment pending' }, text: 'Simulated · final accepted by customer' });
       setBusy(false);
     }, 400);
   };
@@ -1056,7 +1056,7 @@ function FinalSimSection({ order, toast }) {
     setBusy(true);
     setTimeout(() => {
       const ok = EFActions.customer.requestRevision(order.id, note);
-      if (ok) toast && toast({ tone: 'info', transition: { entity: `Order #${order.id}`, from: 'Delivered', to: 'Revision required' }, text: 'Simulated · final revision requested' });
+      if (ok) toast && toast({ tone: 'info', transition: { entity: `Order #${order.id}`, from: 'Customer Review', to: 'Revision required' }, text: 'Simulated · final revision requested' });
       setMode(null); setNote(''); setBusy(false);
     }, 400);
   };

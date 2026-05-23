@@ -151,15 +151,12 @@ function canResolve(order, kind) {
   return { ok: true };
 }
 
-function allowedSubmissionKinds(order, gwId) {
+function allowedSubmissionKinds(order, gwId, submissions = []) {
   if (!order || order.gwId !== gwId) return [];
   if (order.status === 'revision_required') return ['revision'];
   if (order.status !== 'active') return [];
-  return [
-    order.interimDeadline ? 'interim_1' : null,
-    order.interim2Deadline ? 'interim_2' : null,
-    'final',
-  ].filter(Boolean);
+  const next = nextExpectedSubmissionKind(order, submissions);
+  return next ? [next] : [];
 }
 
 function submissionClosedReason(order) {
@@ -183,6 +180,112 @@ function isInterimKind(kind) {
 
 function isQaReviewKind(kind) {
   return QA_REVIEW_KINDS.indexOf(kind) >= 0;
+}
+
+function configuredInterimKinds(order) {
+  return [
+    order?.interimDeadline ? 'interim_1' : null,
+    order?.interim2Deadline ? 'interim_2' : null,
+  ].filter(Boolean);
+}
+
+function addInterimAndPrior(set, kind) {
+  if (kind === 'interim_1' || kind === 'interim_2') set.add('interim_1');
+  if (kind === 'interim_2') set.add('interim_2');
+}
+
+function submittedSubmissionKinds(order, submissions = []) {
+  const kinds = new Set();
+  (submissions || []).forEach(s => {
+    if (isInterimKind(s?.kind)) kinds.add(s.kind);
+    if (isQaReviewKind(s?.kind)) kinds.add('final');
+  });
+  if (isInterimKind(order?.lastSubmissionKind)) kinds.add(order.lastSubmissionKind);
+  if (isInterimKind(order?.lastSubmittedInterimKind)) kinds.add(order.lastSubmittedInterimKind);
+  if (order?.interimSubmittedAt || order?.interim1SubmittedAt) kinds.add('interim_1');
+  if (order?.interim2SubmittedAt) kinds.add('interim_2');
+  if (order?.finalSubmittedAt || statusRank(order) >= STATUS_RANK.final_submitted) kinds.add('final');
+  return kinds;
+}
+
+function latestInterimKind(order, submissions = []) {
+  if ((order?.status === 'under_customer_review' || order?.status === 'interim_submitted') && isInterimKind(order?.pendingCustomerReviewKind)) {
+    return order.pendingCustomerReviewKind;
+  }
+  if (isInterimKind(order?.lastSubmittedInterimKind)) return order.lastSubmittedInterimKind;
+  if (isInterimKind(order?.lastSubmissionKind)) return order.lastSubmissionKind;
+  const latest = [...(submissions || [])]
+    .filter(s => isInterimKind(s?.kind))
+    .sort((a, b) => {
+      const byDate = new Date(b.submittedAt || 0) - new Date(a.submittedAt || 0);
+      if (byDate) return byDate;
+      return (b.kind === 'interim_2' ? 1 : 0) - (a.kind === 'interim_2' ? 1 : 0);
+    })[0];
+  if (latest?.kind) return latest.kind;
+  if (order?.interim2SubmittedAt) return 'interim_2';
+  if (order?.interimSubmittedAt || order?.interim1SubmittedAt) return 'interim_1';
+  return null;
+}
+
+function completedInterimKinds(order, submissions = []) {
+  const done = new Set();
+  if (!order?.interimDeadline) return done;
+
+  if (statusRank(order) >= STATUS_RANK.final_submitted || order.finalSubmittedAt) {
+    configuredInterimKinds(order).forEach(kind => addInterimAndPrior(done, kind));
+    return done;
+  }
+
+  if (order.interim1ApprovedAt) addInterimAndPrior(done, 'interim_1');
+  if (order.interim2ApprovedAt) addInterimAndPrior(done, 'interim_2');
+  if (isInterimKind(order.lastApprovedInterimKind)) addInterimAndPrior(done, order.lastApprovedInterimKind);
+
+  const latest = latestInterimKind(order, submissions);
+  if (latest === 'interim_2') done.add('interim_1');
+  if (order.status === 'active' && latest) addInterimAndPrior(done, latest);
+  if (order.status === 'active' && order.interimCustomerSatisfied) {
+    addInterimAndPrior(done, isInterimKind(order.lastApprovedInterimKind) ? order.lastApprovedInterimKind : (latest || 'interim_1'));
+  }
+  return done;
+}
+
+function isFinalSubmitted(order, submissions = []) {
+  return submittedSubmissionKinds(order, submissions).has('final');
+}
+
+function nextExpectedSubmissionKind(order, submissions = []) {
+  if (!order) return null;
+  if (order.status === 'revision_required') return 'revision';
+  if (order.status !== 'active') return null;
+
+  const completedInterims = completedInterimKinds(order, submissions);
+  if (order.interimDeadline && !completedInterims.has('interim_1')) return 'interim_1';
+  if (order.interim2Deadline && !completedInterims.has('interim_2')) return 'interim_2';
+  if (!isFinalSubmitted(order, submissions)) return 'final';
+  return null;
+}
+
+function deliveryProgress(order, submissions = []) {
+  const submitted = submittedSubmissionKinds(order, submissions);
+  const completedInterims = completedInterimKinds(order, submissions);
+  const latestInterim = latestInterimKind(order, submissions);
+  const currentKind = order?.status === 'under_customer_review' || order?.status === 'interim_submitted'
+    ? (latestInterim || (completedInterims.has('interim_1') && order?.interim2Deadline ? 'interim_2' : 'interim_1'))
+    : nextExpectedSubmissionKind(order, submissions);
+  const interim1Complete = !order?.interimDeadline || completedInterims.has('interim_1');
+  const interim2Complete = !order?.interim2Deadline || completedInterims.has('interim_2');
+  return {
+    submittedKinds: submitted,
+    completedInterimKinds: completedInterims,
+    latestInterimKind: latestInterim,
+    currentKind,
+    interim1Submitted: submitted.has('interim_1') || completedInterims.has('interim_1'),
+    interim2Submitted: submitted.has('interim_2') || completedInterims.has('interim_2'),
+    interim1Complete,
+    interim2Complete,
+    interimsComplete: interim1Complete && interim2Complete,
+    finalSubmitted: isFinalSubmitted(order, submissions),
+  };
 }
 
 function isPreProposal(orderOrStatus) {
@@ -665,6 +768,7 @@ export {
   canTransition,
   canResolve,
   allowedSubmissionKinds,
+  nextExpectedSubmissionKind,
   submissionClosedReason,
   submissionKindToEntityKind,
   nextStateAfterSubmit,
@@ -686,6 +790,9 @@ export {
   addHours,
   lifecycleDates,
   isSyntheticDate,
+  deliveryProgress,
+  completedInterimKinds,
+  isFinalSubmitted,
   deriveSubmissions,
   buildOrderEvents,
   allInstallmentsPaid,

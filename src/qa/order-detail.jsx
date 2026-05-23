@@ -50,11 +50,10 @@ function QAOrderDetail({ orderId, navigate, toast, initialTab }) {
   };
   const passToCustomer = () => {
     if (!canReviewLatest) return;
-    const isFinal = latestActionable.kind === 'final_work';
     EFActions.qa.pass(latestActionable.id);
     toast({
       tone: 'success',
-      transition: { entity: `Order #${orderId}`, from: 'QA Review', to: isFinal ? 'Delivered' : 'Customer Review' },
+      transition: { entity: `Order #${orderId}`, from: 'QA Review', to: 'Customer Review' },
       text: `Forwarded to ${cust?.name}`,
     });
   };

@@ -134,14 +134,16 @@ function GWAssignmentDetail({ orderId, navigate, toast }) {
   // out-of-band record (firstContactSkippedTemplate) set it.
   const introDone = !!order.firstContactDoneAt || hasFirstContactRecord;
   const showFirstContact = isApproved && order.status === 'active' && !introDone;
+  const delivery = W.deliveryProgress(order, displaySubs || []);
 
   const stages = [
     { id: 'pending', label: 'Pending Approval', done: !isPending },
     { id: 'active', label: 'Active', done: ['active','interim_submitted','under_customer_review','revision_required','final_submitted','qa_review','delivered','payment_pending','completed'].includes(order.status) },
     { id: 'intro', label: 'Introduction', done: introDone },
-    { id: 'interim', label: 'Interim', done: ['interim_submitted','under_customer_review','revision_required','final_submitted','qa_review','delivered','payment_pending','completed'].includes(order.status) },
-    { id: 'final', label: 'Final', done: ['final_submitted','qa_review','delivered','payment_pending','completed'].includes(order.status) },
-    { id: 'review', label: 'Customer Review', done: ['delivered','payment_pending','completed'].includes(order.status) },
+    { id: 'interim', label: 'Interim', done: delivery.interimsComplete },
+    { id: 'final', label: 'Final', done: delivery.finalSubmitted },
+    { id: 'qa', label: 'QA Review', done: ['delivered','payment_pending','completed'].includes(order.status) },
+    { id: 'review', label: 'Customer Review', done: ['payment_pending','completed'].includes(order.status) },
     { id: 'paid', label: 'Paid', done: order.status === 'completed' || order.gwPaymentStatus === 'paid' },
   ];
   const currentStage = stages.findIndex(s => !s.done);
@@ -282,21 +284,19 @@ function GWAssignmentDetail({ orderId, navigate, toast }) {
           {/* Submission tiles — gated by current order state so impossible uploads are disabled. */}
           {(() => {
             const s = order.status;
-            const hasInterim1 = displaySubs.some(sub => sub.kind === 'interim_1');
-            const hasInterim2 = displaySubs.some(sub => sub.kind === 'interim_2');
-            const hasFinal = displaySubs.some(sub => W.isQaReviewKind(sub.kind));
+            const allowedKinds = W.allowedSubmissionKinds(order, me.id, displaySubs);
             // Soft-block: SOP D requires the GW introduction before any work goes to the customer.
             const introBlocks = !introDone;
             // Interim 1 is allowed only while the order is "active" (i.e. before any interim has been sent).
-            const interim1Allowed = isApproved && s === 'active' && !!order.interimDeadline && !hasInterim1 && !introBlocks;
+            const interim1Allowed = isApproved && allowedKinds.includes('interim_1') && !introBlocks;
             // Interim 2 is allowed once the customer has reviewed/approved interim 1 and we're back to active.
-            const interim2Allowed = isApproved && s === 'active' && !!order.interim2Deadline && hasInterim1 && !hasInterim2 && !introBlocks;
+            const interim2Allowed = isApproved && allowedKinds.includes('interim_2') && !introBlocks;
             // Final is allowed only after both interims (if any) and while still active.
-            const interimsComplete = (!order.interimDeadline || hasInterim1) && (!order.interim2Deadline || hasInterim2);
-            const finalAllowed   = isApproved && s === 'active' && interimsComplete && !hasFinal && !introBlocks;
+            const interimsComplete = delivery.interimsComplete;
+            const finalAllowed   = isApproved && allowedKinds.includes('final') && !introBlocks;
             // Revision upload (re-routed to the GWSubmit kind=final flow with revisionRounds++).
             const revisionMode   = isApproved && s === 'revision_required';
-            const finalAlreadySubmitted = ['final_submitted','qa_review','delivered','payment_pending','completed'].includes(s);
+            const finalAlreadySubmitted = delivery.finalSubmitted;
             const finalButtonLabel = finalAlreadySubmitted
               ? 'Final + invoice submitted'
               : revisionMode ? 'Upload revision' : 'Upload final + invoice';
@@ -307,7 +307,7 @@ function GWAssignmentDetail({ orderId, navigate, toast }) {
               revision_required: 'Customer requested a revision — use the Revise button',
               final_submitted: 'Final submitted — awaiting QA',
               qa_review: 'In QA — no further uploads needed',
-              delivered: 'Order delivered',
+              delivered: 'Customer is reviewing the final',
               payment_pending: 'Payment pending — work complete',
               completed: 'Order complete',
               on_hold: 'Order on hold',

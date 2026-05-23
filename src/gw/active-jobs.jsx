@@ -9,6 +9,7 @@ import { DeadlineCalendar } from '../shared/deadline-calendar.jsx';
 import { GWTimeline } from './timeline.jsx';
 import * as EFHooks from '../core/hooks.js';
 import { ACTIVE_GW_ORDER_STATUSES } from '../core/selectors.js';
+import * as W from '../core/workflow.js';
 import EF from '../core/ef.js';
 const D = EF;
 const ACTIVE_STATUS_SET = new Set(ACTIVE_GW_ORDER_STATUSES);
@@ -19,6 +20,16 @@ function GWActiveJobs({ navigate }) {
 
   // The list and the detail route must read the same live order source.
   const realMine = EFHooks.useOrders({ gwId: D.GW_ME.id });
+  const submissions = EFHooks.useSubmissions();
+  const submissionsByOrder = useMemo(() => {
+    const byOrder = new Map();
+    (submissions || []).forEach(s => {
+      const key = Number(s.orderId);
+      if (!byOrder.has(key)) byOrder.set(key, []);
+      byOrder.get(key).push(s);
+    });
+    return byOrder;
+  }, [submissions]);
   const calendarOrders = useMemo(
     () => realMine.filter(o => ACTIVE_STATUS_SET.has(o.status)),
     [realMine],
@@ -26,10 +37,11 @@ function GWActiveJobs({ navigate }) {
 
   // Augment real with derived stage info
   const realAugmented = realMine.map(o => {
+    const delivery = W.deliveryProgress(o, submissionsByOrder.get(Number(o.id)) || []);
     const stage = {
-      interim1: o.interimDeadline ? (['interim_submitted','under_customer_review','revision_required','final_submitted','qa_review','delivered','payment_pending','completed'].includes(o.status) ? 'done' : 'pending') : null,
-      interim2: o.interim2Deadline ? (['final_submitted','qa_review','delivered','payment_pending','completed'].includes(o.status) ? 'done' : 'pending') : null,
-      final: ['final_submitted','qa_review','delivered','payment_pending','completed'].includes(o.status) ? 'done' : 'pending',
+      interim1: o.interimDeadline ? (delivery.interim1Complete ? 'done' : delivery.currentKind === 'interim_1' ? 'current' : 'pending') : null,
+      interim2: o.interim2Deadline ? (delivery.interim2Complete ? 'done' : delivery.currentKind === 'interim_2' ? 'current' : 'pending') : null,
+      final: delivery.finalSubmitted ? 'done' : delivery.currentKind === 'final' ? 'current' : 'pending',
     };
     return { ...o, stage };
   });
@@ -75,9 +87,9 @@ function GWActiveJobs({ navigate }) {
           <span key={i} title={`${d.label}: ${d.state}`} style={{
             display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
             width: 22, height: 18, fontSize: 9, fontWeight: 600, borderRadius: 4,
-            background: d.state === 'done' ? 'var(--green)' : 'var(--surface-2)',
-            color: d.state === 'done' ? 'white' : 'var(--text-3)',
-            border: d.state === 'done' ? '1px solid var(--green)' : '1px solid var(--border)',
+            background: d.state === 'done' ? 'var(--green)' : d.state === 'current' ? 'var(--blue)' : 'var(--surface-2)',
+            color: d.state === 'done' || d.state === 'current' ? 'white' : 'var(--text-3)',
+            border: d.state === 'done' ? '1px solid var(--green)' : d.state === 'current' ? '1px solid var(--blue)' : '1px solid var(--border)',
           }}>{d.state === 'done' ? '✓' : d.k}</span>
         ))}
       </div>
@@ -182,7 +194,13 @@ function GWActiveJobs({ navigate }) {
             )}
             {filtered.map(o => {
               const cust = D.customer(o.customerId);
-              const next = ['final_submitted','qa_review','delivered','payment_pending','completed'].includes(o.status) ? null : (o.stage?.interim1 === 'pending' ? o.interimDeadline : o.stage?.interim2 === 'pending' ? o.interim2Deadline : o.finalDeadline);
+              const next = ['final_submitted','qa_review','delivered','payment_pending','completed'].includes(o.status)
+                ? null
+                : (o.stage?.interim1 && o.stage.interim1 !== 'done')
+                  ? o.interimDeadline
+                  : (o.stage?.interim2 && o.stage.interim2 !== 'done')
+                    ? o.interim2Deadline
+                    : o.finalDeadline;
               const dm = next ? U.deadlineMeta(next) : { label: '—', tone: 'neutral' };
               return (
                 <tr key={o.id} onClick={() => navigate('order-detail', { id: o.id })} style={{ cursor: 'pointer' }}>

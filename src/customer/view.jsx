@@ -87,7 +87,7 @@ function custStatusMeta(o) {
   return { color: 'blue', label: 'In Bearbeitung', icon: 'package' };
 }
 
-function custProgress(o) {
+function custProgress(o, submissions = []) {
   const s = o.status;
   if (s === 'completed' || s === 'payment_pending') return 100;
   if (s === 'delivered') return 95; // QA passed, awaiting customer acceptance
@@ -97,7 +97,12 @@ function custProgress(o) {
   if (s === 'invoice_sent') return 12;
   if (s === 'available') return 18;
   if (s === 'claimed_pending_approval') return 12;
-  if (s === 'active') return 35;
+  if (s === 'active') {
+    const delivery = W.deliveryProgress(o, submissions);
+    if (delivery.interimsComplete && o.interimDeadline) return 65;
+    if (delivery.interim1Complete || delivery.interim2Complete) return 55;
+    return 35;
+  }
   if (s === 'interim_submitted' || s === 'under_customer_review') return 55;
   if (s === 'revision_required') return 50;
   if (s === 'final_submitted') return 80;
@@ -214,7 +219,10 @@ function CustFooterBanner() {
 
 function CustOrderCard({ o, onOpen, startCheckout, goTo }) {
   const meta = custStatusMeta(o);
-  const progress = custProgress(o);
+  const displaySubs = EFHooks.useDisplaySubmissions(o.id);
+  const realSubs = (displaySubs || []).filter(s => !s.synthetic);
+  const delivery = W.deliveryProgress(o, realSubs);
+  const progress = custProgress(o, realSubs);
   const gw = custGwLabel(o);
   const dl = U.deadlineMeta(o.finalDeadline);
   const wt = D.WORK_TYPE_LABELS[o.workType] || o.workType;
@@ -229,8 +237,14 @@ function CustOrderCard({ o, onOpen, startCheckout, goTo }) {
     nextMs = { label: 'Zahlung', date: o.installments?.[0]?.date };
   } else if (o.status === 'available' || o.status === 'claimed_pending_approval') {
     nextMs = { label: 'GW-Zuweisung', date: '2026-05-09' };
-  } else if (o.status === 'active' && o.interimDeadline) {
-    nextMs = { label: 'Zwischenstand 1', date: o.interimDeadline };
+  } else if (o.status === 'active') {
+    if (o.interim2Deadline && delivery.interim1Complete && !delivery.interim2Complete) {
+      nextMs = { label: 'Zwischenstand 2', date: o.interim2Deadline };
+    } else if (!o.interimDeadline || delivery.interimsComplete) {
+      nextMs = { label: 'Endabgabe', date: o.finalDeadline };
+    } else {
+      nextMs = { label: 'Zwischenstand 1', date: o.interimDeadline };
+    }
   } else if (o.status === 'interim_submitted' || o.status === 'under_customer_review') {
     nextMs = { label: 'Ihr Feedback', date: null };
   } else if (o.status === 'revision_required') {
@@ -413,15 +427,15 @@ function CustOrdersList({ openOrder, startCheckout, goTo }) {
 }
 
 function CustOrderStatus({ o, startCheckout }) {
-  const progress = custProgress(o);
   const meta = custStatusMeta(o);
   const displaySubs = EFHooks.useDisplaySubmissions(o.id);
   const realSubs = (displaySubs || []).filter(s => !s.synthetic);
+  const progress = custProgress(o, realSubs);
   const dates = W.lifecycleDates(o, realSubs);
   const rank = W.statusRank(o);
-  const interim1Submitted = realSubs.some(s => s.kind === 'interim_1');
-  const interim2Submitted = realSubs.some(s => s.kind === 'interim_2');
-  const finalSubmitted = realSubs.some(s => W.isQaReviewKind(s.kind)) || !!o.finalSubmittedAt;
+  const delivery = W.deliveryProgress(o, realSubs);
+  const interim1Submitted = delivery.interim1Submitted;
+  const finalSubmitted = delivery.finalSubmitted;
 
   const milestones = [
     { id: 'inquiry', label: 'Anfrage eingegangen',        date: dates.leadAt, icon: 'inbox' },
@@ -432,7 +446,7 @@ function CustOrderStatus({ o, startCheckout }) {
     { id: 'gw',      label: 'Ghostwriter zugewiesen',     date: custGwLabel(o) ? dates.assignedAt : null, icon: 'user' },
     { id: 'interim', label: 'Zwischenstand 1',            date: dates.interimAt || o.interimDeadline, icon: 'upload-cloud', deadline: !dates.interimAt },
     o.interim2Deadline ? { id: 'interim2', label: 'Zwischenstand 2', date: o.interim2Deadline, icon: 'upload-cloud', deadline: true } : null,
-    { id: 'final',   label: 'Endabgabe',                  date: dates.deliveredAt || dates.finalSubmittedAt || o.finalDeadline, icon: 'shield-check', deadline: !(dates.deliveredAt || dates.finalSubmittedAt) },
+    { id: 'final',   label: 'Endabgabe hochgeladen',      date: dates.deliveredAt || dates.finalSubmittedAt || o.finalDeadline, icon: 'shield-check', deadline: !(dates.deliveredAt || dates.finalSubmittedAt) },
     { id: 'qa',      label: 'efactory1 Qualitätsprüfung', date: dates.qaReviewedAt, icon: 'shield' },
     { id: 'done',    label: 'Geliefert',                  date: dates.finalAcceptedAt || dates.completedAt, icon: 'check-circle' },
   ].filter(Boolean);
@@ -442,7 +456,7 @@ function CustOrderStatus({ o, startCheckout }) {
   // With a 2-interim contract we want interim1 → interim2 → final; with a
   // single interim, interim1 → final.
   const afterInterim = () => {
-    if (o.interim2Deadline && !interim2Submitted) return idx('interim2');
+    if (o.interim2Deadline && !delivery.interim2Complete) return idx('interim2');
     return idx('final');
   };
 
@@ -453,9 +467,10 @@ function CustOrderStatus({ o, startCheckout }) {
     if (o.status === 'qa_review' || o.status === 'final_submitted') return idx('qa');
     if (finalSubmitted) return idx('qa');
     if (o.status === 'revision_required') return finalSubmitted ? idx('qa') : afterInterim();
-    if (o.status === 'interim_submitted' || o.status === 'under_customer_review') return afterInterim();
-    if (interim1Submitted) return afterInterim();
-    if (o.status === 'active') return idx('interim');
+    if (o.status === 'interim_submitted' || o.status === 'under_customer_review') return delivery.currentKind === 'interim_2' ? idx('interim2') : idx('interim');
+    if (rank >= W.statusRank('active') && delivery.interim1Complete) return afterInterim();
+    if (interim1Submitted && o.status !== 'active') return afterInterim();
+    if (o.status === 'active') return (!o.interimDeadline || delivery.interimsComplete) ? idx('final') : idx('interim');
     if (o.status === 'available' || o.status === 'claimed_pending_approval') return idx('gw');
     if (custGwLabel(o)) return idx('interim');
     if (o.installments?.[0]?.status === 'paid') return idx('gw');
@@ -554,6 +569,10 @@ function CustOrderStatus({ o, startCheckout }) {
                 'Ihre Zahlung ist eingegangen. Wir suchen aktuell den passenden Ghostwriter mit Expertise in Ihrem Fachgebiet — Zuweisung erfolgt typischerweise innerhalb von 24 Stunden.' :
                 o.status === 'claimed_pending_approval' ?
                 'Ein Ghostwriter hat Ihren Auftrag angenommen. Berat prüft die Eignung — Sie erhalten in Kürze eine Bestätigung.' :
+                o.status === 'active' && delivery.interimsComplete && o.interimDeadline ?
+                'Der Zwischenstand wurde freigegeben. Ihr Ghostwriter arbeitet jetzt an der Endabgabe.' :
+                o.status === 'active' && !o.interimDeadline ?
+                'Ihr Ghostwriter arbeitet aktuell an der Endabgabe.' :
                 o.status === 'active' ?
                 'Ihr Ghostwriter arbeitet aktuell an der Ausarbeitung. Der erste Zwischenstand ist für ' + U.fmtDate(o.interimDeadline) + ' geplant.' :
                 o.status === 'interim_submitted' || o.status === 'under_customer_review' ?
@@ -644,8 +663,8 @@ function CustInterimFeedback({ o, toast }) {
         <div className="flex gap-2 mt-1">
           <button type="button" className="btn btn-sm" onClick={()=>setMode(null)}>Zurück</button>
           <button type="button" className="btn btn-sm btn-success" onClick={()=>{
-            EFActions.customer.approveInterim(o.id);
-            toast && toast({ tone: 'success', transition: { entity: `Auftrag #${o.id}`, from: 'Zwischenstand', to: 'In Bearbeitung' }, text: 'Zwischenstand freigegeben · GW arbeitet weiter' });
+            const ok = EFActions.customer.approveInterim(o.id);
+            if (ok) toast && toast({ tone: 'success', transition: { entity: `Auftrag #${o.id}`, from: 'Zwischenstand', to: 'In Bearbeitung' }, text: 'Zwischenstand freigegeben · GW arbeitet weiter' });
           }}>
             <Icon name="check" size={12}/> Freigabe bestätigen
           </button>
