@@ -14,6 +14,7 @@ import {
   ORDERS, GW_DEMO_ASSIGNMENTS, SUBMISSIONS, CUSTOMERS, GHOSTWRITERS,
   NOTIFICATIONS,
 } from '../../data.js';
+import { conversationIdFor, participantsForDirection } from './external-message-threading.js';
 
 function clone(value) {
   return value == null ? value : JSON.parse(JSON.stringify(value));
@@ -96,26 +97,45 @@ function buildLeads() {
 // ---------------------------------------------------------------------------
 // EXTERNAL MESSAGES — contact-keyed.
 //
-// Each message: { id, contactType, contactId, medium, direction, at, body,
-//   subject?, attachments?, readByAdmin }
+// Each message: { id, contactType, contactId, conversationId, medium, direction,
+//   at, body, subject?, from, to[], parentMessageId?, attachments?, readByAdmin }
 //
 // Per D-28 (the asymmetry principle): no orderId, no relatedOrderIds. A
 // customer with four orders has ONE WhatsApp + ONE email correspondence
 // with Berat — the platform does not attribute external messages to orders.
 // ---------------------------------------------------------------------------
-function externalSeed({ contactType, contactId, medium, direction, at, body, subject, attachments, readByAdmin }) {
+function resolveSeedContact(contactType, contactId) {
+  if (contactType === 'customer') return CUSTOMERS.find(c => c.id === contactId) || null;
+  if (contactType === 'gw') return GHOSTWRITERS.find(g => g.id === contactId) || null;
+  return null;
+}
+
+function externalSeed({
+  contactType, contactId, medium, direction, at, body, subject, attachments,
+  readByAdmin, parentMessageId, contactEntity, channelFromName,
+}) {
   const id = `em-${contactType}-${contactId}-${at.replace(/[^0-9]/g, '')}`;
+  const entity = contactEntity || resolveSeedContact(contactType, contactId) || { id: contactId };
+  const dir = direction === 'out' ? 'out' : 'in';
+  const { from, to } = participantsForDirection(dir, entity);
+  const fromParticipant = channelFromName
+    ? { ...from, name: channelFromName }
+    : from;
   return {
     id,
     contactType,
     contactId,
+    conversationId: conversationIdFor(contactType, contactId),
     medium,
-    direction,
+    direction: dir,
     at,
     body,
     subject: subject || null,
     attachments: attachments || null,
-    readByAdmin: readByAdmin !== undefined ? readByAdmin : direction === 'out',
+    parentMessageId: parentMessageId || null,
+    from: fromParticipant,
+    to,
+    readByAdmin: readByAdmin !== undefined ? readByAdmin : dir === 'out',
   };
 }
 
@@ -138,12 +158,28 @@ function buildExternalMessages() {
   // Order #3527 is paid but no GW yet → order chat is locked. Customer
   // naturally pings Berat via email instead. This is a healthy example of
   // why External must exist.
+  const mhInboundId = 'em-customer-c-mh-20260507100000';
   seeds.push(externalSeed({
     contactType: 'customer', contactId: 'c-mh', medium: 'email', direction: 'in',
     at: '2026-05-07T10:00:00',
     subject: 'Wann wird mir ein Ghostwriter zugewiesen?',
     body: 'Hallo Berat, ich habe meinen Auftrag vor zwei Tagen platziert und die erste Rate bezahlt. Wann kann ich mit der Zuweisung rechnen?',
     readByAdmin: false,
+  }));
+  const mhFirstReplyId = 'em-customer-c-mh-20260507103000';
+  seeds.push(externalSeed({
+    contactType: 'customer', contactId: 'c-mh', medium: 'email', direction: 'out',
+    at: '2026-05-07T10:30:00',
+    subject: 'Re: Wann wird mir ein Ghostwriter zugewiesen?',
+    body: 'Hallo Moritz, danke für Ihre Nachricht. Die Zuweisung läuft — ich melde mich, sobald ein Ghostwriter bestätigt ist.',
+    parentMessageId: mhInboundId,
+  }));
+  seeds.push(externalSeed({
+    contactType: 'customer', contactId: 'c-mh', medium: 'email', direction: 'out',
+    at: '2026-05-07T11:05:00',
+    subject: 'Re: Wann wird mir ein Ghostwriter zugewiesen?',
+    body: 'Kurzes Update: Die Zuweisung ist für morgen Vormittag eingeplant.',
+    parentMessageId: mhFirstReplyId,
   }));
 
   // -- Customer · Daniel Weber (c-dw) — offer follow-up --------------------
@@ -172,8 +208,7 @@ function buildExternalMessages() {
 
   // -- Customer · Antigona Berisha (c-ab) — casual WhatsApp ----------------
   // Repeat customer with TWO orders (#3492 completed, #3518 in progress).
-  // She messages Berat on WhatsApp casually; we do NOT pretend to know
-  // which order she means.
+  // WhatsApp display name matches registered name (same-name test case).
   seeds.push(externalSeed({
     contactType: 'customer', contactId: 'c-ab', medium: 'whatsapp', direction: 'in',
     at: '2026-05-06T20:15:00',
@@ -187,26 +222,44 @@ function buildExternalMessages() {
   }));
   seeds.push(externalSeed({
     contactType: 'customer', contactId: 'c-ab', medium: 'whatsapp', direction: 'in',
-    at: '2026-05-06T20:38:00',
+    at: '2026-05-07T14:05:00',
     body: 'Perfekt, Donnerstag passt. Danke!',
+    channelFromName: 'Antigona Berisha',
+    readByAdmin: false,
+  }));
+
+  // -- Customer · Kurt Müller (c-km) — WhatsApp, same display name ---------
+  seeds.push(externalSeed({
+    contactType: 'customer', contactId: 'c-km', medium: 'whatsapp', direction: 'in',
+    at: '2026-05-07T14:20:00',
+    body: 'Kurze Rückfrage zur Rate — können wir das kurz telefonisch klären?',
+    channelFromName: 'Kurt Müller',
+    readByAdmin: false,
+  }));
+
+  // -- Customer · Moritz Hahn (c-mh) — WhatsApp, different display name ----
+  seeds.push(externalSeed({
+    contactType: 'customer', contactId: 'c-mh', medium: 'whatsapp', direction: 'in',
+    at: '2026-05-07T13:30:00',
+    body: 'Hallo Berat, gibt es schon ein Update zur GW-Zuweisung?',
+    channelFromName: 'Moritz',
     readByAdmin: false,
   }));
 
   // -- Customer · Lea Schmidt (c-ls) — frustrated WhatsApp -----------------
-  // Order #3508 is in QA review; she's frustrated and writing Berat directly
-  // on WhatsApp. The right answer is for Berat to step in via the ORDER CHAT
-  // (which exists, since #3508 is paid + assigned) — but the customer is
-  // using her phone. So this lives in External.
+  // WhatsApp profile "Lea" ≠ registered "Lea Schmidt" (different-name test case).
   seeds.push(externalSeed({
     contactType: 'customer', contactId: 'c-ls', medium: 'whatsapp', direction: 'in',
     at: '2026-05-07T08:11:00',
     body: 'Berat, ich brauche das diese Woche fertig. Kapitel 4 ist noch immer nicht das, was wir besprochen haben.',
+    channelFromName: 'Lea S.',
     readByAdmin: false,
   }));
   seeds.push(externalSeed({
     contactType: 'customer', contactId: 'c-ls', medium: 'whatsapp', direction: 'in',
-    at: '2026-05-07T11:12:00',
+    at: '2026-05-07T15:18:00',
     body: '⚠ Bitte dringend — der Abgabetermin rückt näher.',
+    channelFromName: 'Lea',
     readByAdmin: false,
   }));
 
@@ -228,24 +281,45 @@ function buildExternalMessages() {
   }));
 
   // -- GW · Sarah Klein (gw-sk) — illness WhatsApp -------------------------
-  // GW contacts are also in Berat's external inbox — same surface, same
-  // model. The medium just happens to be WhatsApp.
+  // WhatsApp "Sarah" ≠ registered "Sarah Klein".
   seeds.push(externalSeed({
     contactType: 'gw', contactId: 'gw-sk', medium: 'whatsapp', direction: 'in',
     at: '2026-05-07T08:45:00',
     body: 'Hallo Berat, leider bin ich nächste Woche krank. Können wir meine aktuellen Aufträge ggf. umplanen?',
+    channelFromName: 'Sarah',
     readByAdmin: false,
   }));
 
-  // -- GW · Pavel Mueller (gw-pm) — delay report email --------------------
+  // -- GW · Pavel Mueller (gw-pm) — delay on WhatsApp -----------------------
+  // WhatsApp "Pavel M." ≠ registered "Pavel Mueller".
   seeds.push(externalSeed({
     contactType: 'gw', contactId: 'gw-pm', medium: 'whatsapp', direction: 'in',
-    at: '2026-05-06T16:25:00',
+    at: '2026-05-07T12:40:00',
     body: 'Berat, bin seit gestern krank (Grippe). Brauche 3 Tage Verlängerung für #3567. Neuer Termin 15.05. statt 12.05. — Attest folgt.',
+    channelFromName: 'Pavel M.',
     readByAdmin: false,
   }));
 
   return seeds;
+}
+
+// ---------------------------------------------------------------------------
+// INBOX INTERNAL NOTES — admin-only, contact-keyed. Never sent to customer.
+// ---------------------------------------------------------------------------
+function buildInboxInternalNotes() {
+  return [
+    {
+      id: 'inote-customer-c-mh-1',
+      contactType: 'customer',
+      contactId: 'c-mh',
+      at: '2026-05-07T11:12:00',
+      body: '@Sarah can you check the GW assignment queue for Moritz tomorrow morning?',
+      authorId: 'admin-berat',
+      authorName: 'Berat Özdemir',
+      authorInitials: 'BÖ',
+      mentions: ['admin-sarah'],
+    },
+  ];
 }
 
 // ---------------------------------------------------------------------------
@@ -255,7 +329,7 @@ function buildExternalMessages() {
 //   { id, chatId, orderId, authorRole, authorId, at, body, attachments? }
 // ] }
 // ---------------------------------------------------------------------------
-function chatMsg(chatId, orderId, authorRole, authorId, at, body, attachments) {
+function chatMsg(chatId, orderId, authorRole, authorId, at, body, attachments, extra = {}) {
   return {
     id: `${chatId}-m-${at.replace(/[^0-9]/g, '')}`,
     chatId,
@@ -265,6 +339,10 @@ function chatMsg(chatId, orderId, authorRole, authorId, at, body, attachments) {
     at,
     body,
     attachments: attachments || null,
+    parentMessageId: null,
+    quotedMessageSnapshot: null,
+    mentions: null,
+    ...extra,
   };
 }
 
@@ -309,6 +387,10 @@ function buildOrderChats() {
         chatMsg(id, orderId, 'gw', 'gw-iw', '2026-05-04T11:30:00', 'Geplant ist deduktiv, von der Theorie zur Anwendung. Falls Sie es anders bevorzugen, kann ich das anpassen.'),
         chatMsg(id, orderId, 'customer', 'c-ak', '2026-05-07T13:38:00', 'Klingt gut. Können wir noch ein konkretes Bosch-Beispiel einbauen?'),
         chatMsg(id, orderId, 'customer', 'c-ak', '2026-05-07T13:42:00', 'Und kurz: Welche Quellen ziehen Sie für die ERP-Diskussion heran?'),
+        chatMsg(id, orderId, 'gw', 'gw-iw', '2026-05-07T14:05:00', 'Ja @Adrian — Bosch nehme ich als Kernfall in Kapitel 3 mit auf. @Berat bitte kurz bestätigen, ob das im Scope bleibt.', null, {
+          parentMessageId: `${id}-m-20260507133800`,
+          mentions: ['customer:c-ak', 'admin:admin'],
+        }),
       ],
     });
   }
@@ -477,6 +559,7 @@ function hydrate() {
     ghostwriters: normalize(GHOSTWRITERS || []),
     leads: normalize(buildLeads()),
     external_messages: normalize(buildExternalMessages()),
+    inbox_internal_notes: normalize(buildInboxInternalNotes()),
     order_chats: normalize(buildOrderChats()),
     notifications: normalize(roleSeedNotifications()),
     sim_events: normalize([]),

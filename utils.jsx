@@ -5,13 +5,18 @@
 //   Status semantics:  blue=in-progress · yellow=pending · green=done · red=violation/error · orange=overdue · gray=on-hold
 //   Components exported: Icon, StatusPill, Avatar, Money, Bi, ScoreBar, NotReady,
 //                        PlannedTag, EmptyState, Skeleton, ChatNotice, ChatMessage,
-//                        ChatComposer, ChatThreadRow.
+//                        ChatComposer, ChatThreadRow, InboxThreadRow.
 //   Toasts:   import { showToast } from './src/core/toast.js'
 //   Notify:   import EFActions and call EFActions.notify({to, title, body, urgent})
 //   Feature flags live in data.js — single source of truth for "what's planned vs. live".
 import React from 'react';
 import { STATUS_PILLS, featureStatus } from './data.js';
 import { showToast } from './src/core/toast.js';
+import {
+  emailDisplayForMessage,
+  SUPPORT_INBOX,
+} from './src/core/external-message-threading.js';
+import { QuotedReplyBlock } from './src/components/QuotedReplyBlock.jsx';
 
 const WORK_TYPE_TONES = {
   hausarbeit: 'blue',
@@ -84,6 +89,19 @@ const fridayBatchLabel = (date = now()) => {
   return 'in ' + days + ' days';
 };
 
+// Compact timestamp for admin inbox thread rows (Figma: "5:34 pm").
+const fmtInboxTime = (iso, base = now()) => {
+  if (!iso) return '—';
+  const d = new Date(iso);
+  if (d.toDateString() === base.toDateString()) {
+    return d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true }).toLowerCase();
+  }
+  const days = Math.floor((base - d) / 86400000);
+  if (days === 1) return 'Yesterday';
+  if (days < 7) return d.toLocaleDateString('en-US', { weekday: 'short' });
+  return fmtDate(iso);
+};
+
 const relTime = (iso, base = now()) => {
   if (!iso) return '—';
   const d = new Date(iso);
@@ -152,6 +170,7 @@ const Icon = ({ name, size = 16, className = '', strokeWidth = 1.5 }) => {
     'download': <><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></>,
     'history': <><path d="M3 12a9 9 0 1 0 9-9 9.74 9.74 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l4 2"/></>,
     'search': <><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></>,
+    'info': <><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></>,
     'bot': <><path d="M12 8V4H8"/><rect width="16" height="12" x="4" y="8" rx="2"/><path d="M2 14h2"/><path d="M20 14h2"/><path d="M15 13v2"/><path d="M9 13v2"/></>,
     'bell': <><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></>,
     'check': <polyline points="20 6 9 17 4 12"/>,
@@ -169,6 +188,10 @@ const Icon = ({ name, size = 16, className = '', strokeWidth = 1.5 }) => {
     'mic': <><rect x="9" y="2" width="6" height="13" rx="3"/><path d="M19 10v1a7 7 0 0 1-14 0v-1"/><line x1="12" y1="19" x2="12" y2="22"/></>,
     'paperclip': <path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l8.57-8.57A4 4 0 1 1 17.93 8.84l-8.59 8.57a2 2 0 0 1-2.83-2.83l8.49-8.48"/>,
     'send': <><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></>,
+    'reply': <><polyline points="9 10 4 15 9 20"/><path d="M20 4v7a4 4 0 0 1-4 4H4"/></>,
+    'at-sign': <><circle cx="12" cy="12" r="4"/><path d="M16 8v5a3 3 0 0 0 6 0v-1a10 10 0 1 0-3.92 7.94"/></>,
+    'smile': <><circle cx="12" cy="12" r="10"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><line x1="9" y1="9" x2="9.01" y2="9"/><line x1="15" y1="9" x2="15.01" y2="9"/></>,
+    'maximize-2': <><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></>,
     'eye': <><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></>,
     'lock': <><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></>,
     'circle': <circle cx="12" cy="12" r="10"/>,
@@ -320,12 +343,17 @@ const ChatMessage = ({
   sender,
   initials,
   tone = 'blue',
+  contactType,
   at,
   children,
   attachments,
   channel,
   status,
   grouped,
+  onReply,
+  replyDisabled,
+  quotedBlock,
+  threadHint,
 }) => {
   // Callers commonly pass `attachments={msg.attachments}` where the field is
   // explicitly null — coerce so the default only needs to cover `undefined`.
@@ -345,12 +373,23 @@ const ChatMessage = ({
       <div className="chat-bubble-wrap">
         {!grouped && (
           <div className="chat-name">
-            <span>{mine ? 'Sie' : sender}</span>
+            <span className="chat-name-label">
+              {mine ? 'Sie' : sender}
+              {!mine && <RegisteredContactBadge contactType={contactType} size={12}/>}
+            </span>
             {channel && <span className="chat-channel">{channel}</span>}
           </div>
         )}
+        {threadHint && (
+          <div className="chat-thread-hint">
+            <span className="chat-thread-hint-label">{threadHint.label}</span>
+            <strong>{threadHint.emphasis}</strong>
+            {threadHint.preview && <span className="chat-thread-hint-preview">— {threadHint.preview}</span>}
+          </div>
+        )}
         <div className="chat-bubble">
-          <div style={{ whiteSpace: 'pre-wrap' }}>{children}</div>
+          {quotedBlock}
+          <div className="chat-bubble-text" style={{ whiteSpace: 'pre-wrap' }}>{children}</div>
           {atts.length > 0 && (
             <div className="chat-attachments">
               {atts.map((a, i) => (
@@ -366,73 +405,96 @@ const ChatMessage = ({
         <div className="chat-meta">
           {at && <span>{fmtDateTime(at)}</span>}
           {status && <span>{status}</span>}
+          {onReply && !replyDisabled && (
+            <button type="button" className="chat-reply-btn" onClick={onReply} aria-label="Reply to message">
+              <Icon name="corner-up-left" size={12}/> Reply
+            </button>
+          )}
         </div>
       </div>
     </div>
   );
 };
 
-// EmailCard — Renders an email-medium message as a card with subject,
-// recipients (To/CC/BCC), attachments, and an expand/collapse body. Distinct
-// from ChatMessage on purpose: emails are structurally richer than chat
-// bubbles, and rendering them as bubbles flattens that. Pure presentational
-// scaffolding — no ties to any thread/entity model.
-const EmailCard = ({ message, direction = 'inbound', senderName, initialExpanded = false, onReply }) => {
-  const [expanded, setExpanded] = React.useState(!!initialExpanded);
-  const subject = message.subject || '(no subject)';
-  const to = Array.isArray(message.to) ? message.to : (message.to ? [message.to] : []);
+// EmailCard — Front-style email message: From / To from stored participants (never reply-target).
+const EmailCard = ({
+  message,
+  contactInitials = '?',
+  contactTone = 'slate',
+  contactType,
+  onReply,
+  onOpenOrder,
+  openOrderLabel = 'Open order chat',
+}) => {
   const cc = Array.isArray(message.cc) ? message.cc : (message.cc ? [message.cc] : []);
   const bcc = Array.isArray(message.bcc) ? message.bcc : (message.bcc ? [message.bcc] : []);
   const attachments = message.attachments || [];
-  const fromLabel = direction === 'outbound' ? 'efactory1' : (senderName || 'Customer');
+  const { direction, fromLine, to } = emailDisplayForMessage(message);
+  const outbound = direction === 'outbound';
+  const systemNotification = message?.source === 'order_chat_mention' || message?.from?.role === 'system';
+  const cardInitials = systemNotification ? 'SU' : (outbound ? 'BÖ' : contactInitials);
+  const cardTone = systemNotification ? 'slate' : (outbound ? 'blue' : contactTone);
   return (
     <div className={`email-card email-card-${direction}`}>
       <div className="email-card-head">
-        <div className="email-card-icon"><Icon name="mail" size={14}/></div>
-        <div className="email-card-headline">
-          <div className="email-card-subject">{subject}</div>
-          <div className="email-card-meta">
-            <span><strong>From:</strong> {fromLabel}</span>
-            {to.length > 0 && <span><strong>To:</strong> {to.join(', ')}</span>}
-            {cc.length > 0 && <span><strong>CC:</strong> {cc.join(', ')}</span>}
-            {bcc.length > 0 && <span><strong>BCC:</strong> {bcc.join(', ')}</span>}
+        <Avatar initials={cardInitials} size={34} tone={cardTone}/>
+        <div className="email-card-addressing">
+          <div className="email-card-from">
+            <span className="email-card-from-line">{fromLine}</span>
+            {!outbound && !systemNotification && contactType && (
+              <RegisteredContactBadge contactType={contactType} size={13}/>
+            )}
           </div>
+          {to.length > 0 && <div className="email-card-to">To: {to.join(', ')}</div>}
+          {cc.length > 0 && <div className="email-card-recipients">Cc: {cc.join(', ')}</div>}
+          {bcc.length > 0 && <div className="email-card-recipients">Bcc: {bcc.join(', ')}</div>}
         </div>
-        <div className="email-card-when">
-          {message.at && <span>{fmtDateTime(message.at)}</span>}
-          {attachments.length > 0 && <span className="email-card-attach-count"><Icon name="paperclip" size={11}/> {attachments.length}</span>}
-        </div>
-      </div>
-      <button
-        type="button"
-        className="email-card-toggle"
-        onClick={() => setExpanded(v => !v)}
-        aria-expanded={expanded}
-      >
-        <Icon name={expanded ? 'chevron-up' : 'chevron-down'} size={12}/>
-        <span>{expanded ? 'Collapse' : 'Show body'}</span>
-      </button>
-      {expanded && (
-        <div className="email-card-body">
-          <div style={{ whiteSpace: 'pre-wrap' }}>{message.body}</div>
+        <div className="email-card-head-actions">
+          {message.at && <span className="email-card-when">{relTime(message.at)}</span>}
           {attachments.length > 0 && (
-            <div className="email-card-attachments">
-              {attachments.map((a, i) => (
-                <div key={i} className="email-card-attachment">
-                  <Icon name={a.icon || 'paperclip'} size={12}/>
-                  <span>{a.name}</span>
-                  {a.meta && <small>{a.meta}</small>}
-                </div>
-              ))}
-            </div>
+            <span className="email-card-attach-count" title={`${attachments.length} attachment(s)`}>
+              <Icon name="paperclip" size={11}/> {attachments.length}
+            </span>
           )}
           {onReply && (
-            <div className="email-card-actions">
-              <button type="button" className="btn-quiet" onClick={onReply}>
-                <Icon name="reply" size={12}/> Reply
-              </button>
-            </div>
+            <button type="button" className="email-card-head-reply" onClick={onReply} aria-label="Reply">
+              <Icon name="reply" size={14}/>
+            </button>
           )}
+        </div>
+      </div>
+      <div className="email-card-body">
+        <div className="email-card-body-text">{message.body}</div>
+        {onOpenOrder && (
+          <div className="email-card-order-cta">
+            <button type="button" className="btn btn-sm btn-blue" onClick={onOpenOrder}>
+              <Icon name="external-link" size={12}/> {openOrderLabel}
+            </button>
+          </div>
+        )}
+        {message.quotedMessageSnapshot && (
+          <QuotedReplyBlock
+            currentMessageFrom={message.from}
+            quotedMessageSnapshot={message.quotedMessageSnapshot}
+          />
+        )}
+        {attachments.length > 0 && (
+          <div className="email-card-attachments">
+            {attachments.map((a, i) => (
+              <div key={i} className="email-card-attachment">
+                <Icon name={a.icon || 'paperclip'} size={12}/>
+                <span>{a.name}</span>
+                {a.meta && <small>{a.meta}</small>}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+      {onReply && (
+        <div className="email-card-footer">
+          <button type="button" className="btn btn-sm" onClick={onReply}>
+            <Icon name="reply" size={12}/> Reply
+          </button>
         </div>
       )}
     </div>
@@ -452,27 +514,424 @@ const MediumChip = ({ medium }) => {
   );
 };
 
-const ChatComposer = ({ value, onChange, onSend, placeholder, disabled, helper, actions, sendLabel = 'Senden' }) => (
-  <div className="chat-composer">
-    {helper}
-    <div className="chat-composer-main">
-      <textarea
-        value={value}
-        onChange={onChange}
-        placeholder={placeholder}
-        disabled={disabled}
-        aria-label={placeholder || 'Message'}
-      />
-      <div className="chat-composer-actions">
-        {actions}
-        <button type="button" className="chat-send" onClick={onSend} disabled={disabled || !String(value || '').trim()} aria-label={sendLabel}>
-          <Icon name="send" size={15}/>
-          <span>{sendLabel}</span>
-        </button>
+// EmailReplyComposer — Front-style reply box (From/To, body, AI draft, Send).
+const EmailReplyComposer = ({
+  fromEmail = 'berat@efactory1.de',
+  toName,
+  toEmail,
+  subject,
+  quotedMessageSnapshot = null,
+  composerFrom = SUPPORT_INBOX,
+  value,
+  onChange,
+  onSend,
+  onDiscard,
+  generateDraft,
+  placeholder = 'Type your reply…',
+  sendLabel = 'Send',
+  disabled,
+}) => {
+  const [undoVisible, setUndoVisible] = React.useState(false);
+  const undoBodyRef = React.useRef('');
+  const undoTimerRef = React.useRef(null);
+
+  React.useEffect(() => () => {
+    if (undoTimerRef.current) clearTimeout(undoTimerRef.current);
+  }, []);
+
+  const handleGenerate = () => {
+    const draft = typeof generateDraft === 'function' ? generateDraft() : '';
+    if (!draft) return;
+    undoBodyRef.current = value || '';
+    onChange({ target: { value: draft } });
+    setUndoVisible(true);
+    if (undoTimerRef.current) clearTimeout(undoTimerRef.current);
+    undoTimerRef.current = setTimeout(() => setUndoVisible(false), 5000);
+  };
+
+  const handleUndo = () => {
+    onChange({ target: { value: undoBodyRef.current } });
+    setUndoVisible(false);
+    if (undoTimerRef.current) clearTimeout(undoTimerRef.current);
+  };
+
+  const toLabel = toEmail ? `${toName} <${toEmail}>` : toName;
+
+  return (
+    <div className="email-reply-composer">
+      <div className="email-reply-addressing">
+        <div className="email-reply-row">
+          <span className="email-reply-label">From:</span>
+          <span className="email-reply-pill email-reply-pill-from">{fromEmail}</span>
+        </div>
+        <div className="email-reply-row email-reply-row-to">
+          <span className="email-reply-label">To:</span>
+          <span className="email-reply-pill">{toName}</span>
+          <span className="email-reply-row-meta">
+            <span className="email-reply-link is-muted">Cc</span>
+            <span className="email-reply-link is-muted">Bcc</span>
+            {subject && <span className="email-reply-subject" title={subject}>Subject: {subject}</span>}
+          </span>
+        </div>
+        {toEmail && <div className="email-reply-to-detail">{toLabel}</div>}
       </div>
+      <div className="email-reply-editor">
+        {undoVisible && (
+          <button type="button" className="email-reply-undo" onClick={handleUndo}>Undo</button>
+        )}
+        <textarea
+          value={value}
+          onChange={onChange}
+          placeholder={placeholder}
+          disabled={disabled}
+          aria-label="Reply body"
+          rows={5}
+        />
+        {quotedMessageSnapshot && (
+          <QuotedReplyBlock
+            mode="composer"
+            currentMessageFrom={composerFrom}
+            quotedMessageSnapshot={quotedMessageSnapshot}
+          />
+        )}
+      </div>
+      <div className="email-reply-footer">
+        <div className="email-reply-tools">
+          <button
+            type="button"
+            className="email-reply-ai"
+            onClick={handleGenerate}
+            disabled={disabled}
+            aria-label="Generate reply with AI"
+            title="Generate reply"
+          >
+            <Icon name="sparkles" size={16}/>
+          </button>
+        </div>
+        <div className="email-reply-send-row">
+          {onDiscard && (
+            <button type="button" className="btn btn-sm" onClick={onDiscard} aria-label="Discard reply">
+              <Icon name="x" size={14}/>
+            </button>
+          )}
+          <button
+            type="button"
+            className="btn btn-sm btn-blue"
+            onClick={onSend}
+            disabled={disabled || !String(value || '').trim()}
+          >
+            <Icon name="send" size={13}/> {sendLabel}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+function renderBodyWithMentions(body, mentionables = []) {
+  if (!body) return null;
+  const names = mentionables.map(t => (t.mentionKey || t.name.split(/\s+/)[0]));
+  if (!names.length) return body;
+  const re = new RegExp(`@(${names.map(n => n.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|')})\\b`, 'gi');
+  const parts = [];
+  let last = 0;
+  let match;
+  while ((match = re.exec(body)) !== null) {
+    if (match.index > last) parts.push(body.slice(last, match.index));
+    parts.push(<strong key={match.index} className="chat-mention">{match[0]}</strong>);
+    last = match.index + match[0].length;
+  }
+  if (last < body.length) parts.push(body.slice(last));
+  return parts.length ? parts : body;
+}
+
+function renderNoteBodyWithMentions(body, teammates = []) {
+  return renderBodyWithMentions(body, teammates);
+}
+
+const InternalCommentNote = ({ note, teammates, inStream = false }) => (
+  <div className={`inbox-internal-note ${inStream ? 'inbox-internal-note--stream' : ''}`}>
+    <Avatar initials={note.authorInitials || 'EF'} size={26} tone="slate"/>
+    <div className="inbox-internal-note-main">
+      <div className="inbox-internal-note-meta">
+        <strong>{note.authorName}</strong>
+        <span className="inbox-internal-note-time">{relTime(note.at)}</span>
+        <span className="inbox-internal-note-badge">Internal</span>
+      </div>
+      <div className="inbox-internal-note-body">{renderNoteBodyWithMentions(note.body, teammates)}</div>
     </div>
   </div>
 );
+
+const InternalCommentBar = ({
+  teamName = 'eFactory Support',
+  teammates = [],
+  value,
+  onChange,
+  onSubmit,
+}) => {
+  const inputRef = React.useRef(null);
+  const [expanded, setExpanded] = React.useState(false);
+  const [mentionOpen, setMentionOpen] = React.useState(false);
+  const [mentionQ, setMentionQ] = React.useState('');
+
+  const filteredMentions = teammates.filter(t => {
+    if (!mentionQ) return true;
+    const q = mentionQ.toLowerCase();
+    return t.name.toLowerCase().includes(q) || t.id.toLowerCase().includes(q);
+  });
+
+  const syncMentionMenu = (el) => {
+    if (!el) return;
+    const pos = el.selectionStart ?? 0;
+    const before = (el.value || '').slice(0, pos);
+    const m = before.match(/@([\w.]*)$/);
+    if (m) {
+      setMentionOpen(true);
+      setMentionQ(m[1].toLowerCase());
+    } else {
+      setMentionOpen(false);
+      setMentionQ('');
+    }
+  };
+
+  const insertMention = (person) => {
+    const el = inputRef.current;
+    if (!el) return;
+    const pos = el.selectionStart ?? value.length;
+    const before = value.slice(0, pos);
+    const after = value.slice(pos);
+    const first = person.name.split(/\s+/)[0];
+    const next = `${before.replace(/@([\w.]*)$/, `@${first} `)}${after}`;
+    onChange({ target: { value: next } });
+    setMentionOpen(false);
+    setMentionQ('');
+    requestAnimationFrame(() => {
+      el.focus();
+      const caret = before.replace(/@([\w.]*)$/, `@${first} `).length;
+      el.setSelectionRange(caret, caret);
+    });
+  };
+
+  const insertAtTrigger = () => {
+    const el = inputRef.current;
+    const next = value ? `${value}${value.endsWith(' ') ? '' : ' '}@` : '@';
+    onChange({ target: { value: next } });
+    requestAnimationFrame(() => {
+      el?.focus();
+      syncMentionMenu(el);
+    });
+  };
+
+  const handleKeyDown = (e) => {
+    if (mentionOpen && filteredMentions.length) {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        setMentionOpen(false);
+        return;
+      }
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        insertMention(filteredMentions[0]);
+        return;
+      }
+    }
+    if (e.key === 'Enter' && !e.shiftKey && !expanded) {
+      e.preventDefault();
+      onSubmit?.();
+    }
+  };
+
+  return (
+    <div className="inbox-internal-bar-wrap">
+      {mentionOpen && filteredMentions.length > 0 && (
+        <ul className="inbox-internal-mention-menu" role="listbox">
+          {filteredMentions.map(t => (
+            <li key={t.id}>
+              <button type="button" role="option" onMouseDown={(e) => { e.preventDefault(); insertMention(t); }}>
+                <Avatar initials={t.initials} size={22} tone="slate"/>
+                <span>{t.name}</span>
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+      <div className={`inbox-internal-bar ${expanded ? 'is-expanded' : ''}`}>
+        <textarea
+          ref={inputRef}
+          className="inbox-internal-input"
+          rows={expanded ? 4 : 1}
+          placeholder={`Add internal comment visible to teammates in ${teamName}`}
+          value={value}
+          onChange={(e) => { onChange(e); syncMentionMenu(e.target); }}
+          onKeyDown={handleKeyDown}
+          onClick={(e) => syncMentionMenu(e.target)}
+          aria-label="Internal comment"
+        />
+        <div className="inbox-internal-actions">
+          <button type="button" className="inbox-internal-icon is-muted" disabled aria-label="Attach file" tabIndex={-1}>
+            <Icon name="paperclip" size={14}/>
+          </button>
+          <button type="button" className="inbox-internal-icon" onClick={insertAtTrigger} aria-label="Mention teammate">
+            <Icon name="at-sign" size={14}/>
+          </button>
+          <button type="button" className="inbox-internal-icon is-muted" disabled aria-label="Emoji" tabIndex={-1}>
+            <Icon name="smile" size={14}/>
+          </button>
+          <span className="inbox-internal-gif is-muted" aria-hidden="true">GIF</span>
+          <button
+            type="button"
+            className="inbox-internal-icon"
+            onClick={() => setExpanded(v => !v)}
+            aria-label={expanded ? 'Collapse' : 'Expand'}
+          >
+            <Icon name="maximize-2" size={14}/>
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const ChatComposer = ({
+  value,
+  onChange,
+  onSend,
+  placeholder,
+  disabled,
+  helper,
+  actions,
+  sendLabel = 'Senden',
+  mentionables = [],
+  replyBanner,
+  quotedBlock,
+  onCancelReply,
+  inputRef: inputRefProp,
+}) => {
+  const localRef = React.useRef(null);
+  const inputRef = inputRefProp || localRef;
+  const [mentionOpen, setMentionOpen] = React.useState(false);
+  const [mentionQ, setMentionQ] = React.useState('');
+
+  const filteredMentions = mentionables.filter(t => {
+    if (!mentionQ) return true;
+    const q = mentionQ.toLowerCase();
+    const key = (t.mentionKey || t.name.split(/\s+/)[0]).toLowerCase();
+    return t.name.toLowerCase().includes(q) || key.includes(q);
+  });
+
+  const syncMentionMenu = (el) => {
+    if (!el || !mentionables.length) return;
+    const pos = el.selectionStart ?? 0;
+    const before = (el.value || '').slice(0, pos);
+    const m = before.match(/@([\w.]*)$/);
+    if (m) {
+      setMentionOpen(true);
+      setMentionQ(m[1].toLowerCase());
+    } else {
+      setMentionOpen(false);
+      setMentionQ('');
+    }
+  };
+
+  const insertMention = (person) => {
+    const el = inputRef.current;
+    if (!el) return;
+    const pos = el.selectionStart ?? value.length;
+    const before = value.slice(0, pos);
+    const after = value.slice(pos);
+    const key = person.mentionKey || person.name.split(/\s+/)[0];
+    const next = `${before.replace(/@([\w.]*)$/, `@${key} `)}${after}`;
+    onChange({ target: { value: next } });
+    setMentionOpen(false);
+    setMentionQ('');
+    requestAnimationFrame(() => {
+      el.focus();
+      const caret = before.replace(/@([\w.]*)$/, `@${key} `).length;
+      el.setSelectionRange(caret, caret);
+    });
+  };
+
+  const insertAtTrigger = () => {
+    const el = inputRef.current;
+    const next = value ? `${value}${value.endsWith(' ') ? '' : ' '}@` : '@';
+    onChange({ target: { value: next } });
+    requestAnimationFrame(() => {
+      el?.focus();
+      syncMentionMenu(el);
+    });
+  };
+
+  const handleKeyDown = (e) => {
+    if (mentionOpen && filteredMentions.length) {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        setMentionOpen(false);
+        return;
+      }
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        insertMention(filteredMentions[0]);
+        return;
+      }
+    }
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      onSend?.();
+    }
+  };
+
+  return (
+    <div className="chat-composer">
+      {helper}
+      {replyBanner}
+      {mentionOpen && filteredMentions.length > 0 && (
+        <ul className="chat-mention-menu" role="listbox">
+          {filteredMentions.map(t => (
+            <li key={t.id}>
+              <button type="button" role="option" onMouseDown={(e) => { e.preventDefault(); insertMention(t); }}>
+                <Avatar initials={t.initials} size={22} tone={t.role === 'gw' ? 'amber' : t.role === 'customer' ? 'blue' : 'slate'}/>
+                <span>{t.name}</span>
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+      <div className="chat-composer-main">
+        {quotedBlock && <div className="chat-composer-quote">{quotedBlock}</div>}
+        <div className="chat-composer-row">
+          <textarea
+            ref={inputRef}
+            value={value}
+            onChange={(e) => { onChange(e); syncMentionMenu(e.target); }}
+            onKeyDown={handleKeyDown}
+            onClick={(e) => syncMentionMenu(e.target)}
+            placeholder={placeholder}
+            disabled={disabled}
+            aria-label={placeholder || 'Message'}
+          />
+          <div className="chat-composer-actions">
+            {mentionables.length > 0 && (
+              <button type="button" className="chat-composer-icon" onClick={insertAtTrigger} aria-label="Mention participant" disabled={disabled}>
+                <Icon name="at-sign" size={14}/>
+              </button>
+            )}
+            {actions}
+            {onCancelReply && (
+              <button type="button" className="chat-composer-icon is-muted" onClick={onCancelReply} aria-label="Cancel reply">
+                <Icon name="x" size={14}/>
+              </button>
+            )}
+            <button type="button" className="chat-send" onClick={onSend} disabled={disabled || !String(value || '').trim()} aria-label={sendLabel}>
+              <Icon name="send" size={15}/>
+              <span>{sendLabel}</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
 
 const ChatThreadRow = ({ active, unread, initials, tone = 'blue', title, subtitle, preview, meta, badges, onClick }) => (
   <button type="button" className={`chat-thread-row ${active ? 'is-active' : ''} ${unread ? 'has-unread' : ''}`} onClick={onClick} aria-current={active || undefined}>
@@ -487,6 +946,106 @@ const ChatThreadRow = ({ active, unread, initials, tone = 'blue', title, subtitl
       {badges && <span className="chat-thread-badges">{badges}</span>}
     </span>
     {unread ? <span className="chat-unread-dot" aria-label={`${unread} unread`}>{unread}</span> : <Icon name="chevron-right" size={14} className="text-faint"/>}
+  </button>
+);
+
+// GW Messages · active-order chat row (Figma 277:116 — id → title → sender + snippet + unread pill).
+const GwOrderChatThreadRow = ({
+  active,
+  unread,
+  initials,
+  tone = 'blue',
+  orderId,
+  orderTitle,
+  previewSender,
+  previewSnippet,
+  onClick,
+}) => (
+  <button
+    type="button"
+    className={`gw-order-chat-thread-row ${active ? 'is-active' : ''} ${unread ? 'has-unread' : ''}`}
+    onClick={onClick}
+    aria-current={active || undefined}
+  >
+    <Avatar initials={initials || '··'} size={38} tone={tone}/>
+    <span className="gw-order-chat-thread-body">
+      <span className="gw-order-chat-thread-id mono">#{orderId}</span>
+      {orderTitle && (
+        <span className="gw-order-chat-thread-title">{orderTitle}</span>
+      )}
+      {(previewSender || previewSnippet) && (
+        <span className="gw-order-chat-thread-preview-row">
+          <span className="gw-order-chat-thread-preview">
+            {previewSender && (
+              <span className="gw-order-chat-thread-sender">{previewSender}: </span>
+            )}
+            {previewSnippet && (
+              <span className="gw-order-chat-thread-snippet">{previewSnippet}</span>
+            )}
+          </span>
+          {unread > 0 && (
+            <span className="gw-order-chat-thread-unread-pill" aria-label={`${unread} unread`}>{unread}</span>
+          )}
+        </span>
+      )}
+    </span>
+  </button>
+);
+
+// Registered customer / ghostwriter indicator (leads have no badge).
+const RegisteredContactBadge = ({ contactType, size = 14 }) => {
+  if (contactType !== 'customer' && contactType !== 'gw') return null;
+  const label = contactType === 'customer' ? 'Registered customer' : 'Registered ghostwriter';
+  return (
+    <span className="inbox-registered-badge" title={label} aria-label={label}>
+      <Icon name="check-circle" size={size} className="inbox-registered-badge-icon" aria-hidden="true"/>
+    </span>
+  );
+};
+
+// InboxThreadRow — admin inbox sidebar row (Figma lead/email + lead/whats).
+const InboxThreadRow = ({ active, unread, initials, tone = 'blue', medium = 'email', contactType, title, subject, preview, youReplied, meta, onClick }) => (
+  <button
+    type="button"
+    className={`inbox-thread-row inbox-thread-row-${medium} ${active ? 'is-active' : ''} ${unread ? 'has-unread' : ''} ${youReplied ? 'has-you-replied' : ''}`}
+    onClick={onClick}
+    aria-current={active || undefined}
+  >
+    <span className="inbox-thread-avatar-wrap">
+      <Avatar initials={initials || 'EF'} size={38} tone={tone}/>
+      <span className={`inbox-thread-medium-badge inbox-thread-medium-badge-${medium}`} aria-hidden="true">
+        <Icon name={medium === 'email' ? 'mail' : 'message-circle'} size={medium === 'email' ? 9 : 8}/>
+      </span>
+    </span>
+    <span className="inbox-thread-body">
+      <span className="inbox-thread-top">
+        <span className="inbox-thread-title-wrap">
+          <strong className="inbox-thread-title">{title}</strong>
+          {contactType && <RegisteredContactBadge contactType={contactType}/>}
+        </span>
+        <span className="inbox-thread-meta">
+          {meta && <span className="inbox-thread-time">{meta}</span>}
+          {medium === 'email' && unread > 0 && <span className="inbox-thread-unread-dot" aria-hidden="true"/>}
+        </span>
+      </span>
+      {medium === 'email' && subject && <span className="inbox-thread-subject">{subject}</span>}
+      <span className={`inbox-thread-preview-row ${youReplied ? 'has-you-replied' : ''}`}>
+        {youReplied ? (
+          <>
+            <span className="inbox-thread-you-replied">
+              <Icon name="reply" size={14} className="inbox-thread-reply-icon" aria-hidden="true"/>
+              <span>You replied:</span>
+            </span>
+            <span className="inbox-thread-preview-snippet">{preview}</span>
+          </>
+        ) : (
+          <span className="inbox-thread-preview">{preview}</span>
+        )}
+        {medium === 'whatsapp' && unread > 0 && (
+          <span className="inbox-thread-unread-pill" aria-label={`${unread} unread`}>{unread}</span>
+        )}
+      </span>
+    </span>
   </button>
 );
 
@@ -507,10 +1066,10 @@ const ScoreBar = ({ value, label }) => {
 };
 
 export {
-  EUR, fmtDate, fmtDateTime, fmtTime, now, useNow, fmtClock, fmtWeekdayDate,
+  EUR, fmtDate, fmtDateTime, fmtTime, fmtInboxTime, now, useNow, fmtClock, fmtWeekdayDate,
   greetingFor, fridayBatchLabel, relTime, daysTo, deadlineMeta,
   Icon, StatusPill, Avatar, Money, Bi, ScoreBar, NotReady, PlannedTag,
-  EmptyState, Skeleton, ChatNotice, ChatMessage, EmailCard, MediumChip, ChatComposer, ChatThreadRow,
+  EmptyState, Skeleton, ChatNotice, ChatMessage, EmailCard, EmailReplyComposer, InternalCommentBar, InternalCommentNote, MediumChip, ChatComposer, ChatThreadRow, GwOrderChatThreadRow, InboxThreadRow, RegisteredContactBadge, renderBodyWithMentions,
   WORK_TYPE_TONES,
 };
 
@@ -518,7 +1077,7 @@ export {
 // Tokens are CSS variables (see :root in styles.css); EFDS.tokens documents the canonical names
 // so future code can read them via getComputedStyle() or simply consult this map.
 export const EFDS = {
-  components: { Icon, StatusPill, Avatar, Money, Bi, ScoreBar, NotReady, PlannedTag, EmptyState, Skeleton, ChatNotice, ChatMessage, EmailCard, MediumChip, ChatComposer, ChatThreadRow },
+  components: { Icon, StatusPill, Avatar, Money, Bi, ScoreBar, NotReady, PlannedTag, EmptyState, Skeleton, ChatNotice, ChatMessage, EmailCard, EmailReplyComposer, InternalCommentBar, InternalCommentNote, MediumChip, ChatComposer, ChatThreadRow, InboxThreadRow },
   tokens: {
     color: {
       // semantics → css var name

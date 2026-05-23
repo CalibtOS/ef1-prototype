@@ -609,12 +609,21 @@ function CustOrderChat({ o, toast }) {
           <div className="card-pad flex-col gap-2">
             <NotReady className="btn btn-sm" feature="request-callback" style={{ justifyContent: 'flex-start' }}><Icon name="phone" size={12}/> Rückruf anfordern</NotReady>
             <a className="btn btn-sm" href="mailto:kundenservice@efactory1.de" style={{ justifyContent: 'flex-start', textDecoration: 'none' }}><Icon name="mail" size={12}/> kundenservice@efactory1.de</a>
+            <a className="btn btn-sm" href="tel:+498001234567" style={{ justifyContent: 'flex-start', textDecoration: 'none' }}><Icon name="phone" size={12}/> +49 800 123 4567</a>
             {['interim_submitted','under_customer_review','revision_required','on_hold','delay_reported'].includes(o.status) && (
               <NotReady className="btn btn-sm btn-ghost" feature="report-dispute" style={{ justifyContent: 'flex-start', fontSize: 11.5, color: 'var(--text-3)' }}>
                 <Icon name="alert-triangle" size={11}/> Problem eskalieren
               </NotReady>
             )}
           </div>
+        </div>
+
+        <div className="banner info cust-chat-admin-hint">
+          <Icon name="info" size={14} aria-hidden="true"/>
+          <span>
+            Es gibt zwei Wege, mit Berat zu sprechen: Erwähnen Sie ihn direkt im Chat mit <strong>@Berat</strong>.
+            Wenn er nicht antwortet, erreichen Sie uns über die E-Mail und Telefonnummer oben.
+          </span>
         </div>
       </div>
     </div>

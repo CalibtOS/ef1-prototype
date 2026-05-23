@@ -23,8 +23,36 @@ import store from './store.js';
 import * as I from './internals.js';
 import * as S from './selectors.js';
 import * as N from './notifications.js';
+import {
+  buildOrderChatQuotedSnapshot,
+  getOrderChatMentionables,
+  parseOrderChatMentions,
+  mentionRecipientRoles,
+} from './order-chat-threading.js';
 import * as W from './workflow.js';
 import { STATUS } from './status.js';
+import {
+  normalizeExternalMessage,
+  buildOutboundReplyFields,
+  buildQuotedMessageSnapshot,
+  attachQuotedSnapshots,
+  participantsForDirection,
+  conversationIdFor,
+  SUPPORT_INBOX,
+  SYSTEM_NOTIFICATION_SENDER,
+  isSystemInboxNotification,
+} from './external-message-threading.js';
+import { orderChatMentionAdminNotify } from '../sim/mail.js';
+
+// Admin teammates who can be @mentioned on inbox internal notes (never customer-visible).
+export const INBOX_TEAMMATES = [
+  { id: 'admin-sarah', name: 'Sarah Klein', initials: 'SK' },
+  { id: 'admin-max', name: 'Max Vogel', initials: 'MV' },
+  { id: 'admin-leyla', name: 'Leyla Demir', initials: 'LD' },
+  { id: 'admin-berat', name: 'Berat Özdemir', initials: 'BÖ' },
+];
+
+const INBOX_TEAM_NAME = 'eFactory Support';
 
 // =============================================================================
 // Selectors
@@ -66,6 +94,9 @@ function selectExternalContacts(state) {
     const all = messages.filter(m => m.contactType === contactType && m.contactId === contactId);
     const unread = all.filter(m => m.direction === 'in' && !m.readByAdmin).length;
     const lastMedium = lastMessage?.medium || 'email';
+    const sorted = [...all].sort((a, b) => new Date(b.at) - new Date(a.at));
+    const lastEmail = sorted.find(m => m.medium === 'email');
+    const lastIsSystemNotification = isSystemInboxNotification(lastEmail);
     // Every medium this contact has ever used — drives the inbox medium
     // filter. A contact with both email and WhatsApp stays visible under
     // either filter, regardless of which medium their latest message used.
@@ -74,15 +105,22 @@ function selectExternalContacts(state) {
       key,
       contactType,
       contactId,
-      name: entity.name || entity.phone || entity.email || 'Contact',
+      name: lastIsSystemNotification
+        ? SYSTEM_NOTIFICATION_SENDER.name
+        : (entity.name || entity.phone || entity.email || 'Contact'),
       email: entity.email || null,
       phone: entity.phone || null,
-      initials: entity.initials || initialsFromName(entity.name) || '··',
+      initials: lastIsSystemNotification
+        ? 'SU'
+        : (entity.initials || initialsFromName(entity.name) || '··'),
+      lastIsSystemNotification,
       isB2B: !!entity.isB2B,
       lastAt,
       lastMedium,
       mediums,
       lastPreview: bodyPreview(lastMessage?.body),
+      lastDirection: lastMessage?.direction || 'in',
+      lastSubject: lastEmail?.subject || null,
       unread,
       messageCount: all.length,
     });
@@ -93,8 +131,21 @@ function selectExternalContacts(state) {
 
 function selectExternalMessagesForContact(state, contactType, contactId) {
   if (!contactType || contactId == null) return [];
-  return selectAllExternalMessages(state)
-    .filter(m => m.contactType === contactType && String(m.contactId) === String(contactId))
+  const contactEntity = resolveContactEntity(state, contactType, contactId);
+  const filtered = selectAllExternalMessages(state)
+    .filter(m => m.contactType === contactType && String(m.contactId) === String(contactId));
+  return attachQuotedSnapshots(filtered, contactEntity)
+    .sort((a, b) => new Date(a.at) - new Date(b.at));
+}
+
+function selectAllInternalNotes(state) {
+  return tableItems(state.entities.inbox_internal_notes || { byId: {}, allIds: [] });
+}
+
+function selectInternalNotesForContact(state, contactType, contactId) {
+  if (!contactType || contactId == null) return [];
+  return selectAllInternalNotes(state)
+    .filter(n => n.contactType === contactType && String(n.contactId) === String(contactId))
     .sort((a, b) => new Date(a.at) - new Date(b.at));
 }
 
@@ -168,8 +219,9 @@ function newId(prefix) {
 
 // ---- external messages ------------------------------------------------------
 
-// payload: { contactType, contactId, medium: 'email'|'whatsapp', direction?, body, subject?, attachments? }
-// direction defaults to 'out' (Berat replying via the platform surface).
+// payload: { contactType, contactId, medium, direction?, body, subject?, attachments?,
+//   parentMessageId?, quotedMessageSnapshot?, from?, to? }
+// direction defaults to 'out'. parentMessageId / quotedMessageSnapshot are render-only.
 function sendExternal(payload = {}) {
   const body = (payload.body || '').trim();
   if (!body && !(payload.attachments && payload.attachments.length)) return null;
@@ -177,12 +229,32 @@ function sendExternal(payload = {}) {
     I.toast({ text: 'Contact missing.', tone: 'danger' });
     return null;
   }
+  const state = store.getState();
+  const contactEntity = resolveContactEntity(state, payload.contactType, payload.contactId);
   const at = I.nowIso();
   const direction = payload.direction === 'in' ? 'in' : 'out';
-  const message = {
+  const defaults = participantsForDirection(direction, contactEntity);
+  const threadFields = direction === 'out'
+    ? buildOutboundReplyFields({
+      contactEntity,
+      parentMessageId: payload.parentMessageId,
+    })
+    : { parentMessageId: payload.parentMessageId ?? null };
+  let quotedMessageSnapshot = payload.quotedMessageSnapshot ?? null;
+  if (!quotedMessageSnapshot && threadFields.parentMessageId) {
+    const parent = selectAllExternalMessages(state).find(m => m.id === threadFields.parentMessageId);
+    if (parent) {
+      quotedMessageSnapshot = buildQuotedMessageSnapshot(
+        normalizeExternalMessage(parent, contactEntity),
+      );
+    }
+  }
+
+  const message = normalizeExternalMessage({
     id: newId('em'),
     contactType: payload.contactType,
     contactId: payload.contactId,
+    conversationId: conversationIdFor(payload.contactType, payload.contactId),
     medium: payload.medium === 'whatsapp' ? 'whatsapp' : 'email',
     direction,
     at,
@@ -190,9 +262,86 @@ function sendExternal(payload = {}) {
     subject: payload.subject || null,
     attachments: payload.attachments || null,
     readByAdmin: direction === 'out',
-  };
+    parentMessageId: threadFields.parentMessageId,
+    quotedMessageSnapshot,
+    from: payload.from || defaults.from,
+    to: payload.to?.length ? payload.to : defaults.to,
+  }, contactEntity);
   I.upsertEntity('external_messages', message, 'external_messages.send');
   return message;
+}
+
+/** Surface a customer/GW @Berat mention in the admin Inbox (contact thread). */
+function postOrderChatMentionToAdminInbox({ order, senderRole, senderName, body, messageId }) {
+  if (!order) return null;
+  const contactType = senderRole === 'gw' ? 'gw' : 'customer';
+  const contactId = senderRole === 'gw' ? order.gwId : order.customerId;
+  if (!contactId) return null;
+  const excerpt = body.length > 280 ? `${body.slice(0, 280)}…` : body;
+  const orderTitle = order.title || order.workType || '';
+  return sendExternal({
+    contactType,
+    contactId,
+    medium: 'email',
+    direction: 'in',
+    subject: `${senderName} mentioned you in order chat · #${order.id}`,
+    body: [
+      `${senderName} mentioned you (@Berat) in the platform order chat for Auftrag #${order.id}.`,
+      orderTitle ? `Order: ${orderTitle}` : '',
+      '',
+      'Message:',
+      excerpt,
+      '',
+      'Reply in the order communications tab.',
+    ].filter(Boolean).join('\n'),
+    from: { ...SYSTEM_NOTIFICATION_SENDER },
+    to: [{ ...SUPPORT_INBOX }],
+    relatedOrderId: order.id,
+    source: 'order_chat_mention',
+    orderChatMessageId: messageId,
+  });
+}
+
+function parseMentions(body, teammates = INBOX_TEAMMATES) {
+  const text = String(body || '');
+  const ids = [];
+  teammates.forEach(t => {
+    const first = t.name.split(/\s+/)[0];
+    const re = new RegExp(`@${first.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i');
+    if (re.test(text)) ids.push(t.id);
+  });
+  return [...new Set(ids)];
+}
+
+// payload: { contactType, contactId, body, authorId?, authorName?, authorInitials? }
+function addInternalNote(payload = {}) {
+  const body = (payload.body || '').trim();
+  if (!body || !payload.contactType || payload.contactId == null) return null;
+  const note = {
+    id: newId('inote'),
+    contactType: payload.contactType,
+    contactId: payload.contactId,
+    at: I.nowIso(),
+    body,
+    authorId: payload.authorId || 'admin-berat',
+    authorName: payload.authorName || 'Berat Özdemir',
+    authorInitials: payload.authorInitials || 'BÖ',
+    mentions: parseMentions(body),
+  };
+  I.upsertEntity('inbox_internal_notes', note, 'inbox_internal_notes.add');
+  note.mentions.forEach(mentionId => {
+    const person = INBOX_TEAMMATES.find(t => t.id === mentionId);
+    if (person && person.id !== note.authorId) {
+      N.notify({
+        to: 'admin',
+        kind: 'inbox_internal_mention',
+        title: `${note.authorName} mentioned you`,
+        body: body.length > 80 ? body.slice(0, 80) + '…' : body,
+        urgent: false,
+      });
+    }
+  });
+  return note;
 }
 
 function markExternalContactRead(contactType, contactId) {
@@ -276,6 +425,16 @@ function sendOrderChat(payload = {}) {
   const authorId = role === 'admin'
     ? 'admin'
     : role === 'gw' ? (o.gwId || null) : (o.customerId || null);
+  const parentMessageId = payload.parentMessageId || null;
+  let quotedMessageSnapshot = payload.quotedMessageSnapshot || null;
+  if (parentMessageId && !quotedMessageSnapshot) {
+    const parent = (liveChat.messages || []).find(m => m.id === parentMessageId);
+    if (parent) quotedMessageSnapshot = buildOrderChatQuotedSnapshot(parent, o);
+  }
+
+  const mentionables = getOrderChatMentionables(o, role);
+  const mentions = parseOrderChatMentions(body, mentionables);
+
   const message = {
     id: newId('oc'),
     chatId: liveChat.id,
@@ -285,6 +444,9 @@ function sendOrderChat(payload = {}) {
     at,
     body,
     attachments: payload.attachments || null,
+    parentMessageId,
+    quotedMessageSnapshot,
+    mentions: mentions.length ? mentions : null,
   };
   appendChatMessage(liveChat, message, ['customer', 'gw', 'admin'].filter(r => r !== role), 'order_chats.send');
 
@@ -299,9 +461,14 @@ function sendOrderChat(payload = {}) {
   if (role !== 'admin') recipients.push('admin');
   if (role !== 'customer' && o.customerId) recipients.push('customer');
   if (role !== 'gw' && o.gwId) recipients.push('gw');
-  if (recipients.length) {
+  const mentionedRoles = mentionRecipientRoles(mentions, role);
+  // @Berat gets a dedicated mention notification + inbox email — skip the generic one.
+  const messageRecipients = mentionedRoles.includes('admin')
+    ? recipients.filter(r => r !== 'admin')
+    : recipients;
+  if (messageRecipients.length) {
     N.notify({
-      to: recipients,
+      to: messageRecipients,
       kind: 'message_received',
       orderId: o.id,
       customerId: o.customerId || null,
@@ -311,6 +478,40 @@ function sendOrderChat(payload = {}) {
       urgent: false,
     });
   }
+
+  mentionedRoles.forEach(targetRole => {
+    if (!['customer', 'gw', 'admin'].includes(targetRole)) return;
+    N.notify({
+      to: [targetRole],
+      kind: 'order_chat_mention',
+      orderId: o.id,
+      customerId: o.customerId || null,
+      gwId: o.gwId || null,
+      title: `${senderName} mentioned you · #${o.id}`,
+      body: previewBody,
+      urgent: targetRole === 'admin',
+    });
+  });
+
+  if (mentionedRoles.includes('admin') && (role === 'customer' || role === 'gw')) {
+    postOrderChatMentionToAdminInbox({
+      order: o,
+      senderRole: role,
+      senderName,
+      body,
+      messageId: message.id,
+    });
+    orderChatMentionAdminNotify({
+      orderId: o.id,
+      customerId: o.customerId || null,
+      gwId: o.gwId || null,
+      senderName,
+      senderRole: role,
+      bodyExcerpt: previewBody,
+      orderTitle: o.title || o.workType || '',
+    });
+  }
+
   return message;
 }
 
@@ -392,9 +593,16 @@ export const externalMessages = {
   markContactRead: markExternalContactRead,
 };
 
+export const inboxInternalNotes = {
+  add: addInternalNote,
+  teamName: INBOX_TEAM_NAME,
+};
+
 export const select = {
   externalContacts: selectExternalContacts,
+  allExternalMessages: selectAllExternalMessages,
   externalMessagesForContact: selectExternalMessagesForContact,
+  internalNotesForContact: selectInternalNotesForContact,
   orderChat: selectOrderChat,
   allOrderChats: selectAllOrderChats,
   resolveContactEntity,
@@ -406,6 +614,10 @@ export {
   orderChatLockReason,
   bodyPreview,
   initialsFromName,
+  parseMentions,
+  normalizeExternalMessage,
+  getOrderChatMentionables,
+  parseOrderChatMentions,
 };
 
 // Re-export the order-paid predicate so chat surfaces can read the gate
