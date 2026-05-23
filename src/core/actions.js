@@ -194,7 +194,12 @@ function applyForJob(orderId, gwId, payload = {}) {
   const o = order(orderId);
   if (!o) return { ok: false, reason: 'not_found' };
   if (o.gwId) return { ok: false, reason: 'already_assigned' };
-  if (o.jobBoardStatus !== 'open') return { ok: false, reason: 'board_closed' };
+  if (o.scenarioId && o.jobBoardStatus !== 'open') return { ok: false, reason: 'board_closed' };
+  if (!o.scenarioId && o.status !== 'available') return { ok: false, reason: 'board_closed' };
+  const requiredAcks = ['agb', 'noAi', 'gdpr', 'deadline', 'fee', 'individual'];
+  const acks = payload.claimTermsAccepted || null;
+  const allAcked = !!acks && requiredAcks.every(k => acks[k] === true);
+  if (!allAcked) return { ok: false, reason: 'terms_incomplete', missing: requiredAcks.filter(k => !acks || acks[k] !== true) };
   const existing = tableItemsByOrder('gw_applications', orderId).find(a => a.gwId === gwId && a.status === 'pending');
   if (existing) return { ok: true, application: existing, dup: true };
   const application = {
@@ -205,6 +210,15 @@ function applyForJob(orderId, gwId, payload = {}) {
     appliedAt: nowIso(),
     pitch: payload.pitch || '',
     termsAccepted: !!payload.termsAccepted,
+    claimTermsAccepted: {
+      agb: !!acks.agb,
+      noAi: !!acks.noAi,
+      gdpr: !!acks.gdpr,
+      deadline: !!acks.deadline,
+      fee: !!acks.fee,
+      individual: !!acks.individual,
+      agbs: acks.agbs || 'v3.2',
+    },
     scenarioId: o.scenarioId || null,
   };
   upsertEntity('gw_applications', application, 'gw_applications.create');
