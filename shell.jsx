@@ -254,15 +254,17 @@ function resolveNotificationTarget(n, role) {
 
   const linkParams = (link) => link ? { name: link.name, params: link.params } : null;
 
-  // Order-chat messages. These always carry an orderId and belong to the
-  // per-order communication system — never the Admin Inbox (external comms).
-  if (kind === 'message_received') {
+  // Platform order-chat messages — deep-link to the order communications tab
+  // (admin) or role-specific messages surfaces (customer / GW).
+  if (kind === 'message_received' || kind === 'order_chat_mention') {
     if (role === 'customer') {
       return linkParams(buildLink(orderId
         ? { kind: 'customer-order', orderId, tab: 'messages' }
         : { kind: 'customer-section', section: 'messages' }));
     }
-    if (role === 'gw') return { name: 'gw-messages', params: orderId ? { orderId } : {} };
+    if (role === 'gw') {
+      return { name: 'gw-messages', params: orderId ? { orderId } : {} };
+    }
     return linkParams(buildLink(orderId
       ? { kind: 'admin-order', orderId, tab: 'communications' }
       : { kind: 'admin-inbox' }));

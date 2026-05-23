@@ -6,7 +6,8 @@
 // Per PRD: GW sees only job spec, customer name (after approval), their own
 // honorarium, submission tiles, messages, templates, deadlines.
 import React, { useState, useEffect, useMemo } from 'react';
-import { Icon, StatusPill, Avatar, Money, Bi, ScoreBar, NotReady, PlannedTag, EmptyState, Skeleton, ChatNotice, ChatMessage } from '../../utils.jsx';
+import { Icon, StatusPill, Avatar, Money, Bi, ScoreBar, NotReady, PlannedTag, EmptyState, Skeleton, ChatNotice } from '../../utils.jsx';
+import { OrderChat } from '../shared/order-chat.jsx';
 import * as U from '../../utils.jsx';
 import { CrumbBar } from '../../shell.jsx';
 import * as W from '../core/workflow.js';
@@ -77,6 +78,7 @@ function GWAssignmentDetail({ orderId, navigate, toast }) {
   const displaySubs = EFHooks.useDisplaySubmissions(orderId);
   const order = EFHooks.useOrder(orderId);
   const [outOfBandOpen, setOutOfBandOpen] = useState(false);
+  const [focusChatComposer, setFocusChatComposer] = useState(false);
   if (!order) return <div className="page">Assignment not found.</div>;
   // Ownership guard — a GW may only view assignments where they are the assigned writer
   // OR the order is on the public job board. Otherwise no leakage of customer/order data.
@@ -117,7 +119,16 @@ function GWAssignmentDetail({ orderId, navigate, toast }) {
   );
   const latestCustomerMessage = [...(chat?.messages || [])].reverse().find(m => m.authorRole === 'customer');
   const revisionAt = order.lastFeedbackAt || order.lastCustomerFeedbackAt || latestCustomerMessage?.at;
-  const visibleMessages = [...(chat?.messages || [])].slice(-3);
+  const scrollToOrderChat = () => {
+    document.getElementById('order-platform-chat')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    setFocusChatComposer(true);
+  };
+
+  useEffect(() => {
+    if (!focusChatComposer) return undefined;
+    const t = setTimeout(() => setFocusChatComposer(false), 200);
+    return () => clearTimeout(t);
+  }, [focusChatComposer]);
   // Intro is the first task after approval. Required before any submission per SOP D.
   // We treat it as "done" when the SOP D wizard recorded firstContactDoneAt, or an
   // out-of-band record (firstContactSkippedTemplate) set it.
@@ -226,7 +237,7 @@ function GWAssignmentDetail({ orderId, navigate, toast }) {
               <button className="btn btn-primary btn-sm" onClick={() => navigate('gw-submit', { id: order.id, kind: 'revision' })}>
                 <Icon name="upload-cloud" size={12}/> Upload revised version
               </button>
-              <button className="btn btn-sm" onClick={() => navigate('gw-messages')}>
+              <button className="btn btn-sm" onClick={scrollToOrderChat}>
                 <Icon name="message-square" size={12}/> Reply to customer
               </button>
               <button className="btn btn-sm" onClick={() => toast && toast({ text: 'Clarification request sent to efactory1 — Berat will mediate.', tone: 'info' })}>
@@ -370,36 +381,36 @@ function GWAssignmentDetail({ orderId, navigate, toast }) {
           );
           })()}
 
-          {/* Messages preview */}
-          <div className="card">
+          {/* Order platform chat — customer · GW · Berat */}
+          <div className="card" id="order-platform-chat">
             <div className="card-head">
-              <div className="card-title">Messages with customer</div>
-              <button className="btn btn-sm" onClick={() => navigate('gw-messages')}>Open chat →</button>
+              <div className="card-title">Order chat</div>
+              <div className="flex items-center gap-2">
+                <span className="text-faint fs-11">Customer · you · Berat</span>
+                {isApproved && (
+                  <button
+                    type="button"
+                    className="btn btn-sm"
+                    onClick={() => navigate('gw-messages', { orderId: order.id })}
+                  >
+                    Open in Messages →
+                  </button>
+                )}
+              </div>
             </div>
-            <div className="card-pad">
+            <div className="card-pad" style={{ padding: 0 }}>
               {!isApproved ? (
-                <ChatNotice compact icon="lock">Customer chat unlocks after Berat approves your claim.</ChatNotice>
-              ) : (
-                <div className="chat-shell chat-shell-soft" style={{ minHeight: 0 }}>
-                  <div className="chat-stream" style={{ padding: 12, maxHeight: 170 }}>
-                    {visibleMessages.length === 0 && (
-                      <EmptyState compact icon="message-square" title="No customer messages yet" body="The first-contact wizard starts the order chat after approval."/>
-                    )}
-                    {visibleMessages.map((m, i) => (
-                      <ChatMessage
-                        key={m.id || i}
-                        mine={m.authorRole === 'gw'}
-                        sender={m.authorRole === 'gw' ? 'You' : m.authorRole === 'customer' ? (D.customer(order.customerId)?.name || 'Customer') : 'efactory1'}
-                        initials={m.authorRole === 'customer' ? (D.customer(order.customerId)?.initials || 'CU') : m.authorRole === 'gw' ? me.initials : 'EF'}
-                        at={m.at}
-                        attachments={m.attachments}
-                      >
-                        {m.body}
-                      </ChatMessage>
-                    ))}
-                  </div>
-                  <ChatNotice compact>Platform-owned order chat · Berat (admin) is a participant and sees every message.</ChatNotice>
+                <div style={{ padding: 14 }}>
+                  <ChatNotice compact icon="lock">Customer chat unlocks after Berat approves your claim.</ChatNotice>
                 </div>
+              ) : (
+                <OrderChat
+                  orderId={order.id}
+                  currentRole="gw"
+                  toast={toast}
+                  embedded
+                  autoFocusComposer={focusChatComposer}
+                />
               )}
             </div>
           </div>

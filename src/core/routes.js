@@ -141,6 +141,14 @@ function navItems(role, state) {
     const gwId = state.session.gwId;
     const board = orders.filter(o => o.status === 'available' && !o.gwId && (!o.scenarioId || o.jobBoardStatus === 'open')).length;
     const mine = orders.filter(o => o.gwId === gwId && !['completed','cancelled'].includes(o.status));
+    const myOrderIds = new Set(mine.map(o => o.id));
+    const chatsTable = state.entities?.order_chats;
+    let msgUnread = 0;
+    if (chatsTable?.byId) {
+      Object.values(chatsTable.byId).forEach(c => {
+        if (myOrderIds.has(c.orderId)) msgUnread += c.unread?.gw || 0;
+      });
+    }
     return [
       { id: 'gw-dashboard', label: 'My Dashboard', icon: 'layout-dashboard' },
       { id: 'gw-jobs', label: 'Job Board', icon: 'clipboard-list', badge: board ? String(board) : null },
@@ -148,7 +156,7 @@ function navItems(role, state) {
       { id: 'gw-submissions', label: 'Submissions', icon: 'upload-cloud' },
       { id: 'gw-templates', label: 'Templates', icon: 'folder' },
       { id: 'gw-payments', label: 'Payments', icon: 'wallet' },
-      { id: 'gw-messages', label: 'Messages', icon: 'message-square' },
+      { id: 'gw-messages', label: 'Messages', icon: 'message-square', badge: msgUnread ? String(msgUnread) : null },
       { id: 'gw-profile', label: 'Profile', icon: 'user' },
     ];
   }

@@ -318,6 +318,37 @@ function paymentMethodLabel(m) {
   }[m] || m;
 }
 
+function orderChatMentionAdminNotify({
+  orderId,
+  customerId,
+  gwId,
+  senderName,
+  senderRole,
+  bodyExcerpt,
+  orderTitle,
+}) {
+  const roleLabel = senderRole === 'gw' ? 'Ghostwriter' : 'Customer';
+  return createEmail({
+    to: 'kundenservice@efactory1.de',
+    toRole: 'admin',
+    from: 'notifications@efactory1.de',
+    subject: `${senderName} mentioned you in order chat · #${orderId}`,
+    bodyMd: [
+      `**${senderName}** (${roleLabel}) mentioned you (@Berat) in the platform order chat.`,
+      ``,
+      `**Order:** #${orderId}${orderTitle ? ` · ${orderTitle}` : ''}`,
+      bodyExcerpt ? `**Message:** ${bodyExcerpt}` : '',
+      ``,
+      `Open the order to reply in the communications tab.`,
+    ].filter(line => line !== '').join('\n'),
+    cta: { label: 'Open order chat', action: 'open_admin_order', orderId, tab: 'communications' },
+    kind: 'order_chat_mention',
+    orderId,
+    customerId,
+    gwId,
+  });
+}
+
 function paymentReceivedAdminNotify({ orderId, customerId, customerName, installmentN, amountPaid, fullyPaid, outstandingEur, method, scenarioId }) {
   const amt = Number(amountPaid || 0).toLocaleString('de-DE', { minimumFractionDigits: 2 });
   const outstanding = Number(outstandingEur || 0).toLocaleString('de-DE', { minimumFractionDigits: 2 });
@@ -690,6 +721,7 @@ export {
   invoiceEmailCustomer,
   paymentFailedRetryCustomer,
   paymentReceiptCustomer,
+  orderChatMentionAdminNotify,
   paymentReceivedAdminNotify,
   paymentMethodLabel,
   gwJobAvailableToGw,

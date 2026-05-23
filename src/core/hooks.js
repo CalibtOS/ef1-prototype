@@ -114,9 +114,21 @@ function useExternalContacts() {
   return useStore(Comms.select.externalContacts, shallowEqual);
 }
 
+function useAllExternalMessages() {
+  return useStore(Comms.select.allExternalMessages, shallowEqual);
+}
+
 function useContactMessages(contactType, contactId) {
   const selector = React.useMemo(
     () => (state) => Comms.select.externalMessagesForContact(state, contactType, contactId),
+    [contactType, contactId]
+  );
+  return useStore(selector, shallowEqual);
+}
+
+function useContactInternalNotes(contactType, contactId) {
+  const selector = React.useMemo(
+    () => (state) => Comms.select.internalNotesForContact(state, contactType, contactId),
     [contactType, contactId]
   );
   return useStore(selector, shallowEqual);
@@ -183,7 +195,9 @@ export {
   useCustomers,
   useOrderChat,
   useExternalContacts,
+  useAllExternalMessages,
   useContactMessages,
+  useContactInternalNotes,
   useContactEntity,
   useNotifications,
   useCurrentRole,

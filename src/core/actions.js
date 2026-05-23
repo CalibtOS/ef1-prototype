@@ -10,7 +10,7 @@ import * as S from './selectors.js';
 import * as W from './workflow.js';
 import * as I from './internals.js';
 import * as N from './notifications.js';
-import { orderChats as OC, externalMessages as EM } from './comms.js';
+import { orderChats as OC, externalMessages as EM, inboxInternalNotes as IN } from './comms.js';
 import * as DomainEvents from './events.js';
 import { QA_STATUS } from './status.js';
 
@@ -1169,6 +1169,9 @@ const actions = {
   externalMessages: {
     send: EM.send,
     markContactRead: EM.markContactRead,
+  },
+  inboxInternalNotes: {
+    add: IN.add,
   },
 };
 

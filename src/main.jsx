@@ -299,7 +299,7 @@ function App() {
       'gw-submissions-list':  () => <GWSubmissionsList navigate={navigate}/>,
       'gw-templates':         () => <GWTemplates/>,
       'gw-payments':          () => <GWPayments navigate={navigate}/>,
-      'gw-messages':          (p) => <GWMessages navigate={navigate} initialOrderId={p.orderId}/>,
+      'gw-messages':          (p) => <GWMessages navigate={navigate} initialOrderId={p.orderId} toast={toast}/>,
       'gw-profile':           () => <GWProfile/>,
       'gw-assignment-detail': (p) => <GWAssignmentDetail orderId={p.id} navigate={navigate} toast={toast}/>,
       'order-detail':         (p) => <GWAssignmentDetail orderId={p.id} navigate={navigate} toast={toast}/>,
