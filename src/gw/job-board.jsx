@@ -1,7 +1,8 @@
-// GW · Job Board — claimable jobs with admin perspective toggle. Includes ClaimModal.
+// GW · Job Board — applications board with admin perspective toggle. Includes BewerbungModal.
 
 // ============ GW JOB BOARD ============
-// Same surface, two perspectives: GW claims, admin manages (no Claim button).
+// Same surface, two perspectives: GW applies via the BewerbungModal (SOP 1
+// Auftragsbedingungen + 6 acknowledgements); admin manages (no Bewerben button).
 import React, { useMemo, useState } from 'react';
 import { Icon, Avatar, NotReady } from '../../utils.jsx';
 import * as U from '../../utils.jsx';
@@ -29,7 +30,7 @@ const metricItems = (open, urgent, week, honor) => [
 function GWJobBoard({ navigate, toast, role = 'gw' }) {
   const isAdmin = role === 'admin';
   const [filter, setFilter] = useState('all');
-  const [claimingId, setClaimingId] = useState(null);
+  const [applyingId, setApplyingId] = useState(null);
   EFHooks.useStore(s => s.meta.version);
   const currentGwId = EFHooks.useStore(s => s.session.gwId);
   const applicationsTable = EFHooks.useStore(s => s.entities.gw_applications);
@@ -58,26 +59,13 @@ function GWJobBoard({ navigate, toast, role = 'gw' }) {
       grossEur: o.grossEur,
       customerId: o.customerId,
       factor: U.daysTo(o.finalDeadline) < 7 ? '1.5' : '1.0',
-      topic: o.titleTBD ? 'Titel folgt — Briefing nach Claim' : o.title,
+      topic: o.titleTBD ? 'Titel folgt — Briefing nach Zuweisung' : o.title,
       adminNote: o.gwBoardNote || o.offerNote || null,
       urgent: U.daysTo(o.finalDeadline) < 7,
       jobBoardStatus: o.jobBoardStatus,
       assignmentMode: o.assignmentMode,
     }));
 
-  const onApply = (id) => {
-    const res = EFActions.gw.applyForJob(id, currentGwId, {
-      pitch: 'Ich habe passende Expertise und melde mich heute beim Kunden.',
-      termsAccepted: true,
-    });
-    if (res?.ok && toast) {
-      toast({
-        tone: 'success',
-        transition: { entity: `Order #${id}`, from: 'On Job Board', to: 'Bewerbung eingereicht' },
-        text: 'Bewerbung gesendet · Berat prüft alle Bewerbungen',
-      });
-    }
-  };
   const hasMyApplication = (id) => myPendingApps.some(a => a.orderId === id);
 
   const typeCounts = useMemo(() => {
@@ -257,19 +245,13 @@ function GWJobBoard({ navigate, toast, role = 'gw' }) {
                           <Icon name="x" size={12}/>
                         </button>
                       </div>
-                    ) : j.assignmentMode === 'job_board' && j.jobBoardStatus === 'open' ? (
-                      hasMyApplication(j.id) ? (
-                        <button type="button" className="btn btn-sm gw-board-row-action" disabled>
-                          <Icon name="clock" size={12}/> Gesendet
-                        </button>
-                      ) : (
-                        <button type="button" className="btn btn-sm btn-primary gw-board-row-action" onClick={() => onApply(j.id)}>
-                          <Icon name="send" size={12}/> Bewerben
-                        </button>
-                      )
+                    ) : hasMyApplication(j.id) ? (
+                      <button type="button" className="btn btn-sm gw-board-row-action" disabled>
+                        <Icon name="clock" size={12}/> Gesendet
+                      </button>
                     ) : (
-                      <button type="button" className="btn btn-sm btn-success gw-board-row-action" onClick={() => setClaimingId(j.id)}>
-                        <Icon name="check" size={12}/> Annehmen
+                      <button type="button" className="btn btn-sm btn-primary gw-board-row-action" onClick={() => setApplyingId(j.id)}>
+                        <Icon name="send" size={12}/> Bewerben
                       </button>
                     )}
                   </td>
@@ -286,32 +268,46 @@ function GWJobBoard({ navigate, toast, role = 'gw' }) {
           </div>
         </div>
       </section>
-      {!isAdmin && claimingId && <ClaimModal job={unclaimed.find(j => j.id === claimingId)} gwId={currentGwId} onClose={() => setClaimingId(null)} toast={toast} navigate={navigate}/>}
+      {!isAdmin && applyingId && <BewerbungModal job={unclaimed.find(j => j.id === applyingId)} gwId={currentGwId} onClose={() => setApplyingId(null)} toast={toast} navigate={navigate}/>}
     </div>
   );
 }
 
-function ClaimModal({ job, gwId, onClose, toast, navigate }) {
+function BewerbungModal({ job, gwId, onClose, toast }) {
   const [step, setStep] = useState(1);
   const [acks, setAcks] = useState({ agb: false, ai: false, gdpr: false, deadline: false, fee: false, individual: false });
   const allAcked = Object.values(acks).every(Boolean);
+  if (!job) return null;
   const submit = () => {
-    EFActions.gw.claimJob(job.id, gwId);
-    onClose();
-    toast({
-      tone: 'info',
-      transition: { entity: `Order #${job.id}`, from: 'On Job Board', to: 'GW Claimed — Approve' },
-      text: '6 acknowledgements signed · awaiting admin approval',
+    const res = EFActions.gw.applyForJob(job.id, gwId, {
+      pitch: 'Ich habe passende Expertise und melde mich heute beim Kunden.',
+      termsAccepted: true,
+      claimTermsAccepted: {
+        agb: acks.agb,
+        noAi: acks.ai,
+        gdpr: acks.gdpr,
+        deadline: acks.deadline,
+        fee: acks.fee,
+        individual: acks.individual,
+        agbs: 'v3.2',
+      },
     });
-    setTimeout(() => navigate('gw-active'), 400);
+    onClose();
+    if (res?.ok) {
+      toast && toast({
+        tone: 'success',
+        transition: { entity: `Order #${job.id}`, from: 'On Job Board', to: 'Bewerbung eingereicht' },
+        text: 'Bewerbung gesendet · Berat prüft alle Bewerbungen',
+      });
+    }
   };
   return (
     <div className="modal-backdrop" onClick={onClose}>
       <div className="modal" onClick={e => e.stopPropagation()}>
         <div className="modal-header">
           <div>
-            <div className="modal-title">Claim Job #{job.id}</div>
-            <div className="text-faint fs-11 mt-1">Step {step} of 2 · acknowledgements</div>
+            <div className="modal-title">Bewerbung · Auftrag #{job.id}</div>
+            <div className="text-faint fs-11 mt-1">Schritt {step} von 2 · Auftragsbedingungen</div>
           </div>
           <button className="btn btn-sm" onClick={onClose}><Icon name="x" size={14}/></button>
         </div>
@@ -319,30 +315,30 @@ function ClaimModal({ job, gwId, onClose, toast, navigate }) {
           {step === 1 ? (
             <>
               <div className="kv">
-                <div className="kv-row"><dt>Type</dt><dd>{D.WORK_TYPE_LABELS[job.workType]}</dd></div>
-                <div className="kv-row"><dt>Field</dt><dd>{job.field}</dd></div>
-                <div className="kv-row"><dt>Pages</dt><dd className="mono">{job.pages}</dd></div>
-                <div className="kv-row"><dt>Final deadline</dt><dd className="mono">{U.fmtDate(job.deadline)}, 18:00</dd></div>
-                <div className="kv-row"><dt>Topic</dt><dd>{job.topic}</dd></div>
-                <div className="kv-row"><dt>Your honorarium</dt><dd className="mono strong" style={{ color: 'var(--green)', fontSize: 16 }}>{U.EUR(job.honorEur)}</dd></div>
-                <div className="kv-row"><dt>Released after</dt><dd>final delivery + customer accepts + payment cleared (next Friday)</dd></div>
+                <div className="kv-row"><dt>Art der Arbeit</dt><dd>{D.WORK_TYPE_LABELS[job.workType]}</dd></div>
+                <div className="kv-row"><dt>Fachbereich</dt><dd>{job.field}</dd></div>
+                <div className="kv-row"><dt>Seiten</dt><dd className="mono">{job.pages}</dd></div>
+                <div className="kv-row"><dt>Finales Lieferdatum</dt><dd className="mono">{U.fmtDate(job.deadline)}, 18:00</dd></div>
+                <div className="kv-row"><dt>Thema</dt><dd>{job.topic}</dd></div>
+                <div className="kv-row"><dt>Ihr Honorar</dt><dd className="mono strong" style={{ color: 'var(--green)', fontSize: 16 }}>{U.EUR(job.honorEur)}</dd></div>
+                <div className="kv-row"><dt>Auszahlung nach</dt><dd>Finallieferung + Kundenfreigabe + Zahlungseingang (Freitag-Batch)</dd></div>
               </div>
               <div className="banner danger mt-3" style={{ fontSize: 12 }}>
                 <Icon name="alert-triangle" size={14}/>
                 <div>
-                  <strong>Important:</strong> Claim is <em>provisional</em> until admin approves. Customer details and platform chat unlock only after approval. AGB v3.2 applies.
+                  Ihre Bewerbung ist <strong>unverbindlich</strong>, bis efactory1 sie freigibt. Kundendaten und Chat erst nach Zuweisung. AGB v3.2 gelten nach Freigabe.
                 </div>
               </div>
             </>
           ) : (
             <div className="flex-col gap-2">
               {[
-                { k: 'agb', label: 'I have read and accept the AGB v3.2 (effective 01.04.2026), including kill-fee schedule & confidentiality.' },
-                { k: 'ai', label: 'I will NOT use AI tools (ChatGPT, Claude, Gemini, etc.) to generate any part of the work. Per AGB v3.2 §5, any AI use is fraud — exclusion from the platform and forfeit of payment. The AI score is investigative evidence, not a tolerated threshold.' },
-                { k: 'gdpr', label: 'I will not store or share customer data outside efactory1 platform. GDPR Art. 28 applies.' },
-                { k: 'deadline', label: 'I commit to the final deadline ' + U.fmtDate(job.deadline) + ' 18:00 — late delivery triggers fee reduction.' },
-                { k: 'fee', label: 'I accept the honorarium of ' + U.EUR(job.honorEur) + ' as full and final compensation, paid after release gate clears.' },
-                { k: 'individual', label: 'I confirm this is an Individual-Werk (Werkvertrag) and I am not employed by efactory1 GmbH.' },
+                { k: 'agb', label: 'Ich habe die AGB v3.2 (gültig ab 01.04.2026) gelesen und akzeptiert — inkl. Kill-Fee-Staffelung und Vertraulichkeit.' },
+                { k: 'ai', label: 'Ich werde KEINE KI-Tools (ChatGPT, Claude, Gemini etc.) einsetzen, um Teile der Arbeit zu erzeugen. Gemäß AGB v3.2 §5 gilt jede KI-Nutzung als Betrug — Ausschluss von der Plattform und Verfall der Vergütung. Der KI-Score ist Beweismittel, kein tolerierter Schwellenwert.' },
+                { k: 'gdpr', label: 'Ich werde Kundendaten nicht außerhalb der efactory1-Plattform speichern oder weitergeben. DSGVO Art. 28 gilt.' },
+                { k: 'deadline', label: 'Ich verpflichte mich zum finalen Liefertermin ' + U.fmtDate(job.deadline) + ' 18:00 — verspätete Lieferung führt zur Honorarkürzung.' },
+                { k: 'fee', label: 'Ich akzeptiere das Honorar von ' + U.EUR(job.honorEur) + ' als volle und abschließende Vergütung, ausgezahlt nach Freigabe des Release-Gates.' },
+                { k: 'individual', label: 'Ich bestätige, dass dies ein Individual-Werk (Werkvertrag) ist und ich nicht bei der efactory1 GmbH angestellt bin.' },
               ].map(a => (
                 <label key={a.k} className="flex items-start gap-2" style={{ padding: 10, border: '1px solid var(--border)', borderRadius: 8, cursor: 'pointer', background: acks[a.k] ? 'color-mix(in oklab, var(--green) 5%, var(--surface))' : 'var(--surface)' }}>
                   <input type="checkbox" checked={acks[a.k]} onChange={() => setAcks({ ...acks, [a.k]: !acks[a.k] })} style={{ marginTop: 2 }}/>
@@ -353,11 +349,11 @@ function ClaimModal({ job, gwId, onClose, toast, navigate }) {
           )}
         </div>
         <div className="modal-footer">
-          <button className="btn" onClick={onClose}>Cancel</button>
+          <button className="btn" onClick={onClose}>Abbrechen</button>
           {step === 1 ? (
-            <button className="btn btn-primary" onClick={() => setStep(2)}>Continue to acknowledgements →</button>
+            <button className="btn btn-primary" onClick={() => setStep(2)}>Weiter zu den Bestätigungen →</button>
           ) : (
-            <button className="btn btn-success" disabled={!allAcked} onClick={submit}><Icon name="check" size={14}/> Submit claim · {U.EUR(job.honorEur)}</button>
+            <button className="btn btn-success" disabled={!allAcked} onClick={submit}><Icon name="send" size={14}/> Bewerbung absenden · {U.EUR(job.honorEur)}</button>
           )}
         </div>
       </div>
