@@ -20,7 +20,7 @@ import { QA_STATUS } from '../core/status.js';
 import * as SimCheckout from '../sim/checkout.js';
 import { CheckoutModal } from './checkout-modal.jsx';
 import { OrderChat } from '../shared/order-chat.jsx';
-import { ReportMessagesPanel } from '../components/ReportMessages.jsx';
+import { useReportChat, ReportChatPanel } from '../components/ReportChatPanel.jsx';
 const D = EF;
 
 const CUST_PERSONA = (EFShell?.ROLES || []).find(r => r.id === 'customer') ||
@@ -610,36 +610,7 @@ function CustOrderStatus({ o, startCheckout }) {
 }
 
 function CustOrderChat({ o, toast }) {
-  const [reportMode, setReportMode] = useState(false);
-  const [selectedIds, setSelectedIds] = useState(new Set());
-  const [showReasonPicker, setShowReasonPicker] = useState(false);
-
-  const enterReportMode = () => {
-    setReportMode(true);
-    setSelectedIds(new Set());
-    setShowReasonPicker(false);
-  };
-
-  const exitReportMode = () => {
-    setReportMode(false);
-    setSelectedIds(new Set());
-    setShowReasonPicker(false);
-  };
-
-  const toggleMessage = (id) => {
-    setSelectedIds(prev => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
-  };
-
-  const handleSubmitReport = (reason) => {
-    EFActions.customer.reportChatMessages(o.id, [...selectedIds], reason);
-    toast && toast({ tone: 'success', text: 'Meldung wurde übermittelt.' });
-    exitReportMode();
-  };
+  const report = useReportChat(o.id, toast);
 
   return (
     <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 280px', gap: 12 }}>
@@ -647,13 +618,13 @@ function CustOrderChat({ o, toast }) {
         orderId={o.id}
         currentRole="customer"
         toast={toast}
-        reportMode={reportMode}
-        selectedMessageIds={selectedIds}
-        onToggleMessage={toggleMessage}
+        reportMode={report.reportMode}
+        selectedMessageIds={report.selectedIds}
+        onToggleMessage={report.toggleMessage}
       />
 
       <div className="flex-col gap-3">
-        {!reportMode && (
+        {!report.reportMode && (
           <div className="card">
             <div className="card-head"><div className="card-title">Kontaktregeln</div></div>
             <div className="card-pad flex-col gap-2">
@@ -667,7 +638,7 @@ function CustOrderChat({ o, toast }) {
         <div className="card">
           <div className="card-head"><div className="card-title">Support</div></div>
           <div className="card-pad flex-col gap-2">
-            {!reportMode ? (
+            {!report.reportMode && (
               <>
                 <NotReady className="btn btn-sm" feature="request-callback" style={{ justifyContent: 'flex-start' }}><Icon name="phone" size={12}/> Rückruf anfordern</NotReady>
                 <a className="btn btn-sm" href="mailto:kundenservice@efactory1.de" style={{ justifyContent: 'flex-start', textDecoration: 'none' }}><Icon name="mail" size={12}/> kundenservice@efactory1.de</a>
@@ -678,52 +649,13 @@ function CustOrderChat({ o, toast }) {
                   </NotReady>
                 )}
                 <hr style={{ margin: '2px 0', border: 'none', borderTop: '1px solid var(--border)' }}/>
-                <button
-                  type="button"
-                  className="btn btn-sm btn-ghost"
-                  style={{ justifyContent: 'flex-start', fontSize: 11.5, color: 'var(--text-3)' }}
-                  onClick={enterReportMode}
-                >
-                  <Icon name="flag" size={11}/> Nachricht melden
-                </button>
               </>
-            ) : showReasonPicker ? (
-              <ReportMessagesPanel
-                selectedCount={selectedIds.size}
-                onCancel={exitReportMode}
-                onSubmit={handleSubmitReport}
-              />
-            ) : (
-              <div className="flex-col gap-2">
-                <div style={{ fontSize: 12, color: 'var(--text-2)', lineHeight: 1.4 }}>
-                  Klicken Sie auf die Nachrichten des Ghostwriters, die Sie melden möchten.
-                </div>
-                <div style={{ fontSize: 13, fontWeight: 600, color: selectedIds.size > 0 ? 'var(--amber)' : 'var(--text-3)' }}>
-                  {selectedIds.size} {selectedIds.size === 1 ? 'Nachricht' : 'Nachrichten'} ausgewählt
-                </div>
-                <button
-                  type="button"
-                  className="btn btn-sm btn-danger"
-                  disabled={selectedIds.size === 0}
-                  onClick={() => setShowReasonPicker(true)}
-                  style={{ justifyContent: 'flex-start' }}
-                >
-                  <Icon name="flag" size={11}/> Weiter zur Meldung
-                </button>
-                <button
-                  type="button"
-                  className="btn btn-sm btn-ghost"
-                  onClick={exitReportMode}
-                  style={{ justifyContent: 'flex-start', fontSize: 11.5, color: 'var(--text-3)' }}
-                >
-                  Abbrechen
-                </button>
-              </div>
             )}
+            <ReportChatPanel reportState={report} lang="de"/>
           </div>
         </div>
 
-        {!reportMode && (
+        {!report.reportMode && (
           <div className="banner info cust-chat-admin-hint">
             <Icon name="info" size={14} aria-hidden="true"/>
             <span>
