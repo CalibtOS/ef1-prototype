@@ -153,7 +153,15 @@ function canResolve(order, kind) {
 
 function allowedSubmissionKinds(order, gwId, submissions = []) {
   if (!order || order.gwId !== gwId) return [];
-  if (order.status === 'revision_required') return ['revision'];
+  if (order.status === 'revision_required') {
+    // If the revision request was on an interim, the GW re-uploads that interim
+    // (not a final-revision). The slot reopens for the same kind so customer
+    // review resumes after re-submission. Falls back to 'revision' (final) when
+    // the last submission was the final or when no signal is available.
+    const lastKind = order.lastSubmissionKind;
+    if (lastKind === 'interim_1' || lastKind === 'interim_2') return [lastKind];
+    return ['revision'];
+  }
   if (order.status !== 'active') return [];
   const next = nextExpectedSubmissionKind(order, submissions);
   return next ? [next] : [];
