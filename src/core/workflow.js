@@ -178,6 +178,23 @@ function isInterimKind(kind) {
   return kind === 'interim_1' || kind === 'interim_2';
 }
 
+// Per-kind revision round counter. Interim and Final revisions each have their
+// own 1..3 cycle; the legacy `revisionRounds` field stays as a total. Reads the
+// kind-scoped counter that matches the revision currently in flight (or the
+// last one that was requested).
+function currentRevisionRound(order) {
+  if (!order) return 0;
+  const kind = order.revisionTargetKind;
+  if (kind === 'final') return order.finalRevisionRounds || 0;
+  if (kind === 'interim_1' || kind === 'interim_2') return order.interimRevisionRounds || 0;
+  // Fallback for orders that pre-date the per-kind split: derive from status.
+  if (order.status === 'revision_required') {
+    if (order.finalSubmittedAt) return order.finalRevisionRounds || order.revisionRounds || 0;
+    return order.interimRevisionRounds || order.revisionRounds || 0;
+  }
+  return order.revisionRounds || 0;
+}
+
 function isQaReviewKind(kind) {
   return QA_REVIEW_KINDS.indexOf(kind) >= 0;
 }
@@ -774,6 +791,7 @@ export {
   nextStateAfterSubmit,
   isInterimKind,
   isQaReviewKind,
+  currentRevisionRound,
   isPreProposal,
   isPrePayment,
   isOrderPaid,
