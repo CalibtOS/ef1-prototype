@@ -912,15 +912,36 @@ function reportChatMessages(orderId, messageIds, reason) {
   const o = order(orderId);
   if (!o) return false;
   const count = messageIds.length;
+  const reporterRole = store.getState().session.role || 'customer';
+  const reportId = 'cr-' + Date.now() + '-' + Math.random().toString(36).slice(2, 6);
+
+  upsertEntity('chat_reports', {
+    id: reportId,
+    orderId: Number(orderId),
+    customerId: o.customerId,
+    gwId: o.gwId,
+    messageIds: [...messageIds],
+    reason,
+    count,
+    reporterRole,
+    reportedAt: nowIso(),
+    status: 'pending',
+  }, 'chat_reports.add');
+
   N.notify({
     to: 'admin',
     kind: 'chat_report',
     orderId,
     urgent: true,
-    title: `Chat-Meldung · #${orderId}`,
-    body: `${count} ${count === 1 ? 'Nachricht' : 'Nachrichten'} gemeldet · Grund: ${reason}`,
+    title: `Chat report · #${orderId}`,
+    body: `${count} ${count === 1 ? 'message' : 'messages'} reported by ${reporterRole} · Reason: ${reason}`,
+    params: { reportId },
   });
   return true;
+}
+
+function updateChatReportStatus(reportId, status) {
+  patchEntity('chat_reports', reportId, prev => ({ ...prev, status }), 'chat_reports.updateStatus');
 }
 
 function reportDelay(orderId, payload = {}) {
@@ -1210,6 +1231,9 @@ const actions = {
     acceptFinal,
     escalate,
     reportChatMessages,
+  },
+  chatReports: {
+    updateStatus: updateChatReportStatus,
   },
   payments: { releaseBatch },
   gws: { shadowBan },

@@ -19,7 +19,7 @@ import {
 
 const D = EF;
 
-function OrderChat({ orderId, currentRole = 'admin', toast, embedded = false, autoFocusComposer = false, fillHeight = false, reportMode = false, selectedMessageIds, onToggleMessage, reportTargetRole }) {
+function OrderChat({ orderId, currentRole = 'admin', toast, embedded = false, autoFocusComposer = false, fillHeight = false, reportMode = false, selectedMessageIds, onToggleMessage, reportTargetRole, highlightedMessageIds }) {
   const order = EFHooks.useOrder(orderId);
   const chat = EFHooks.useOrderChat(orderId);
   const cust = order ? D.customer(order.customerId) : null;
@@ -71,6 +71,7 @@ function OrderChat({ orderId, currentRole = 'admin', toast, embedded = false, au
       selectedMessageIds={selectedMessageIds}
       onToggleMessage={onToggleMessage}
       reportTargetRole={reportTargetRole}
+      highlightedMessageIds={highlightedMessageIds}
     />
   );
 }
@@ -127,7 +128,7 @@ function OrderChatLocked({ order, lockReason, currentRole, embedded, fillHeight 
 
 function OrderChatLive({
   order, chat, cust, gw, currentRole, toast, readOnly = false, embedded = false, autoFocusComposer = false, fillHeight = false,
-  reportMode = false, selectedMessageIds, onToggleMessage, reportTargetRole,
+  reportMode = false, selectedMessageIds, onToggleMessage, reportTargetRole, highlightedMessageIds,
 }) {
   const [body, setBody] = useState('');
   const [replyTarget, setReplyTarget] = useState(null);
@@ -296,6 +297,7 @@ function OrderChatLive({
             const targetRole = reportTargetRole || (currentRole === 'gw' ? 'customer' : 'gw');
             const isReportable = reportMode && m.authorRole === targetRole;
             const isSelected = isReportable && selectedMessageIds?.has(m.id);
+            const isHighlighted = !reportMode && highlightedMessageIds?.has(m.id);
 
             const bubble = (
               <ChatMessage
@@ -315,6 +317,20 @@ function OrderChatLive({
                 {renderBodyWithMentions(m.body, allMentionables)}
               </ChatMessage>
             );
+
+            if (isHighlighted) {
+              return (
+                <div
+                  key={m.id}
+                  style={{ borderLeft: '3px solid var(--amber)', background: 'color-mix(in oklab, var(--amber) 7%, var(--surface)', paddingLeft: 6, position: 'relative' }}
+                >
+                  <div style={{ position: 'absolute', top: 6, right: 10, fontSize: 10, fontWeight: 600, color: 'var(--amber)', display: 'flex', alignItems: 'center', gap: 3 }}>
+                    <Icon name="flag" size={10}/> reported
+                  </div>
+                  {bubble}
+                </div>
+              );
+            }
 
             if (!isReportable) return <div key={m.id}>{bubble}</div>;
 

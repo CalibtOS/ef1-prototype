@@ -287,6 +287,12 @@ function resolveNotificationTarget(n, role) {
     return orderId ? linkParams(buildLink({ kind: 'gw-assignment', orderId })) : { name: 'gw-dashboard', params: {} };
   }
 
+  if (kind === 'chat_report') {
+    const reportId = n.params?.reportId;
+    if (orderId) return { name: 'order-detail', params: { id: orderId, tab: 'communications', reportId } };
+    return { name: 'admin-chat-reports', params: {} };
+  }
+
   if (orderId) {
     return linkParams(buildLink({ kind: 'admin-order', orderId, tab: adminNotificationTab(kind) }));
   }

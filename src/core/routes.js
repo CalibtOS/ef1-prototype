@@ -20,6 +20,7 @@ const ROUTES = {
   CUSTOMER_DETAIL: 'customer-detail',
   DISPUTES: 'disputes',
   REPORTS: 'reports',
+  ADMIN_CHAT_REPORTS: 'admin-chat-reports',
   SETTINGS: 'settings',
   OFFERS: 'offers',
   GW_DASHBOARD: 'gw-dashboard',
@@ -96,6 +97,7 @@ const NAV_ROUTE_MAP = {
   customers: ROUTES.CUSTOMERS,
   disputes: ROUTES.DISPUTES,
   reports: ROUTES.REPORTS,
+  'chat-reports': ROUTES.ADMIN_CHAT_REPORTS,
   settings: ROUTES.SETTINGS,
   'gw-dashboard': ROUTES.GW_DASHBOARD,
   'gw-jobs': ROUTES.GW_JOB_BOARD,
@@ -121,6 +123,7 @@ function navItems(role, state) {
     const qaPending = submissions.filter(s => W.isQaReviewKind(s.kind) && s.qaStatus === QA_STATUS.PENDING).length;
     const friday = orders.filter(o => W.releaseGates(o).releasable).length;
     const disputes = orders.filter(o => o.disputeOpen).length;
+    const chatReportsPending = S.selectAllChatReports(state).filter(r => r.status === 'pending').length;
     return [
       { id: 'dashboard', label: 'Dashboard', icon: 'layout-dashboard' },
       { id: 'orders', label: 'Orders', icon: 'package', badge: String(orders.length) },
@@ -130,6 +133,7 @@ function navItems(role, state) {
       { id: 'qa', label: 'QA Queue', icon: 'shield-check', badge: qaPending ? String(qaPending) : null, badgeTone: 'warn' },
       { id: 'payments', label: 'Payments', icon: 'wallet', badge: friday ? String(friday) : null },
       { id: 'disputes', label: 'Disputes', icon: 'alert-triangle', badge: disputes ? String(disputes) : null },
+      { id: 'chat-reports', label: 'Chat Reports', icon: 'flag', badge: chatReportsPending ? String(chatReportsPending) : null, badgeTone: 'danger' },
       { id: 'inbox', label: 'Inbox', icon: 'inbox' },
       { id: 'pipeline', label: 'Pipeline', icon: 'git-branch' },
       { id: 'bi', label: 'AI BI', icon: 'sparkles', tag: 'Beta' },

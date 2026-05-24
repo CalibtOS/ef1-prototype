@@ -120,6 +120,16 @@ function selectAllNotifications(state) {
   return tableItems(state.entities.notifications);
 }
 
+function selectAllChatReports(state) {
+  return tableItems(state.entities.chat_reports || { byId: {}, allIds: [] })
+    .sort((a, b) => new Date(b.reportedAt || 0) - new Date(a.reportedAt || 0));
+}
+
+function selectChatReport(state, reportId) {
+  if (!reportId) return null;
+  return state.entities.chat_reports?.byId?.[reportId] || null;
+}
+
 function selectApplicationsForOrder(state, orderId) {
   const table = state.entities.gw_applications;
   if (!table) return [];
@@ -533,6 +543,8 @@ export {
   selectNeedsDecision,
   selectSlaOperational,
   selectCashFriday,
+  selectAllChatReports,
+  selectChatReport,
   QUEUE_THRESHOLDS,
   ACTIVE_GW_ORDER_STATUSES,
   IN_DELIVERY_STATUSES,

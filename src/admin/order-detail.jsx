@@ -49,7 +49,7 @@ function fallbackCustomer(order) {
 // =============================================================================
 
 
-function OrderDetail({ orderId, navigate, toast, initialTab, focusSubmissionId }) {
+function OrderDetail({ orderId, navigate, toast, initialTab, focusSubmissionId, reportId }) {
   // Tab is URL-driven: ?tab=… is the single source of truth so refresh, share,
   // back, and deep links all restore the right view. Tab clicks push via
   // replaceState so back doesn't ping-pong between tabs. See Arch-04.
@@ -648,7 +648,7 @@ function OrderDetail({ orderId, navigate, toast, initialTab, focusSubmissionId }
         <SubmissionsTab order={order} navigate={navigate} focusSubmissionId={focusSubmissionId} />
       )}
       {activeTab === 'communications' && (
-        <CommsTab order={order} toast={toast} />
+        <CommsTab order={order} toast={toast} reportId={reportId}/>
       )}
       {activeTab === 'assignment' && (
         <AssignmentTab order={order} navigate={navigate} toast={toast}/>
@@ -1394,8 +1394,36 @@ function SubmissionsTab({ order, navigate, focusSubmissionId }) {
   );
 }
 
-function CommsTab({ order, toast }) {
-  return <OrderChat orderId={order.id} currentRole="admin" toast={toast}/>;
+function CommsTab({ order, toast, reportId }) {
+  const report = EFHooks.useChatReport(reportId || null);
+  const highlightedIds = report?.messageIds?.length ? new Set(report.messageIds) : null;
+  return (
+    <div>
+      {report && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 14px', background: 'color-mix(in oklab, var(--amber) 10%, var(--surface))', borderBottom: '1px solid color-mix(in oklab, var(--amber) 25%, var(--border))', fontSize: 12.5 }}>
+          <Icon name="flag" size={14} style={{ color: 'var(--amber)', flexShrink: 0 }}/>
+          <span style={{ flex: 1 }}>
+            <strong>{report.count} reported {report.count === 1 ? 'message' : 'messages'}</strong>
+            {' '}· Reported by <strong>{report.reporterRole}</strong> · Reason: <em>{report.reason}</em>
+            {' '}· Status: <span style={{ textTransform: 'capitalize', color: report.status === 'pending' ? 'var(--amber)' : report.status === 'reviewed' ? 'var(--green)' : 'var(--text-3)' }}>{report.status}</span>
+          </span>
+          <div className="flex gap-1">
+            {report.status === 'pending' && (
+              <button type="button" className="btn btn-sm" onClick={() => EFActions.chatReports.updateStatus(reportId, 'reviewed')}>
+                Mark reviewed
+              </button>
+            )}
+            {report.status !== 'dismissed' && (
+              <button type="button" className="btn btn-sm btn-ghost" style={{ color: 'var(--text-3)', fontSize: 11 }} onClick={() => EFActions.chatReports.updateStatus(reportId, 'dismissed')}>
+                Dismiss
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+      <OrderChat orderId={order.id} currentRole="admin" toast={toast} highlightedMessageIds={highlightedIds}/>
+    </div>
+  );
 }
 
 function AssignmentTab({ order, navigate, toast }) {
