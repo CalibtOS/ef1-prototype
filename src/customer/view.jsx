@@ -20,6 +20,7 @@ import { QA_STATUS } from '../core/status.js';
 import * as SimCheckout from '../sim/checkout.js';
 import { CheckoutModal } from './checkout-modal.jsx';
 import { OrderChat } from '../shared/order-chat.jsx';
+import { ReportMessagesPanel } from '../components/ReportMessages.jsx';
 const D = EF;
 
 const CUST_PERSONA = (EFShell?.ROLES || []).find(r => r.id === 'customer') ||
@@ -609,41 +610,128 @@ function CustOrderStatus({ o, startCheckout }) {
 }
 
 function CustOrderChat({ o, toast }) {
+  const [reportMode, setReportMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState(new Set());
+  const [showReasonPicker, setShowReasonPicker] = useState(false);
+
+  const enterReportMode = () => {
+    setReportMode(true);
+    setSelectedIds(new Set());
+    setShowReasonPicker(false);
+  };
+
+  const exitReportMode = () => {
+    setReportMode(false);
+    setSelectedIds(new Set());
+    setShowReasonPicker(false);
+  };
+
+  const toggleMessage = (id) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const handleSubmitReport = (reason) => {
+    EFActions.customer.reportChatMessages(o.id, [...selectedIds], reason);
+    toast && toast({ tone: 'success', text: 'Meldung wurde übermittelt.' });
+    exitReportMode();
+  };
+
   return (
     <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 280px', gap: 12 }}>
-      <OrderChat orderId={o.id} currentRole="customer" toast={toast}/>
+      <OrderChat
+        orderId={o.id}
+        currentRole="customer"
+        toast={toast}
+        reportMode={reportMode}
+        selectedMessageIds={selectedIds}
+        onToggleMessage={toggleMessage}
+      />
 
       <div className="flex-col gap-3">
-        <div className="card">
-          <div className="card-head"><div className="card-title">Kontaktregeln</div></div>
-          <div className="card-pad flex-col gap-2">
-            <ChatNotice compact icon="clock">Antwortzeit: 24 Stunden</ChatNotice>
-            <ChatNotice compact icon="users">Berat (efactory1) ist Teilnehmer im Chat — er liest mit und kann jederzeit eingreifen.</ChatNotice>
-            <ChatNotice compact icon="mail">Allgemeine Fragen außerhalb des Auftrags gerne weiterhin per E-Mail an Berat.</ChatNotice>
+        {!reportMode && (
+          <div className="card">
+            <div className="card-head"><div className="card-title">Kontaktregeln</div></div>
+            <div className="card-pad flex-col gap-2">
+              <ChatNotice compact icon="clock">Antwortzeit: 24 Stunden</ChatNotice>
+              <ChatNotice compact icon="users">Berat (efactory1) ist Teilnehmer im Chat — er liest mit und kann jederzeit eingreifen.</ChatNotice>
+              <ChatNotice compact icon="mail">Allgemeine Fragen außerhalb des Auftrags gerne weiterhin per E-Mail an Berat.</ChatNotice>
+            </div>
           </div>
-        </div>
+        )}
 
         <div className="card">
           <div className="card-head"><div className="card-title">Support</div></div>
           <div className="card-pad flex-col gap-2">
-            <NotReady className="btn btn-sm" feature="request-callback" style={{ justifyContent: 'flex-start' }}><Icon name="phone" size={12}/> Rückruf anfordern</NotReady>
-            <a className="btn btn-sm" href="mailto:kundenservice@efactory1.de" style={{ justifyContent: 'flex-start', textDecoration: 'none' }}><Icon name="mail" size={12}/> kundenservice@efactory1.de</a>
-            <a className="btn btn-sm" href="tel:+498001234567" style={{ justifyContent: 'flex-start', textDecoration: 'none' }}><Icon name="phone" size={12}/> +49 800 123 4567</a>
-            {['interim_submitted','under_customer_review','revision_required','on_hold','delay_reported'].includes(o.status) && (
-              <NotReady className="btn btn-sm btn-ghost" feature="report-dispute" style={{ justifyContent: 'flex-start', fontSize: 11.5, color: 'var(--text-3)' }}>
-                <Icon name="alert-triangle" size={11}/> Problem eskalieren
-              </NotReady>
+            {!reportMode ? (
+              <>
+                <NotReady className="btn btn-sm" feature="request-callback" style={{ justifyContent: 'flex-start' }}><Icon name="phone" size={12}/> Rückruf anfordern</NotReady>
+                <a className="btn btn-sm" href="mailto:kundenservice@efactory1.de" style={{ justifyContent: 'flex-start', textDecoration: 'none' }}><Icon name="mail" size={12}/> kundenservice@efactory1.de</a>
+                <a className="btn btn-sm" href="tel:+498001234567" style={{ justifyContent: 'flex-start', textDecoration: 'none' }}><Icon name="phone" size={12}/> +49 800 123 4567</a>
+                {['interim_submitted','under_customer_review','revision_required','on_hold','delay_reported'].includes(o.status) && (
+                  <NotReady className="btn btn-sm btn-ghost" feature="report-dispute" style={{ justifyContent: 'flex-start', fontSize: 11.5, color: 'var(--text-3)' }}>
+                    <Icon name="alert-triangle" size={11}/> Problem eskalieren
+                  </NotReady>
+                )}
+                <hr style={{ margin: '2px 0', border: 'none', borderTop: '1px solid var(--border)' }}/>
+                <button
+                  type="button"
+                  className="btn btn-sm btn-ghost"
+                  style={{ justifyContent: 'flex-start', fontSize: 11.5, color: 'var(--text-3)' }}
+                  onClick={enterReportMode}
+                >
+                  <Icon name="flag" size={11}/> Nachricht melden
+                </button>
+              </>
+            ) : showReasonPicker ? (
+              <ReportMessagesPanel
+                selectedCount={selectedIds.size}
+                onCancel={exitReportMode}
+                onSubmit={handleSubmitReport}
+              />
+            ) : (
+              <div className="flex-col gap-2">
+                <div style={{ fontSize: 12, color: 'var(--text-2)', lineHeight: 1.4 }}>
+                  Klicken Sie auf die Nachrichten des Ghostwriters, die Sie melden möchten.
+                </div>
+                <div style={{ fontSize: 13, fontWeight: 600, color: selectedIds.size > 0 ? 'var(--amber)' : 'var(--text-3)' }}>
+                  {selectedIds.size} {selectedIds.size === 1 ? 'Nachricht' : 'Nachrichten'} ausgewählt
+                </div>
+                <button
+                  type="button"
+                  className="btn btn-sm btn-danger"
+                  disabled={selectedIds.size === 0}
+                  onClick={() => setShowReasonPicker(true)}
+                  style={{ justifyContent: 'flex-start' }}
+                >
+                  <Icon name="flag" size={11}/> Weiter zur Meldung
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-sm btn-ghost"
+                  onClick={exitReportMode}
+                  style={{ justifyContent: 'flex-start', fontSize: 11.5, color: 'var(--text-3)' }}
+                >
+                  Abbrechen
+                </button>
+              </div>
             )}
           </div>
         </div>
 
-        <div className="banner info cust-chat-admin-hint">
-          <Icon name="info" size={14} aria-hidden="true"/>
-          <span>
-            Es gibt zwei Wege, mit Berat zu sprechen: Erwähnen Sie ihn direkt im Chat mit <strong>@Berat</strong>.
-            Wenn er nicht antwortet, erreichen Sie uns über die E-Mail und Telefonnummer oben.
-          </span>
-        </div>
+        {!reportMode && (
+          <div className="banner info cust-chat-admin-hint">
+            <Icon name="info" size={14} aria-hidden="true"/>
+            <span>
+              Es gibt zwei Wege, mit Berat zu sprechen: Erwähnen Sie ihn direkt im Chat mit <strong>@Berat</strong>.
+              Wenn er nicht antwortet, erreichen Sie uns über die E-Mail und Telefonnummer oben.
+            </span>
+          </div>
+        )}
       </div>
     </div>
   );

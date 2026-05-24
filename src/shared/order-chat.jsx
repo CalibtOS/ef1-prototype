@@ -19,7 +19,7 @@ import {
 
 const D = EF;
 
-function OrderChat({ orderId, currentRole = 'admin', toast, embedded = false, autoFocusComposer = false, fillHeight = false }) {
+function OrderChat({ orderId, currentRole = 'admin', toast, embedded = false, autoFocusComposer = false, fillHeight = false, reportMode = false, selectedMessageIds, onToggleMessage }) {
   const order = EFHooks.useOrder(orderId);
   const chat = EFHooks.useOrderChat(orderId);
   const cust = order ? D.customer(order.customerId) : null;
@@ -67,6 +67,9 @@ function OrderChat({ orderId, currentRole = 'admin', toast, embedded = false, au
       embedded={embedded}
       autoFocusComposer={autoFocusComposer}
       fillHeight={fillHeight}
+      reportMode={reportMode}
+      selectedMessageIds={selectedMessageIds}
+      onToggleMessage={onToggleMessage}
     />
   );
 }
@@ -123,6 +126,7 @@ function OrderChatLocked({ order, lockReason, currentRole, embedded, fillHeight 
 
 function OrderChatLive({
   order, chat, cust, gw, currentRole, toast, readOnly = false, embedded = false, autoFocusComposer = false, fillHeight = false,
+  reportMode = false, selectedMessageIds, onToggleMessage,
 }) {
   const [body, setBody] = useState('');
   const [replyTarget, setReplyTarget] = useState(null);
@@ -261,6 +265,12 @@ function OrderChatLive({
       )}
 
       <div className="chat-stream" ref={streamRef}>
+        {reportMode && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 14px', background: 'color-mix(in oklab, var(--amber) 10%, var(--surface))', borderBottom: '1px solid color-mix(in oklab, var(--amber) 25%, var(--border))', fontSize: 12.5, color: 'var(--text-2)' }}>
+            <Icon name="flag" size={13} style={{ color: 'var(--amber)', flexShrink: 0 }}/>
+            Wählen Sie die Nachrichten des Ghostwriters aus, die Sie melden möchten.
+          </div>
+        )}
         {messages.length === 0 ? (
           <EmptyState compact icon="message-square" title="No messages yet" body="Start the conversation with the first message."/>
         ) : (
@@ -280,7 +290,10 @@ function OrderChatLive({
               />
             ) : null;
 
-            return (
+            const isReportable = reportMode && m.authorRole === 'gw';
+            const isSelected = isReportable && selectedMessageIds?.has(m.id);
+
+            const bubble = (
               <ChatMessage
                 key={m.id}
                 mine={mine}
@@ -292,11 +305,29 @@ function OrderChatLive({
                 channel={!grouped ? roleChip(m.authorRole) : null}
                 tone={info.tone}
                 quotedBlock={quotedBlock}
-                onReply={readOnly ? null : () => setReplyTarget(m)}
-                replyDisabled={readOnly}
+                onReply={reportMode ? null : (readOnly ? null : () => setReplyTarget(m))}
+                replyDisabled={readOnly || reportMode}
               >
                 {renderBodyWithMentions(m.body, allMentionables)}
               </ChatMessage>
+            );
+
+            if (!isReportable) return <div key={m.id}>{bubble}</div>;
+
+            return (
+              <div
+                key={m.id}
+                onClick={() => onToggleMessage && onToggleMessage(m.id)}
+                style={{ display: 'flex', alignItems: 'center', gap: 8, paddingLeft: 8, cursor: 'pointer', background: isSelected ? 'color-mix(in oklab, var(--amber) 8%, var(--surface))' : 'transparent', transition: 'background 0.12s' }}
+              >
+                <div
+                  style={{ flexShrink: 0, width: 20, height: 20, borderRadius: 999, border: `2px solid ${isSelected ? 'var(--amber)' : 'var(--border)'}`, background: isSelected ? 'var(--amber)' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.15s' }}
+                  aria-label={isSelected ? 'Deselect' : 'Select'}
+                >
+                  {isSelected && <Icon name="check" size={11} style={{ color: 'white' }}/>}
+                </div>
+                <div style={{ flex: 1, minWidth: 0 }}>{bubble}</div>
+              </div>
             );
           })
         )}

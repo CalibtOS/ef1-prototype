@@ -907,6 +907,22 @@ function acceptFinal(orderId) {
   return true;
 }
 
+function reportChatMessages(orderId, messageIds, reason) {
+  if (!messageIds || messageIds.length === 0) return false;
+  const o = order(orderId);
+  if (!o) return false;
+  const count = messageIds.length;
+  N.notify({
+    to: 'admin',
+    kind: 'chat_report',
+    orderId,
+    urgent: true,
+    title: `Chat-Meldung · #${orderId}`,
+    body: `${count} ${count === 1 ? 'Nachricht' : 'Nachrichten'} gemeldet · Grund: ${reason}`,
+  });
+  return true;
+}
+
 function reportDelay(orderId, payload = {}) {
   const o = order(orderId);
   if (!o) return false;
@@ -1193,6 +1209,7 @@ const actions = {
     requestRevision: requestCustomerRevision,
     acceptFinal,
     escalate,
+    reportChatMessages,
   },
   payments: { releaseBatch },
   gws: { shadowBan },
