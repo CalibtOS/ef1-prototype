@@ -679,7 +679,7 @@ function submitWork(orderId, payload = {}) {
     id: 's-live-' + Date.now() + '-' + Math.random().toString(36).slice(2, 6),
     orderId: Number(orderId),
     kind: entityKind,
-    round: kind === 'revision' ? (o.revisionRounds || 0) + 1 : 1,
+    round: kind === 'revision' ? (o.revisionRounds || 1) : 1,
     gwId: currentGwId,
     fileName: payload.fileName || payload.workFile?.name || `${orderId}_${entityKind}.docx`,
     invoiceFileName: payload.invoiceFile?.name || payload.invoiceFileName || null,
@@ -699,7 +699,10 @@ function submitWork(orderId, payload = {}) {
     lastSubmissionKind: kind,
     lastInvoiceFile: submission.invoiceFileName || undefined,
     finalSubmittedAt: kind === 'final' ? submission.submittedAt : o.finalSubmittedAt,
-    revisionRounds: kind === 'revision' ? (o.revisionRounds || 0) + 1 : (o.revisionRounds || 0),
+    // The round counter is bumped only by requestCustomerRevision (one
+    // increment per customer feedback). The GW's revision submission is a
+    // response, not a new round — so don't increment here.
+    revisionRounds: o.revisionRounds || 0,
     gwPaymentStatus: kind === 'final' && o.gwPaymentStatus !== 'paid' ? 'invoice_received' : o.gwPaymentStatus,
     nextExpectedSubmissionKind: null,
   };
