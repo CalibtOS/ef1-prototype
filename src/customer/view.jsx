@@ -434,6 +434,7 @@ function CustOrderStatus({ o, startCheckout }) {
     o.interim2Deadline ? { id: 'interim2', label: 'Zwischenstand 2', date: o.interim2Deadline, icon: 'upload-cloud', deadline: true } : null,
     { id: 'final',   label: 'Endabgabe',                  date: dates.deliveredAt || dates.finalSubmittedAt || o.finalDeadline, icon: 'shield-check', deadline: !(dates.deliveredAt || dates.finalSubmittedAt) },
     { id: 'qa',      label: 'efactory1 Qualitätsprüfung', date: dates.qaReviewedAt, icon: 'shield' },
+    { id: 'review',  label: 'Endabgabe prüfen',           date: dates.finalAcceptedAt || (dates.deliveredAt && o.status !== 'delivered' ? dates.deliveredAt : null), icon: 'eye' },
     { id: 'done',    label: 'Geliefert',                  date: dates.finalAcceptedAt || dates.completedAt, icon: 'check-circle' },
   ].filter(Boolean);
 
@@ -449,7 +450,7 @@ function CustOrderStatus({ o, startCheckout }) {
   const stepIndex = (() => {
     if (progress >= 100) return milestones.length;
     if (o.status === 'completed' || o.status === 'payment_pending') return milestones.length;
-    if (o.status === 'delivered') return idx('done');
+    if (o.status === 'delivered') return idx('review');
     if (o.status === 'qa_review' || o.status === 'final_submitted') return idx('qa');
     if (finalSubmitted) return idx('qa');
     if (o.status === 'revision_required') return finalSubmitted ? idx('qa') : afterInterim();

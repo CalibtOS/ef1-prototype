@@ -128,9 +128,10 @@ function GWAssignmentDetail({ orderId, navigate, toast }) {
     { id: 'pending', label: 'Pending Approval', done: !isPending },
     { id: 'active', label: 'Active', done: ['active','interim_submitted','under_customer_review','revision_required','final_submitted','qa_review','delivered','payment_pending','completed'].includes(order.status) },
     { id: 'intro', label: 'Introduction', done: introDone },
-    { id: 'interim', label: 'Interim', done: ['interim_submitted','under_customer_review','revision_required','final_submitted','qa_review','delivered','payment_pending','completed'].includes(order.status) },
+    { id: 'interim', label: 'Interim', done: order.interimCustomerSatisfied || ['interim_submitted','under_customer_review','revision_required','final_submitted','qa_review','delivered','payment_pending','completed'].includes(order.status) },
     { id: 'final', label: 'Final', done: ['final_submitted','qa_review','delivered','payment_pending','completed'].includes(order.status) },
-    { id: 'review', label: 'Customer Review', done: ['delivered','payment_pending','completed'].includes(order.status) },
+    { id: 'qa', label: 'QA Review', done: ['delivered','payment_pending','completed'].includes(order.status) },
+    { id: 'review', label: 'Customer Review', done: ['payment_pending','completed'].includes(order.status) },
     { id: 'paid', label: 'Paid', done: order.status === 'completed' || order.gwPaymentStatus === 'paid' },
   ];
   const currentStage = stages.findIndex(s => !s.done);
