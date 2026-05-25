@@ -236,7 +236,15 @@ function GWAssignmentDetail({ orderId, navigate, toast }) {
               {order.feedbackText || order.customerRevisionNote || latestCustomerMessage?.body || 'Revision feedback is open. Check the customer thread or ask efactory1 for clarification before resubmitting.'}
             </div>
             <div className="flex gap-2 mt-3" style={{ flexWrap: 'wrap' }}>
-              <button className="btn btn-primary btn-sm" onClick={() => navigate('gw-submit', { id: order.id, kind: 'revision' })}>
+              <button className="btn btn-primary btn-sm" onClick={() => {
+                // Route to the submit page using the kind the customer's revision
+                // actually targets. For interim revisions we re-upload that interim
+                // (kind: 'interim_1' / 'interim_2'); for a final revision the
+                // submit page accepts `kind: 'revision'`.
+                const target = order.revisionTargetKind;
+                const submitKind = (target === 'interim_1' || target === 'interim_2') ? target : 'revision';
+                navigate('gw-submit', { id: order.id, kind: submitKind });
+              }}>
                 <Icon name="upload-cloud" size={12}/> Upload revised version
               </button>
               <button className="btn btn-sm" onClick={scrollToOrderChat}>
