@@ -871,10 +871,11 @@ function requestCustomerRevision(orderId, note) {
   const revisionTargetKind = isFinalRevision
     ? 'final'
     : (o.pendingCustomerReviewKind || o.lastSubmittedInterimKind || o.lastSubmissionKind || 'interim_1');
+  const nextRound = (o.revisionRounds || 0) + 1;
   patchOrder(orderId, {
     status: 'revision_required',
     revisionTargetKind,
-    revisionRounds: (o.revisionRounds || 0) + 1,
+    revisionRounds: nextRound,
     finalRevisionRounds: isFinalRevision ? (o.finalRevisionRounds || 0) + 1 : (o.finalRevisionRounds || 0),
     interimRevisionRounds: isFinalRevision ? (o.interimRevisionRounds || 0) : (o.interimRevisionRounds || 0) + 1,
     lastCustomerFeedbackAt: nowIso(),
@@ -882,6 +883,15 @@ function requestCustomerRevision(orderId, note) {
   });
   notifyOrder(orderId, { to: 'gw', kind: 'revision_required', title: 'Überarbeitung angefordert', body: `Auftrag #${orderId}: ${(note || '').slice(0, 80)}` });
   notifyOrder(orderId, { to: 'admin', kind: 'revision_required', title: `Customer requested revision · #${orderId}`, body: (note || '').slice(0, 120) });
+  DomainEvents.emit('customer.revision.requested', {
+    orderId,
+    customerId: o?.customerId,
+    gwId: o?.gwId,
+    scenarioId: o?.scenarioId || null,
+    note: note || '',
+    revisionRound: nextRound,
+    revisionTargetKind,
+  });
   return true;
 }
 
