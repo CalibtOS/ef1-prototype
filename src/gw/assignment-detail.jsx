@@ -222,14 +222,14 @@ function GWAssignmentDetail({ orderId, navigate, toast }) {
         <div className="card mb-3" style={{ borderLeft: '4px solid var(--orange)' }}>
           <div className="card-head">
             <div className="card-title flex items-center gap-2">
-              <Icon name="alert-triangle" size={14} style={{ color: 'var(--orange)' }}/> Customer feedback — revision required (round {(order.revisionRounds || 1)})
+              <Icon name="alert-triangle" size={14} style={{ color: 'var(--orange)' }}/> Customer feedback — revision required (round {W.currentRevisionRound(order) || 1})
             </div>
             <span className="text-faint fs-11">received {revisionAt ? U.relTime(revisionAt) : 'date not recorded'}</span>
           </div>
           <div className="card-pad">
             <div className="kv" style={{ fontSize: 12, marginBottom: 12 }}>
               <div className="kv-row"><dt>From</dt><dd><strong>{cust?.name || 'Customer'}</strong></dd></div>
-              <div className="kv-row"><dt>Round</dt><dd className="mono">{order.revisionRounds || 1} of 3</dd></div>
+              <div className="kv-row"><dt>Round</dt><dd className="mono">{W.currentRevisionRound(order) || 1} of 3</dd></div>
               <div className="kv-row"><dt>Payment impact</dt><dd>Blocked until the revision is accepted</dd></div>
             </div>
             <div style={{ padding: 12, background: 'var(--surface-2)', borderRadius: 8, fontSize: 12, lineHeight: 1.5 }}>

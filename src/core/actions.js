@@ -862,9 +862,21 @@ function requestCustomerRevision(orderId, note) {
   const o = order(orderId);
   const guard = W.canTransition(o, 'customer_request_revision');
   if (!guard.ok) { toast({ text: guard.reason, tone: 'danger' }); return false; }
+  // Per-kind counters: interim and final each get their own independent
+  // 1..3 cycle. Status === 'delivered' is the only path where the revision
+  // is on the final; everything else (under_customer_review / interim_submitted)
+  // is on an interim. `revisionRounds` stays as the legacy total so admin
+  // aggregates (dispute summaries, GW averages) keep working.
+  const isFinalRevision = o.status === 'delivered';
+  const revisionTargetKind = isFinalRevision
+    ? 'final'
+    : (o.pendingCustomerReviewKind || o.lastSubmittedInterimKind || o.lastSubmissionKind || 'interim_1');
   patchOrder(orderId, {
     status: 'revision_required',
+    revisionTargetKind,
     revisionRounds: (o.revisionRounds || 0) + 1,
+    finalRevisionRounds: isFinalRevision ? (o.finalRevisionRounds || 0) + 1 : (o.finalRevisionRounds || 0),
+    interimRevisionRounds: isFinalRevision ? (o.interimRevisionRounds || 0) : (o.interimRevisionRounds || 0) + 1,
     lastCustomerFeedbackAt: nowIso(),
     customerRevisionNote: note || '',
   });
