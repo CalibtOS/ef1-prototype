@@ -521,7 +521,7 @@ function QAQueue({ navigate, toast, initialOrderId }) {
                   <Icon name="check-circle" size={14}/> Pass · forward to customer
                 </button>
                 <button type="button" className={`btn ${verdict==='request_revision'?'btn-primary':''}`} onClick={() => decide('request_revision')}>
-                  <Icon name="alert-triangle" size={14}/> Request revision (round {(order.revisionRounds || 0) + 1})
+                  <Icon name="alert-triangle" size={14}/> Request revision (round {(order.finalRevisionRounds || 0) + 1})
                 </button>
                 <button type="button" className="btn" onClick={() => toast({ text: `Clarification request sent to ${gw?.name}`, tone: 'info' })}>
                   <Icon name="message-square" size={14}/> Send to GW for clarification

@@ -72,7 +72,7 @@ function QAOrderDetail({ orderId, navigate, toast, initialTab }) {
             <span><Icon name="calendar" size={12} style={{ verticalAlign: 'text-bottom' }}/> Final deadline <span className="mono">{U.fmtDate(order.finalDeadline)}, 18:00</span></span>
             <span className={`pill pill-${dm.tone === 'danger' ? 'red' : dm.tone === 'warn' ? 'amber' : 'slate'}`}>{dm.label}</span>
             {order.disputeOpen && <span className="pill pill-orange">Dispute open</span>}
-            {(order.revisionRounds || 0) > 0 && <span className="pill pill-amber">Revision round {order.revisionRounds}</span>}
+            {(order.finalRevisionRounds || 0) > 0 && <span className="pill pill-amber">Revision round {order.finalRevisionRounds}</span>}
           </div>
         </div>
         <div className="page-actions">
@@ -157,7 +157,7 @@ function QAOrderDetail({ orderId, navigate, toast, initialTab }) {
 
             {order.disputeOpen && (
               <div className="card" style={{ borderColor: 'color-mix(in oklab, var(--amber) 35%, var(--border))' }}>
-                <div className="card-head"><div className="card-title">Customer feedback (round {order.revisionRounds || 1})</div></div>
+                <div className="card-head"><div className="card-title">Customer feedback (round {W.currentRevisionRound(order) || 1})</div></div>
                 <div className="card-pad fs-12 text-muted">
                   {order.customerRevisionNote || order.feedbackText || order.disputeReason || 'Customer feedback is open. GW notified · awaiting resubmission.'}
                 </div>
