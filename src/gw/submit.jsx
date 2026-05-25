@@ -151,7 +151,7 @@ function GWSubmit({ orderId, kind, navigate, toast }) {
     interim_1: 'Zwischenstand 1 / Interim 1',
     interim_2: 'Zwischenstand 2 / Interim 2',
     final: 'Final delivery + Honorarrechnung',
-    revision: `Revision (round ${(order.revisionRounds || 1)})`,
+    revision: `Revision (round ${(W.currentRevisionRound(order) || 1)})`,
   }[resolvedKind];
   const dueDate = resolvedKind === 'interim_1' ? order.interimDeadline
     : resolvedKind === 'interim_2' ? order.interim2Deadline
@@ -384,7 +384,7 @@ function GWSubmit({ orderId, kind, navigate, toast }) {
       {isRevision && (
         <div className="banner warn mb-3">
           <Icon name="alert-triangle" size={14}/>
-          <span><strong>Revision round {(order.revisionRounds || 1)}.</strong> Address customer feedback before re-uploading. Payment remains blocked until the corrected final is accepted.</span>
+          <span><strong>Revision round {(W.currentRevisionRound(order) || 1)}.</strong> Address customer feedback before re-uploading. Payment remains blocked until the corrected final is accepted.</span>
         </div>
       )}
 
@@ -416,7 +416,7 @@ function GWSubmit({ orderId, kind, navigate, toast }) {
         </div>
         <div className="card-pad flex-col gap-3">
           <FilePicker
-            label={isFinal ? 'Final work' : isRevision ? `Revised work (round ${(order.revisionRounds || 1)})` : 'Work file'}
+            label={isFinal ? 'Final work' : isRevision ? `Revised work (round ${(W.currentRevisionRound(order) || 1)})` : 'Work file'}
             current={workFile}
             err={workErr}
             onPicked={onWorkPicked}
@@ -542,7 +542,7 @@ function GWSubmitPicker({ navigate }) {
                   )}
                   {allowedKinds.includes('revision') && (
                     <button className="btn btn-sm" onClick={() => navigate('gw-submit', { id: o.id, kind: 'revision' })}>
-                      <Icon name="rotate-ccw" size={11}/> Revision (round {o.revisionRounds || 1})
+                      <Icon name="rotate-ccw" size={11}/> Revision (round {W.currentRevisionRound(o) || 1})
                     </button>
                   )}
                 </div>

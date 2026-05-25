@@ -679,7 +679,7 @@ function submitWork(orderId, payload = {}) {
     id: 's-live-' + Date.now() + '-' + Math.random().toString(36).slice(2, 6),
     orderId: Number(orderId),
     kind: entityKind,
-    round: kind === 'revision' ? (o.revisionRounds || 1) : 1,
+    round: kind === 'revision' ? (W.currentRevisionRound(o) || 1) : 1,
     gwId: currentGwId,
     fileName: payload.fileName || payload.workFile?.name || `${orderId}_${entityKind}.docx`,
     invoiceFileName: payload.invoiceFile?.name || payload.invoiceFileName || null,
@@ -874,11 +874,17 @@ function requestCustomerRevision(orderId, note) {
   const revisionTargetKind = isFinalRevision
     ? 'final'
     : (o.pendingCustomerReviewKind || o.lastSubmittedInterimKind || o.lastSubmissionKind || 'interim_1');
-  const nextRound = (o.revisionRounds || 0) + 1;
+  const nextRoundTotal = (o.revisionRounds || 0) + 1;
+  // Per-kind round — this is what the email/UI should display so each
+  // submission type has its own 1..3 cycle. The legacy total stays on
+  // `revisionRounds` for admin aggregates only.
+  const nextRoundForKind = isFinalRevision
+    ? (o.finalRevisionRounds || 0) + 1
+    : (o.interimRevisionRounds || 0) + 1;
   patchOrder(orderId, {
     status: 'revision_required',
     revisionTargetKind,
-    revisionRounds: nextRound,
+    revisionRounds: nextRoundTotal,
     finalRevisionRounds: isFinalRevision ? (o.finalRevisionRounds || 0) + 1 : (o.finalRevisionRounds || 0),
     interimRevisionRounds: isFinalRevision ? (o.interimRevisionRounds || 0) : (o.interimRevisionRounds || 0) + 1,
     lastCustomerFeedbackAt: nowIso(),
@@ -892,7 +898,7 @@ function requestCustomerRevision(orderId, note) {
     gwId: o?.gwId,
     scenarioId: o?.scenarioId || null,
     note: note || '',
-    revisionRound: nextRound,
+    revisionRound: nextRoundForKind,
     revisionTargetKind,
   });
   return true;
