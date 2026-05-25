@@ -301,19 +301,21 @@ function GWAssignmentDetail({ orderId, navigate, toast }) {
             // when the final has been submitted or when no kind signal exists.
             const revisionMode     = isApproved && s === 'revision_required';
             const finalAlreadySubmitted = delivery.finalSubmitted;
-            // The customer's revision target: an interim slot, the final, or none.
             const revisionTargetKind = revisionMode
-              ? (W.isInterimKind(order.lastSubmissionKind) ? order.lastSubmissionKind : 'final')
+              ? (order.lastSubmissionKind === 'interim_1' || order.lastSubmissionKind === 'interim_2'
+                  ? order.lastSubmissionKind
+                  : 'final')
               : null;
+            const interim1RevisionMode = revisionTargetKind === 'interim_1';
+            const interim2RevisionMode = revisionTargetKind === 'interim_2';
             const finalRevisionMode    = revisionMode && revisionTargetKind === 'final';
-            // Dynamic interim slots — supports any N. Each slot derives its own
-            // allowed/revision state from the canonical kind name.
-            const interimSlotsList = W.interimSlots(order).map(s => {
-              const isRevisionTarget = revisionMode && revisionTargetKind === s.kind;
-              const allowed = isApproved && (allowedKinds.includes(s.kind) || isRevisionTarget) && !introBlocks;
-              return { ...s, isRevisionTarget, allowed };
-            });
-            // Final is allowed only after every configured interim (if any) and while still active.
+            // Interim 1 is allowed while active, or in revision_required when
+            // the revision was requested on interim_1.
+            const interim1Allowed = isApproved && (allowedKinds.includes('interim_1') || interim1RevisionMode) && !introBlocks;
+            // Interim 2 is allowed once interim 1 was approved and we're back to active,
+            // or in revision_required when the revision was requested on interim_2.
+            const interim2Allowed = isApproved && (allowedKinds.includes('interim_2') || interim2RevisionMode) && !introBlocks;
+            // Final is allowed only after both interims (if any) and while still active.
             const interimsComplete = delivery.interimsComplete;
             const finalAllowed   = isApproved && allowedKinds.includes('final') && !introBlocks;
             const finalButtonLabel = finalRevisionMode
@@ -353,18 +355,30 @@ function GWAssignmentDetail({ orderId, navigate, toast }) {
               </div>
             )}
             <div className="card-pad" style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 10 }}>
-              {interimSlotsList.map(slot => (
-                <div key={slot.kind} style={{ padding: 14, border: '1px solid var(--border)', borderRadius: 8 }}>
+              {order.interimDeadline && (
+                <div style={{ padding: 14, border: '1px solid var(--border)', borderRadius: 8 }}>
                   <div className="flex items-center justify-between mb-1">
-                    <span className="strong fs-12">{slot.isRevisionTarget ? <Bi de={`Zwischenstand ${slot.slot} (Überarbeitung)`} en={`Interim ${slot.slot} (revision)`}/> : <Bi de={`Zwischenstand ${slot.slot}`} en={`Interim ${slot.slot}`}/>}</span>
-                    <span className={`pill pill-${slot.isRevisionTarget ? 'amber' : (U.deadlineMeta(slot.deadline).tone === 'danger' ? 'red' : 'slate')}`}>{slot.isRevisionTarget ? 'Revision angefordert' : U.deadlineMeta(slot.deadline).label}</span>
+                    <span className="strong fs-12">{interim1RevisionMode ? <Bi de="Zwischenstand 1 (Überarbeitung)" en="Interim 1 (revision)"/> : <Bi de="Zwischenstand 1" en="Interim 1"/>}</span>
+                    <span className={`pill pill-${interim1RevisionMode ? 'amber' : (U.deadlineMeta(order.interimDeadline).tone === 'danger' ? 'red' : 'slate')}`}>{interim1RevisionMode ? 'Revision angefordert' : U.deadlineMeta(order.interimDeadline).label}</span>
                   </div>
-                  <div className="text-faint fs-11 mono mb-2">due {U.fmtDate(slot.deadline)}, 18:00</div>
-                  <button className={`btn btn-sm w-full ${slot.isRevisionTarget ? 'btn-primary' : ''}`} onClick={() => slot.allowed && navigate('gw-submit', { id: order.id, kind: slot.kind })} disabled={!slot.allowed} title={stateNote(slot.allowed, stateReason)} style={{ justifyContent: 'center' }}>
-                    <Icon name="upload-cloud" size={12}/> {slot.isRevisionTarget ? 'Upload revision' : 'Upload interim'}
+                  <div className="text-faint fs-11 mono mb-2">due {U.fmtDate(order.interimDeadline)}, 18:00</div>
+                  <button className={`btn btn-sm w-full ${interim1RevisionMode ? 'btn-primary' : ''}`} onClick={() => interim1Allowed && navigate('gw-submit', { id: order.id, kind: 'interim_1' })} disabled={!interim1Allowed} title={stateNote(interim1Allowed, stateReason)} style={{ justifyContent: 'center' }}>
+                    <Icon name="upload-cloud" size={12}/> {interim1RevisionMode ? 'Upload revision' : 'Upload interim'}
                   </button>
                 </div>
-              ))}
+              )}
+              {order.interim2Deadline && (
+                <div style={{ padding: 14, border: '1px solid var(--border)', borderRadius: 8 }}>
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="strong fs-12">{interim2RevisionMode ? <Bi de="Zwischenstand 2 (Überarbeitung)" en="Interim 2 (revision)"/> : <Bi de="Zwischenstand 2" en="Interim 2"/>}</span>
+                    <span className={`pill pill-${interim2RevisionMode ? 'amber' : 'slate'}`}>{interim2RevisionMode ? 'Revision angefordert' : U.deadlineMeta(order.interim2Deadline).label}</span>
+                  </div>
+                  <div className="text-faint fs-11 mono mb-2">due {U.fmtDate(order.interim2Deadline)}, 18:00</div>
+                  <button className={`btn btn-sm w-full ${interim2RevisionMode ? 'btn-primary' : ''}`} onClick={() => interim2Allowed && navigate('gw-submit', { id: order.id, kind: 'interim_2' })} disabled={!interim2Allowed} title={stateNote(interim2Allowed, stateReason)} style={{ justifyContent: 'center' }}>
+                    <Icon name="upload-cloud" size={12}/> {interim2RevisionMode ? 'Upload revision' : 'Upload interim'}
+                  </button>
+                </div>
+              )}
               <div style={{ padding: 14, border: '1px solid var(--border)', borderRadius: 8 }}>
                 <div className="flex items-center justify-between mb-1">
                   <span className="strong fs-12">{finalRevisionMode ? 'Revision (re-submit final)' : 'Final + Honorarrechnung'}</span>

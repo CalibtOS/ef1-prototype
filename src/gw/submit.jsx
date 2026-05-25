@@ -94,11 +94,10 @@ function GWSubmit({ orderId, kind, navigate, toast }) {
 
   // Resolve kind from route + order context
   const resolvedKind = (() => {
-    if (W.isInterimKind(kind) || kind === 'final' || kind === 'revision') return kind;
+    if (kind === 'interim_1' || kind === 'interim_2' || kind === 'final' || kind === 'revision') return kind;
     // Fallback: pick the next due milestone based on status
     if (order.status === 'revision_required') return 'revision';
-    const firstInterim = W.interimSlots(order)[0];
-    if (firstInterim && U.daysTo(firstInterim.deadline) >= -1 && order.status === 'active') return firstInterim.kind;
+    if (order.interimDeadline && U.daysTo(order.interimDeadline) >= -1 && order.status === 'active') return 'interim_1';
     return 'final';
   })();
   // ---- pipeline state ----
@@ -148,15 +147,14 @@ function GWSubmit({ orderId, kind, navigate, toast }) {
   const isFinal = resolvedKind === 'final';
   const isRevision = resolvedKind === 'revision';
   const isInterim = !isFinal && !isRevision;
-  const interimSlot = W.interimSlotNumber(resolvedKind);
-  const kindLabel = interimSlot
-    ? `Zwischenstand ${interimSlot} / Interim ${interimSlot}`
-    : ({
-        final: 'Final delivery + Honorarrechnung',
-        revision: `Revision (round ${(W.currentRevisionRound(order) || 1)})`,
-      })[resolvedKind];
-  const dueDate = interimSlot
-    ? W.interimDeadlineForSlot(order, interimSlot)
+  const kindLabel = {
+    interim_1: 'Zwischenstand 1 / Interim 1',
+    interim_2: 'Zwischenstand 2 / Interim 2',
+    final: 'Final delivery + Honorarrechnung',
+    revision: `Revision (round ${(W.currentRevisionRound(order) || 1)})`,
+  }[resolvedKind];
+  const dueDate = resolvedKind === 'interim_1' ? order.interimDeadline
+    : resolvedKind === 'interim_2' ? order.interim2Deadline
     : order.finalDeadline;
 
   // ---- self-check state ----

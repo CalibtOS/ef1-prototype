@@ -183,40 +183,7 @@ function nextStateAfterSubmit(kind) {
 }
 
 function isInterimKind(kind) {
-  return typeof kind === 'string' && /^interim_\d+$/.test(kind);
-}
-
-function interimSlotNumber(kind) {
-  if (!isInterimKind(kind)) return null;
-  const n = Number(kind.split('_')[1]);
-  return Number.isFinite(n) ? n : null;
-}
-
-function interimKindForSlot(slot) {
-  return `interim_${slot}`;
-}
-
-// Canonical interim slots on an order. Supports any number of interims
-// via `order.interimDeadlines: ISO[]`. Falls back to the legacy scalar
-// fields (`interimDeadline`, `interim2Deadline`) for orders that haven't
-// been migrated, so existing seed data keeps working unchanged.
-function interimSlots(order) {
-  if (!order) return [];
-  if (Array.isArray(order.interimDeadlines) && order.interimDeadlines.length) {
-    return order.interimDeadlines.map((deadline, i) => ({
-      slot: i + 1,
-      kind: interimKindForSlot(i + 1),
-      deadline,
-    }));
-  }
-  const slots = [];
-  if (order.interimDeadline) slots.push({ slot: 1, kind: 'interim_1', deadline: order.interimDeadline });
-  if (order.interim2Deadline) slots.push({ slot: 2, kind: 'interim_2', deadline: order.interim2Deadline });
-  return slots;
-}
-
-function interimDeadlineForSlot(order, slot) {
-  return interimSlots(order).find(s => s.slot === slot)?.deadline || null;
+  return kind === 'interim_1' || kind === 'interim_2';
 }
 
 // Per-kind revision round counter. Interim and Final revisions each have their
@@ -241,13 +208,15 @@ function isQaReviewKind(kind) {
 }
 
 function configuredInterimKinds(order) {
-  return interimSlots(order).map(s => s.kind);
+  return [
+    order?.interimDeadline ? 'interim_1' : null,
+    order?.interim2Deadline ? 'interim_2' : null,
+  ].filter(Boolean);
 }
 
 function addInterimAndPrior(set, kind) {
-  const slot = interimSlotNumber(kind);
-  if (slot == null) return;
-  for (let i = 1; i <= slot; i += 1) set.add(interimKindForSlot(i));
+  if (kind === 'interim_1' || kind === 'interim_2') set.add('interim_1');
+  if (kind === 'interim_2') set.add('interim_2');
 }
 
 function submittedSubmissionKinds(order, submissions = []) {
@@ -285,11 +254,10 @@ function latestInterimKind(order, submissions = []) {
 
 function completedInterimKinds(order, submissions = []) {
   const done = new Set();
-  const slots = interimSlots(order);
-  if (slots.length === 0) return done;
+  if (!order?.interimDeadline) return done;
 
   if (statusRank(order) >= STATUS_RANK.final_submitted || order.finalSubmittedAt) {
-    slots.forEach(s => addInterimAndPrior(done, s.kind));
+    configuredInterimKinds(order).forEach(kind => addInterimAndPrior(done, kind));
     return done;
   }
 
@@ -298,10 +266,7 @@ function completedInterimKinds(order, submissions = []) {
   if (isInterimKind(order.lastApprovedInterimKind)) addInterimAndPrior(done, order.lastApprovedInterimKind);
 
   const latest = latestInterimKind(order, submissions);
-  const latestSlot = interimSlotNumber(latest);
-  if (latestSlot && latestSlot > 1) {
-    for (let i = 1; i < latestSlot; i += 1) done.add(interimKindForSlot(i));
-  }
+  if (latest === 'interim_2') done.add('interim_1');
   if (order.status === 'active' && latest) addInterimAndPrior(done, latest);
   if (order.status === 'active' && order.interimCustomerSatisfied) {
     addInterimAndPrior(done, isInterimKind(order.lastApprovedInterimKind) ? order.lastApprovedInterimKind : (latest || 'interim_1'));
@@ -319,10 +284,8 @@ function nextExpectedSubmissionKind(order, submissions = []) {
   if (order.status !== 'active') return null;
 
   const completedInterims = completedInterimKinds(order, submissions);
-  const slots = interimSlots(order);
-  for (const s of slots) {
-    if (!completedInterims.has(s.kind)) return s.kind;
-  }
+  if (order.interimDeadline && !completedInterims.has('interim_1')) return 'interim_1';
+  if (order.interim2Deadline && !completedInterims.has('interim_2')) return 'interim_2';
   if (!isFinalSubmitted(order, submissions)) return 'final';
   return null;
 }
@@ -331,13 +294,8 @@ function deliveryProgress(order, submissions = []) {
   const submitted = submittedSubmissionKinds(order, submissions);
   const completedInterims = completedInterimKinds(order, submissions);
   const latestInterim = latestInterimKind(order, submissions);
-  const slots = interimSlots(order);
-  // While the customer is reviewing the last upload, the "current" submission is
-  // whatever interim is in flight (or the first not-yet-done slot when we have
-  // to infer it).
-  const firstPendingSlot = slots.find(s => !completedInterims.has(s.kind))?.kind || (slots[0]?.kind || null);
   const currentKind = order?.status === 'under_customer_review' || order?.status === 'interim_submitted'
-    ? (latestInterim || firstPendingSlot)
+    ? (latestInterim || (completedInterims.has('interim_1') && order?.interim2Deadline ? 'interim_2' : 'interim_1'))
     : nextExpectedSubmissionKind(order, submissions);
   const interim1Complete = !order?.interimDeadline || completedInterims.has('interim_1');
   const interim2Complete = !order?.interim2Deadline || completedInterims.has('interim_2');
@@ -626,19 +584,13 @@ function deriveSubmissions(order, submissions) {
   const hasInvoice = rows.some(s => s.kind === 'final_invoice' || s.kind === 'gw_invoice' || s.invoiceFileName);
 
   if (!hasInterim && dates.interimAt) {
-    // Derive the slot we're representing: if the order has more than one
-    // interim configured AND we're past the first interim rank, attribute
-    // the derived submission to the latest configured slot.
-    const slots = interimSlots(order);
-    const derivedSlot = slots.length > 1 && statusRank(order) >= 8 ? slots.length : 1;
-    const derivedKind = interimKindForSlot(derivedSlot);
     rows.push({
       id: `derived-interim-${order.id}`,
       orderId: order.id,
-      kind: derivedKind,
+      kind: order.interim2Deadline && statusRank(order) >= 8 ? 'interim_2' : 'interim_1',
       round: 1,
       gwId: order.gwId,
-      fileName: `${order.id}_Zwischenstand_${derivedSlot}.docx`,
+      fileName: `${order.id}_Zwischenstand_${order.interim2Deadline && statusRank(order) >= 8 ? '2' : '1'}.docx`,
       size: 1100000,
       plagiarismScore: null,
       aiScore: null,
@@ -846,10 +798,6 @@ export {
   submissionKindToEntityKind,
   nextStateAfterSubmit,
   isInterimKind,
-  interimSlotNumber,
-  interimKindForSlot,
-  interimSlots,
-  interimDeadlineForSlot,
   isQaReviewKind,
   currentRevisionRound,
   isPreProposal,
