@@ -374,16 +374,18 @@ function QAQueue({ navigate, toast, initialOrderId }) {
   const [compareOpen, setCompareOpen] = useState(false);
   const [plagOpen, setPlagOpen] = useState(false);
   const [aiOpen, setAiOpen] = useState(false);
+  const [revisionNote, setRevisionNote] = useState('');
+  const canSubmitRevision = revisionNote.trim().length >= 10;
 
   // Reset detail panels when switching submissions
-  useEffect(() => { setPreviewOpen(false); setCompareOpen(false); setPlagOpen(false); setAiOpen(false); setVerdict(null); }, [active?.id]);
+  useEffect(() => { setPreviewOpen(false); setCompareOpen(false); setPlagOpen(false); setAiOpen(false); setVerdict(null); setRevisionNote(''); }, [active?.id]);
 
   const decide = (kind) => {
-    setVerdict(kind);
     // Per PRD `qa.permissions = review/approve/reject + orders.read`: QA may FLAG quality
     // problems, but enforcement (shadow-ban, payment blocks, GW exclusion, reassignment,
     // contract/legal review) is admin-only. QA decisions therefore route to admin.
     if (kind === 'reject_ai') {
+      setVerdict(kind);
       EFActions.qa.flagAi(active.id);
       toast({
         tone: 'danger',
@@ -391,6 +393,7 @@ function QAQueue({ navigate, toast, initialOrderId }) {
         text: `Flag raised · ${gw.name} · awaiting admin decision`,
       });
     } else if (kind === 'flag_plagiarism') {
+      setVerdict(kind);
       EFActions.qa.flagPlagiarism(active.id);
       toast({
         tone: 'danger',
@@ -398,6 +401,7 @@ function QAQueue({ navigate, toast, initialOrderId }) {
         text: `Flag raised · admin will review`,
       });
     } else if (kind === 'pass') {
+      setVerdict(kind);
       // Stateful: forward to customer review, mark QA passed
       EFActions.qa.pass(active.id);
       toast({
@@ -406,12 +410,19 @@ function QAQueue({ navigate, toast, initialOrderId }) {
         text: `Forwarded to ${cust.name} · 14-day review timer started`,
       });
     } else if (kind === 'request_revision') {
-      EFActions.qa.requestRevision(active.id);
+      // Two-step: first click opens the textarea, second click submits when ≥10 chars.
+      if (verdict !== 'request_revision') {
+        setVerdict(kind);
+        return;
+      }
+      if (!canSubmitRevision) return;
+      EFActions.qa.requestRevision(active.id, revisionNote);
       toast({
         tone: 'info',
         transition: { entity: `Order #${order.id}`, from: 'QA Review', to: 'Revision Required' },
-        text: 'GW notified',
+        text: 'GW notified · feedback delivered',
       });
+      setRevisionNote('');
     }
   };
 
@@ -487,6 +498,13 @@ function QAQueue({ navigate, toast, initialOrderId }) {
                   </div>
                 </div>
 
+                {active.changeSummary && (
+                  <div style={{ padding: 12, background: 'var(--surface-2)', borderRadius: 8, borderLeft: '3px solid var(--blue)', marginBottom: 12 }}>
+                    <div className="fs-11 text-muted mb-1">GW change summary (this resubmit)</div>
+                    <div className="fs-12" style={{ whiteSpace: 'pre-wrap', lineHeight: 1.5 }}>{active.changeSummary}</div>
+                  </div>
+                )}
+
                 {active.aiScore >= 70 && (
                   <div className="banner danger mb-3">
                     <Icon name="alert-triangle" size={16}/>
@@ -521,7 +539,7 @@ function QAQueue({ navigate, toast, initialOrderId }) {
                   <Icon name="check-circle" size={14}/> Pass · forward to customer
                 </button>
                 <button type="button" className={`btn ${verdict==='request_revision'?'btn-primary':''}`} onClick={() => decide('request_revision')}>
-                  <Icon name="alert-triangle" size={14}/> Request revision (round {(order.finalRevisionRounds || 0) + 1})
+                  <Icon name="alert-triangle" size={14}/> {verdict === 'request_revision' ? `Send revision request (round ${(order.finalRevisionRounds || 0) + 1})` : `Request revision (round ${(order.finalRevisionRounds || 0) + 1})`}
                 </button>
                 <button type="button" className="btn" onClick={() => toast({ text: `Clarification request sent to ${gw?.name}`, tone: 'info' })}>
                   <Icon name="message-square" size={14}/> Send to GW for clarification
@@ -533,6 +551,27 @@ function QAQueue({ navigate, toast, initialOrderId }) {
                   <Icon name="x" size={14}/> Flag AI use · escalate to admin
                 </button>
               </div>
+              {verdict === 'request_revision' && (
+                <div className="card-pad" style={{ borderTop: '1px solid var(--border)' }}>
+                  <div className="banner info mb-2" style={{ fontSize: 12 }}>
+                    <Icon name="message-square" size={14}/>
+                    <span>Tell the GW exactly what to fix. The note goes into the GW's revision banner + admin notification + email (min. 10 characters).</span>
+                  </div>
+                  <label className="fs-11 text-muted mb-1" style={{ display: 'block' }}>QA feedback for {gw?.name || 'the ghostwriter'}:</label>
+                  <textarea
+                    style={{ width: '100%', minHeight: 100, resize: 'vertical', padding: 10, fontSize: 13, border: `1px solid ${canSubmitRevision ? 'var(--border)' : 'var(--amber)'}`, borderRadius: 8, background: 'var(--surface)', color: 'var(--text)', fontFamily: 'inherit', boxSizing: 'border-box' }}
+                    placeholder="e.g. §3 methodology needs concrete sources — Bosch/Siemens references missing. §5 conclusion drifts off-topic — tighten to research question."
+                    value={revisionNote}
+                    onChange={(e) => setRevisionNote(e.target.value)}
+                  />
+                  <div className="flex gap-2 mt-2">
+                    <button type="button" className="btn btn-sm" onClick={() => { setVerdict(null); setRevisionNote(''); }}>Cancel</button>
+                    <button type="button" className="btn btn-sm btn-primary" disabled={!canSubmitRevision} onClick={() => decide('request_revision')}>
+                      <Icon name="send" size={12}/> Send revision request (round {(order.finalRevisionRounds || 0) + 1})
+                    </button>
+                  </div>
+                </div>
+              )}
               {verdict === 'reject_ai' && (
                 <div className="card-pad" style={{ borderTop: '1px solid var(--border)' }}>
                   <div className="banner warn mb-2"><Icon name="alert-triangle" size={14}/><span>QA flag raised — admin (Berat) decides what happens next:</span></div>

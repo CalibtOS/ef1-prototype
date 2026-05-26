@@ -155,14 +155,21 @@ function QAOrderDetail({ orderId, navigate, toast, initialTab }) {
               </div>
             </div>
 
-            {order.disputeOpen && (
-              <div className="card" style={{ borderColor: 'color-mix(in oklab, var(--amber) 35%, var(--border))' }}>
-                <div className="card-head"><div className="card-title">Customer feedback (round {W.currentRevisionRound(order) || 1})</div></div>
-                <div className="card-pad fs-12 text-muted">
-                  {order.customerRevisionNote || order.feedbackText || order.disputeReason || 'Customer feedback is open. GW notified · awaiting resubmission.'}
+            {(order.disputeOpen || order.revisionRequestSource === 'qa') && (() => {
+              const fromQa = order.revisionRequestSource === 'qa';
+              const title = fromQa
+                ? `QA feedback (round ${W.currentRevisionRound(order) || 1})`
+                : `Customer feedback (round ${W.currentRevisionRound(order) || 1})`;
+              const note = fromQa
+                ? (order.qaRevisionNote || 'QA feedback is open. GW notified · awaiting resubmission.')
+                : (order.customerRevisionNote || order.feedbackText || order.disputeReason || 'Customer feedback is open. GW notified · awaiting resubmission.');
+              return (
+                <div className="card" style={{ borderColor: 'color-mix(in oklab, var(--amber) 35%, var(--border))' }}>
+                  <div className="card-head"><div className="card-title">{title}</div></div>
+                  <div className="card-pad fs-12 text-muted">{note}</div>
                 </div>
-              </div>
-            )}
+              );
+            })()}
           </div>
 
           <div className="flex-col gap-3">

@@ -147,6 +147,11 @@ function GWSubmit({ orderId, kind, navigate, toast }) {
   const isFinal = resolvedKind === 'final';
   const isRevision = resolvedKind === 'revision';
   const isInterim = !isFinal && !isRevision;
+  // Resubmits include both kinds of revision: GW re-uploads the same interim
+  // (kind: 'interim_1'/'interim_2' while status === 'revision_required'), or
+  // GW re-uploads the final (kind: 'revision'). In both cases the
+  // change-summary field should be shown so the reviewer knows what was fixed.
+  const isResubmit = order.status === 'revision_required';
   const kindLabel = {
     interim_1: 'Zwischenstand 1 / Interim 1',
     interim_2: 'Zwischenstand 2 / Interim 2',
@@ -166,6 +171,7 @@ function GWSubmit({ orderId, kind, navigate, toast }) {
   // ---- file state ----
   const [workFile, setWorkFile] = useState(null);
   const [invoiceFile, setInvoiceFile] = useState(null);
+  const [changeSummary, setChangeSummary] = useState('');
   const [workErr, setWorkErr] = useState(null);
   const [invoiceErr, setInvoiceErr] = useState(null);
   const workInputRef = useRef(null);
@@ -231,6 +237,7 @@ function GWSubmit({ orderId, kind, navigate, toast }) {
         workFile,
         invoiceFile,
         selfChecks: checks,
+        changeSummary: isResubmit ? changeSummary.trim() : undefined,
       });
       toast({
         tone: 'success',
@@ -385,6 +392,24 @@ function GWSubmit({ orderId, kind, navigate, toast }) {
         <div className="banner warn mb-3">
           <Icon name="alert-triangle" size={14}/>
           <span><strong>Revision round {(W.currentRevisionRound(order) || 1)}.</strong> Address customer feedback before re-uploading. Payment remains blocked until the corrected final is accepted.</span>
+        </div>
+      )}
+
+      {isResubmit && (
+        <div className="card mb-3" style={{ borderLeft: '4px solid var(--blue)' }}>
+          <div className="card-head">
+            <div className="card-title">What did you change?</div>
+            <span className="text-faint fs-11">optional · helps QA + the customer review faster</span>
+          </div>
+          <div className="card-pad">
+            <textarea
+              style={{ width: '100%', minHeight: 90, resize: 'vertical', padding: 10, fontSize: 13, border: '1px solid var(--border)', borderRadius: 8, background: 'var(--surface)', color: 'var(--text)', fontFamily: 'inherit', boxSizing: 'border-box' }}
+              placeholder={'e.g. §3 methodology rewritten with Bosch/Siemens case sources; §5 conclusion tightened; references re-checked.'}
+              value={changeSummary}
+              onChange={(e) => setChangeSummary(e.target.value)}
+            />
+            <div className="text-faint fs-11 mt-1">Shown on the {isInterim ? 'customer' : 'QA and admin'} review page next to the new file.</div>
+          </div>
         </div>
       )}
 

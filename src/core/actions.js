@@ -690,6 +690,9 @@ function submitWork(orderId, payload = {}) {
     submittedAt: nowIso(),
     forwardedAt: isInterim ? nowIso() : null,
     selfChecks: payload.selfChecks || { noAi: true, ready: true, individual: true, spelling: true, grammar: true, plagiarism: true, requirements: true },
+    // Optional GW-authored summary of what changed since the prior submission.
+    // Set only for resubmits triggered by a revision request — see gw/submit.jsx.
+    changeSummary: payload.changeSummary || null,
   };
   upsertEntity('submissions', submission, 'gw.submit.submission');
   const orderPatch = {
@@ -705,6 +708,13 @@ function submitWork(orderId, payload = {}) {
     revisionRounds: o.revisionRounds || 0,
     gwPaymentStatus: kind === 'final' && o.gwPaymentStatus !== 'paid' ? 'invoice_received' : o.gwPaymentStatus,
     nextExpectedSubmissionKind: null,
+    // Clear the open revision request now that the GW has responded. Keep the
+    // counters intact — they're the historical record. The next revision (if
+    // any) will overwrite source + note + targetKind via the request action.
+    revisionRequestSource: o.status === 'revision_required' ? null : o.revisionRequestSource,
+    revisionTargetKind: o.status === 'revision_required' ? null : o.revisionTargetKind,
+    customerRevisionNote: o.status === 'revision_required' ? null : o.customerRevisionNote,
+    qaRevisionNote: o.status === 'revision_required' ? null : o.qaRevisionNote,
   };
   if (isInterim) {
     orderPatch.interimSubmittedAt = submission.submittedAt;
@@ -787,20 +797,39 @@ function qaPass(submissionId) {
   return true;
 }
 
-function qaRequestRevision(submissionId) {
+function qaRequestRevision(submissionId, note) {
   const sub = S.byId(store.getState().entities.submissions, submissionId);
   if (!sub) return false;
   const o = order(sub.orderId);
   const guard = W.canTransition(o, 'qa_request_revision');
   if (!guard.ok) { toast({ text: guard.reason, tone: 'danger' }); return false; }
   patchEntity('submissions', submissionId, { qaStatus: QA_STATUS.REVISION_REQUESTED, reviewedAt: nowIso() }, 'qa.revision.submission');
+  // QA-triggered revision is always on the final (QA only sees final/revision submissions).
+  // Mirror the per-kind counter + source tracking that the customer flow already does,
+  // so the GW banner can label the feedback source and the round counter actually moves.
+  const nextRound = (o.finalRevisionRounds || 0) + 1;
   patchOrder(sub.orderId, {
     status: 'revision_required',
+    revisionRequestSource: 'qa',
+    revisionTargetKind: 'final',
     revisionRounds: (o.revisionRounds || 0) + 1,
+    finalRevisionRounds: nextRound,
+    qaRevisionNote: note || '',
+    lastCustomerFeedbackAt: nowIso(),
     qaPassed: false,
   });
-  notifyOrder(o.id, { to: 'gw', kind: 'revision_required', submissionId, title: `Revision requested on Order #${o.id}`, body: 'QA returned feedback · please resubmit through the platform' });
-  notifyOrder(o.id, { to: 'admin', kind: 'revision_required', submissionId, title: `QA requested revision · #${o.id}`, body: `${gw(o.gwId)?.name || 'GW'} must resubmit before customer delivery.` });
+  const noteSnippet = (note || '').slice(0, 120);
+  notifyOrder(o.id, { to: 'gw', kind: 'revision_required', submissionId, title: `QA requested revision · Order #${o.id} (round ${nextRound})`, body: noteSnippet || 'QA returned feedback · please resubmit through the platform' });
+  notifyOrder(o.id, { to: 'admin', kind: 'revision_required', submissionId, title: `QA requested revision · #${o.id}`, body: noteSnippet || `${gw(o.gwId)?.name || 'GW'} must resubmit before customer delivery.` });
+  DomainEvents.emit('qa.revision.requested', {
+    orderId: o.id,
+    submissionId,
+    customerId: o?.customerId,
+    scenarioId: o?.scenarioId || null,
+    gwId: o?.gwId || null,
+    note: note || '',
+    revisionRound: nextRound,
+  });
   return true;
 }
 
@@ -883,12 +912,14 @@ function requestCustomerRevision(orderId, note) {
     : (o.interimRevisionRounds || 0) + 1;
   patchOrder(orderId, {
     status: 'revision_required',
+    revisionRequestSource: 'customer',
     revisionTargetKind,
     revisionRounds: nextRoundTotal,
     finalRevisionRounds: isFinalRevision ? (o.finalRevisionRounds || 0) + 1 : (o.finalRevisionRounds || 0),
     interimRevisionRounds: isFinalRevision ? (o.interimRevisionRounds || 0) : (o.interimRevisionRounds || 0) + 1,
     lastCustomerFeedbackAt: nowIso(),
     customerRevisionNote: note || '',
+    qaRevisionNote: null,
   });
   notifyOrder(orderId, { to: 'gw', kind: 'revision_required', title: 'Überarbeitung angefordert', body: `Auftrag #${orderId}: ${(note || '').slice(0, 80)}` });
   notifyOrder(orderId, { to: 'admin', kind: 'revision_required', title: `Customer requested revision · #${orderId}`, body: (note || '').slice(0, 120) });

@@ -11,7 +11,7 @@ const D = EF;
 function GWDashboard({ navigate }) {
   const GW_ME = D.GW_ME;
   const mine = EFHooks.useOrders({ gwId: GW_ME.id });
-  const activeCount = mine.filter(o => ['active','interim_submitted','under_customer_review','revision_required','final_submitted','qa_review'].includes(o.status)).length;
+  const activeCount = mine.filter(o => ['active','interim_submitted','under_customer_review','revision_required','qa_review'].includes(o.status)).length;
   // Earnings split (G-10):
   //   paid this month → already in bank (gwPaymentStatus === 'paid')
   //   releasable Friday → invoice received but not yet paid out

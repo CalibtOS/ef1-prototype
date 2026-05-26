@@ -6,6 +6,7 @@ import { Icon, StatusPill, Avatar, Money, Bi, ScoreBar, NotReady, PlannedTag, Em
 import * as U from '../../utils.jsx';
 import { CrumbBar } from '../../shell.jsx';
 import * as EFHooks from '../core/hooks.js';
+import * as W from '../core/workflow.js';
 import EF from '../core/ef.js';
 const D = EF;
 
@@ -19,13 +20,18 @@ function DisputesPage({ navigate }) {
       return { category: 'ai_use', raisedBy: 'qa', blocksPayment: true, status: 'investigating', summary: `AI score ${sub?.aiScore || '—'}% — QA flag routed to admin decision`, daysOpen: 1 };
     }
     if (o.disputeOpen) {
-      return { category: 'quality', raisedBy: 'customer', blocksPayment: true, status: o.status === 'revision_required' ? 'revision_in_progress' : 'investigating', summary: `Customer feedback open · revision round ${o.revisionRounds || 1}`, daysOpen: 6 };
+      const round = W.currentRevisionRound(o) || 1;
+      const phase = o.revisionTargetKind === 'final' ? 'final' : 'interim';
+      return { category: 'quality', raisedBy: 'customer', blocksPayment: true, status: o.status === 'revision_required' ? 'revision_in_progress' : 'investigating', summary: `Customer feedback open · ${phase} revision round ${round}`, daysOpen: 6 };
     }
     if (o.status === 'on_hold') {
       return { category: 'deadline', raisedBy: 'admin', blocksPayment: true, status: 'investigating', summary: o.holdReason || 'Order on hold', daysOpen: 5 };
     }
     if (o.status === 'revision_required') {
-      return { category: 'quality', raisedBy: 'customer', blocksPayment: true, status: 'revision_in_progress', summary: `Revision requested — round ${o.revisionRounds || 1}`, daysOpen: 3 };
+      const round = W.currentRevisionRound(o) || 1;
+      const phase = o.revisionTargetKind === 'final' ? 'final' : 'interim';
+      const raisedBy = o.revisionRequestSource === 'qa' ? 'qa' : 'customer';
+      return { category: 'quality', raisedBy, blocksPayment: true, status: 'revision_in_progress', summary: `Revision requested — ${phase} round ${round}`, daysOpen: 3 };
     }
     return null;
   };
@@ -105,8 +111,9 @@ function DisputesPage({ navigate }) {
                     {d.status === 'revision_in_progress' && <span className="pill pill-blue">Revision</span>}
                   </td>
                   <td className="num">
-                    <button className="btn btn-sm" onClick={e => { e.stopPropagation(); }} title="Reassign GW"><Icon name="rotate-ccw" size={12}/></button>
-                    <button className="btn btn-sm" onClick={e => { e.stopPropagation(); }} title="Open chat"><Icon name="message-square" size={12}/></button>
+                    <button className="btn btn-sm" onClick={e => { e.stopPropagation(); o && navigate('order-detail', { id: d.orderId }); }} title="Open order">
+                      <Icon name="external-link" size={12}/>
+                    </button>
                   </td>
                 </tr>
               );

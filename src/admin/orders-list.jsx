@@ -154,7 +154,7 @@ function OrdersTable({ navigate, route }) {
                     o.status==='ai_violation_review' ? 'row-danger'
                     : o.status==='completed' || o.status==='delivered' ? 'row-success'
                     : (U.daysTo(o.finalDeadline) < 0 && !['completed','cancelled'].includes(o.status)) ? 'row-overdue'
-                    : ['qa_review','final_submitted','revision_required','under_customer_review','payment_pending','claimed_pending_approval'].includes(o.status) ? 'row-warn'
+                    : ['qa_review','revision_required','under_customer_review','payment_pending','claimed_pending_approval'].includes(o.status) ? 'row-warn'
                     : o.status==='active' || o.status==='interim_submitted' ? 'row-active'
                     : ''
                   }>

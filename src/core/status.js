@@ -18,7 +18,6 @@ export const STATUS = Object.freeze({
   INTERIM_SUBMITTED: 'interim_submitted',
   UNDER_CUSTOMER_REVIEW: 'under_customer_review',
   REVISION_REQUIRED: 'revision_required',
-  FINAL_SUBMITTED: 'final_submitted',
   QA_REVIEW: 'qa_review',
   AI_VIOLATION_REVIEW: 'ai_violation_review',
   PLAGIARISM_VIOLATION_REVIEW: 'plagiarism_violation_review',

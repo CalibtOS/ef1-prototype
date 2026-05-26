@@ -31,6 +31,7 @@ const MAIL_TEMPLATES = {
   'gw.first_contact_sent':            ['firstContactSentToCustomer'],
   'customer.interim.approved':        ['interimApprovedGwNotify'],
   'customer.revision.requested':      ['revisionRequestedGwNotify', 'revisionRequestedAdminNotify'],
+  'qa.revision.requested':            ['qaRevisionRequestedGwNotify', 'qaRevisionRequestedAdminNotify'],
   'gw.submission.interim':            ['interimSubmittedCustomerNotify', 'interimSubmittedAdminNotify'],
   'gw.submission.final':              ['finalSubmittedAdminNotify'],
   'customer.final.accepted':          ['finalAcceptedAdminNotify'],
@@ -403,6 +404,42 @@ DomainEvents.on('customer.revision.requested', (payload) => {
     note,
     revisionRound,
     revisionTargetKind,
+    scenarioId,
+  });
+});
+
+DomainEvents.on('qa.revision.requested', (payload) => {
+  const { orderId, submissionId, customerId, scenarioId, gwId, note, revisionRound } = payload;
+  const g = selectGw(gwId);
+  const customerName = selectCustomerName(customerId);
+  SimEvents.emit({
+    source: 'qa',
+    kind: 'qa.revision.requested',
+    orderId, customerId, scenarioId,
+    detail: { gwId, gwName: g?.name || null, revisionRound, note },
+  });
+  if (g?.email) {
+    sendMail('qa.revision.requested', 'qaRevisionRequestedGwNotify', {
+      orderId,
+      submissionId,
+      gwId,
+      gwEmail: g.email,
+      gwName: g.name,
+      customerName,
+      note,
+      revisionRound,
+      scenarioId,
+    });
+  }
+  sendMail('qa.revision.requested', 'qaRevisionRequestedAdminNotify', {
+    orderId,
+    submissionId,
+    customerId,
+    customerName,
+    gwId,
+    gwName: g?.name || null,
+    note,
+    revisionRound,
     scenarioId,
   });
 });

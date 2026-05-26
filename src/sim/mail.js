@@ -490,6 +490,62 @@ function revisionRequestedAdminNotify({ orderId, customerId, customerName, gwId,
   });
 }
 
+function qaRevisionRequestedGwNotify({ orderId, submissionId, gwId, gwEmail, gwName, customerName, note, revisionRound, scenarioId }) {
+  return createEmail({
+    to: gwEmail,
+    toRole: 'gw',
+    from: 'qa@efactory1.de',
+    subject: `QA Überarbeitung angefordert · Auftrag #${orderId} · Runde ${revisionRound || 1}`,
+    bodyMd: [
+      `Hallo ${gwName || ''},`,
+      ``,
+      `**efactory1 QA** hat Ihre Endabgabe für Auftrag #${orderId} (Kunde: ${customerName || '—'}) geprüft und Korrekturbedarf festgestellt.`,
+      ``,
+      `**Runde:** ${revisionRound || 1} von 3`,
+      `**Status:** Überarbeitung erforderlich — Datei wird nicht an den Kunden weitergeleitet, bevor QA freigibt.`,
+      ``,
+      note ? `**QA-Feedback:**` : null,
+      note ? `> ${note}` : null,
+      note ? `` : null,
+      `Bitte öffnen Sie den Auftrag, lesen Sie das QA-Feedback und laden Sie die überarbeitete Version hoch.`,
+    ].filter(v => v !== null).join('\n'),
+    cta: { label: 'Auftrag öffnen', action: 'open_gw_assignment', orderId },
+    kind: 'qa_revision_requested_gw',
+    orderId,
+    submissionId,
+    customerId: null,
+    gwId,
+    scenarioId,
+  });
+}
+
+function qaRevisionRequestedAdminNotify({ orderId, submissionId, customerId, customerName, gwId, gwName, note, revisionRound, scenarioId }) {
+  return createEmail({
+    to: 'kundenservice@efactory1.de',
+    toRole: 'admin',
+    from: 'qa@efactory1.de',
+    subject: `QA requested revision · Order #${orderId} · Round ${revisionRound || 1}`,
+    bodyMd: [
+      `**efactory1 QA** requested a revision on the final delivery for order #${orderId}.`,
+      ``,
+      `**Round:** ${revisionRound || 1} of 3`,
+      `**Customer:** ${customerName || customerId || '—'}`,
+      `**Ghostwriter:** ${gwName || '—'} (\`${gwId || '—'}\`)`,
+      `**Payment:** blocked until the revised final passes QA and is accepted by the customer.`,
+      ``,
+      note ? `**QA feedback:**` : null,
+      note ? `> ${note}` : null,
+    ].filter(v => v !== null).join('\n'),
+    cta: { label: 'Open order', action: 'open_admin_order', orderId },
+    kind: 'qa_revision_requested_admin',
+    orderId,
+    submissionId,
+    customerId,
+    gwId,
+    scenarioId,
+  });
+}
+
 function interimSubmittedAdminNotify({ orderId, customerId, customerName, gwId, gwName, submissionId, submissionKind, fileName, scenarioId }) {
   const label = submissionKind === 'interim_2' ? 'Zwischenstand 2' : 'Zwischenstand 1';
   return createEmail({
@@ -803,6 +859,8 @@ export {
   interimApprovedGwNotify,
   revisionRequestedGwNotify,
   revisionRequestedAdminNotify,
+  qaRevisionRequestedGwNotify,
+  qaRevisionRequestedAdminNotify,
   payoutReleasedGw,
   payoutBatchAdminNotify,
 };

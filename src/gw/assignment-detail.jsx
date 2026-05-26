@@ -138,7 +138,7 @@ function GWAssignmentDetail({ orderId, navigate, toast }) {
 
   const stages = [
     { id: 'pending', label: 'Pending Approval', done: !isPending },
-    { id: 'active', label: 'Active', done: ['active','interim_submitted','under_customer_review','revision_required','final_submitted','qa_review','delivered','payment_pending','completed'].includes(order.status) },
+    { id: 'active', label: 'Active', done: ['active','interim_submitted','under_customer_review','revision_required','qa_review','delivered','payment_pending','completed'].includes(order.status) },
     { id: 'intro', label: 'Introduction', done: introDone },
     { id: 'interim', label: 'Interim', done: delivery.interimsComplete },
     { id: 'final', label: 'Final', done: delivery.finalSubmitted },
@@ -218,28 +218,42 @@ function GWAssignmentDetail({ orderId, navigate, toast }) {
         />
       )}
 
-      {isRevision && (
-        <div className="card mb-3" style={{ borderLeft: '4px solid var(--orange)' }}>
+      {isRevision && (() => {
+        // Source matters: customer revisions carry a name + customerRevisionNote;
+        // QA revisions carry "efactory1 QA" + qaRevisionNote and have no customer chat.
+        // Falling back to the customer source preserves the pre-source-tracking demos.
+        const fromQa = order.revisionRequestSource === 'qa';
+        const sourceLabel = fromQa ? 'efactory1 QA' : (cust?.name || 'Customer');
+        const headerLabel = fromQa ? 'QA feedback — revision required' : 'Customer feedback — revision required';
+        const noteFallback = fromQa
+          ? 'QA returned the final for revision. Check the QA verdict in the chat or ask efactory1 for clarification before resubmitting.'
+          : 'Revision feedback is open. Check the customer thread or ask efactory1 for clarification before resubmitting.';
+        const noteText = fromQa
+          ? (order.qaRevisionNote || order.feedbackText || noteFallback)
+          : (order.feedbackText || order.customerRevisionNote || latestCustomerMessage?.body || noteFallback);
+        const replyTarget = fromQa ? 'efactory1' : 'customer';
+        return (
+        <div className="card mb-3" style={{ borderLeft: `4px solid ${fromQa ? 'var(--blue)' : 'var(--orange)'}` }}>
           <div className="card-head">
             <div className="card-title flex items-center gap-2">
-              <Icon name="alert-triangle" size={14} style={{ color: 'var(--orange)' }}/> Customer feedback — revision required (round {W.currentRevisionRound(order) || 1})
+              <Icon name={fromQa ? 'shield' : 'alert-triangle'} size={14} style={{ color: fromQa ? 'var(--blue)' : 'var(--orange)' }}/> {headerLabel} (round {W.currentRevisionRound(order) || 1})
             </div>
             <span className="text-faint fs-11">received {revisionAt ? U.relTime(revisionAt) : 'date not recorded'}</span>
           </div>
           <div className="card-pad">
             <div className="kv" style={{ fontSize: 12, marginBottom: 12 }}>
-              <div className="kv-row"><dt>From</dt><dd><strong>{cust?.name || 'Customer'}</strong></dd></div>
+              <div className="kv-row"><dt>From</dt><dd><strong>{sourceLabel}</strong></dd></div>
               <div className="kv-row"><dt>Round</dt><dd className="mono">{W.currentRevisionRound(order) || 1} of 3</dd></div>
               <div className="kv-row"><dt>Payment impact</dt><dd>Blocked until the revision is accepted</dd></div>
             </div>
             <div style={{ padding: 12, background: 'var(--surface-2)', borderRadius: 8, fontSize: 12, lineHeight: 1.5 }}>
-              {order.feedbackText || order.customerRevisionNote || latestCustomerMessage?.body || 'Revision feedback is open. Check the customer thread or ask efactory1 for clarification before resubmitting.'}
+              {noteText}
             </div>
             <div className="flex gap-2 mt-3" style={{ flexWrap: 'wrap' }}>
               <button className="btn btn-primary btn-sm" onClick={() => {
-                // Route to the submit page using the kind the customer's revision
-                // actually targets. For interim revisions we re-upload that interim
-                // (kind: 'interim_1' / 'interim_2'); for a final revision the
+                // Route to the submit page using the kind the revision actually targets.
+                // For interim revisions we re-upload that interim (kind: 'interim_1' /
+                // 'interim_2'); for a final revision (customer- or QA-triggered) the
                 // submit page accepts `kind: 'revision'`.
                 const target = order.revisionTargetKind;
                 const submitKind = (target === 'interim_1' || target === 'interim_2') ? target : 'revision';
@@ -248,7 +262,7 @@ function GWAssignmentDetail({ orderId, navigate, toast }) {
                 <Icon name="upload-cloud" size={12}/> Upload revised version
               </button>
               <button className="btn btn-sm" onClick={scrollToOrderChat}>
-                <Icon name="message-square" size={12}/> Reply to customer
+                <Icon name="message-square" size={12}/> Reply to {replyTarget}
               </button>
               <button className="btn btn-sm" onClick={() => toast && toast({ text: 'Clarification request sent to efactory1 — Berat will mediate.', tone: 'info' })}>
                 <Icon name="help-circle" size={12}/> Ask efactory1 to clarify
@@ -256,7 +270,8 @@ function GWAssignmentDetail({ orderId, navigate, toast }) {
             </div>
           </div>
         </div>
-      )}
+        );
+      })()}
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 320px', gap: 16 }}>
         <div className="flex-col gap-3">
@@ -326,7 +341,6 @@ function GWAssignmentDetail({ orderId, navigate, toast }) {
               interim_submitted: 'Interim already submitted — awaiting customer feedback',
               under_customer_review: 'Awaiting customer review of last submission',
               revision_required: 'Customer requested a revision — use the Revise button',
-              final_submitted: 'Final submitted — awaiting QA',
               qa_review: 'In QA — no further uploads needed',
               delivered: 'Customer is reviewing the final',
               payment_pending: 'Payment pending — work complete',
