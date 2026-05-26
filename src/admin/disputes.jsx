@@ -11,42 +11,97 @@ import EF from '../core/ef.js';
 const D = EF;
 
 function DisputesPage({ navigate }) {
-  // Derive disputes from real order state. Categorize by what's actually wrong.
+  // Sources of truth, in priority order:
+  // 1. Real Dispute entities on orders (post-Phase-1 disputes system).
+  // 2. AI/plagiarism violations — separate state machine, surfaced here for triage.
+  // 3. Revision-required orders (no dispute) — these are not disputes, but the
+  //    page historically lumped them in. Kept under a separate category so the
+  //    admin can see active revisions in one place without confusing them with
+  //    real disputes.
   const allEffective = EFHooks.useOrders();
   const allSubmissions = EFHooks.useSubmissions();
-  const summarizeOrder = (o) => {
-    if (o.status === 'ai_violation_review') {
+
+  const realDisputeRows = [];
+  const violationRows = [];
+  const revisionRows = [];
+
+  allEffective.forEach(o => {
+    const open = W.currentOpenDispute(o);
+    if (open) {
+      realDisputeRows.push({
+        orderId: o.id,
+        kind: 'dispute',
+        raisedBy: open.openedBy,
+        category: open.reasonCategory,
+        blocksPayment: true,
+        status: 'open',
+        summary: (open.reason || '').slice(0, 140),
+        daysOpen: Math.max(1, Math.round((Date.now() - new Date(open.openedAt || Date.now()).getTime()) / 86400000)),
+        disputeId: open.id,
+      });
+    } else if (o.status === 'ai_violation_review' || o.status === 'plagiarism_violation_review') {
       const sub = allSubmissions.find(s => s.orderId === o.id);
-      return { category: 'ai_use', raisedBy: 'qa', blocksPayment: true, status: 'investigating', summary: `AI score ${sub?.aiScore || '—'}% — QA flag routed to admin decision`, daysOpen: 1 };
-    }
-    if (o.disputeOpen) {
-      const round = W.currentRevisionRound(o) || 1;
-      const phase = o.revisionTargetKind === 'final' ? 'final' : 'interim';
-      return { category: 'quality', raisedBy: 'customer', blocksPayment: true, status: o.status === 'revision_required' ? 'revision_in_progress' : 'investigating', summary: `Customer feedback open · ${phase} revision round ${round}`, daysOpen: 6 };
-    }
-    if (o.status === 'on_hold') {
-      return { category: 'deadline', raisedBy: 'admin', blocksPayment: true, status: 'investigating', summary: o.holdReason || 'Order on hold', daysOpen: 5 };
-    }
-    if (o.status === 'revision_required') {
+      violationRows.push({
+        orderId: o.id,
+        kind: 'violation',
+        raisedBy: 'qa',
+        category: o.status === 'plagiarism_violation_review' ? 'plagiarism' : 'ai_use',
+        blocksPayment: true,
+        status: 'investigating',
+        summary: `${o.status === 'plagiarism_violation_review' ? 'Plagiarism' : `AI score ${sub?.aiScore || '—'}%`} — QA flag routed to admin decision`,
+        daysOpen: 1,
+      });
+    } else if (o.status === 'revision_required' && !o.disputeOpen) {
       const round = W.currentRevisionRound(o) || 1;
       const phase = o.revisionTargetKind === 'final' ? 'final' : 'interim';
       const raisedBy = o.revisionRequestSource === 'qa' ? 'qa' : 'customer';
-      return { category: 'quality', raisedBy, blocksPayment: true, status: 'revision_in_progress', summary: `Revision requested — ${phase} round ${round}`, daysOpen: 3 };
+      revisionRows.push({
+        orderId: o.id,
+        kind: 'revision',
+        raisedBy,
+        category: 'quality',
+        blocksPayment: true,
+        status: 'revision_in_progress',
+        summary: `Revision requested — ${phase} round ${round}`,
+        daysOpen: 3,
+      });
+    } else if (o.disputeOpen && !open) {
+      // Legacy disputeOpen=true without a disputes[] entry. Show in the
+      // disputes section so admin can clean it up via the legacy panel.
+      realDisputeRows.push({
+        orderId: o.id,
+        kind: 'dispute_legacy',
+        raisedBy: 'customer',
+        category: 'other',
+        blocksPayment: true,
+        status: 'open',
+        summary: '⚠ Legacy disputeOpen flag — open order to resolve',
+        daysOpen: 6,
+      });
+    } else if (o.status === 'on_hold') {
+      violationRows.push({
+        orderId: o.id,
+        kind: 'hold',
+        raisedBy: 'admin',
+        category: 'deadline',
+        blocksPayment: true,
+        status: 'investigating',
+        summary: o.holdReason || 'Order on hold',
+        daysOpen: 5,
+      });
     }
-    return null;
-  };
-  const synthDisputes = allEffective
-    .map(o => { const d = summarizeOrder(o); return d ? { orderId: o.id, ...d } : null; })
-    .filter(Boolean);
+  });
+
+  const synthDisputes = [...realDisputeRows, ...violationRows, ...revisionRows];
   if (synthDisputes.length === 0) {
-    synthDisputes.push({ orderId: 3496, raisedBy: 'gw', category: 'scope', daysOpen: 8, blocksPayment: false, status: 'open', summary: 'GW Henrik Vogel reports scope creep · customer added 2 new chapters mid-project' });
+    synthDisputes.push({ orderId: 3496, raisedBy: 'gw', category: 'scope', daysOpen: 8, blocksPayment: false, status: 'open', summary: 'GW Henrik Vogel reports scope creep · customer added 2 new chapters mid-project', kind: 'demo' });
   }
 
   const blockingPayment = synthDisputes.filter(d => d.blocksPayment).length;
   const avgDays = Math.round(synthDisputes.reduce((s,d) => s + d.daysOpen, 0) / synthDisputes.length);
 
-  const catLabel = { quality: 'Quality', deadline: 'Deadline', scope: 'Scope', ai_use: 'AI use', plagiarism: 'Plagiarism', communication: 'Communication' };
-  const catTone = { quality: 'amber', deadline: 'orange', scope: 'blue', ai_use: 'red', plagiarism: 'red', communication: 'slate' };
+  const catLabel = { quality: 'Quality', deadline: 'Deadline', scope: 'Scope', ai_use: 'AI use', plagiarism: 'Plagiarism', communication: 'Communication', out_of_scope: 'Out of scope', unresponsive: 'Unresponsive', abusive: 'Abusive', late: 'Late', other: 'Other' };
+  const catTone = { quality: 'amber', deadline: 'orange', scope: 'blue', ai_use: 'red', plagiarism: 'red', communication: 'slate', out_of_scope: 'amber', unresponsive: 'amber', abusive: 'red', late: 'orange', other: 'slate' };
 
   return (
     <div className="page">

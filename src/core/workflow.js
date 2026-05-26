@@ -188,6 +188,41 @@ function isInterimKind(kind) {
   return kind === 'interim_1' || kind === 'interim_2';
 }
 
+// =============================================================================
+// Dispute helpers
+// =============================================================================
+// Disputes live as an append-only array on the order. The boolean `disputeOpen`
+// is kept on the order for legacy seed data and Friday-release gate predicates,
+// but the source of truth is `order.disputes` — when at least one entry has
+// `status === 'open'`, the order is disputed.
+//
+// Design rationale: per docs/flows/dispute/dispute_flow_design_review.md §4, dispute is
+// orthogonal to status. Opening a dispute pushes to disputes[] and locks the
+// chat (chat.disputeLockedAt). Closing applies an outcome that may or may not
+// move status — but the open/close itself never does.
+
+function disputes(order) {
+  return Array.isArray(order?.disputes) ? order.disputes : [];
+}
+
+function openDisputes(order) {
+  return disputes(order).filter(d => d?.status === 'open');
+}
+
+function currentOpenDispute(order) {
+  // Return the most recently opened dispute that's still open (typically there's
+  // at most one — concurrent disputes are blocked in the open action).
+  const open = openDisputes(order);
+  if (!open.length) return null;
+  return [...open].sort((a, b) => new Date(b.openedAt || 0) - new Date(a.openedAt || 0))[0];
+}
+
+function isOrderDisputed(order) {
+  // The derived predicate. Also honors the legacy boolean for seed data that
+  // pre-dates the disputes[] array — keeps old fixtures rendering correctly.
+  return !!order?.disputeOpen || openDisputes(order).length > 0;
+}
+
 // Per-kind revision round counter. Interim and Final revisions each have their
 // own 1..3 cycle; the legacy `revisionRounds` field stays as a total. Reads the
 // kind-scoped counter that matches the revision currently in flight (or the
@@ -800,6 +835,10 @@ export {
   isInterimKind,
   isQaReviewKind,
   currentRevisionRound,
+  disputes,
+  openDisputes,
+  currentOpenDispute,
+  isOrderDisputed,
   isPreProposal,
   isPrePayment,
   isOrderPaid,

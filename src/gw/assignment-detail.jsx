@@ -16,6 +16,95 @@ import EFActions from '../core/actions.js';
 import EF from '../core/ef.js';
 const D = EF;
 
+// Modal: shared dispute open form (used by GW + customer entry points). The
+// proposed flow in docs/flows/dispute/dispute_flow_design_review.md §2 step 4 says GW gets a
+// dropdown of reason categories + a 30-char textarea. Wired via
+// EFActions.disputes.openByGw / openByCustomer depending on the role using it.
+const DISPUTE_REASON_OPTIONS = [
+  { value: 'out_of_scope',  label: 'Out of scope / scope creep' },
+  { value: 'unresponsive',  label: 'Other party is unresponsive' },
+  { value: 'quality',       label: 'Disagreement on quality / requirements' },
+  { value: 'late',          label: 'Deadline / timing problem' },
+  { value: 'abusive',       label: 'Abusive or unprofessional behavior' },
+  { value: 'other',         label: 'Other (please describe)' },
+];
+const DISPUTE_REASON_MIN = 30;
+
+function DisputeOpenModal({ orderId, openedBy, partyName, onClose, onConfirm, toast }) {
+  const [category, setCategory] = useState('out_of_scope');
+  const [reason, setReason] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const remaining = Math.max(0, DISPUTE_REASON_MIN - reason.trim().length);
+  const canSubmit = remaining === 0 && !submitting;
+  const submit = () => {
+    if (!canSubmit) return;
+    setSubmitting(true);
+    const action = openedBy === 'gw' ? EFActions.disputes.openByGw : EFActions.disputes.openByCustomer;
+    const dispute = action(orderId, { reasonCategory: category, reason: reason.trim() });
+    if (dispute) {
+      toast && toast({
+        tone: 'info',
+        transition: { entity: `Order #${orderId}`, from: 'Active', to: 'Dispute open' },
+        text: 'Dispute submitted · efactory1 will mediate · chat paused.',
+      });
+      onConfirm && onConfirm(dispute);
+    } else {
+      setSubmitting(false);
+    }
+  };
+  return (
+    <div className="modal-backdrop" style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'grid', placeItems: 'center', zIndex: 1000 }} onClick={onClose}>
+      <div className="card" style={{ maxWidth: 560, width: '92%' }} onClick={e => e.stopPropagation()}>
+        <div className="card-head">
+          <div className="card-title flex items-center gap-2">
+            <Icon name="alert-triangle" size={14} style={{ color: 'var(--orange)' }}/>
+            Escalate to efactory1 · Order #{orderId}
+          </div>
+          <button type="button" className="btn btn-sm" onClick={onClose}><Icon name="x" size={12}/></button>
+        </div>
+        <div className="card-pad flex-col gap-3">
+          <div className="banner warn" style={{ fontSize: 12 }}>
+            <Icon name="info" size={14}/>
+            <div style={{ flex: 1, lineHeight: 1.45 }}>
+              Use this when you cannot resolve the disagreement with {partyName || 'the other party'} via chat. The order chat will be paused, payment release will be blocked, and efactory1 will mediate. Don't use this for normal revisions.
+            </div>
+          </div>
+          <div>
+            <label className="fs-12 strong mb-1" style={{ display: 'block' }}>Category</label>
+            <select
+              value={category}
+              onChange={e => setCategory(e.target.value)}
+              style={{ width: '100%', padding: 10, fontSize: 13, border: '1px solid var(--border)', borderRadius: 8, background: 'var(--surface)', color: 'var(--text)' }}
+            >
+              {DISPUTE_REASON_OPTIONS.map(o => (
+                <option key={o.value} value={o.value}>{o.label}</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="fs-12 strong mb-1" style={{ display: 'block' }}>What happened? (min. {DISPUTE_REASON_MIN} chars)</label>
+            <textarea
+              value={reason}
+              onChange={e => setReason(e.target.value)}
+              placeholder="Describe the situation in concrete terms — what was asked, what's unreasonable, what you've already tried. Include round numbers if relevant."
+              style={{ width: '100%', minHeight: 120, resize: 'vertical', padding: 10, fontSize: 13, border: `1px solid ${remaining ? 'var(--amber)' : 'var(--border)'}`, borderRadius: 8, background: 'var(--surface)', color: 'var(--text)', fontFamily: 'inherit', boxSizing: 'border-box' }}
+            />
+            <div className="fs-11 text-faint mt-1">
+              {remaining > 0 ? `${remaining} more character${remaining === 1 ? '' : 's'} required` : 'Ready to submit.'}
+            </div>
+          </div>
+          <div className="flex gap-2" style={{ justifyContent: 'flex-end' }}>
+            <button type="button" className="btn btn-sm" onClick={onClose}>Cancel</button>
+            <button type="button" className="btn btn-sm btn-danger" disabled={!canSubmit} onClick={submit}>
+              <Icon name="alert-triangle" size={12}/> Submit dispute
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // Modal: GW declares they introduced themselves out-of-band (WhatsApp, phone, etc.)
 // Records firstContactDoneAt without sending the SOP D template; audit log captures channel + reason.
 function OutOfBandIntroModal({ orderId, customerName, onClose, onConfirm }) {
@@ -78,6 +167,7 @@ function GWAssignmentDetail({ orderId, navigate, toast }) {
   const displaySubs = EFHooks.useDisplaySubmissions(orderId);
   const order = EFHooks.useOrder(orderId);
   const [outOfBandOpen, setOutOfBandOpen] = useState(false);
+  const [disputeOpen, setDisputeOpen] = useState(false);
   const [focusChatComposer, setFocusChatComposer] = useState(false);
   if (!order) return <div className="page">Assignment not found.</div>;
   // Ownership guard — a GW may only view assignments where they are the assigned writer
@@ -218,6 +308,17 @@ function GWAssignmentDetail({ orderId, navigate, toast }) {
         />
       )}
 
+      {disputeOpen && (
+        <DisputeOpenModal
+          orderId={order.id}
+          openedBy="gw"
+          partyName={cust?.name || 'the customer'}
+          onClose={() => setDisputeOpen(false)}
+          onConfirm={() => setDisputeOpen(false)}
+          toast={toast}
+        />
+      )}
+
       {isRevision && (() => {
         // Source matters: customer revisions carry a name + customerRevisionNote;
         // QA revisions carry "efactory1 QA" + qaRevisionNote and have no customer chat.
@@ -250,7 +351,7 @@ function GWAssignmentDetail({ orderId, navigate, toast }) {
               {noteText}
             </div>
             <div className="flex gap-2 mt-3" style={{ flexWrap: 'wrap' }}>
-              <button className="btn btn-primary btn-sm" onClick={() => {
+              <button className="btn btn-primary btn-sm" disabled={order.disputeOpen} title={order.disputeOpen ? 'Paused — dispute under review by efactory1' : undefined} onClick={() => {
                 // Route to the submit page using the kind the revision actually targets.
                 // For interim revisions we re-upload that interim (kind: 'interim_1' /
                 // 'interim_2'); for a final revision (customer- or QA-triggered) the
@@ -264,9 +365,11 @@ function GWAssignmentDetail({ orderId, navigate, toast }) {
               <button className="btn btn-sm" onClick={scrollToOrderChat}>
                 <Icon name="message-square" size={12}/> Reply to {replyTarget}
               </button>
-              <button className="btn btn-sm" onClick={() => toast && toast({ text: 'Clarification request sent to efactory1 — Berat will mediate.', tone: 'info' })}>
-                <Icon name="help-circle" size={12}/> Ask efactory1 to clarify
-              </button>
+              {!fromQa && !order.disputeOpen && (
+                <button className="btn btn-sm" onClick={() => setDisputeOpen(true)}>
+                  <Icon name="alert-triangle" size={12}/> Escalate dispute
+                </button>
+              )}
             </div>
           </div>
         </div>
@@ -310,6 +413,8 @@ function GWAssignmentDetail({ orderId, navigate, toast }) {
             const allowedKinds = W.allowedSubmissionKinds(order, me.id, displaySubs);
             // Soft-block: SOP D requires the GW introduction before any work goes to the customer.
             const introBlocks = !introDone;
+            // Dispute freeze — GW production is paused while admin mediates.
+            const disputeBlocks = !!order.disputeOpen;
             // Revision upload — the targeted kind comes from lastSubmissionKind.
             // If the customer requested a revision on an interim, the matching
             // interim slot reopens (not the final slot). Falls back to 'final'
@@ -326,13 +431,13 @@ function GWAssignmentDetail({ orderId, navigate, toast }) {
             const finalRevisionMode    = revisionMode && revisionTargetKind === 'final';
             // Interim 1 is allowed while active, or in revision_required when
             // the revision was requested on interim_1.
-            const interim1Allowed = isApproved && (allowedKinds.includes('interim_1') || interim1RevisionMode) && !introBlocks;
+            const interim1Allowed = isApproved && (allowedKinds.includes('interim_1') || interim1RevisionMode) && !introBlocks && !disputeBlocks;
             // Interim 2 is allowed once interim 1 was approved and we're back to active,
             // or in revision_required when the revision was requested on interim_2.
-            const interim2Allowed = isApproved && (allowedKinds.includes('interim_2') || interim2RevisionMode) && !introBlocks;
+            const interim2Allowed = isApproved && (allowedKinds.includes('interim_2') || interim2RevisionMode) && !introBlocks && !disputeBlocks;
             // Final is allowed only after both interims (if any) and while still active.
             const interimsComplete = delivery.interimsComplete;
-            const finalAllowed   = isApproved && allowedKinds.includes('final') && !introBlocks;
+            const finalAllowed   = isApproved && allowedKinds.includes('final') && !introBlocks && !disputeBlocks;
             const finalButtonLabel = finalRevisionMode
               ? 'Upload revision'
               : finalAlreadySubmitted ? 'Final + invoice submitted' : 'Upload final + invoice';
@@ -351,13 +456,24 @@ function GWAssignmentDetail({ orderId, navigate, toast }) {
               plagiarism_violation_review: 'Plagiarism flagged — admin review',
             };
             const introBlockReason = 'Send your intro email first — required before submissions (SOP D).';
-            const stateReason = introBlocks
+            const disputeBlockReason = 'Dispute under review by efactory1 — work paused until resolved.';
+            const stateReason = disputeBlocks
+              ? disputeBlockReason
+              : introBlocks
               ? introBlockReason
               : (reasonFor[s] || (!interimsComplete ? 'Required interim submissions must be uploaded first' : 'Awaiting approval'));
             return (
           <div className="card">
             <div className="card-head"><div className="card-title">Submissions</div><span className="text-faint fs-11">cutoff 18:00 the day BEFORE due</span></div>
-            {introBlocks && isApproved && (
+            {disputeBlocks && (
+              <div className="banner" style={{ margin: '0 16px', fontSize: 12, background: 'color-mix(in oklab, var(--red) 8%, var(--surface))', border: '1px solid color-mix(in oklab, var(--red) 30%, var(--border))' }}>
+                <Icon name="alert-triangle" size={14} style={{ color: 'var(--red)' }}/>
+                <div style={{ flex: 1 }}>
+                  <strong>Submissions paused.</strong> A dispute is open on this order. efactory1 is reviewing — wait for the outcome before uploading further work.
+                </div>
+              </div>
+            )}
+            {!disputeBlocks && introBlocks && isApproved && (
               <div className="banner warn" style={{ margin: '0 16px', fontSize: 12 }}>
                 <Icon name="lock" size={14}/>
                 <div style={{ flex: 1 }}>
@@ -399,7 +515,7 @@ function GWAssignmentDetail({ orderId, navigate, toast }) {
                   <span className={`pill pill-${dm.tone === 'danger' ? 'red' : dm.tone === 'warn' ? 'amber' : 'slate'}`}>{dm.label}</span>
                 </div>
                 <div className="text-faint fs-11 mono mb-2">due {U.fmtDate(order.finalDeadline)}, 18:00</div>
-                <button className={`btn btn-sm w-full ${finalRevisionMode ? 'btn-primary' : ''}`} onClick={() => (finalAllowed || finalRevisionMode) && navigate('gw-submit', { id: order.id, kind: finalRevisionMode ? 'revision' : 'final' })} disabled={!(finalAllowed || finalRevisionMode)} title={stateNote(finalAllowed || finalRevisionMode, stateReason)} style={{ justifyContent: 'center' }}>
+                <button className={`btn btn-sm w-full ${finalRevisionMode ? 'btn-primary' : ''}`} onClick={() => (finalAllowed || (finalRevisionMode && !disputeBlocks)) && navigate('gw-submit', { id: order.id, kind: finalRevisionMode ? 'revision' : 'final' })} disabled={!(finalAllowed || (finalRevisionMode && !disputeBlocks))} title={stateNote(finalAllowed || (finalRevisionMode && !disputeBlocks), stateReason)} style={{ justifyContent: 'center' }}>
                   <Icon name={finalAlreadySubmitted ? 'check-circle' : 'upload-cloud'} size={12}/> {finalButtonLabel}
                 </button>
               </div>

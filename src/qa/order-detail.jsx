@@ -39,13 +39,24 @@ function QAOrderDetail({ orderId, navigate, toast, initialTab }) {
     .slice(-6);
 
   const goToQueue = () => navigate('qa-queue');
-  const requestRevision = () => {
+  const [revisionOpen, setRevisionOpen] = useState(false);
+  const [revisionNote, setRevisionNote] = useState('');
+  const canSubmitRevision = revisionNote.trim().length >= 10;
+  const beginRevision = () => {
     if (!canReviewLatest) return;
-    EFActions.qa.requestRevision(latestActionable.id);
+    setRevisionOpen(true);
+  };
+  const cancelRevision = () => { setRevisionOpen(false); setRevisionNote(''); };
+  const submitRevision = () => {
+    if (!canReviewLatest || !canSubmitRevision) return;
+    const ok = EFActions.qa.requestRevision(latestActionable.id, revisionNote.trim());
+    if (!ok) return;
+    setRevisionOpen(false);
+    setRevisionNote('');
     toast({
       tone: 'info',
       transition: { entity: `Order #${orderId}`, from: 'QA Review', to: 'Revision Required' },
-      text: 'GW notified · awaiting fix',
+      text: 'GW notified · feedback delivered',
     });
   };
   const passToCustomer = () => {
@@ -201,12 +212,31 @@ function QAOrderDetail({ orderId, navigate, toast, initialTab }) {
             <div className="card">
               <div className="card-head"><div className="card-title">QA actions</div></div>
               <div className="card-pad flex-col gap-2">
-                <button type="button" className="btn btn-success w-full" disabled={!canReviewLatest} onClick={passToCustomer} style={{ justifyContent: 'center' }}>
+                <button type="button" className="btn btn-success w-full" disabled={!canReviewLatest || revisionOpen} onClick={passToCustomer} style={{ justifyContent: 'center' }}>
                   <Icon name="check-circle" size={14}/> Pass · forward to customer
                 </button>
-                <button type="button" className="btn w-full" disabled={!canReviewLatest} onClick={requestRevision} style={{ justifyContent: 'center' }}>
-                  <Icon name="alert-triangle" size={14}/> Request revision
-                </button>
+                {!revisionOpen && (
+                  <button type="button" className="btn w-full" disabled={!canReviewLatest} onClick={beginRevision} style={{ justifyContent: 'center' }}>
+                    <Icon name="alert-triangle" size={14}/> Request revision
+                  </button>
+                )}
+                {revisionOpen && (
+                  <div className="flex-col gap-2" style={{ padding: 10, background: 'var(--surface-2)', borderRadius: 8, border: '1px solid var(--border)' }}>
+                    <label className="fs-11 text-muted">QA feedback for {gw?.name || 'the ghostwriter'} (min. 10 chars):</label>
+                    <textarea
+                      style={{ width: '100%', minHeight: 90, resize: 'vertical', padding: 10, fontSize: 13, border: `1px solid ${canSubmitRevision ? 'var(--border)' : 'var(--amber)'}`, borderRadius: 8, background: 'var(--surface)', color: 'var(--text)', fontFamily: 'inherit', boxSizing: 'border-box' }}
+                      placeholder="e.g. §3 methodology too generic — add concrete sources. §5 conclusion drifts off the research question."
+                      value={revisionNote}
+                      onChange={(e) => setRevisionNote(e.target.value)}
+                    />
+                    <div className="flex gap-2">
+                      <button type="button" className="btn btn-sm" onClick={cancelRevision} style={{ flex: 1, justifyContent: 'center' }}>Cancel</button>
+                      <button type="button" className="btn btn-sm btn-primary" disabled={!canSubmitRevision} onClick={submitRevision} style={{ flex: 1, justifyContent: 'center' }}>
+                        <Icon name="send" size={12}/> Send revision request
+                      </button>
+                    </div>
+                  </div>
+                )}
                 <button type="button" className="btn w-full" onClick={goToQueue} style={{ justifyContent: 'center' }}>
                   <Icon name="shield-check" size={14}/> Open in queue (full verdict)
                 </button>

@@ -32,6 +32,8 @@ const MAIL_TEMPLATES = {
   'customer.interim.approved':        ['interimApprovedGwNotify'],
   'customer.revision.requested':      ['revisionRequestedGwNotify', 'revisionRequestedAdminNotify'],
   'qa.revision.requested':            ['qaRevisionRequestedGwNotify', 'qaRevisionRequestedAdminNotify'],
+  'dispute.opened':                   ['disputeOpenedAdminNotify', 'disputeOpenedCounterpartyNotify'],
+  'dispute.resolved':                 ['disputeResolvedCustomerNotify', 'disputeResolvedGwNotify'],
   'gw.submission.interim':            ['interimSubmittedCustomerNotify', 'interimSubmittedAdminNotify'],
   'gw.submission.final':              ['finalSubmittedAdminNotify'],
   'customer.final.accepted':          ['finalAcceptedAdminNotify'],
@@ -442,6 +444,84 @@ DomainEvents.on('qa.revision.requested', (payload) => {
     revisionRound,
     scenarioId,
   });
+});
+
+DomainEvents.on('dispute.opened', (payload) => {
+  const { orderId, disputeId, openedBy, customerId, gwId, scenarioId, reasonCategory, reason } = payload;
+  const g = selectGw(gwId);
+  const customerName = selectCustomerName(customerId);
+  const cust = store.getState().entities.customers?.byId?.[customerId];
+  SimEvents.emit({
+    source: openedBy,
+    kind: 'dispute.opened',
+    orderId, customerId, scenarioId,
+    detail: { disputeId, openedBy, reasonCategory, reason },
+  });
+  sendMail('dispute.opened', 'disputeOpenedAdminNotify', {
+    orderId,
+    disputeId,
+    openedBy,
+    customerId,
+    customerName,
+    gwId,
+    gwName: g?.name || null,
+    reasonCategory,
+    reason,
+    scenarioId,
+  });
+  // Counterparty notification — the side that didn't open gets a heads-up
+  // that chat is paused and admin will mediate.
+  const counterparty = openedBy === 'customer' ? 'gw' : 'customer';
+  const recipientEmail = counterparty === 'gw' ? g?.email : cust?.email;
+  const recipientEntityId = counterparty === 'gw' ? gwId : customerId;
+  if (recipientEmail) {
+    sendMail('dispute.opened', 'disputeOpenedCounterpartyNotify', {
+      orderId,
+      disputeId,
+      openedBy,
+      counterparty,
+      recipientEmail,
+      recipientEntityId,
+      recipientName: counterparty === 'gw' ? g?.name : customerName,
+      reasonCategory,
+      scenarioId,
+    });
+  }
+});
+
+DomainEvents.on('dispute.resolved', (payload) => {
+  const { orderId, disputeId, outcome, outcomeNote, customerId, gwId, scenarioId } = payload;
+  const g = selectGw(gwId);
+  const customerName = selectCustomerName(customerId);
+  const cust = store.getState().entities.customers?.byId?.[customerId];
+  SimEvents.emit({
+    source: 'admin',
+    kind: 'dispute.resolved',
+    orderId, customerId, scenarioId,
+    detail: { disputeId, outcome, outcomeNote },
+  });
+  if (cust?.email) {
+    sendMail('dispute.resolved', 'disputeResolvedCustomerNotify', {
+      orderId,
+      disputeId,
+      outcome,
+      outcomeNote,
+      customerEmail: cust.email,
+      customerName,
+      scenarioId,
+    });
+  }
+  if (g?.email) {
+    sendMail('dispute.resolved', 'disputeResolvedGwNotify', {
+      orderId,
+      disputeId,
+      outcome,
+      outcomeNote,
+      gwEmail: g.email,
+      gwName: g.name,
+      scenarioId,
+    });
+  }
 });
 
 DomainEvents.on('customer.interim.approved', (payload) => {

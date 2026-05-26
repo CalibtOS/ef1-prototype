@@ -26,8 +26,12 @@ function OrderChat({ orderId, currentRole = 'admin', toast, embedded = false, au
   const gw = order?.gwId ? D.gw(order.gwId) : null;
 
   const archived = isOrderChatArchived(order, chat);
-  const open = isOrderChatOpen(order, chat);
-  const lockReason = orderChatLockReason(order, chat);
+  // Admin mediates disputes from inside this chat, so the dispute lock must
+  // not hide the composer from them — only the customer and GW lose access
+  // while admin reviews. Customer/GW chat-lock UX is unchanged.
+  const chatOptions = currentRole === 'admin' ? { bypassDisputeLock: true } : undefined;
+  const open = isOrderChatOpen(order, chat, chatOptions);
+  const lockReason = orderChatLockReason(order, chat, chatOptions);
 
   useEffect(() => {
     if (chat?.id && (chat.unread?.[currentRole] || 0) > 0) {

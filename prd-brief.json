@@ -16,7 +16,7 @@
         "docs/QUICKREF.md",
         "docs/business_rules.md",
         "docs/decisions_log.md",
-        "docs/gw_workflow_sops.md",
+        "docs/flows/gw/gw_workflow_sops.md",
         "docs/open_questions.md",
         "docs/team_conventions.md"
       ]

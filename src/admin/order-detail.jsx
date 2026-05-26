@@ -1013,7 +1013,13 @@ function InterimSimSection({ order, toast }) {
         <div className="flex gap-2" style={{ flexWrap: 'wrap' }}>
           <button type="button" className="btn btn-success" disabled={busy || !approveOk} onClick={approve}><Icon name="check" size={14}/> Simulate approve interim</button>
           <button type="button" className="btn" disabled={busy || !reviseOk} onClick={() => setMode('revise')}><Icon name="rotate-ccw" size={14}/> Simulate revision request</button>
-          <button type="button" className="btn btn-ghost" disabled={busy} onClick={() => { EFActions.customer.escalate(order.id); toast && toast({ tone: 'danger', text: 'Simulated · customer opened a dispute' }); }}><Icon name="alert-triangle" size={14}/> Simulate dispute</button>
+          <button type="button" className="btn btn-ghost" disabled={busy} onClick={() => {
+            const ok = EFActions.customer.escalate(order.id, {
+              reasonCategory: 'quality',
+              reason: 'Demo-harness: customer escalation simulated from the admin order detail page.',
+            });
+            if (ok) toast && toast({ tone: 'danger', text: 'Simulated · customer opened a dispute' });
+          }}><Icon name="alert-triangle" size={14}/> Simulate dispute</button>
         </div>
       )}
       {state === 'available' && mode === 'revise' && (
@@ -1078,7 +1084,13 @@ function FinalSimSection({ order, toast }) {
         <div className="flex gap-2" style={{ flexWrap: 'wrap' }}>
           <button type="button" className="btn btn-success" disabled={busy || !acceptOk} onClick={accept}><Icon name="check" size={14}/> Simulate accept final</button>
           <button type="button" className="btn" disabled={busy || !reviseOk} onClick={() => setMode('revise')}><Icon name="rotate-ccw" size={14}/> Simulate last-tweak request</button>
-          <button type="button" className="btn btn-ghost" disabled={busy} onClick={() => { EFActions.customer.escalate(order.id); toast && toast({ tone: 'danger', text: 'Simulated · customer opened a dispute' }); }}><Icon name="alert-triangle" size={14}/> Simulate dispute</button>
+          <button type="button" className="btn btn-ghost" disabled={busy} onClick={() => {
+            const ok = EFActions.customer.escalate(order.id, {
+              reasonCategory: 'quality',
+              reason: 'Demo-harness: customer escalation simulated from the admin order detail page.',
+            });
+            if (ok) toast && toast({ tone: 'danger', text: 'Simulated · customer opened a dispute' });
+          }}><Icon name="alert-triangle" size={14}/> Simulate dispute</button>
         </div>
       )}
       {state === 'available' && mode === 'revise' && (

@@ -104,7 +104,13 @@ function custProgress(o, submissions = []) {
     return 35;
   }
   if (s === 'interim_submitted' || s === 'under_customer_review') return 55;
-  if (s === 'revision_required') return 50;
+  if (s === 'revision_required') {
+    // A final revision happens on a near-completed order (QA already passed it
+    // once before the customer asked for tweaks). Don't regress the progress
+    // bar from ~95% delivered all the way back to 50% — keep the user oriented.
+    if (o.revisionTargetKind === 'final' || o.finalSubmittedAt) return 88;
+    return 50;
+  }
   if (s === 'qa_review') return 90;
   if (s === 'on_hold') return 20;
   return 30;
@@ -656,8 +662,10 @@ function CustOrderChat({ o, toast }) {
 }
 
 function CustInterimFeedback({ o, toast }) {
-  const [mode, setMode] = useState(null); // null | 'approve' | 'revision'
+  const [mode, setMode] = useState(null); // null | 'approve' | 'revision' | 'dispute'
   const [note, setNote] = useState('');
+  const [disputeCategory, setDisputeCategory] = useState('quality');
+  const DISPUTE_MIN = 30;
 
   if (mode === 'approve') {
     return (
@@ -703,6 +711,42 @@ function CustInterimFeedback({ o, toast }) {
     );
   }
 
+  if (mode === 'dispute') {
+    const canSubmit = note.trim().length >= DISPUTE_MIN;
+    return (
+      <div className="flex-col gap-2">
+        <div className="banner warn" style={{ fontSize: 12 }}>
+          <Icon name="alert-triangle" size={13}/>
+          <span>Eskalieren Sie nur, wenn Sie das Problem nicht im Chat mit Ihrem Ghostwriter klären können. efactory1 prüft und mediiert. Der Chat wird während der Klärung pausiert.</span>
+        </div>
+        <label className="fs-12 text-muted">Kategorie:</label>
+        <select value={disputeCategory} onChange={e=>setDisputeCategory(e.target.value)} style={{ padding: 8, fontSize: 13, border: '1px solid var(--border)', borderRadius: 8, background: 'var(--surface)', color: 'var(--text)' }}>
+          <option value="quality">Qualität / Anforderungen</option>
+          <option value="unresponsive">Ghostwriter antwortet nicht</option>
+          <option value="late">Verzögerung / Termine</option>
+          <option value="abusive">Unprofessionelles Verhalten</option>
+          <option value="other">Sonstiges</option>
+        </select>
+        <label className="fs-12 text-muted">Was ist passiert? (mind. {DISPUTE_MIN} Zeichen)</label>
+        <textarea
+          style={{ width: '100%', minHeight: 100, resize: 'vertical', padding: 10, fontSize: 13, border: `1px solid ${canSubmit ? 'var(--border)' : 'var(--amber)'}`, borderRadius: 8, background: 'var(--surface)', color: 'var(--text)', fontFamily: 'inherit', boxSizing: 'border-box' }}
+          placeholder="Bitte beschreiben Sie das Problem konkret — was wurde besprochen, was hat nicht geklappt, was haben Sie bereits versucht."
+          value={note}
+          onChange={(e)=>setNote(e.target.value)}
+        />
+        <div className="flex gap-2">
+          <button type="button" className="btn btn-sm" onClick={()=>{setMode(null);setNote('');}}>Zurück</button>
+          <button type="button" className="btn btn-sm btn-danger" disabled={!canSubmit} onClick={()=>{
+            const ok = EFActions.disputes.openByCustomer(o.id, { reasonCategory: disputeCategory, reason: note.trim() });
+            if (ok) toast && toast({ tone: 'danger', transition: { entity: `Auftrag #${o.id}`, from: 'Zwischenstand', to: 'Streitfall' }, text: 'Streitfall eröffnet · Berat prüft · Chat pausiert.' });
+          }}>
+            <Icon name="alert-triangle" size={12}/> Streitfall eröffnen
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="flex-col gap-2">
       <div className="text-muted fs-12 mb-1">Bitte prüfen Sie den Zwischenstand im Tab und wählen Sie eine Aktion:</div>
@@ -713,10 +757,7 @@ function CustInterimFeedback({ o, toast }) {
         <Icon name="rotate-ccw" size={12}/> Überarbeitung anfordern
       </button>
       <hr style={{ border: 'none', borderTop: '1px solid var(--border)', margin: '4px 0' }}/>
-      <button type="button" className="btn btn-sm btn-ghost" style={{ fontSize: 11.5, color: 'var(--text-3)' }} onClick={()=>{
-        EFActions.customer.escalate(o.id);
-        toast && toast({ tone: 'danger', text: 'Streitfall gemeldet · Berat prüft und meldet sich.' });
-      }}>
+      <button type="button" className="btn btn-sm btn-ghost" style={{ fontSize: 11.5, color: 'var(--text-3)' }} onClick={()=>setMode('dispute')}>
         <Icon name="alert-triangle" size={11}/> Problem eskalieren
       </button>
     </div>
@@ -729,8 +770,10 @@ function CustInterimFeedback({ o, toast }) {
 // customer_satisfied). Without this UI no live order can ever reach
 // payment_pending and the GW honorarium would stay stuck behind the gate.
 function CustFinalAcceptance({ o, toast }) {
-  const [mode, setMode] = useState(null); // null | 'accept' | 'revision'
+  const [mode, setMode] = useState(null); // null | 'accept' | 'revision' | 'dispute'
   const [note, setNote] = useState('');
+  const [disputeCategory, setDisputeCategory] = useState('quality');
+  const DISPUTE_MIN = 30;
 
   if (mode === 'accept') {
     return (
@@ -776,6 +819,42 @@ function CustFinalAcceptance({ o, toast }) {
     );
   }
 
+  if (mode === 'dispute') {
+    const canSubmit = note.trim().length >= DISPUTE_MIN;
+    return (
+      <div className="flex-col gap-2">
+        <div className="banner warn" style={{ fontSize: 12 }}>
+          <Icon name="alert-triangle" size={13}/>
+          <span>Eskalieren Sie nur, wenn Sie das Problem nicht im Chat mit Ihrem Ghostwriter klären können. efactory1 prüft und mediiert. Der Chat wird während der Klärung pausiert.</span>
+        </div>
+        <label className="fs-12 text-muted">Kategorie:</label>
+        <select value={disputeCategory} onChange={e=>setDisputeCategory(e.target.value)} style={{ padding: 8, fontSize: 13, border: '1px solid var(--border)', borderRadius: 8, background: 'var(--surface)', color: 'var(--text)' }}>
+          <option value="quality">Qualität / Anforderungen</option>
+          <option value="unresponsive">Ghostwriter antwortet nicht</option>
+          <option value="late">Verzögerung / Termine</option>
+          <option value="abusive">Unprofessionelles Verhalten</option>
+          <option value="other">Sonstiges</option>
+        </select>
+        <label className="fs-12 text-muted">Was ist passiert? (mind. {DISPUTE_MIN} Zeichen)</label>
+        <textarea
+          style={{ width: '100%', minHeight: 100, resize: 'vertical', padding: 10, fontSize: 13, border: `1px solid ${canSubmit ? 'var(--border)' : 'var(--amber)'}`, borderRadius: 8, background: 'var(--surface)', color: 'var(--text)', fontFamily: 'inherit', boxSizing: 'border-box' }}
+          placeholder="Bitte beschreiben Sie das Problem konkret — was wurde besprochen, was hat nicht geklappt, was haben Sie bereits versucht."
+          value={note}
+          onChange={(e)=>setNote(e.target.value)}
+        />
+        <div className="flex gap-2">
+          <button type="button" className="btn btn-sm" onClick={()=>{setMode(null);setNote('');}}>Zurück</button>
+          <button type="button" className="btn btn-sm btn-danger" disabled={!canSubmit} onClick={()=>{
+            const ok = EFActions.disputes.openByCustomer(o.id, { reasonCategory: disputeCategory, reason: note.trim() });
+            if (ok) toast && toast({ tone: 'danger', transition: { entity: `Auftrag #${o.id}`, from: 'Endversion', to: 'Streitfall' }, text: 'Streitfall eröffnet · Berat prüft · Chat pausiert.' });
+          }}>
+            <Icon name="alert-triangle" size={12}/> Streitfall eröffnen
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="flex-col gap-2">
       <div className="text-muted fs-12 mb-1">Die Endversion ist freigegeben. Bitte prüfen Sie sie und entscheiden Sie:</div>
@@ -786,10 +865,7 @@ function CustFinalAcceptance({ o, toast }) {
         <Icon name="rotate-ccw" size={12}/> Letzte Anpassungen anfordern
       </button>
       <hr style={{ border: 'none', borderTop: '1px solid var(--border)', margin: '4px 0' }}/>
-      <button type="button" className="btn btn-sm btn-ghost" style={{ fontSize: 11.5, color: 'var(--text-3)' }} onClick={()=>{
-        EFActions.customer.escalate(o.id);
-        toast && toast({ tone: 'danger', text: 'Streitfall gemeldet · Berat prüft und meldet sich.' });
-      }}>
+      <button type="button" className="btn btn-sm btn-ghost" style={{ fontSize: 11.5, color: 'var(--text-3)' }} onClick={()=>setMode('dispute')}>
         <Icon name="alert-triangle" size={11}/> Problem eskalieren
       </button>
     </div>
@@ -940,7 +1016,20 @@ function CustOrderFiles({ o, toast }) {
           );
         })()}
 
-        {(o.status === 'interim_submitted' || o.status === 'under_customer_review') && (
+        {o.disputeOpen && (
+          <div className="card" style={{ borderLeft: '4px solid var(--red)' }}>
+            <div className="card-head">
+              <div className="card-title">Streitfall in Prüfung</div>
+              <span className="pill pill-red" style={{ fontSize: 10 }}><Icon name="alert-triangle" size={9}/> efactory1 mediiert</span>
+            </div>
+            <div className="card-pad text-muted fs-12" style={{ lineHeight: 1.6 }}>
+              Ihr Streitfall wurde an efactory1 übergeben. Der Plattform-Chat ist pausiert, bis Berat eine Entscheidung trifft.
+              Sie erhalten eine E-Mail, sobald der Fall gelöst ist — bis dahin sind keine weiteren Aktionen erforderlich.
+            </div>
+          </div>
+        )}
+
+        {!o.disputeOpen && (o.status === 'interim_submitted' || o.status === 'under_customer_review') && (
           <div className="card">
             <div className="card-head">
               <div className="card-title">Ihr Feedback</div>
@@ -952,7 +1041,7 @@ function CustOrderFiles({ o, toast }) {
           </div>
         )}
 
-        {o.status === 'delivered' && (
+        {!o.disputeOpen && o.status === 'delivered' && (
           <div className="card">
             <div className="card-head">
               <div className="card-title">Endabgabe prüfen</div>

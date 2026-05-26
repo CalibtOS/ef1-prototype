@@ -115,8 +115,12 @@ function targetFromLegacyCta(cta) {
       return { kind: 'consume-token', tokenId: cta.tokenId };
     case 'open_customer_dashboard':
       return { kind: 'customer-order', orderId: cta.orderId, tab: cta.tab, customerId: cta.customerId };
+    case 'open_customer_order':
+      return { kind: 'customer-order', orderId: cta.orderId, tab: cta.tab, customerId: cta.customerId };
     case 'open_admin_order':
       return { kind: 'admin-order', orderId: cta.orderId, tab: cta.tab, submissionId: cta.submissionId };
+    case 'open_admin_dispute':
+      return { kind: 'admin-order', orderId: cta.orderId };
     case 'open_gw_job_board':
       return { kind: 'gw-job-board', orderId: cta.orderId };
     case 'open_gw_assignment':

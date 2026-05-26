@@ -57,11 +57,49 @@
  * @property {number} [plagiarismScore]
  * @property {string} [qaFlagReason]
  * @property {boolean} [flagged]
- * @property {boolean} [disputeOpen]
+ * @property {boolean} [disputeOpen]    Derived from disputes[].some(d => d.status === 'open'); legacy boolean kept for back-compat seeds.
+ * @property {Dispute[]} [disputes]     Append-only history of disputes opened against this order.
+ * @property {Refund} [refund]          Set on outcome C (cancel_refund); prototype-only field.
  * @property {string} [leadSource]
  * @property {string} [note]
  * @property {number} [revisionRounds]
  * @property {'not_started'|'work_in_progress'|'ready_for_release'|'released'} [gwPaymentStatus]
+ */
+
+/**
+ * @typedef {Object} Dispute
+ * @property {string} id                 'd-{ts}-{rand}'
+ * @property {'customer'|'gw'} openedBy
+ * @property {string} openedById         customerId or gwId
+ * @property {string} openedAt           ISO datetime
+ * @property {'out_of_scope'|'unresponsive'|'quality'|'abusive'|'late'|'other'} reasonCategory
+ * @property {string} reason             min 30 chars
+ * @property {'open'|'resolved'} status
+ * @property {null|'continue_revision'|'reassign_gw'|'cancel_refund'|'scope_amendment'} outcome
+ * @property {string} [outcomeNote]      admin's free-text resolution rationale
+ * @property {string|null} resolvedAt    ISO datetime
+ * @property {string|null} resolvedBy    admin id
+ * @property {DisputeNote[]} adminNotes  chronological audit log
+ * @property {string|null} [affectedSubmissionId]
+ * @property {boolean} [alsoBlockedGw]   outcome B option
+ * @property {string|null} [extensionRef] outcome D link
+ */
+
+/**
+ * @typedef {Object} DisputeNote
+ * @property {string} id
+ * @property {string} at                 ISO datetime
+ * @property {string} body
+ * @property {'platform_note'|'email'|'whatsapp'|'phone'} channel
+ * @property {'customer'|'gw'|null} [recipient]    null for free notes
+ * @property {string|null} [externalMessageId]     when channel=email/whatsapp, link to the System B message
+ */
+
+/**
+ * @typedef {Object} Refund
+ * @property {number} amount
+ * @property {string} reason
+ * @property {string} at                 ISO datetime
  */
 
 /**

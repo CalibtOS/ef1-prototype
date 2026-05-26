@@ -667,9 +667,29 @@ function submitWork(orderId, payload = {}) {
   const o = order(orderId);
   const currentGwId = payload.gwId || store.getState().session.gwId;
   const kind = payload.kind || 'final';
+  // Dispute freeze — defense in depth for the UI gate. An open dispute pauses
+  // GW production until admin resolves; without this guard a stale route or a
+  // direct EFActions.gw.submit call could push work into qa_review while admin
+  // is still mediating.
+  if (o?.disputeOpen) {
+    toast({ text: 'A dispute is open on this order — work is paused until efactory1 resolves it.', tone: 'danger' });
+    return null;
+  }
   const existing = S.selectSubmissionsForOrder(store.getState(), orderId);
   if (!W.allowedSubmissionKinds(o, currentGwId, existing).includes(kind)) {
     toast({ text: W.submissionClosedReason(o), tone: 'danger' });
+    return null;
+  }
+  // SOP D intro lock — defense in depth. The GW assignment-detail UI greys out
+  // the submission tiles until firstContactDoneAt is set, but a direct call to
+  // EFActions.gw.submit (or a stale route) could otherwise post work before
+  // the customer has been introduced. Mirror the same gate the UI uses:
+  // either the SOP D wizard recorded firstContactDoneAt, or an out-of-band
+  // record was logged (firstContactMessageId / firstContactChatId / explicit
+  // firstContactSkippedTemplate flag).
+  const introDone = !!(o?.firstContactDoneAt || o?.firstContactDone || o?.firstContactMessageId || o?.firstContactChatId || o?.firstContactSkippedTemplate);
+  if (!introDone) {
+    toast({ text: 'Send the intro email first — required by SOP D before any submission.', tone: 'danger' });
     return null;
   }
   const entityKind = W.submissionKindToEntityKind(kind);
@@ -803,6 +823,13 @@ function qaRequestRevision(submissionId, note) {
   const o = order(sub.orderId);
   const guard = W.canTransition(o, 'qa_request_revision');
   if (!guard.ok) { toast({ text: guard.reason, tone: 'danger' }); return false; }
+  // Defense in depth: the QA queue gates the verdict button on a 10-char
+  // textarea, but the QA order-detail page used to call this with no note.
+  // Match the policy in one place so any call site without feedback is rejected.
+  if (!note || String(note).trim().length < 10) {
+    toast({ text: 'Add at least 10 characters of QA feedback before requesting a revision.', tone: 'danger' });
+    return false;
+  }
   patchEntity('submissions', submissionId, { qaStatus: QA_STATUS.REVISION_REQUESTED, reviewedAt: nowIso() }, 'qa.revision.submission');
   // QA-triggered revision is always on the final (QA only sees final/revision submissions).
   // Mirror the per-kind counter + source tracking that the customer flow already does,
@@ -858,6 +885,13 @@ function approveInterim(orderId) {
   const o = order(orderId);
   const guard = W.canTransition(o, 'customer_approve_interim');
   if (!guard.ok) { toast({ text: guard.reason, tone: 'danger' }); return false; }
+  // Dispute freeze: once a customer has escalated, all customer-side workflow
+  // transitions wait for admin resolution. Without this, an "active +
+  // disputeOpen" zombie state was reachable by approving an interim mid-dispute.
+  if (o.disputeOpen) {
+    toast({ text: 'Dispute is open — waiting for efactory1 to resolve before workflow can continue.', tone: 'danger' });
+    return false;
+  }
   const submissions = S.selectSubmissionsForOrder(store.getState(), orderId);
   const progress = W.deliveryProgress(o, submissions);
   const approvedKind = W.isInterimKind(o.pendingCustomerReviewKind)
@@ -920,6 +954,13 @@ function requestCustomerRevision(orderId, note) {
     lastCustomerFeedbackAt: nowIso(),
     customerRevisionNote: note || '',
     qaRevisionNote: null,
+    // Final revision: the previously QA-passed file is no longer the "current"
+    // deliverable. The next resubmit goes back through QA, so the timeline /
+    // release-gates / customer view must stop treating QA as approved. Interim
+    // revisions skip QA entirely so qaPassed (which only applies to finals) is
+    // left untouched.
+    qaPassed: isFinalRevision ? false : o.qaPassed,
+    deliveredAt: isFinalRevision ? null : o.deliveredAt,
   });
   notifyOrder(orderId, { to: 'gw', kind: 'revision_required', title: 'Überarbeitung angefordert', body: `Auftrag #${orderId}: ${(note || '').slice(0, 80)}` });
   notifyOrder(orderId, { to: 'admin', kind: 'revision_required', title: `Customer requested revision · #${orderId}`, body: (note || '').slice(0, 120) });
@@ -935,12 +976,142 @@ function requestCustomerRevision(orderId, note) {
   return true;
 }
 
-function escalate(orderId) {
+// =============================================================================
+// Dispute open / close
+// =============================================================================
+// Per docs/flows/dispute/dispute_flow_design_review.md §4: opening a dispute does NOT change
+// order.status. It pushes a new dispute object to `order.disputes[]`, locks
+// the platform chat asymmetrically (admin can still post, customer + GW
+// can't), and notifies admin. Closing applies an outcome via `closeDispute`
+// — outcome side effects (reassign / cancel / extension) may change status,
+// but the close itself never does.
+//
+// The legacy `disputeOpen` boolean is kept for back-compat with seed fixtures
+// and read predicates that haven't been migrated yet; new code should prefer
+// W.isOrderDisputed(order) which honors both the boolean and the array.
+
+const DISPUTE_REASON_CATEGORIES = ['out_of_scope', 'unresponsive', 'quality', 'abusive', 'late', 'other'];
+const DISPUTE_REASON_MIN_LENGTH = 30;
+
+function nextDisputeId() {
+  return 'd-live-' + Date.now() + '-' + Math.random().toString(36).slice(2, 6);
+}
+
+function openDispute(orderId, payload = {}) {
   const o = order(orderId);
-  if (!o) return false;
-  patchOrder(orderId, { disputeOpen: true, status: o.status === 'delivered' ? 'revision_required' : o.status, lastDisputeAt: nowIso() });
-  notifyOrder(orderId, { to: 'admin', kind: 'dispute_opened', title: `Dispute opened · #${orderId}`, body: 'Customer escalated from the portal · payment release blocked', urgent: true });
-  return true;
+  if (!o) { toast({ text: 'Order not found.', tone: 'danger' }); return null; }
+
+  // Pre-paid orders can't reach a state where a dispute makes sense — escalation
+  // assumes work has started and money is involved. Terminal states are also
+  // blocked: completed/cancelled orders are closed business, no live mediation.
+  if (W.isPrePayment(o)) {
+    toast({ text: 'Disputes are only available after payment.', tone: 'danger' });
+    return null;
+  }
+  if (['completed', 'cancelled'].includes(o.status)) {
+    toast({ text: 'This order is closed — disputes cannot be opened on it.', tone: 'danger' });
+    return null;
+  }
+
+  // Prevent concurrent disputes — the rare case of customer+GW opening at the
+  // same time is confusing for admin. Whoever clicks first owns the dispute.
+  if (W.currentOpenDispute(o)) {
+    toast({ text: 'A dispute is already under review for this order.', tone: 'danger' });
+    return null;
+  }
+
+  const openedBy = payload.openedBy === 'gw' ? 'gw' : 'customer';
+  const openedById = openedBy === 'gw' ? (payload.openedById || o.gwId) : (payload.openedById || o.customerId);
+  const reasonCategory = DISPUTE_REASON_CATEGORIES.includes(payload.reasonCategory) ? payload.reasonCategory : 'other';
+  const reason = String(payload.reason || '').trim();
+  if (reason.length < DISPUTE_REASON_MIN_LENGTH) {
+    toast({ text: `Describe the issue in at least ${DISPUTE_REASON_MIN_LENGTH} characters before opening a dispute.`, tone: 'danger' });
+    return null;
+  }
+
+  const at = nowIso();
+  const dispute = {
+    id: nextDisputeId(),
+    openedBy,
+    openedById,
+    openedAt: at,
+    reasonCategory,
+    reason,
+    status: 'open',
+    outcome: null,
+    outcomeNote: '',
+    resolvedAt: null,
+    resolvedBy: null,
+    adminNotes: [],
+    affectedSubmissionId: payload.affectedSubmissionId || null,
+    alsoBlockedGw: false,
+    extensionRef: null,
+  };
+
+  patchOrder(orderId, prev => ({
+    ...prev,
+    disputes: [...(prev.disputes || []), dispute],
+    disputeOpen: true,        // keep the legacy boolean in sync for back-compat
+    lastDisputeAt: at,
+  }));
+
+  // Asymmetric chat lock — see §7 of the design doc. Customer + GW composers
+  // honor this and refuse new posts; admin's composer bypasses it.
+  OC.lockForDispute(orderId, at);
+
+  // Other-party + admin notifications. The opener gets a confirmation via
+  // toast on the UI side; no in-app duplicate here.
+  const otherParty = openedBy === 'gw' ? 'customer' : 'gw';
+  const reasonSnippet = reason.length > 120 ? reason.slice(0, 120) + '…' : reason;
+  notifyOrder(orderId, {
+    to: 'admin',
+    kind: 'dispute_opened',
+    title: `Dispute opened · #${orderId}`,
+    body: `${openedBy === 'gw' ? (gw(o.gwId)?.name || 'GW') : (customer(o.customerId)?.name || 'Customer')} escalated · ${reasonCategory.replace('_', ' ')} · ${reasonSnippet}`,
+    urgent: true,
+  });
+  if (otherParty === 'customer' && o.customerId) {
+    notifyOrder(orderId, {
+      to: 'customer',
+      kind: 'dispute_opened',
+      title: `Streitfall eröffnet · #${orderId}`,
+      body: 'Ihr Ghostwriter hat einen Streitfall eröffnet. efactory1 prüft und meldet sich kurzfristig. Der Chat ist während der Klärung pausiert.',
+    });
+  }
+  if (otherParty === 'gw' && o.gwId) {
+    notifyOrder(orderId, {
+      to: 'gw',
+      kind: 'dispute_opened',
+      title: `Dispute opened · #${orderId}`,
+      body: 'The customer escalated this order. efactory1 will mediate. Platform chat is paused until resolution.',
+    });
+  }
+
+  DomainEvents.emit('dispute.opened', {
+    orderId,
+    disputeId: dispute.id,
+    openedBy,
+    openedById,
+    customerId: o.customerId,
+    gwId: o.gwId,
+    scenarioId: o.scenarioId || null,
+    reasonCategory,
+    reason,
+  });
+
+  return dispute;
+}
+
+// Back-compat shim: existing customer.escalate() callers (Eskalieren button)
+// route through openDispute. The old signature took just orderId — new
+// signature accepts a payload, so old call sites must be migrated to pass
+// reason text or they'll fail the min-length guard.
+function customerEscalate(orderId, payload = {}) {
+  return openDispute(orderId, { ...payload, openedBy: 'customer' });
+}
+
+function gwEscalate(orderId, payload = {}) {
+  return openDispute(orderId, { ...payload, openedBy: 'gw' });
 }
 
 // Customer accepts the final delivery.
@@ -951,6 +1122,13 @@ function acceptFinal(orderId) {
   const o = order(orderId);
   const guard = W.canTransition(o, 'customer_accept_final');
   if (!guard.ok) { toast({ text: guard.reason, tone: 'danger' }); return false; }
+  // See approveInterim — same dispute-freeze invariant. A customer who has
+  // escalated can't slide the order into payment_pending while admin is still
+  // mediating; the release-gate would otherwise count this as customer_satisfied.
+  if (o.disputeOpen) {
+    toast({ text: 'Dispute is open — waiting for efactory1 to resolve before workflow can continue.', tone: 'danger' });
+    return false;
+  }
   patchOrder(orderId, {
     status: 'payment_pending',
     customerSatisfied: true,
@@ -1102,16 +1280,263 @@ function proposeNewDelay(orderId, newDeadline) {
   return true;
 }
 
-function closeDispute(orderId, resolution) {
+// =============================================================================
+// Dispute close — outcome-driven resolution.
+// =============================================================================
+// Per docs/flows/dispute/dispute_flow_design_review.md §9: admin picks one of A/B/C/D and the
+// close action wires the appropriate side effects. The dispute close itself
+// only updates the dispute object — status changes (if any) come from the
+// delegated primitives (cancelAssignment / cancelOrder / approveExtension).
+//
+// Outcome A — continue_revision : just unlock the chat. GW resumes.
+// Outcome B — reassign_gw       : call cancelAssignment + optional blockGwAccount.
+// Outcome C — cancel_refund     : call cancelOrder + log refund on order.
+// Outcome D — scope_amendment   : call approveExtension (extra fee/pages/deadline).
+
+const DISPUTE_OUTCOMES = ['continue_revision', 'reassign_gw', 'cancel_refund', 'scope_amendment'];
+const DISPUTE_NOTE_MIN_LENGTH = 10;
+
+function resolveDispute(orderId, payload = {}) {
   const o = order(orderId);
-  const guard = W.canResolve(o, 'close_dispute');
-  if (!guard.ok) {
-    if (import.meta.env?.DEV) console.warn(`[closeDispute] ${guard.reason}`);
+  if (!o) { toast({ text: 'Order not found.', tone: 'danger' }); return false; }
+  const open = W.currentOpenDispute(o);
+  if (!open) {
+    toast({ text: 'No open dispute on this order.', tone: 'danger' });
     return false;
   }
-  patchOrder(orderId, { disputeOpen: false, disputeResolution: resolution || 'resolved', disputeClosedAt: nowIso() });
-  notifyOrder(orderId, { to: 'customer', kind: 'dispute_closed', title: `Streitfall gelöst · Auftrag #${orderId}`, body: resolution ? resolution.slice(0, 140) : 'Der Streitfall wurde geschlossen.' });
-  notifyOrder(orderId, { to: 'gw', kind: 'dispute_closed', title: `Dispute closed · #${orderId}`, body: resolution ? resolution.slice(0, 140) : 'Closed by admin.' });
+  const outcome = DISPUTE_OUTCOMES.includes(payload.outcome) ? payload.outcome : null;
+  if (!outcome) {
+    toast({ text: 'Pick an outcome before closing the dispute.', tone: 'danger' });
+    return false;
+  }
+  const outcomeNote = String(payload.outcomeNote || '').trim();
+  if (outcomeNote.length < DISPUTE_NOTE_MIN_LENGTH) {
+    toast({ text: `Write at least ${DISPUTE_NOTE_MIN_LENGTH} characters explaining the resolution.`, tone: 'danger' });
+    return false;
+  }
+  const at = nowIso();
+  const resolverId = payload.resolvedBy || 'admin-berat';
+
+  // Apply outcome side effects FIRST so any failure (e.g. extension fields
+  // missing) doesn't leave a half-resolved dispute. Each outcome is delegated
+  // to existing primitives so the dispute close itself stays minimal.
+  switch (outcome) {
+    case 'continue_revision': {
+      // No status change. Chat unlocks below. GW resumes work on whatever
+      // revision was already active.
+      break;
+    }
+    case 'reassign_gw': {
+      const blockGw = payload.alsoBlockGwAccount === true;
+      const gwId = o.gwId;
+      // cancelAssignment removes the GW and sends the order back to 'available'.
+      // The old chat must be archived — disputeLockedAt alone would leave a
+      // half-locked chat hanging once the dispute is resolved, and the new GW
+      // gets a fresh chat when claimed. Unlock first so the field is clean
+      // even though closedAt makes it read-only either way.
+      cancelAssignment(orderId, payload.reassignReason || 'Dispute outcome — reassigning to a new ghostwriter');
+      OC.unlockFromDispute(orderId);
+      OC.close(orderId, 'Ghostwriter wurde abgezogen — Chat archiviert. Neue Zuweisung erhält einen neuen Chat.');
+      if (blockGw && gwId) blockGwAccount(gwId, { reason: payload.blockReason || `Dispute on order #${orderId}` });
+      break;
+    }
+    case 'cancel_refund': {
+      const refundAmount = Number(payload.refundAmount) || 0;
+      // cancelOrder archives the chat via OC.close; unlock first so the
+      // dispute-lock field is cleared too (closedAt is one-way, lock is not).
+      OC.unlockFromDispute(orderId);
+      cancelOrder(orderId, payload.cancelReason || 'Dispute outcome — order cancelled');
+      if (refundAmount > 0) {
+        patchOrder(orderId, prev => ({
+          ...prev,
+          refund: { amount: refundAmount, reason: payload.refundReason || 'Dispute refund', at },
+        }));
+      }
+      break;
+    }
+    case 'scope_amendment': {
+      const newDeadline = payload.newDeadline;
+      const extraFee = Number(payload.extraFee) || 0;
+      const extraPages = Number(payload.extraPages) || 0;
+      // Apply scope changes inline so we can preserve the current status — a
+      // dispute opened from revision_required must stay in revision_required
+      // after the amendment, otherwise the GW gets routed to the wrong
+      // upload. approveExtension would force status='active', which is right
+      // for the dedicated extension flow but wrong here.
+      const normalizedDeadline = newDeadline
+        ? (newDeadline.includes('T') ? newDeadline : newDeadline + 'T18:00:00')
+        : null;
+      patchOrder(orderId, prev => ({
+        ...prev,
+        pages: (prev.pages || 0) + extraPages,
+        grossEur: (prev.grossEur || 0) + extraFee,
+        finalDeadline: normalizedDeadline || prev.finalDeadline,
+        extensionApprovedAt: at,
+        scopeAmendments: [
+          ...(prev.scopeAmendments || []),
+          { at, extraPages, extraFee, newDeadline: normalizedDeadline, description: payload.amendmentDescription || 'Scope amendment via dispute resolution' },
+        ],
+      }));
+      notifyOrder(orderId, { to: 'gw', kind: 'scope_amended', title: `Scope amended · #${orderId}`, body: `${extraPages ? '+' + extraPages + ' pages · ' : ''}${extraFee ? '+' + extraFee + ' € · ' : ''}${normalizedDeadline ? 'new deadline ' + normalizedDeadline.slice(0,10) : 'deadline unchanged'}` });
+      notifyOrder(orderId, { to: 'customer', kind: 'scope_amended', title: 'Umfang angepasst', body: `Auftrag #${orderId} · Umfang aktualisiert${normalizedDeadline ? ` · neuer Liefertermin ${normalizedDeadline.slice(0,10)}` : ''}.` });
+      break;
+    }
+    default:
+      break;
+  }
+
+  // Mark dispute resolved + clear the chat dispute lock. Outcomes B and C
+  // already archived the chat above (closedAt is one-way and supersedes
+  // disputeLockedAt for rendering), but we still unlock to keep the field
+  // clean. Outcomes A and D need the unlock to actually restore the
+  // customer + GW composer.
+  patchOrder(orderId, prev => {
+    const disputes = (prev.disputes || []).map(d => d.id === open.id
+      ? { ...d, status: 'resolved', outcome, outcomeNote, resolvedAt: at, resolvedBy: resolverId,
+          alsoBlockedGw: outcome === 'reassign_gw' && payload.alsoBlockGwAccount === true }
+      : d);
+    return {
+      ...prev,
+      disputes,
+      disputeOpen: false,
+      disputeResolution: outcomeNote,
+      disputeClosedAt: at,
+    };
+  });
+  if (outcome === 'continue_revision' || outcome === 'scope_amendment') {
+    OC.unlockFromDispute(orderId);
+  }
+
+  // Customer + GW notifications. Localized per outcome — see fan-out matrix in
+  // docs/flows/dispute/dispute_flow_design_review.md §11.
+  const notifBody = outcomeNote.length > 140 ? outcomeNote.slice(0, 140) + '…' : outcomeNote;
+  notifyOrder(orderId, { to: 'customer', kind: 'dispute_resolved', title: `Streitfall gelöst · Auftrag #${orderId}`, body: notifBody });
+  notifyOrder(orderId, { to: 'gw', kind: 'dispute_resolved', title: `Dispute resolved · #${orderId}`, body: notifBody });
+
+  DomainEvents.emit('dispute.resolved', {
+    orderId,
+    disputeId: open.id,
+    outcome,
+    outcomeNote,
+    customerId: o.customerId,
+    gwId: o.gwId,
+    scenarioId: o.scenarioId || null,
+  });
+
+  return true;
+}
+
+// Back-compat shim — keeps any caller that still passes a free-text resolution
+// working until they migrate. Maps to outcome=continue_revision so the chat
+// unlocks and the dispute closes cleanly.
+function closeDispute(orderId, resolution) {
+  return resolveDispute(orderId, {
+    outcome: 'continue_revision',
+    outcomeNote: resolution || 'Resolved by admin.',
+  });
+}
+
+// =============================================================================
+// Dispute admin notes — both manual "+ add note" and quick-contact auto-log.
+// =============================================================================
+
+function addDisputeNote(orderId, payload = {}) {
+  const o = order(orderId);
+  if (!o) return null;
+  // Notes attach to whichever dispute is open right now (or to the most recent
+  // resolved one if admin is still wrapping up). Phase 1: only attach to open
+  // disputes. Future: support targeting a specific dispute by id.
+  const open = W.currentOpenDispute(o);
+  if (!open) {
+    if (import.meta.env?.DEV) console.warn('[addDisputeNote] no open dispute');
+    return null;
+  }
+  const note = {
+    id: 'dn-' + Date.now() + '-' + Math.random().toString(36).slice(2, 6),
+    at: nowIso(),
+    body: String(payload.body || '').trim(),
+    channel: ['platform_note', 'email', 'whatsapp', 'phone'].includes(payload.channel) ? payload.channel : 'platform_note',
+    recipient: ['customer', 'gw'].includes(payload.recipient) ? payload.recipient : null,
+    externalMessageId: payload.externalMessageId || null,
+  };
+  if (!note.body) return null;
+  patchOrder(orderId, prev => {
+    const disputes = (prev.disputes || []).map(d => d.id === open.id
+      ? { ...d, adminNotes: [...(d.adminNotes || []), note] }
+      : d);
+    return { ...prev, disputes };
+  });
+  return note;
+}
+
+// Quick-contact action: admin sends an email/WhatsApp to customer or GW from
+// the dispute panel. Posts into the existing System B conversation for that
+// contact (so the message lives in the normal inbox thread) AND auto-logs a
+// note onto the dispute — the audit trail the design doc §7 calls for.
+function sendDisputeContact(orderId, payload = {}) {
+  const o = order(orderId);
+  if (!o) { toast({ text: 'Order not found.', tone: 'danger' }); return null; }
+  const recipient = payload.recipient === 'gw' ? 'gw' : 'customer';
+  const medium = payload.medium === 'whatsapp' ? 'whatsapp' : 'email';
+  const body = String(payload.body || '').trim();
+  if (!body) { toast({ text: 'Write a message before sending.', tone: 'danger' }); return null; }
+  const contactId = recipient === 'gw' ? o.gwId : o.customerId;
+  if (!contactId) { toast({ text: `No ${recipient} on file for this order.`, tone: 'danger' }); return null; }
+  // Hand off to the existing System B sender — message becomes part of the
+  // normal contact thread, visible in the admin inbox just like any other
+  // email/WhatsApp message.
+  const message = EM.send({
+    contactType: recipient,
+    contactId,
+    medium,
+    direction: 'out',
+    subject: payload.subject || `Dispute · Order #${orderId}`,
+    body,
+  });
+  if (!message) return null;
+  // Audit-log onto the dispute. Body is the actual message body — the
+  // externalMessageId links back to the System B message if admin wants to
+  // jump to the inbox thread.
+  addDisputeNote(orderId, {
+    body,
+    channel: medium,
+    recipient,
+    externalMessageId: message.id,
+  });
+  return message;
+}
+
+// =============================================================================
+// GW account block — platform-era replacement for the legacy shadowBan.
+// =============================================================================
+// shadowBan only stopped Berat's job-availability emails to a GW (manual-world
+// workaround). On the platform the right semantic is full account block: the
+// GW persona can't log in. See docs/flows/dispute/dispute_flow_design_review.md §1.3.
+
+function blockGwAccount(gwId, payload = {}) {
+  const target = gw(gwId);
+  if (!target) return false;
+  patchEntity('ghostwriters', gwId, {
+    accountBlockedAt: nowIso(),
+    accountBlockReason: payload.reason || 'Blocked by admin',
+  }, 'gws.accountBlock');
+  notify({
+    to: 'admin',
+    kind: 'gw_account_blocked',
+    gwId,
+    title: `${target.name} blocked from platform`,
+    body: payload.reason || 'GW account access revoked. They can no longer log into the platform.',
+  });
+  return true;
+}
+
+function unblockGwAccount(gwId) {
+  const target = gw(gwId);
+  if (!target) return false;
+  patchEntity('ghostwriters', gwId, {
+    accountBlockedAt: null,
+    accountBlockReason: null,
+  }, 'gws.accountUnblock');
   return true;
 }
 
@@ -1141,6 +1566,20 @@ function confirmViolation(orderId, payload = {}) {
     violationConfirmedAt: nowIso(),
     violationReason: reasonText,
   });
+  // Archive the flagged submission so the reassigned GW's work doesn't render
+  // alongside the rejected one in customer files / QA history. `flagged: true`
+  // stays as the historical record (audit trail); qaStatus changes from flagged
+  // to archived so file-visibility filters can hide it.
+  const subs = S.selectSubmissionsForOrder(store.getState(), orderId);
+  const flaggedSub = [...subs].filter(s => s.flagged || s.qaStatus === QA_STATUS.FLAGGED)
+    .sort((a, b) => new Date(b.reviewedAt || b.submittedAt || 0) - new Date(a.reviewedAt || a.submittedAt || 0))[0];
+  if (flaggedSub) {
+    patchEntity('submissions', flaggedSub.id, {
+      qaStatus: QA_STATUS.ARCHIVED,
+      reviewedAt: nowIso(),
+      reviewer: 'qa@efactory1.de (violation confirmed by admin)',
+    }, 'qa.confirm.violation.submission');
+  }
   if (originalGwId) {
     notifyOrder(orderId, { to: 'gw', kind: 'assignment_cancelled', gwId: originalGwId, title: `Assignment ended · #${orderId}`, body: `${violationType === 'plagiarism' ? 'Plagiarism' : 'AI use'} violation confirmed. The assignment was removed and payment is blocked per policy.` });
   }
@@ -1169,6 +1608,23 @@ function clearViolation(orderId, reason) {
     violationClearReason: reason || null,
     qaFlagReason: null,
   });
+  // The submission row that triggered the flag still carries qaStatus='flagged'
+  // and flagged=true. Without resetting these the customer-files / QA-history
+  // views keep showing the file as flagged even after admin cleared it. Patch
+  // the latest flagged submission for the order to match the restored state.
+  const subs = S.selectSubmissionsForOrder(store.getState(), orderId);
+  const flaggedSub = [...subs].filter(s => s.flagged || s.qaStatus === QA_STATUS.FLAGGED)
+    .sort((a, b) => new Date(b.reviewedAt || b.submittedAt || 0) - new Date(a.reviewedAt || a.submittedAt || 0))[0];
+  if (flaggedSub) {
+    patchEntity('submissions', flaggedSub.id, {
+      qaStatus: restoreTo === 'delivered' ? QA_STATUS.PASSED : QA_STATUS.PENDING,
+      flagged: false,
+      flagType: null,
+      reviewedAt: nowIso(),
+      reviewer: restoreTo === 'delivered' ? 'qa@efactory1.de (cleared by admin)' : (flaggedSub.reviewer || null),
+      forwardedAt: restoreTo === 'delivered' ? nowIso() : flaggedSub.forwardedAt,
+    }, 'qa.clear.submission');
+  }
   notifyOrder(orderId, { to: 'gw', kind: 'violation_cleared', title: `Flag cleared · #${orderId}`, body: reason ? `Admin reviewed and cleared the flag: ${reason}` : 'Admin reviewed the evidence and cleared the flag.' });
   notifyOrder(orderId, { to: 'customer', kind: 'violation_cleared', title: 'Auftrag freigegeben', body: `Auftrag #${orderId} · die Endversion wurde nach Prüfung freigegeben.` });
   return true;
@@ -1243,6 +1699,7 @@ const actions = {
     submit: submitWork,
     reportDelay,
     requestExtension,
+    escalate: gwEscalate,
   },
   qa: {
     pass: qaPass,
@@ -1254,10 +1711,18 @@ const actions = {
     approveInterim,
     requestRevision: requestCustomerRevision,
     acceptFinal,
-    escalate,
+    escalate: customerEscalate,
+  },
+  disputes: {
+    open: openDispute,
+    openByCustomer: customerEscalate,
+    openByGw: gwEscalate,
+    resolve: resolveDispute,
+    addNote: addDisputeNote,
+    sendContact: sendDisputeContact,
   },
   payments: { releaseBatch },
-  gws: { shadowBan },
+  gws: { shadowBan, blockAccount: blockGwAccount, unblockAccount: unblockGwAccount },
   notifications: { markAllRead: N.markAllRead, markRead: N.markRead },
   orderChats: {
     send: OC.send,

@@ -546,6 +546,150 @@ function qaRevisionRequestedAdminNotify({ orderId, submissionId, customerId, cus
   });
 }
 
+function disputeOpenedAdminNotify({ orderId, disputeId, openedBy, customerId, customerName, gwId, gwName, reasonCategory, reason, scenarioId }) {
+  const openerLabel = openedBy === 'gw' ? `${gwName || 'The ghostwriter'} (GW)` : `${customerName || 'The customer'} (customer)`;
+  const categoryLabel = (reasonCategory || 'other').replace(/_/g, ' ');
+  const snippet = (reason || '').length > 280 ? reason.slice(0, 280) + '…' : (reason || '');
+  return createEmail({
+    to: 'kundenservice@efactory1.de',
+    toRole: 'admin',
+    from: 'noreply@efactory1.de',
+    subject: `🚨 Dispute opened · Order #${orderId} · ${categoryLabel}`,
+    bodyMd: [
+      `**${openerLabel}** escalated order #${orderId}.`,
+      ``,
+      `**Category:** ${categoryLabel}`,
+      `**Customer:** ${customerName || customerId || '—'}`,
+      `**Ghostwriter:** ${gwName || '—'} (\`${gwId || '—'}\`)`,
+      `**Platform chat:** PAUSED — customer + GW cannot post until you resolve.`,
+      `**Payment:** blocked from Friday release.`,
+      ``,
+      `**Reason:**`,
+      `> ${snippet}`,
+      ``,
+      `Open the dispute panel to mediate — you can email or WhatsApp either party with one click from there.`,
+    ].join('\n'),
+    cta: { label: 'View dispute', action: 'open_admin_dispute', orderId, disputeId },
+    kind: 'dispute_opened_admin',
+    orderId,
+    customerId,
+    gwId,
+    scenarioId,
+  });
+}
+
+function disputeOpenedCounterpartyNotify({ orderId, disputeId, openedBy, counterparty, recipientEmail, recipientName, recipientEntityId, reasonCategory, scenarioId }) {
+  const isGw = counterparty === 'gw';
+  return createEmail({
+    to: recipientEmail,
+    toRole: counterparty,
+    from: 'kundenservice@efactory1.de',
+    subject: isGw
+      ? `Dispute opened by customer · Order #${orderId}`
+      : `Streitfall eröffnet · Auftrag #${orderId}`,
+    bodyMd: isGw
+      ? [
+          `Hi ${recipientName || ''},`,
+          ``,
+          `The customer escalated order #${orderId} (category: ${(reasonCategory || 'other').replace(/_/g, ' ')}).`,
+          ``,
+          `**Platform chat is paused** until efactory1 mediates and resolves the dispute. Please don't contact the customer directly until you hear from us.`,
+          ``,
+          `If you have additional context, reply to this email and Berat will read it before deciding.`,
+        ].join('\n')
+      : [
+          `Hallo ${recipientName || ''},`,
+          ``,
+          `Ihr Ghostwriter hat einen Streitfall zu Auftrag #${orderId} eröffnet.`,
+          ``,
+          `**Der Plattform-Chat ist pausiert**, während efactory1 prüft. Wir melden uns kurzfristig zur Klärung.`,
+          ``,
+          `Falls Sie zusätzlichen Kontext haben, antworten Sie gerne auf diese E-Mail.`,
+        ].join('\n'),
+    cta: isGw
+      ? { label: 'Open order', action: 'open_gw_assignment', orderId }
+      : { label: 'Auftrag öffnen', action: 'open_customer_order', orderId },
+    kind: 'dispute_opened_counterparty',
+    orderId,
+    // Demo Inbox filters by entity id (session.customerId / session.gwId),
+    // not by email address, so these MUST be the entity ids — otherwise
+    // listForRole hides the mail.
+    customerId: counterparty === 'customer' ? recipientEntityId : null,
+    gwId: counterparty === 'gw' ? recipientEntityId : null,
+    scenarioId,
+  });
+}
+
+function disputeResolvedCustomerNotify({ orderId, disputeId, outcome, outcomeNote, customerEmail, customerName, scenarioId }) {
+  const outcomeLabel = {
+    continue_revision: 'Bearbeitung läuft weiter',
+    reassign_gw: 'Wir weisen Ihnen einen neuen Ghostwriter zu',
+    cancel_refund: 'Auftrag storniert · Erstattung in Bearbeitung',
+    scope_amendment: 'Umfang angepasst · Bearbeitung läuft weiter',
+  }[outcome] || 'Streitfall gelöst';
+  return createEmail({
+    to: customerEmail,
+    toRole: 'customer',
+    from: 'kundenservice@efactory1.de',
+    subject: `Streitfall gelöst · Auftrag #${orderId} · ${outcomeLabel}`,
+    bodyMd: [
+      `Hallo ${customerName || ''},`,
+      ``,
+      `Wir haben den Streitfall zu Auftrag #${orderId} geprüft und entschieden:`,
+      ``,
+      `**Ergebnis:** ${outcomeLabel}`,
+      ``,
+      outcomeNote ? `**Hinweis von efactory1:**` : null,
+      outcomeNote ? `> ${outcomeNote}` : null,
+      outcomeNote ? `` : null,
+      outcome === 'continue_revision' ? `Der Plattform-Chat ist wieder freigegeben. Ihr Ghostwriter arbeitet an Ihrer Überarbeitung weiter.` : null,
+      outcome === 'cancel_refund' ? `Die Erstattung wird über Sevdesk angestoßen — Sie erhalten eine separate Bestätigung.` : null,
+      outcome === 'reassign_gw' ? `Wir suchen kurzfristig einen neuen Ghostwriter und melden uns mit der Zuweisung.` : null,
+      outcome === 'scope_amendment' ? `Der angepasste Umfang inkl. ggf. zusätzlicher Kosten und neuer Frist wurde übernommen.` : null,
+    ].filter(v => v !== null).join('\n'),
+    cta: { label: 'Auftrag öffnen', action: 'open_customer_order', orderId },
+    kind: 'dispute_resolved_customer',
+    orderId,
+    customerId: null,
+    scenarioId,
+  });
+}
+
+function disputeResolvedGwNotify({ orderId, disputeId, outcome, outcomeNote, gwEmail, gwName, scenarioId }) {
+  const outcomeLabel = {
+    continue_revision: 'Continue revision',
+    reassign_gw: 'Order reassigned to another GW',
+    cancel_refund: 'Order cancelled',
+    scope_amendment: 'Scope amended · keep working',
+  }[outcome] || 'Dispute resolved';
+  return createEmail({
+    to: gwEmail,
+    toRole: 'gw',
+    from: 'kundenservice@efactory1.de',
+    subject: `Dispute resolved · Order #${orderId} · ${outcomeLabel}`,
+    bodyMd: [
+      `Hi ${gwName || ''},`,
+      ``,
+      `efactory1 reviewed the dispute on order #${orderId}.`,
+      ``,
+      `**Outcome:** ${outcomeLabel}`,
+      ``,
+      outcomeNote ? `**efactory1 note:**` : null,
+      outcomeNote ? `> ${outcomeNote}` : null,
+      outcomeNote ? `` : null,
+      outcome === 'continue_revision' ? `Platform chat is unlocked. Please continue with the revision as originally requested.` : null,
+      outcome === 'reassign_gw' ? `This assignment has been ended. Honorarium does not apply (Werkvertrag). Other orders are unaffected.` : null,
+      outcome === 'cancel_refund' ? `The order was cancelled. No honorarium for unfinished work (Werkvertrag).` : null,
+      outcome === 'scope_amendment' ? `Scope has been updated — check the order detail for the new deadline and any extra-fee adjustment.` : null,
+    ].filter(v => v !== null).join('\n'),
+    cta: { label: 'Open order', action: 'open_gw_assignment', orderId },
+    kind: 'dispute_resolved_gw',
+    orderId,
+    customerId: null,
+    scenarioId,
+  });
+}
+
 function interimSubmittedAdminNotify({ orderId, customerId, customerName, gwId, gwName, submissionId, submissionKind, fileName, scenarioId }) {
   const label = submissionKind === 'interim_2' ? 'Zwischenstand 2' : 'Zwischenstand 1';
   return createEmail({
@@ -861,6 +1005,10 @@ export {
   revisionRequestedAdminNotify,
   qaRevisionRequestedGwNotify,
   qaRevisionRequestedAdminNotify,
+  disputeOpenedAdminNotify,
+  disputeOpenedCounterpartyNotify,
+  disputeResolvedCustomerNotify,
+  disputeResolvedGwNotify,
   payoutReleasedGw,
   payoutBatchAdminNotify,
 };

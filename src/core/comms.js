@@ -175,14 +175,19 @@ function selectAllOrderChats(state) {
 // Whether an order chat is open for posting. The lifecycle is:
 //   locked  →  open  →  archived
 // Open requires: order paid + GW assigned, the order not in a terminal state
-// (completed/cancelled), and the chat not explicitly closed.
-// `chat` is optional — pass it so an explicitly-closed chat is honoured; omit
-// it when checking whether a chat is allowed to be *created* (no chat yet).
-function isOrderChatOpen(order, chat) {
+// (completed/cancelled), the chat not explicitly closed, AND no dispute lock
+// active (see docs/flows/dispute/dispute_flow_design_review.md §7). `chat` is optional — pass it
+// so an explicitly-closed / dispute-locked chat is honoured; omit it when
+// checking whether a chat is allowed to be *created* (no chat yet).
+function isOrderChatOpen(order, chat, opts = {}) {
   if (!order) return false;
   if (chat && chat.closedAt) return false;
   if (order.status === STATUS.CANCELLED || order.status === STATUS.COMPLETED) return false;
   if (!order.gwId) return false;
+  // Dispute lock blocks customer + GW from posting. Admin bypasses via
+  // `opts.bypassDisputeLock: true` so the dispute panel can still mediate
+  // by posting into the chat directly.
+  if (chat && chat.disputeLockedAt && !opts.bypassDisputeLock) return false;
   return W.isOrderPaid(order);
 }
 
@@ -198,15 +203,36 @@ function isOrderChatArchived(order, chat) {
 }
 
 // Reason an order chat is not open for posting, or null if open.
-function orderChatLockReason(order, chat) {
+function orderChatLockReason(order, chat, opts = {}) {
   if (!order) return 'Order not found.';
   if (isOrderChatArchived(order, chat)) return 'This chat is archived — the order is closed.';
   if (order.status === STATUS.CANCELLED || order.status === STATUS.COMPLETED) return 'The order is closed.';
+  if (chat && chat.disputeLockedAt && !opts.bypassDisputeLock) {
+    return 'Chat paused — efactory1 is mediating an open dispute.';
+  }
   const paid = W.isOrderPaid(order);
   if (!paid && !order.gwId) return 'Opens once payment lands and a ghostwriter is assigned.';
   if (!paid) return 'Opens once payment lands.';
   if (!order.gwId) return 'Opens once a ghostwriter is assigned.';
   return null;
+}
+
+// Dispute lock helpers — toggle `chat.disputeLockedAt` without touching the
+// terminal-state `closedAt` field. Lock is reversible (cleared on outcome A/D
+// resolution); `closedAt` is one-way (only on terminal states / outcome B).
+function lockForDispute(orderId, at) {
+  const chat = selectOrderChat(store.getState(), orderId);
+  if (!chat) return false;
+  if (chat.disputeLockedAt) return true; // already locked
+  I.patchEntity('order_chats', chat.id, { disputeLockedAt: at || I.nowIso() }, 'order_chats.disputeLock');
+  return true;
+}
+
+function unlockFromDispute(orderId) {
+  const chat = selectOrderChat(store.getState(), orderId);
+  if (!chat || !chat.disputeLockedAt) return false;
+  I.patchEntity('order_chats', chat.id, { disputeLockedAt: null }, 'order_chats.disputeUnlock');
+  return true;
 }
 
 // =============================================================================
@@ -408,13 +434,16 @@ function sendOrderChat(payload = {}) {
     I.toast({ text: 'Order not found.', tone: 'danger' });
     return null;
   }
-  // The gate is enforced for every role — admin included. There is no
-  // lifecycle reason to post into a locked or archived chat; admin lifecycle
-  // notices go through postSystemMessage, which is the only sanctioned
-  // bypass and never produces a participant message.
+  // The gate is enforced for every role — with one carve-out: admin can
+  // bypass the *dispute* lock so Berat can mediate from inside the chat
+  // (customer + GW still lose composer access). All other lock reasons
+  // (intake_in_progress, archived, etc.) still apply to every role. Admin
+  // lifecycle notices that need to bypass everything go through
+  // postSystemMessage, not this path.
   const chat = selectOrderChat(store.getState(), orderId);
-  if (!isOrderChatOpen(o, chat)) {
-    I.toast({ text: orderChatLockReason(o, chat) || 'Order chat is not available.', tone: 'info' });
+  const sendOpts = role === 'admin' ? { bypassDisputeLock: true } : undefined;
+  if (!isOrderChatOpen(o, chat, sendOpts)) {
+    I.toast({ text: orderChatLockReason(o, chat, sendOpts) || 'Order chat is not available.', tone: 'info' });
     return null;
   }
   const body = (payload.body || '').trim();
@@ -586,6 +615,8 @@ export const orderChats = {
   ensure: ensureOrderChat,
   postSystem: postSystemMessage,
   close: closeOrderChat,
+  lockForDispute,
+  unlockFromDispute,
 };
 
 export const externalMessages = {
