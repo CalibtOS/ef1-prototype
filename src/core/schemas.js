@@ -12,7 +12,7 @@
  * @typedef {(
  *   'lead' | 'qualified' | 'offer_sent' | 'invoice_sent' | 'available' |
  *   'claimed_pending_approval' | 'active' | 'interim_submitted' |
- *   'under_customer_review' | 'revision_required' | 'final_submitted' |
+ *   'under_customer_review' | 'revision_required' |
  *   'qa_review' | 'ai_violation_review' | 'plagiarism_violation_review' |
  *   'delivered' | 'payment_pending' | 'completed' | 'cancelled' | 'on_hold' |
  *   'delay_reported' | 'extension_requested'

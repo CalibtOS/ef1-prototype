@@ -58,7 +58,7 @@ function GWActiveJobs({ navigate }) {
     pending: o => o.status === 'claimed_pending_approval',
     active: o => ['active', 'interim_submitted', 'under_customer_review'].includes(o.status),
     revision: o => o.status === 'revision_required',
-    qa: o => ['final_submitted', 'qa_review'].includes(o.status),
+    qa: o => o.status === 'qa_review',
     done: o => ['delivered', 'payment_pending', 'completed'].includes(o.status),
   };
   const filtered = all.filter(filterMap[filter] || (() => true));
@@ -68,7 +68,7 @@ function GWActiveJobs({ navigate }) {
     active: all.filter(o => ['active','interim_submitted','under_customer_review'].includes(o.status)).length,
     pending: all.filter(o => o.status === 'claimed_pending_approval').length,
     revision: all.filter(o => o.status === 'revision_required').length,
-    qa: all.filter(o => ['final_submitted','qa_review'].includes(o.status)).length,
+    qa: all.filter(o => o.status === 'qa_review').length,
   };
   const inFlightHonor = all.filter(o => !['completed','cancelled'].includes(o.status)).reduce((s,o) => s + (o.netHonorarium||0), 0);
   const thisWeek = all.filter(o => {
@@ -194,7 +194,7 @@ function GWActiveJobs({ navigate }) {
             )}
             {filtered.map(o => {
               const cust = D.customer(o.customerId);
-              const next = ['final_submitted','qa_review','delivered','payment_pending','completed'].includes(o.status)
+              const next = ['qa_review','delivered','payment_pending','completed'].includes(o.status)
                 ? null
                 : (o.stage?.interim1 && o.stage.interim1 !== 'done')
                   ? o.interimDeadline

@@ -37,18 +37,17 @@ function OrderNewWizard({ navigate, toast }) {
   const fmtDateInput = (d) => d ? new Date(d).toISOString().slice(0, 10) : '';
   const todayPlus = (days) => { const d = new Date(); d.setDate(d.getDate() + days); return d.toISOString().slice(0, 10); };
   const interimDates = () => {
+    // Prototype simplification (2026-05-25): every new order has at most ONE
+    // interim. The Interim 2 code paths remain dormant — orders that already
+    // carry an `interim2Deadline` still render correctly — but the wizard
+    // doesn't seed new two-interim orders. Reduces revision-flow surface area
+    // without deleting any code.
     if (!draft.finalDeadline) return [];
     const today = new Date();
     const final = new Date(draft.finalDeadline);
     const diffMs = final.getTime() - today.getTime();
     if (diffMs <= 0) return [];
-    if (draft.pages <= 20) {
-      return [new Date(today.getTime() + diffMs * 0.5).toISOString().slice(0, 10)];
-    }
-    return [
-      new Date(today.getTime() + diffMs * 0.3).toISOString().slice(0, 10),
-      new Date(today.getTime() + diffMs * 0.6).toISOString().slice(0, 10),
-    ];
+    return [new Date(today.getTime() + diffMs * 0.5).toISOString().slice(0, 10)];
   };
   const interims = interimDates();
 

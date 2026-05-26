@@ -218,7 +218,6 @@ const STATUS_PILLS = {
   // Pending review (yellow = awaiting human action)
   under_customer_review:    { color: 'yellow', label: 'Customer Review' },
   revision_required:        { color: 'yellow', label: 'Revision Required' },
-  final_submitted:          { color: 'yellow', label: 'Final Submitted' },
   qa_review:                { color: 'yellow', label: 'QA Review' },
   payment_pending:          { color: 'yellow', label: 'Payment Pending' },
   // Completed (green)

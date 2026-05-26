@@ -138,7 +138,7 @@ function GWAssignmentDetail({ orderId, navigate, toast }) {
 
   const stages = [
     { id: 'pending', label: 'Pending Approval', done: !isPending },
-    { id: 'active', label: 'Active', done: ['active','interim_submitted','under_customer_review','revision_required','final_submitted','qa_review','delivered','payment_pending','completed'].includes(order.status) },
+    { id: 'active', label: 'Active', done: ['active','interim_submitted','under_customer_review','revision_required','qa_review','delivered','payment_pending','completed'].includes(order.status) },
     { id: 'intro', label: 'Introduction', done: introDone },
     { id: 'interim', label: 'Interim', done: delivery.interimsComplete },
     { id: 'final', label: 'Final', done: delivery.finalSubmitted },
@@ -218,29 +218,51 @@ function GWAssignmentDetail({ orderId, navigate, toast }) {
         />
       )}
 
-      {isRevision && (
-        <div className="card mb-3" style={{ borderLeft: '4px solid var(--orange)' }}>
+      {isRevision && (() => {
+        // Source matters: customer revisions carry a name + customerRevisionNote;
+        // QA revisions carry "efactory1 QA" + qaRevisionNote and have no customer chat.
+        // Falling back to the customer source preserves the pre-source-tracking demos.
+        const fromQa = order.revisionRequestSource === 'qa';
+        const sourceLabel = fromQa ? 'efactory1 QA' : (cust?.name || 'Customer');
+        const headerLabel = fromQa ? 'QA feedback — revision required' : 'Customer feedback — revision required';
+        const noteFallback = fromQa
+          ? 'QA returned the final for revision. Check the QA verdict in the chat or ask efactory1 for clarification before resubmitting.'
+          : 'Revision feedback is open. Check the customer thread or ask efactory1 for clarification before resubmitting.';
+        const noteText = fromQa
+          ? (order.qaRevisionNote || order.feedbackText || noteFallback)
+          : (order.feedbackText || order.customerRevisionNote || latestCustomerMessage?.body || noteFallback);
+        const replyTarget = fromQa ? 'efactory1' : 'customer';
+        return (
+        <div className="card mb-3" style={{ borderLeft: `4px solid ${fromQa ? 'var(--blue)' : 'var(--orange)'}` }}>
           <div className="card-head">
             <div className="card-title flex items-center gap-2">
-              <Icon name="alert-triangle" size={14} style={{ color: 'var(--orange)' }}/> Customer feedback — revision required (round {(order.revisionRounds || 1)})
+              <Icon name={fromQa ? 'shield' : 'alert-triangle'} size={14} style={{ color: fromQa ? 'var(--blue)' : 'var(--orange)' }}/> {headerLabel} (round {W.currentRevisionRound(order) || 1})
             </div>
             <span className="text-faint fs-11">received {revisionAt ? U.relTime(revisionAt) : 'date not recorded'}</span>
           </div>
           <div className="card-pad">
             <div className="kv" style={{ fontSize: 12, marginBottom: 12 }}>
-              <div className="kv-row"><dt>From</dt><dd><strong>{cust?.name || 'Customer'}</strong></dd></div>
-              <div className="kv-row"><dt>Round</dt><dd className="mono">{order.revisionRounds || 1} of 3</dd></div>
+              <div className="kv-row"><dt>From</dt><dd><strong>{sourceLabel}</strong></dd></div>
+              <div className="kv-row"><dt>Round</dt><dd className="mono">{W.currentRevisionRound(order) || 1} of 3</dd></div>
               <div className="kv-row"><dt>Payment impact</dt><dd>Blocked until the revision is accepted</dd></div>
             </div>
             <div style={{ padding: 12, background: 'var(--surface-2)', borderRadius: 8, fontSize: 12, lineHeight: 1.5 }}>
-              {order.feedbackText || order.customerRevisionNote || latestCustomerMessage?.body || 'Revision feedback is open. Check the customer thread or ask efactory1 for clarification before resubmitting.'}
+              {noteText}
             </div>
             <div className="flex gap-2 mt-3" style={{ flexWrap: 'wrap' }}>
-              <button className="btn btn-primary btn-sm" onClick={() => navigate('gw-submit', { id: order.id, kind: 'revision' })}>
+              <button className="btn btn-primary btn-sm" onClick={() => {
+                // Route to the submit page using the kind the revision actually targets.
+                // For interim revisions we re-upload that interim (kind: 'interim_1' /
+                // 'interim_2'); for a final revision (customer- or QA-triggered) the
+                // submit page accepts `kind: 'revision'`.
+                const target = order.revisionTargetKind;
+                const submitKind = (target === 'interim_1' || target === 'interim_2') ? target : 'revision';
+                navigate('gw-submit', { id: order.id, kind: submitKind });
+              }}>
                 <Icon name="upload-cloud" size={12}/> Upload revised version
               </button>
               <button className="btn btn-sm" onClick={scrollToOrderChat}>
-                <Icon name="message-square" size={12}/> Reply to customer
+                <Icon name="message-square" size={12}/> Reply to {replyTarget}
               </button>
               <button className="btn btn-sm" onClick={() => toast && toast({ text: 'Clarification request sent to efactory1 — Berat will mediate.', tone: 'info' })}>
                 <Icon name="help-circle" size={12}/> Ask efactory1 to clarify
@@ -248,7 +270,8 @@ function GWAssignmentDetail({ orderId, navigate, toast }) {
             </div>
           </div>
         </div>
-      )}
+        );
+      })()}
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 320px', gap: 16 }}>
         <div className="flex-col gap-3">
@@ -287,25 +310,37 @@ function GWAssignmentDetail({ orderId, navigate, toast }) {
             const allowedKinds = W.allowedSubmissionKinds(order, me.id, displaySubs);
             // Soft-block: SOP D requires the GW introduction before any work goes to the customer.
             const introBlocks = !introDone;
-            // Interim 1 is allowed only while the order is "active" (i.e. before any interim has been sent).
-            const interim1Allowed = isApproved && allowedKinds.includes('interim_1') && !introBlocks;
-            // Interim 2 is allowed once the customer has reviewed/approved interim 1 and we're back to active.
-            const interim2Allowed = isApproved && allowedKinds.includes('interim_2') && !introBlocks;
+            // Revision upload — the targeted kind comes from lastSubmissionKind.
+            // If the customer requested a revision on an interim, the matching
+            // interim slot reopens (not the final slot). Falls back to 'final'
+            // when the final has been submitted or when no kind signal exists.
+            const revisionMode     = isApproved && s === 'revision_required';
+            const finalAlreadySubmitted = delivery.finalSubmitted;
+            const revisionTargetKind = revisionMode
+              ? (order.lastSubmissionKind === 'interim_1' || order.lastSubmissionKind === 'interim_2'
+                  ? order.lastSubmissionKind
+                  : 'final')
+              : null;
+            const interim1RevisionMode = revisionTargetKind === 'interim_1';
+            const interim2RevisionMode = revisionTargetKind === 'interim_2';
+            const finalRevisionMode    = revisionMode && revisionTargetKind === 'final';
+            // Interim 1 is allowed while active, or in revision_required when
+            // the revision was requested on interim_1.
+            const interim1Allowed = isApproved && (allowedKinds.includes('interim_1') || interim1RevisionMode) && !introBlocks;
+            // Interim 2 is allowed once interim 1 was approved and we're back to active,
+            // or in revision_required when the revision was requested on interim_2.
+            const interim2Allowed = isApproved && (allowedKinds.includes('interim_2') || interim2RevisionMode) && !introBlocks;
             // Final is allowed only after both interims (if any) and while still active.
             const interimsComplete = delivery.interimsComplete;
             const finalAllowed   = isApproved && allowedKinds.includes('final') && !introBlocks;
-            // Revision upload (re-routed to the GWSubmit kind=final flow with revisionRounds++).
-            const revisionMode   = isApproved && s === 'revision_required';
-            const finalAlreadySubmitted = delivery.finalSubmitted;
-            const finalButtonLabel = finalAlreadySubmitted
-              ? 'Final + invoice submitted'
-              : revisionMode ? 'Upload revision' : 'Upload final + invoice';
+            const finalButtonLabel = finalRevisionMode
+              ? 'Upload revision'
+              : finalAlreadySubmitted ? 'Final + invoice submitted' : 'Upload final + invoice';
             const stateNote = (allow, fallback) => allow ? null : fallback;
             const reasonFor = {
               interim_submitted: 'Interim already submitted — awaiting customer feedback',
               under_customer_review: 'Awaiting customer review of last submission',
               revision_required: 'Customer requested a revision — use the Revise button',
-              final_submitted: 'Final submitted — awaiting QA',
               qa_review: 'In QA — no further uploads needed',
               delivered: 'Customer is reviewing the final',
               payment_pending: 'Payment pending — work complete',
@@ -337,34 +372,34 @@ function GWAssignmentDetail({ orderId, navigate, toast }) {
               {order.interimDeadline && (
                 <div style={{ padding: 14, border: '1px solid var(--border)', borderRadius: 8 }}>
                   <div className="flex items-center justify-between mb-1">
-                    <span className="strong fs-12"><Bi de="Zwischenstand 1" en="Interim 1"/></span>
-                    <span className={`pill pill-${U.deadlineMeta(order.interimDeadline).tone === 'danger' ? 'red' : 'slate'}`}>{U.deadlineMeta(order.interimDeadline).label}</span>
+                    <span className="strong fs-12">{interim1RevisionMode ? <Bi de="Zwischenstand 1 (Überarbeitung)" en="Interim 1 (revision)"/> : <Bi de="Zwischenstand 1" en="Interim 1"/>}</span>
+                    <span className={`pill pill-${interim1RevisionMode ? 'amber' : (U.deadlineMeta(order.interimDeadline).tone === 'danger' ? 'red' : 'slate')}`}>{interim1RevisionMode ? 'Revision angefordert' : U.deadlineMeta(order.interimDeadline).label}</span>
                   </div>
                   <div className="text-faint fs-11 mono mb-2">due {U.fmtDate(order.interimDeadline)}, 18:00</div>
-                  <button className="btn btn-sm w-full" onClick={() => interim1Allowed && navigate('gw-submit', { id: order.id, kind: 'interim_1' })} disabled={!interim1Allowed} title={stateNote(interim1Allowed, stateReason)} style={{ justifyContent: 'center' }}>
-                    <Icon name="upload-cloud" size={12}/> Upload interim
+                  <button className={`btn btn-sm w-full ${interim1RevisionMode ? 'btn-primary' : ''}`} onClick={() => interim1Allowed && navigate('gw-submit', { id: order.id, kind: 'interim_1' })} disabled={!interim1Allowed} title={stateNote(interim1Allowed, stateReason)} style={{ justifyContent: 'center' }}>
+                    <Icon name="upload-cloud" size={12}/> {interim1RevisionMode ? 'Upload revision' : 'Upload interim'}
                   </button>
                 </div>
               )}
               {order.interim2Deadline && (
                 <div style={{ padding: 14, border: '1px solid var(--border)', borderRadius: 8 }}>
                   <div className="flex items-center justify-between mb-1">
-                    <span className="strong fs-12"><Bi de="Zwischenstand 2" en="Interim 2"/></span>
-                    <span className="pill pill-slate">{U.deadlineMeta(order.interim2Deadline).label}</span>
+                    <span className="strong fs-12">{interim2RevisionMode ? <Bi de="Zwischenstand 2 (Überarbeitung)" en="Interim 2 (revision)"/> : <Bi de="Zwischenstand 2" en="Interim 2"/>}</span>
+                    <span className={`pill pill-${interim2RevisionMode ? 'amber' : 'slate'}`}>{interim2RevisionMode ? 'Revision angefordert' : U.deadlineMeta(order.interim2Deadline).label}</span>
                   </div>
                   <div className="text-faint fs-11 mono mb-2">due {U.fmtDate(order.interim2Deadline)}, 18:00</div>
-                  <button className="btn btn-sm w-full" onClick={() => interim2Allowed && navigate('gw-submit', { id: order.id, kind: 'interim_2' })} disabled={!interim2Allowed} title={stateNote(interim2Allowed, stateReason)} style={{ justifyContent: 'center' }}>
-                    <Icon name="upload-cloud" size={12}/> Upload interim
+                  <button className={`btn btn-sm w-full ${interim2RevisionMode ? 'btn-primary' : ''}`} onClick={() => interim2Allowed && navigate('gw-submit', { id: order.id, kind: 'interim_2' })} disabled={!interim2Allowed} title={stateNote(interim2Allowed, stateReason)} style={{ justifyContent: 'center' }}>
+                    <Icon name="upload-cloud" size={12}/> {interim2RevisionMode ? 'Upload revision' : 'Upload interim'}
                   </button>
                 </div>
               )}
               <div style={{ padding: 14, border: '1px solid var(--border)', borderRadius: 8 }}>
                 <div className="flex items-center justify-between mb-1">
-                  <span className="strong fs-12">{revisionMode ? 'Revision (re-submit final)' : 'Final + Honorarrechnung'}</span>
+                  <span className="strong fs-12">{finalRevisionMode ? 'Revision (re-submit final)' : 'Final + Honorarrechnung'}</span>
                   <span className={`pill pill-${dm.tone === 'danger' ? 'red' : dm.tone === 'warn' ? 'amber' : 'slate'}`}>{dm.label}</span>
                 </div>
                 <div className="text-faint fs-11 mono mb-2">due {U.fmtDate(order.finalDeadline)}, 18:00</div>
-                <button className="btn btn-sm w-full" onClick={() => (finalAllowed || revisionMode) && navigate('gw-submit', { id: order.id, kind: revisionMode ? 'revision' : 'final' })} disabled={!(finalAllowed || revisionMode)} title={stateNote(finalAllowed || revisionMode, stateReason)} style={{ justifyContent: 'center' }}>
+                <button className={`btn btn-sm w-full ${finalRevisionMode ? 'btn-primary' : ''}`} onClick={() => (finalAllowed || finalRevisionMode) && navigate('gw-submit', { id: order.id, kind: finalRevisionMode ? 'revision' : 'final' })} disabled={!(finalAllowed || finalRevisionMode)} title={stateNote(finalAllowed || finalRevisionMode, stateReason)} style={{ justifyContent: 'center' }}>
                   <Icon name={finalAlreadySubmitted ? 'check-circle' : 'upload-cloud'} size={12}/> {finalButtonLabel}
                 </button>
               </div>
