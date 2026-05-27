@@ -49,6 +49,7 @@ function buildLink(target) {
       : section === 'invoices' ? 'cust-invoices'
       : section === 'downloads' ? 'cust-downloads'
       : section === 'profile' ? 'cust-profile'
+      : section === 'reports' ? 'cust-reports'
       : 'cust-orders';
     return { role: 'customer', name: route, params: {} };
   }
@@ -59,6 +60,7 @@ function buildLink(target) {
     const tab = normalizeTab('order-detail', target.tab);
     if (tab) params.tab = tab;
     if (target.submissionId != null) params.submissionId = target.submissionId;
+    if (target.reportId != null) params.reportId = target.reportId;
     return { role: 'admin', name: 'order-detail', params };
   }
 
@@ -84,6 +86,10 @@ function buildLink(target) {
 
   if (k === 'gw-payments') {
     return { role: 'gw', name: 'gw-payments', params: target.orderId != null ? { orderId: Number(target.orderId) } : {} };
+  }
+
+  if (k === 'gw-reports') {
+    return { role: 'gw', name: 'gw-reports', params: {} };
   }
 
   if (k === 'gw-submit') {

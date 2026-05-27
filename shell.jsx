@@ -256,6 +256,12 @@ function resolveNotificationTarget(n, role) {
 
   // Platform order-chat messages — deep-link to the order communications tab
   // (admin) or role-specific messages surfaces (customer / GW).
+  if (kind === 'chat_report_reviewed') {
+    if (role === 'gw') return { name: 'gw-reports', params: {} };
+    if (role === 'customer') return { name: 'cust-reports', params: {} };
+    return { name: 'admin-chat-reports', params: {} };
+  }
+
   if (kind === 'message_received' || kind === 'order_chat_mention') {
     if (role === 'customer') {
       return linkParams(buildLink(orderId
@@ -287,6 +293,12 @@ function resolveNotificationTarget(n, role) {
     // can read the customer feedback panel before deciding to upload. The
     // panel itself carries the "Upload revised version" CTA.
     return orderId ? linkParams(buildLink({ kind: 'gw-assignment', orderId })) : { name: 'gw-dashboard', params: {} };
+  }
+
+  if (kind === 'chat_report') {
+    const reportId = n.params?.reportId;
+    if (orderId) return { name: 'order-detail', params: { id: orderId, tab: 'communications', reportId } };
+    return { name: 'admin-chat-reports', params: {} };
   }
 
   if (orderId) {

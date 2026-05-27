@@ -969,6 +969,112 @@ function acceptFinal(orderId) {
   return true;
 }
 
+function reportChatMessages(orderId, messageIds, reason) {
+  if (!messageIds || messageIds.length === 0) return false;
+  const o = order(orderId);
+  if (!o) return false;
+  const count = messageIds.length;
+  const reporterRole = store.getState().session.role || 'customer';
+  const reportedRole = reporterRole === 'customer' ? 'gw' : 'customer';
+  const reportId = 'cr-' + Date.now() + '-' + Math.random().toString(36).slice(2, 6);
+
+  upsertEntity('chat_reports', {
+    id: reportId,
+    orderId: Number(orderId),
+    customerId: o.customerId,
+    gwId: o.gwId,
+    messageIds: [...messageIds],
+    reason,
+    count,
+    reporterRole,
+    reportedRole,
+    reportedAt: nowIso(),
+    status: 'pending',
+    reviewNote: null,
+    reviewedAt: null,
+  }, 'chat_reports.add');
+
+  N.notify({
+    to: 'admin',
+    kind: 'chat_report',
+    orderId,
+    urgent: true,
+    title: `Chat report · #${orderId}`,
+    body: `${count} ${count === 1 ? 'message' : 'messages'} reported by ${reporterRole} · Reason: ${reason}`,
+    params: { reportId },
+  });
+
+  DomainEvents.emit('chat.report_submitted', {
+    reportId,
+    orderId: Number(orderId),
+    customerId: o.customerId,
+    gwId: o.gwId,
+    reporterRole,
+    reportedRole,
+    count,
+    reason,
+    scenarioId: o.scenarioId || null,
+  });
+
+  return true;
+}
+
+function reviewChatReport(reportId, reviewNote) {
+  const report = S.selectChatReport(store.getState(), reportId);
+  if (!report || report.status === 'reviewed') return false;
+  const note = reviewNote.trim();
+
+  patchEntity('chat_reports', reportId, prev => ({
+    ...prev,
+    status: 'reviewed',
+    reviewNote: note,
+    reviewedAt: nowIso(),
+  }), 'chat_reports.review');
+
+  const count = report.count;
+
+  N.notify({
+    to: report.reporterRole,
+    kind: 'chat_report_reviewed',
+    orderId: report.orderId,
+    title: 'Your report has been reviewed',
+    body: `Your report (${count} ${count === 1 ? 'message' : 'messages'}) has been reviewed. Admin: ${note}`,
+    params: { reportId },
+    customerId: report.customerId,
+    gwId: report.gwId,
+  });
+
+  DomainEvents.emit('chat.report_reviewed', {
+    reportId,
+    orderId: report.orderId,
+    customerId: report.customerId,
+    gwId: report.gwId,
+    reporterRole: report.reporterRole,
+    count,
+    reviewNote: note,
+    scenarioId: null,
+  });
+
+  return true;
+}
+
+function dismissChatReport(reportId) {
+  patchEntity('chat_reports', reportId, prev => ({ ...prev, status: 'dismissed' }), 'chat_reports.dismiss');
+  return true;
+}
+
+function deleteChatReport(reportId) {
+  const report = S.selectChatReport(store.getState(), reportId);
+  if (!report || report.status !== 'reviewed') return false;
+  I.updateTable('chat_reports', table => {
+    const byId = { ...table.byId };
+    delete byId[reportId];
+    const allIds = (table.allIds || []).filter(id => id !== reportId);
+    return { ...table, byId, allIds };
+  }, 'chat_reports.delete');
+  return true;
+}
+
 function reportDelay(orderId, payload = {}) {
   const o = order(orderId);
   if (!o) return false;
@@ -1255,6 +1361,12 @@ const actions = {
     requestRevision: requestCustomerRevision,
     acceptFinal,
     escalate,
+    reportChatMessages,
+  },
+  chatReports: {
+    review: reviewChatReport,
+    dismiss: dismissChatReport,
+    delete: deleteChatReport,
   },
   payments: { releaseBatch },
   gws: { shadowBan },

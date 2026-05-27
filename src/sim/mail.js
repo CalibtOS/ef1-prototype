@@ -829,6 +829,56 @@ function gwApplicationRejected({ orderId, gwId, gwEmail, gwName, scenarioId }) {
   });
 }
 
+function chatReportAdminNotify({ reportId, orderId, reporterRole, reportedRole, count, reason, scenarioId }) {
+  const reporterLabel = reporterRole === 'customer' ? 'Customer' : 'Ghostwriter';
+  const reportedLabel = reportedRole === 'customer' ? 'Customer' : 'Ghostwriter';
+  return createEmail({
+    to: 'berat@efactory1.de',
+    toRole: 'admin',
+    from: 'notifications@efactory1.de',
+    subject: `Chat report · ${reporterLabel} reported ${reportedLabel} · Order #${orderId}`,
+    bodyMd: [
+      `A **${reporterLabel}** has reported a **${reportedLabel}** in order **#${orderId}**.`,
+      ``,
+      `**Messages reported:** ${count}`,
+      `**Reason:** ${reason}`,
+      ``,
+      `Click the button below to open the chat. The reported messages will be highlighted so you can review them and enter your verdict.`,
+    ].join('\n'),
+    cta: { label: 'Review Reported Messages', target: { kind: 'admin-order', orderId, tab: 'communications', reportId } },
+    kind: 'chat_report',
+    orderId,
+    scenarioId,
+  });
+}
+
+function chatReportReviewedNotify({ reportId, orderId, customerId, gwId, reporterRole, count, reviewNote, reporterEmail, reporterName, scenarioId }) {
+  const isCustomer = reporterRole === 'customer';
+  return createEmail({
+    to: reporterEmail || '',
+    toRole: reporterRole,
+    from: 'kundenservice@efactory1.de',
+    subject: `Your chat report has been reviewed · Order #${orderId}`,
+    bodyMd: [
+      `Dear ${reporterName || 'User'},`,
+      ``,
+      `your report about **${count} ${count === 1 ? 'message' : 'messages'}** in order **#${orderId}** has been reviewed by the eFactory1 team.`,
+      ``,
+      `**Admin feedback:** ${reviewNote}`,
+      ``,
+      `You can view all your submitted reports in the My Reports section of your dashboard.`,
+    ].join('\n'),
+    cta: isCustomer
+      ? { label: 'View My Reports', target: { kind: 'customer-section', section: 'reports' } }
+      : { label: 'View My Reports', target: { kind: 'gw-reports' } },
+    kind: 'chat_report_reviewed',
+    orderId,
+    customerId: isCustomer ? customerId : null,
+    gwId: !isCustomer ? gwId : null,
+    scenarioId,
+  });
+}
+
 export {
   createEmail,
   markRead,
@@ -863,4 +913,6 @@ export {
   qaRevisionRequestedAdminNotify,
   payoutReleasedGw,
   payoutBatchAdminNotify,
+  chatReportAdminNotify,
+  chatReportReviewedNotify,
 };

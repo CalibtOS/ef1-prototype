@@ -20,6 +20,7 @@ const ROUTES = {
   CUSTOMER_DETAIL: 'customer-detail',
   DISPUTES: 'disputes',
   REPORTS: 'reports',
+  ADMIN_CHAT_REPORTS: 'admin-chat-reports',
   SETTINGS: 'settings',
   OFFERS: 'offers',
   GW_DASHBOARD: 'gw-dashboard',
@@ -33,6 +34,7 @@ const ROUTES = {
   GW_TEMPLATES: 'gw-templates',
   GW_PAYMENTS: 'gw-payments',
   GW_MESSAGES: 'gw-messages',
+  GW_REPORTS: 'gw-reports',
   GW_PROFILE: 'gw-profile',
   GW_ASSIGNMENT_DETAIL: 'gw-assignment-detail',
   GW_CALENDAR: 'gw-calendar',
@@ -96,6 +98,7 @@ const NAV_ROUTE_MAP = {
   customers: ROUTES.CUSTOMERS,
   disputes: ROUTES.DISPUTES,
   reports: ROUTES.REPORTS,
+  'chat-reports': ROUTES.ADMIN_CHAT_REPORTS,
   settings: ROUTES.SETTINGS,
   'gw-dashboard': ROUTES.GW_DASHBOARD,
   'gw-jobs': ROUTES.GW_JOB_BOARD,
@@ -104,6 +107,7 @@ const NAV_ROUTE_MAP = {
   'gw-templates': ROUTES.GW_TEMPLATES,
   'gw-payments': ROUTES.GW_PAYMENTS,
   'gw-messages': ROUTES.GW_MESSAGES,
+  'gw-reports': ROUTES.GW_REPORTS,
   'gw-profile': ROUTES.GW_PROFILE,
   'gw-calendar': ROUTES.GW_CALENDAR,
   'gw-timeline': ROUTES.GW_TIMELINE,
@@ -121,6 +125,7 @@ function navItems(role, state) {
     const qaPending = submissions.filter(s => W.isQaReviewKind(s.kind) && s.qaStatus === QA_STATUS.PENDING).length;
     const friday = orders.filter(o => W.releaseGates(o).releasable).length;
     const disputes = orders.filter(o => o.disputeOpen).length;
+    const chatReportsPending = S.selectAllChatReports(state).filter(r => r.status === 'pending').length;
     return [
       { id: 'dashboard', label: 'Dashboard', icon: 'layout-dashboard' },
       { id: 'orders', label: 'Orders', icon: 'package', badge: String(orders.length) },
@@ -130,6 +135,7 @@ function navItems(role, state) {
       { id: 'qa', label: 'QA Queue', icon: 'shield-check', badge: qaPending ? String(qaPending) : null, badgeTone: 'warn' },
       { id: 'payments', label: 'Payments', icon: 'wallet', badge: friday ? String(friday) : null },
       { id: 'disputes', label: 'Disputes', icon: 'alert-triangle', badge: disputes ? String(disputes) : null },
+      { id: 'chat-reports', label: 'Chat Reports', icon: 'flag', badge: chatReportsPending ? String(chatReportsPending) : null, badgeTone: 'danger' },
       { id: 'inbox', label: 'Inbox', icon: 'inbox' },
       { id: 'pipeline', label: 'Pipeline', icon: 'git-branch' },
       { id: 'bi', label: 'AI BI', icon: 'sparkles', tag: 'Beta' },
@@ -157,6 +163,7 @@ function navItems(role, state) {
       { id: 'gw-templates', label: 'Templates', icon: 'folder' },
       { id: 'gw-payments', label: 'Payments', icon: 'wallet' },
       { id: 'gw-messages', label: 'Messages', icon: 'message-square', badge: msgUnread ? String(msgUnread) : null },
+      { id: 'gw-reports', label: 'My Reports', icon: 'flag' },
       { id: 'gw-profile', label: 'Profile', icon: 'user' },
     ];
   }

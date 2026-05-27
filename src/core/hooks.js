@@ -147,6 +147,15 @@ function useNotifications(role) {
   return useStore(selector, shallowEqual);
 }
 
+function useChatReports() {
+  return useStore(S.selectAllChatReports, shallowEqual);
+}
+
+function useChatReport(reportId) {
+  const selector = React.useMemo(() => (state) => S.selectChatReport(state, reportId), [reportId]);
+  return useStore(selector, shallowEqual);
+}
+
 function useCurrentRole() {
   return useStore(state => state.session, shallowEqual);
 }
@@ -208,4 +217,6 @@ export {
   useNeedsDecision,
   useSlaOperational,
   useCashFriday,
+  useChatReports,
+  useChatReport,
 };
