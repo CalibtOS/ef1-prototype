@@ -713,10 +713,20 @@ function CustInterimFeedback({ o, toast }) {
         <Icon name="rotate-ccw" size={12}/> Überarbeitung anfordern
       </button>
       <hr style={{ border: 'none', borderTop: '1px solid var(--border)', margin: '4px 0' }}/>
-      <button type="button" className="btn btn-sm btn-ghost" style={{ fontSize: 11.5, color: 'var(--text-3)' }} onClick={()=>{
-        EFActions.customer.escalate(o.id);
-        toast && toast({ tone: 'danger', text: 'Streitfall gemeldet · Berat prüft und meldet sich.' });
-      }}>
+      <button
+        type="button"
+        className="btn btn-sm"
+        style={{
+          fontSize: 11.5,
+          color: 'var(--amber)',
+          background: 'color-mix(in oklab, var(--amber) 8%, var(--surface))',
+          borderColor: 'color-mix(in oklab, var(--amber) 55%, var(--border))',
+        }}
+        onClick={()=>{
+          EFActions.customer.escalate(o.id);
+          toast && toast({ tone: 'danger', text: 'Streitfall gemeldet · Berat prüft und meldet sich.' });
+        }}
+      >
         <Icon name="alert-triangle" size={11}/> Problem eskalieren
       </button>
     </div>
@@ -786,10 +796,20 @@ function CustFinalAcceptance({ o, toast }) {
         <Icon name="rotate-ccw" size={12}/> Letzte Anpassungen anfordern
       </button>
       <hr style={{ border: 'none', borderTop: '1px solid var(--border)', margin: '4px 0' }}/>
-      <button type="button" className="btn btn-sm btn-ghost" style={{ fontSize: 11.5, color: 'var(--text-3)' }} onClick={()=>{
-        EFActions.customer.escalate(o.id);
-        toast && toast({ tone: 'danger', text: 'Streitfall gemeldet · Berat prüft und meldet sich.' });
-      }}>
+      <button
+        type="button"
+        className="btn btn-sm"
+        style={{
+          fontSize: 11.5,
+          color: 'var(--amber)',
+          background: 'color-mix(in oklab, var(--amber) 8%, var(--surface))',
+          borderColor: 'color-mix(in oklab, var(--amber) 55%, var(--border))',
+        }}
+        onClick={()=>{
+          EFActions.customer.escalate(o.id);
+          toast && toast({ tone: 'danger', text: 'Streitfall gemeldet · Berat prüft und meldet sich.' });
+        }}
+      >
         <Icon name="alert-triangle" size={11}/> Problem eskalieren
       </button>
     </div>
