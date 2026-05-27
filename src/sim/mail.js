@@ -647,7 +647,7 @@ function disputeResolvedCustomerNotify({ orderId, disputeId, outcome, outcomeNot
       outcome === 'reassign_gw' ? `Wir suchen kurzfristig einen neuen Ghostwriter und melden uns mit der Zuweisung.` : null,
       outcome === 'scope_amendment' ? `Der angepasste Umfang inkl. ggf. zusätzlicher Kosten und neuer Frist wurde übernommen.` : null,
     ].filter(v => v !== null).join('\n'),
-    cta: { label: 'Auftrag öffnen', action: 'open_customer_order', orderId },
+    cta: { label: 'Auftrag öffnen', action: 'open_customer_order', orderId, tab: 'files' },
     kind: 'dispute_resolved_customer',
     orderId,
     customerId: null,
