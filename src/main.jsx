@@ -41,7 +41,7 @@ const VALID_ROUTES_BY_ROLE = {
     'gw-dashboard', 'admin-dashboard', 'gw-active', 'orders', 'gw-job-board',
     'gw-submit', 'gw-report-delay', 'gw-extension', 'gw-first-contact',
     'gw-onboarding', 'gw-submissions-list', 'gw-templates', 'gw-payments',
-    'gw-messages', 'gw-profile', 'gw-assignment-detail', 'order-detail',
+    'gw-messages', 'gw-reports', 'gw-profile', 'gw-assignment-detail', 'order-detail',
     'gw-calendar',
   ]),
   qa: new Set([
@@ -50,7 +50,7 @@ const VALID_ROUTES_BY_ROLE = {
   ]),
   customer: new Set([
     'cust-orders', 'cust-messages', 'cust-invoices', 'cust-downloads',
-    'cust-profile', 'admin-dashboard',
+    'cust-profile', 'cust-reports', 'admin-dashboard',
   ]),
   wp: new Set(['wp-hausarbeit', 'wp-vielen-dank']),
   sim: new Set(['sim-stripe-checkout']),
@@ -85,6 +85,7 @@ import { GWAssignmentDetail } from './gw/assignment-detail.jsx'
 import { GWSubmissionsList } from './gw/submissions-list.jsx'
 import { GWPayments } from './gw/payments.jsx'
 import { GWMessages } from './gw/messages.jsx'
+import { GWReports } from './gw/reports.jsx'
 import { GWTemplates } from './gw/templates.jsx'
 import { GWProfile } from './gw/profile.jsx'
 import { GWOnboarding } from './gw/onboarding.jsx'
@@ -268,7 +269,8 @@ function App() {
       _resolve: (params, name) => {
         const section = {
           'cust-orders': 'orders', 'cust-messages': 'messages', 'cust-invoices': 'invoices',
-          'cust-downloads': 'downloads', 'cust-profile': 'profile', 'admin-dashboard': 'orders',
+          'cust-downloads': 'downloads', 'cust-profile': 'profile', 'cust-reports': 'reports',
+          'admin-dashboard': 'orders',
         }[name] || 'orders'
         const goTo = (r, n, p = {}) => harnessGoTo(r, n || EFRoutes.defaultRouteFor(r), p)
         const focusOrderId = params?.orderId != null ? Number(params.orderId) : null
@@ -301,6 +303,7 @@ function App() {
       'gw-templates':         () => <GWTemplates/>,
       'gw-payments':          () => <GWPayments navigate={navigate}/>,
       'gw-messages':          (p) => <GWMessages navigate={navigate} initialOrderId={p.orderId} toast={toast}/>,
+      'gw-reports':           () => <GWReports/>,
       'gw-profile':           () => <GWProfile/>,
       'gw-assignment-detail': (p) => <GWAssignmentDetail orderId={p.id} navigate={navigate} toast={toast}/>,
       'order-detail':         (p) => <GWAssignmentDetail orderId={p.id} navigate={navigate} toast={toast}/>,

@@ -34,6 +34,7 @@ const ROUTES = {
   GW_TEMPLATES: 'gw-templates',
   GW_PAYMENTS: 'gw-payments',
   GW_MESSAGES: 'gw-messages',
+  GW_REPORTS: 'gw-reports',
   GW_PROFILE: 'gw-profile',
   GW_ASSIGNMENT_DETAIL: 'gw-assignment-detail',
   GW_CALENDAR: 'gw-calendar',
@@ -106,6 +107,7 @@ const NAV_ROUTE_MAP = {
   'gw-templates': ROUTES.GW_TEMPLATES,
   'gw-payments': ROUTES.GW_PAYMENTS,
   'gw-messages': ROUTES.GW_MESSAGES,
+  'gw-reports': ROUTES.GW_REPORTS,
   'gw-profile': ROUTES.GW_PROFILE,
   'gw-calendar': ROUTES.GW_CALENDAR,
   'gw-timeline': ROUTES.GW_TIMELINE,
@@ -161,6 +163,7 @@ function navItems(role, state) {
       { id: 'gw-templates', label: 'Templates', icon: 'folder' },
       { id: 'gw-payments', label: 'Payments', icon: 'wallet' },
       { id: 'gw-messages', label: 'Messages', icon: 'message-square', badge: msgUnread ? String(msgUnread) : null },
+      { id: 'gw-reports', label: 'My Reports', icon: 'flag' },
       { id: 'gw-profile', label: 'Profile', icon: 'user' },
     ];
   }

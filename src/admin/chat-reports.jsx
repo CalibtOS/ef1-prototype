@@ -32,7 +32,7 @@ function ChatReportsPage({ navigate }) {
           <CrumbBar trail={['Admin', 'Chat Reports']}/>
           <h1 className="page-title" style={{ marginTop: 6 }}>Chat Reports</h1>
           <div className="page-subtitle">
-            Messages reported by customers or ghostwriters · click a row to view the chat
+            Messages reported by customers or ghostwriters · click a row to open the chat and review
           </div>
         </div>
         {pendingCount > 0 && (
@@ -76,12 +76,12 @@ function ChatReportsPage({ navigate }) {
               <thead>
                 <tr>
                   <th>Order</th>
-                  <th>Reported by</th>
+                  <th>Reported</th>
                   <th>Reported messages</th>
                   <th>Reason</th>
                   <th>Date</th>
                   <th>Status</th>
-                  <th style={{ width: 120 }}></th>
+                  <th style={{ width: 100 }}></th>
                 </tr>
               </thead>
               <tbody>
@@ -90,6 +90,11 @@ function ChatReportsPage({ navigate }) {
                   const reporter = r.reporterRole === 'customer'
                     ? D.customer(r.customerId)
                     : r.reporterRole === 'gw'
+                      ? D.gw(r.gwId)
+                      : null;
+                  const reportee = r.reportedRole === 'customer'
+                    ? D.customer(r.customerId)
+                    : r.reportedRole === 'gw'
                       ? D.gw(r.gwId)
                       : null;
                   const st = STATUS_STYLES[r.status] || STATUS_STYLES.pending;
@@ -109,15 +114,25 @@ function ChatReportsPage({ navigate }) {
                         )}
                       </td>
                       <td>
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-1" style={{ flexWrap: 'wrap', minWidth: 200 }}>
                           <Avatar
                             initials={reporter?.initials || '??'}
-                            size={24}
+                            size={22}
                             tone={r.reporterRole === 'customer' ? 'blue' : 'amber'}
                           />
                           <div>
                             <div className="fs-12">{reporter?.name || 'Unknown'}</div>
                             <div className="text-faint fs-11" style={{ textTransform: 'capitalize' }}>{r.reporterRole}</div>
+                          </div>
+                          <Icon name="arrow-right" size={12} className="text-faint" style={{ margin: '0 4px' }}/>
+                          <Avatar
+                            initials={reportee?.initials || '??'}
+                            size={22}
+                            tone={r.reportedRole === 'customer' ? 'blue' : 'amber'}
+                          />
+                          <div>
+                            <div className="fs-12">{reportee?.name || 'Unknown'}</div>
+                            <div className="text-faint fs-11" style={{ textTransform: 'capitalize' }}>{r.reportedRole}</div>
                           </div>
                         </div>
                       </td>
@@ -135,36 +150,32 @@ function ChatReportsPage({ navigate }) {
                         <span className="fs-12" style={{ color: st.color, fontWeight: 500 }}>
                           {st.label}
                         </span>
+                        {r.status === 'reviewed' && r.reviewNote && (
+                          <div className="text-faint fs-11 mt-1" style={{ maxWidth: 160, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {r.reviewNote}
+                          </div>
+                        )}
                       </td>
                       <td onClick={e => e.stopPropagation()}>
                         <div className="flex gap-1">
-                          {r.status === 'pending' && (
-                            <button
-                              type="button"
-                              className="btn btn-sm"
-                              onClick={() => EFActions.chatReports.updateStatus(r.id, 'reviewed')}
-                            >
-                              Review
-                            </button>
-                          )}
-                          {r.status !== 'dismissed' && (
+                          {r.status !== 'dismissed' && r.status !== 'reviewed' && (
                             <button
                               type="button"
                               className="btn btn-sm btn-ghost"
                               style={{ color: 'var(--text-3)', fontSize: 11 }}
-                              onClick={() => EFActions.chatReports.updateStatus(r.id, 'dismissed')}
+                              onClick={() => EFActions.chatReports.dismiss(r.id)}
                             >
                               Dismiss
                             </button>
                           )}
-                          {r.status === 'dismissed' && (
+                          {r.status === 'reviewed' && (
                             <button
                               type="button"
                               className="btn btn-sm btn-ghost"
-                              style={{ fontSize: 11 }}
-                              onClick={() => EFActions.chatReports.updateStatus(r.id, 'pending')}
+                              style={{ color: 'var(--red)', fontSize: 11 }}
+                              onClick={() => EFActions.chatReports.delete(r.id)}
                             >
-                              Reopen
+                              Delete
                             </button>
                           )}
                         </div>

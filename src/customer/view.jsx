@@ -21,6 +21,7 @@ import * as SimCheckout from '../sim/checkout.js';
 import { CheckoutModal } from './checkout-modal.jsx';
 import { OrderChat } from '../shared/order-chat.jsx';
 import { useReportChat, ReportChatPanel } from '../components/ReportChatPanel.jsx';
+import { MyReportsView } from '../components/MyReportsView.jsx';
 const D = EF;
 
 const CUST_PERSONA = (EFShell?.ROLES || []).find(r => r.id === 'customer') ||
@@ -146,6 +147,7 @@ function CustHeader({ tab, setTab, role, setRole, selectPersona, onOpenNotificat
     { id: 'invoices', label: 'Rechnungen', icon: 'file-text' },
     { id: 'downloads', label: 'Downloads', icon: 'download' },
     { id: 'profile', label: 'Profil', icon: 'user' },
+    { id: 'reports', label: 'Meine Meldungen', icon: 'flag' },
   ];
   return (
     <div style={{ background: 'var(--surface)', borderBottom: '1px solid var(--border)' }}>
@@ -1544,7 +1546,7 @@ function CustomerView({ role, setRole, selectPersona, toast, section, navigate, 
 
   // Map internal tab IDs to the shell route names so inner-tab clicks update the URL
   // and the sidebar highlight at the same time (no more divergent navigation state).
-  const ROUTE_FOR_TAB = { orders: 'cust-orders', messages: 'cust-messages', invoices: 'cust-invoices', downloads: 'cust-downloads', profile: 'cust-profile' };
+  const ROUTE_FOR_TAB = { orders: 'cust-orders', messages: 'cust-messages', invoices: 'cust-invoices', downloads: 'cust-downloads', profile: 'cust-profile', reports: 'cust-reports' };
   const switchTab = (t) => {
     if (navigate && ROUTE_FOR_TAB[t]) navigate(ROUTE_FOR_TAB[t]);
   };
@@ -1568,6 +1570,15 @@ function CustomerView({ role, setRole, selectPersona, toast, section, navigate, 
     body = <CustDownloads toast={toast}/>;
   } else if (tab === 'profile') {
     body = <CustProfile toast={toast}/>;
+  } else if (tab === 'reports') {
+    const cid = activeCustomer().id;
+    body = (
+      <div style={{ paddingTop: 24 }}>
+        <h2 style={{ fontSize: 20, fontWeight: 700, marginBottom: 4 }}>Meine Meldungen</h2>
+        <p className="text-muted fs-13" style={{ marginBottom: 20 }}>Ihre gemeldeten Chatnachrichten und der aktuelle Bearbeitungsstatus</p>
+        <MyReportsView lang="de" userId={cid} reporterRole="customer"/>
+      </div>
+    );
   } else {
     body = <CustOrdersList openOrder={openOrder} startCheckout={startCheckout} goTo={goTo}/>;
   }

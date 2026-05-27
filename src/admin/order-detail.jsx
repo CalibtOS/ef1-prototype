@@ -1397,25 +1397,78 @@ function SubmissionsTab({ order, navigate, focusSubmissionId }) {
 function CommsTab({ order, toast, reportId }) {
   const report = EFHooks.useChatReport(reportId || null);
   const highlightedIds = report?.messageIds?.length ? new Set(report.messageIds) : null;
+  const [reviewNote, setReviewNote] = useState('');
+
+  const handleReview = () => {
+    const note = reviewNote.trim();
+    if (note.length < 10) return;
+    EFActions.chatReports.review(reportId, note);
+    setReviewNote('');
+    if (toast) toast({ tone: 'success', text: 'Report reviewed · reporter notified' });
+  };
+
   return (
     <div>
       {report && (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 14px', background: 'color-mix(in oklab, var(--amber) 10%, var(--surface))', borderBottom: '1px solid color-mix(in oklab, var(--amber) 25%, var(--border))', fontSize: 12.5 }}>
-          <Icon name="flag" size={14} style={{ color: 'var(--amber)', flexShrink: 0 }}/>
-          <span style={{ flex: 1 }}>
-            <strong>{report.count} reported {report.count === 1 ? 'message' : 'messages'}</strong>
-            {' '}· Reported by <strong>{report.reporterRole}</strong> · Reason: <em>{report.reason}</em>
-            {' '}· Status: <span style={{ textTransform: 'capitalize', color: report.status === 'pending' ? 'var(--amber)' : report.status === 'reviewed' ? 'var(--green)' : 'var(--text-3)' }}>{report.status}</span>
-          </span>
-          <div className="flex gap-1">
-            {report.status === 'pending' && (
-              <button type="button" className="btn btn-sm" onClick={() => EFActions.chatReports.updateStatus(reportId, 'reviewed')}>
-                Mark reviewed
-              </button>
-            )}
-            {report.status !== 'dismissed' && (
-              <button type="button" className="btn btn-sm btn-ghost" style={{ color: 'var(--text-3)', fontSize: 11 }} onClick={() => EFActions.chatReports.updateStatus(reportId, 'dismissed')}>
-                Dismiss
+        <div style={{ padding: '12px 14px', background: 'color-mix(in oklab, var(--amber) 8%, var(--surface))', borderBottom: '1px solid color-mix(in oklab, var(--amber) 20%, var(--border))' }}>
+          <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10, fontSize: 12.5 }}>
+            <Icon name="flag" size={14} style={{ color: 'var(--amber)', flexShrink: 0, marginTop: 2 }}/>
+            <div style={{ flex: 1 }}>
+              <div>
+                <strong>{report.count} reported {report.count === 1 ? 'message' : 'messages'}</strong>
+                {' '}· Reported by <strong style={{ textTransform: 'capitalize' }}>{report.reporterRole}</strong>
+                {' '}· Reason: <em>{report.reason}</em>
+                {' '}·{' '}
+                <span style={{ textTransform: 'capitalize', fontWeight: 500, color: report.status === 'pending' ? 'var(--amber)' : report.status === 'reviewed' ? 'var(--green)' : 'var(--text-3)' }}>
+                  {report.status}
+                </span>
+              </div>
+              {report.status === 'reviewed' && report.reviewNote && (
+                <div style={{ marginTop: 8, padding: '6px 10px', background: 'color-mix(in oklab, var(--green) 8%, var(--surface))', border: '1px solid color-mix(in oklab, var(--green) 25%, var(--border))', borderRadius: 6, fontSize: 12 }}>
+                  <strong>Review note:</strong> {report.reviewNote}
+                </div>
+              )}
+              {report.status === 'pending' && (
+                <div style={{ marginTop: 10 }}>
+                  <textarea
+                    rows={2}
+                    placeholder="Enter review outcome (min. 10 characters)…"
+                    value={reviewNote}
+                    onChange={e => setReviewNote(e.target.value)}
+                    style={{ width: '100%', fontSize: 12.5, padding: '6px 10px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text)', resize: 'vertical', fontFamily: 'inherit', boxSizing: 'border-box' }}
+                  />
+                  <div className="flex gap-2 mt-2">
+                    <button
+                      type="button"
+                      className="btn btn-sm btn-success"
+                      disabled={reviewNote.trim().length < 10}
+                      onClick={handleReview}
+                    >
+                      Confirm Review
+                    </button>
+                    <button
+                      type="button"
+                      className="btn btn-sm btn-ghost"
+                      style={{ color: 'var(--text-3)', fontSize: 11 }}
+                      onClick={() => EFActions.chatReports.dismiss(reportId)}
+                    >
+                      Dismiss
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+            {report.status === 'reviewed' && (
+              <button
+                type="button"
+                className="btn btn-sm btn-ghost"
+                style={{ color: 'var(--red)', fontSize: 11, flexShrink: 0 }}
+                onClick={() => {
+                  EFActions.chatReports.delete(reportId);
+                  if (toast) toast({ tone: 'info', text: 'Report deleted' });
+                }}
+              >
+                Delete
               </button>
             )}
           </div>
