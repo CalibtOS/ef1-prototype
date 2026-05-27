@@ -6,7 +6,7 @@ import { QA_STATUS, STATUS } from './status.js';
 const ORDER_STATES = [
   'lead','qualified','offer_sent','invoice_sent','available','claimed_pending_approval',
   'active','interim_submitted','under_customer_review','revision_required',
-  'final_submitted','qa_review','ai_violation_review','plagiarism_violation_review',
+  'qa_review','ai_violation_review','plagiarism_violation_review',
   'delivered','payment_pending','completed','cancelled','on_hold','delay_reported',
   'extension_requested'
 ];
@@ -14,7 +14,7 @@ const ORDER_STATES = [
 const PRE_PROPOSAL_STATES = ['lead', 'qualified'];
 const PRE_PAYMENT_STATES = ['lead', 'qualified', 'offer_sent', 'invoice_sent'];
 const POST_FINAL_STATES = [
-  'final_submitted', 'qa_review', 'ai_violation_review', 'plagiarism_violation_review',
+  'qa_review', 'ai_violation_review', 'plagiarism_violation_review',
   'delivered', 'payment_pending', 'completed'
 ];
 const RELEASE_GATE_RELEVANT_STATES = [
@@ -28,7 +28,6 @@ const ACTIVE_GW_ORDER_STATUSES = [
   STATUS.INTERIM_SUBMITTED,
   STATUS.UNDER_CUSTOMER_REVIEW,
   STATUS.REVISION_REQUIRED,
-  STATUS.FINAL_SUBMITTED,
   STATUS.QA_REVIEW,
   STATUS.DELAY_REPORTED,
   STATUS.EXTENSION_REQUESTED,
@@ -56,7 +55,6 @@ const STATUS_RANK = {
   interim_submitted: 7,
   under_customer_review: 8,
   revision_required: 9,
-  final_submitted: 10,
   qa_review: 11,
   ai_violation_review: 12,
   plagiarism_violation_review: 12,
@@ -74,7 +72,6 @@ const CLOSED_SUBMISSION_REASONS = {
   claimed_pending_approval: 'Awaiting admin approval',
   interim_submitted: 'Interim already submitted — awaiting customer feedback',
   under_customer_review: 'Awaiting customer review',
-  final_submitted: 'Final submitted — awaiting QA',
   qa_review: 'In QA — no further upload needed',
   delivered: 'Delivered — awaiting customer acceptance/payment gate',
   payment_pending: 'Payment pending — work complete',
@@ -92,14 +89,19 @@ const TRANSITIONS = {
   reject_claim:         { from: ['claimed_pending_approval'], to: 'available' },
   claim_job:            { from: ['available'], to: 'claimed_pending_approval' },
   assign_gw:            { from: ['available','active','delay_reported','extension_requested'], to: 'active' },
-  gw_submit_interim:    { from: ['active'], to: 'under_customer_review' },
-  gw_submit_final:      { from: ['active','revision_required'], to: 'qa_review' },
+  // Interim resubmissions reopen the interim slot when a revision was requested
+  // on it — so 'revision_required' is a valid `from` (slot routing in
+  // `allowedSubmissionKinds`). `gw_submit_revision` here is the FINAL-revision
+  // resubmit; an interim revision resubmits as `gw_submit_interim` and lands
+  // back in 'under_customer_review'.
+  gw_submit_interim:    { from: ['active','revision_required'], to: 'under_customer_review' },
+  gw_submit_final:      { from: ['active'], to: 'qa_review' },
   gw_submit_revision:   { from: ['revision_required'], to: 'qa_review' },
   qa_pass_final:        { from: ['qa_review'], to: 'delivered' },
   qa_pass_interim:      { from: ['qa_review','under_customer_review'], to: 'under_customer_review' },
   qa_request_revision:  { from: ['qa_review'], to: 'revision_required' },
-  qa_flag_ai:           { from: ['qa_review','final_submitted'], to: 'ai_violation_review' },
-  qa_flag_plagiarism:   { from: ['qa_review','final_submitted'], to: 'plagiarism_violation_review' },
+  qa_flag_ai:           { from: ['qa_review'], to: 'ai_violation_review' },
+  qa_flag_plagiarism:   { from: ['qa_review'], to: 'plagiarism_violation_review' },
   customer_approve_interim: { from: ['under_customer_review','interim_submitted'], to: 'active' },
   customer_request_revision:{ from: ['under_customer_review','interim_submitted','delivered'], to: 'revision_required' },
   customer_accept_final:{ from: ['delivered'], to: 'payment_pending' },
@@ -153,7 +155,15 @@ function canResolve(order, kind) {
 
 function allowedSubmissionKinds(order, gwId, submissions = []) {
   if (!order || order.gwId !== gwId) return [];
-  if (order.status === 'revision_required') return ['revision'];
+  if (order.status === 'revision_required') {
+    // If the revision request was on an interim, the GW re-uploads that interim
+    // (not a final-revision). The slot reopens for the same kind so customer
+    // review resumes after re-submission. Falls back to 'revision' (final) when
+    // the last submission was the final or when no signal is available.
+    const lastKind = order.lastSubmissionKind;
+    if (lastKind === 'interim_1' || lastKind === 'interim_2') return [lastKind];
+    return ['revision'];
+  }
   if (order.status !== 'active') return [];
   const next = nextExpectedSubmissionKind(order, submissions);
   return next ? [next] : [];
@@ -176,6 +186,23 @@ function nextStateAfterSubmit(kind) {
 
 function isInterimKind(kind) {
   return kind === 'interim_1' || kind === 'interim_2';
+}
+
+// Per-kind revision round counter. Interim and Final revisions each have their
+// own 1..3 cycle; the legacy `revisionRounds` field stays as a total. Reads the
+// kind-scoped counter that matches the revision currently in flight (or the
+// last one that was requested).
+function currentRevisionRound(order) {
+  if (!order) return 0;
+  const kind = order.revisionTargetKind;
+  if (kind === 'final') return order.finalRevisionRounds || 0;
+  if (kind === 'interim_1' || kind === 'interim_2') return order.interimRevisionRounds || 0;
+  // Fallback for orders that pre-date the per-kind split: derive from status.
+  if (order.status === 'revision_required') {
+    if (order.finalSubmittedAt) return order.finalRevisionRounds || order.revisionRounds || 0;
+    return order.interimRevisionRounds || order.revisionRounds || 0;
+  }
+  return order.revisionRounds || 0;
 }
 
 function isQaReviewKind(kind) {
@@ -204,7 +231,7 @@ function submittedSubmissionKinds(order, submissions = []) {
   if (isInterimKind(order?.lastSubmittedInterimKind)) kinds.add(order.lastSubmittedInterimKind);
   if (order?.interimSubmittedAt || order?.interim1SubmittedAt) kinds.add('interim_1');
   if (order?.interim2SubmittedAt) kinds.add('interim_2');
-  if (order?.finalSubmittedAt || statusRank(order) >= STATUS_RANK.final_submitted) kinds.add('final');
+  if (order?.finalSubmittedAt || statusRank(order) >= STATUS_RANK.qa_review) kinds.add('final');
   return kinds;
 }
 
@@ -231,7 +258,7 @@ function completedInterimKinds(order, submissions = []) {
   const done = new Set();
   if (!order?.interimDeadline) return done;
 
-  if (statusRank(order) >= STATUS_RANK.final_submitted || order.finalSubmittedAt) {
+  if (statusRank(order) >= STATUS_RANK.qa_review || order.finalSubmittedAt) {
     configuredInterimKinds(order).forEach(kind => addInterimAndPrior(done, kind));
     return done;
   }
@@ -342,7 +369,6 @@ function releaseGateStageNote(order) {
     interim_submitted: 'Interim was auto-forwarded to the customer. Final QA, customer acceptance, and payout are not reached yet.',
     under_customer_review: 'Customer is reviewing an interim delivery. Final QA and payout gates are not reached yet.',
     revision_required: 'A revision/dispute is open. Payment remains blocked until the corrected final is accepted.',
-    final_submitted: 'Final work is with efactory1/QA. Customer satisfaction and Friday payout are not available yet.',
     qa_review: 'Final work is still in QA. It must pass before the customer can accept it.',
     delivered: 'Final was delivered to the customer. Await customer acceptance before Friday release eligibility.',
     payment_pending: 'Customer accepted the final. Friday release depends on all payout gates.',
@@ -408,7 +434,6 @@ function statusFor(order, role) {
       interim_submitted: 'Zwischenstand prüfen',
       under_customer_review: 'Zwischenstand prüfen',
       revision_required: 'Überarbeitung läuft',
-      final_submitted: 'Qualitätsprüfung',
       qa_review: 'Qualitätsprüfung',
       delivered: 'Endabgabe prüfen',
       payment_pending: 'Abgeschlossen',
@@ -774,6 +799,7 @@ export {
   nextStateAfterSubmit,
   isInterimKind,
   isQaReviewKind,
+  currentRevisionRound,
   isPreProposal,
   isPrePayment,
   isOrderPaid,

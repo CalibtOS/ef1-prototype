@@ -792,7 +792,7 @@ function Heatmap() {
     if (start > day.end) return false;
     const final = order.finalDeadline ? new Date(order.finalDeadline) : null;
     if (!final) return true;
-    return final >= day.start || ['revision_required','final_submitted','qa_review','delay_reported','extension_requested'].includes(order.status);
+    return final >= day.start || ['revision_required','qa_review','delay_reported','extension_requested'].includes(order.status);
   };
   const loadFor = (gw, day) => {
     if (gw.banned) return { value: 0, active: 0, due: 0 };

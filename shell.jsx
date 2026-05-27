@@ -289,7 +289,9 @@ function resolveNotificationTarget(n, role) {
   if (role === 'gw') {
     if (kind === 'payment_released') return linkParams(buildLink({ kind: 'gw-payments' }));
     if (['claim_rejected', 'assignment_cancelled', 'order_cancelled', 'order_on_hold'].includes(kind)) return { name: 'gw-active', params: {} };
-    if (kind === 'revision_required' && orderId) return linkParams(buildLink({ kind: 'gw-submit', orderId, submitKind: 'revision' }));
+    // revision_required falls through to the order detail page so the GW
+    // can read the customer feedback panel before deciding to upload. The
+    // panel itself carries the "Upload revised version" CTA.
     return orderId ? linkParams(buildLink({ kind: 'gw-assignment', orderId })) : { name: 'gw-dashboard', params: {} };
   }
 

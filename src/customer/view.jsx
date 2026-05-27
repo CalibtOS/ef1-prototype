@@ -82,7 +82,7 @@ function custStatusMeta(o) {
     return { color: 'blue', label: 'Zwischenstand prüfen', icon: 'eye' };
   if (s === 'revision_required')
     return { color: 'orange', label: 'Überarbeitung läuft', icon: 'rotate-ccw' };
-  if (s === 'final_submitted' || s === 'qa_review')
+  if (s === 'qa_review')
     return { color: 'purple', label: 'Qualitätsprüfung', icon: 'shield-check' };
   if (s === 'ai_violation_review')
     return { color: 'amber', label: 'In Prüfung', icon: 'shield-check' };
@@ -107,7 +107,6 @@ function custProgress(o, submissions = []) {
   }
   if (s === 'interim_submitted' || s === 'under_customer_review') return 55;
   if (s === 'revision_required') return 50;
-  if (s === 'final_submitted') return 80;
   if (s === 'qa_review') return 90;
   if (s === 'on_hold') return 20;
   return 30;
@@ -252,7 +251,7 @@ function CustOrderCard({ o, onOpen, startCheckout, goTo }) {
     nextMs = { label: 'Ihr Feedback', date: null };
   } else if (o.status === 'revision_required') {
     nextMs = { label: 'Überarbeitete Version', date: null };
-  } else if (o.status === 'final_submitted' || o.status === 'qa_review') {
+  } else if (o.status === 'qa_review') {
     nextMs = { label: 'QA-Freigabe', date: null };
   }
 
@@ -296,7 +295,7 @@ function CustOrderCard({ o, onOpen, startCheckout, goTo }) {
 
         {(() => {
           const gwActive = !!o.gwId && !['available','qualified','offer_sent','invoice_sent','claimed_pending_approval'].includes(o.status);
-          const hasFiles = ['active','interim_submitted','under_customer_review','revision_required','final_submitted','qa_review','delivered','payment_pending','completed'].includes(o.status);
+          const hasFiles = ['active','interim_submitted','under_customer_review','revision_required','qa_review','delivered','payment_pending','completed'].includes(o.status);
           const needsReview = o.status === 'interim_submitted' || o.status === 'under_customer_review';
           const offerReady = o.status === 'offer_sent';
           const awaitingPayment = o.status === 'invoice_sent';
@@ -467,7 +466,7 @@ function CustOrderStatus({ o, startCheckout }) {
     if (progress >= 100) return milestones.length;
     if (o.status === 'completed' || o.status === 'payment_pending') return milestones.length;
     if (o.status === 'delivered') return idx('done');
-    if (o.status === 'qa_review' || o.status === 'final_submitted') return idx('qa');
+    if (o.status === 'qa_review') return idx('qa');
     if (finalSubmitted) return idx('qa');
     if (o.status === 'revision_required') return finalSubmitted ? idx('qa') : afterInterim();
     if (o.status === 'interim_submitted' || o.status === 'under_customer_review') return delivery.currentKind === 'interim_2' ? idx('interim2') : idx('interim');
@@ -581,8 +580,15 @@ function CustOrderStatus({ o, startCheckout }) {
                 o.status === 'interim_submitted' || o.status === 'under_customer_review' ?
                 'Ein Zwischenstand wurde hochgeladen. Bitte prüfen Sie ihn im Tab „Dokumente" und geben Sie Ihrem Ghostwriter Feedback.' :
                 o.status === 'revision_required' ?
-                'Ihr Ghostwriter überarbeitet die Arbeit gemäß Ihrem Feedback (Runde ' + (o.revisionRounds || 1) + ').' :
-                o.status === 'final_submitted' || o.status === 'qa_review' ?
+                (() => {
+                  const round = W.currentRevisionRound(o) || 1;
+                  const kind = o.revisionTargetKind;
+                  const phase = (kind === 'final')
+                    ? 'der Endabgabe'
+                    : (kind === 'interim_2' ? 'zum zweiten Zwischenstand' : 'zum Zwischenstand');
+                  return `Ihr Ghostwriter überarbeitet die Arbeit gemäß Ihrem Feedback ${phase} (Runde ${round}).`;
+                })() :
+                o.status === 'qa_review' ?
                 'Die Endversion wird derzeit vom efactory1 QA-Team auf Plagiat, KI-Nutzung und Formatierung geprüft.' :
                 o.status === 'delivered' ?
                 'Die Endversion hat die Qualitätsprüfung bestanden und steht für Sie bereit. Bitte prüfen Sie sie und nehmen Sie die Endabgabe an oder fordern Sie letzte Anpassungen an.' :
@@ -935,6 +941,27 @@ function CustOrderFiles({ o, toast }) {
       </div>
 
       <div className="flex-col gap-3">
+        {(() => {
+          // When the latest submission was a resubmit (revision response), show
+          // the GW's change-summary so the customer/QA can review with context.
+          const needsResolve = ['interim_submitted','under_customer_review','delivered'].includes(o.status);
+          if (!needsResolve) return null;
+          const realSubs = (displaySubs || []).filter(s => !s.synthetic);
+          const latest = [...realSubs].sort((a,b) => new Date(b.submittedAt||0) - new Date(a.submittedAt||0))[0];
+          if (!latest?.changeSummary) return null;
+          return (
+            <div className="card" style={{ borderLeft: '4px solid var(--blue)' }}>
+              <div className="card-head">
+                <div className="card-title">Hinweis vom Ghostwriter — was wurde geändert</div>
+                <span className="text-faint fs-11">{U.relTime(latest.submittedAt)}</span>
+              </div>
+              <div className="card-pad fs-12 text-muted" style={{ whiteSpace: 'pre-wrap', lineHeight: 1.5 }}>
+                {latest.changeSummary}
+              </div>
+            </div>
+          );
+        })()}
+
         {(o.status === 'interim_submitted' || o.status === 'under_customer_review') && (
           <div className="card">
             <div className="card-head">
@@ -1122,7 +1149,7 @@ function CustOrderDetail({ orderId, tab, onTabChange, onBack, toast, startChecko
           // - Messages: only after GW is approved (active onwards)
           // - Files:    only after a draft has been uploaded (interim/final/delivered/done)
           const gwAssigned = !!o.gwId && !['available','qualified','offer_sent','invoice_sent','claimed_pending_approval','lead'].includes(o.status);
-          const hasFiles   = ['interim_submitted','under_customer_review','revision_required','final_submitted','qa_review','delivered','payment_pending','completed'].includes(o.status);
+          const hasFiles   = ['interim_submitted','under_customer_review','revision_required','qa_review','delivered','payment_pending','completed'].includes(o.status);
           const tabs = [
             { id: 'status',   label: 'Status & Meilensteine', icon: 'clock',         disabled: false, hint: null },
             { id: 'messages', label: 'Nachrichten',            icon: 'message-square', disabled: !gwAssigned, hint: 'Verfügbar, sobald Ihr Ghostwriter zugewiesen ist' },

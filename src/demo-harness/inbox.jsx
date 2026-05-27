@@ -59,6 +59,14 @@ function useEmailsForRole(role) {
   return EFHooks.useStore(selector, shallowArrayEq);
 }
 
+const noTranslateProps = {
+  // Browser page-translation rewrites text nodes React owns, which can leave
+  // stale email fragments behind when switching selected messages.
+  translate: 'no',
+  className: 'notranslate',
+  lang: 'de',
+};
+
 function DemoInbox({ onClose, navigate, switchRole }) {
   const [persona, setPersona] = useState('customer');
   const [selectedId, setSelectedId] = useState(null);
@@ -180,7 +188,7 @@ function DemoInbox({ onClose, navigate, switchRole }) {
             </div>
           )}
           {selected && (
-            <div key={selected.id}>
+            <div key={selected.id} {...noTranslateProps}>
               <div style={{ marginBottom: 14 }}>
                 <div style={{ fontSize: 11, color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 4 }}>{selected.kind}</div>
                 <div style={{ fontSize: 18, fontWeight: 600, marginBottom: 4 }}>{selected.subject}</div>
@@ -191,7 +199,7 @@ function DemoInbox({ onClose, navigate, switchRole }) {
                   <strong>Gesendet:</strong> {new Date(selected.sentAt).toLocaleString('de-DE')}
                 </div>
               </div>
-              <div key={`body-${selected.id}`} style={{ background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: 8, padding: 16, fontSize: 13, lineHeight: 1.55, whiteSpace: 'pre-wrap' }}>
+              <div key={`body-${selected.id}`} {...noTranslateProps} style={{ background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: 8, padding: 16, fontSize: 13, lineHeight: 1.55, whiteSpace: 'pre-wrap' }}>
                 {renderInlineMd(selected.bodyMd)}
               </div>
               {selected.cta && (
@@ -216,7 +224,7 @@ function DemoInbox({ onClose, navigate, switchRole }) {
 
 function Drawer({ title, subtitle, onClose, children }) {
   return (
-    <div style={{
+    <div {...noTranslateProps} style={{
       position: 'fixed', top: 0, right: 0, bottom: 0, width: '880px', maxWidth: '95vw',
       background: 'var(--surface)', borderLeft: '1px solid var(--border)',
       boxShadow: '-10px 0 30px rgba(0,0,0,0.12)', zIndex: 200, display: 'flex', flexDirection: 'column',
