@@ -766,10 +766,7 @@ function CustInterimFeedback({ o, toast }) {
           background: 'color-mix(in oklab, var(--amber) 8%, var(--surface))',
           borderColor: 'color-mix(in oklab, var(--amber) 55%, var(--border))',
         }}
-        onClick={()=>{
-        EFActions.customer.escalate(o.id);
-        toast && toast({ tone: 'danger', text: 'Streitfall gemeldet · Berat prüft und meldet sich.' });
-      }}
+        onClick={()=>setMode('dispute')}
       >
         <Icon name="alert-triangle" size={11}/> Problem eskalieren
       </button>
@@ -887,10 +884,7 @@ function CustFinalAcceptance({ o, toast }) {
           background: 'color-mix(in oklab, var(--amber) 8%, var(--surface))',
           borderColor: 'color-mix(in oklab, var(--amber) 55%, var(--border))',
         }}
-        onClick={()=>{
-        EFActions.customer.escalate(o.id);
-        toast && toast({ tone: 'danger', text: 'Streitfall gemeldet · Berat prüft und meldet sich.' });
-      }}
+        onClick={()=>setMode('dispute')}
       >
         <Icon name="alert-triangle" size={11}/> Problem eskalieren
       </button>
