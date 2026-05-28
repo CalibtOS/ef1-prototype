@@ -671,7 +671,7 @@ function submitWork(orderId, payload = {}) {
   // GW production until admin resolves; without this guard a stale route or a
   // direct EFActions.gw.submit call could push work into qa_review while admin
   // is still mediating.
-  if (o?.disputeOpen) {
+  if (W.isOrderDisputed(o)) {
     toast({ text: 'A dispute is open on this order — work is paused until efactory1 resolves it.', tone: 'danger' });
     return null;
   }
@@ -830,6 +830,11 @@ function qaRequestRevision(submissionId, note) {
     toast({ text: 'Add at least 10 characters of QA feedback before requesting a revision.', tone: 'danger' });
     return false;
   }
+  // Same max-round policy as the customer path — QA cannot bypass the cap.
+  // Past the limit, admin must mediate via dispute (outcome reassign / refund
+  // / scope amendment), not just loop another revision.
+  const policy = W.canRequestRevision(o, 'final');
+  if (!policy.ok) { toast({ text: policy.reason, tone: 'danger' }); return false; }
   patchEntity('submissions', submissionId, { qaStatus: QA_STATUS.REVISION_REQUESTED, reviewedAt: nowIso() }, 'qa.revision.submission');
   // QA-triggered revision is always on the final (QA only sees final/revision submissions).
   // Mirror the per-kind counter + source tracking that the customer flow already does,
@@ -888,7 +893,7 @@ function approveInterim(orderId) {
   // Dispute freeze: once a customer has escalated, all customer-side workflow
   // transitions wait for admin resolution. Without this, an "active +
   // disputeOpen" zombie state was reachable by approving an interim mid-dispute.
-  if (o.disputeOpen) {
+  if (W.isOrderDisputed(o)) {
     toast({ text: 'Dispute is open — waiting for efactory1 to resolve before workflow can continue.', tone: 'danger' });
     return false;
   }
@@ -937,6 +942,11 @@ function requestCustomerRevision(orderId, note) {
   const revisionTargetKind = isFinalRevision
     ? 'final'
     : (o.pendingCustomerReviewKind || o.lastSubmittedInterimKind || o.lastSubmissionKind || 'interim_1');
+  // Policy gate: max 3 rounds per kind + dispute freeze. Hitting either case
+  // means the customer must escalate via dispute instead of looping more
+  // revisions. See W.canRequestRevision (workflow.js).
+  const policy = W.canRequestRevision(o, revisionTargetKind);
+  if (!policy.ok) { toast({ text: policy.reason, tone: 'danger' }); return false; }
   const nextRoundTotal = (o.revisionRounds || 0) + 1;
   // Per-kind round — this is what the email/UI should display so each
   // submission type has its own 1..3 cycle. The legacy total stays on
@@ -1125,7 +1135,7 @@ function acceptFinal(orderId) {
   // See approveInterim — same dispute-freeze invariant. A customer who has
   // escalated can't slide the order into payment_pending while admin is still
   // mediating; the release-gate would otherwise count this as customer_satisfied.
-  if (o.disputeOpen) {
+  if (W.isOrderDisputed(o)) {
     toast({ text: 'Dispute is open — waiting for efactory1 to resolve before workflow can continue.', tone: 'danger' });
     return false;
   }
@@ -1422,6 +1432,13 @@ function resolveDispute(orderId, payload = {}) {
   }
   const at = nowIso();
   const resolverId = payload.resolvedBy || 'admin-berat';
+  // Capture identity scope BEFORE outcome side effects — reassign clears
+  // order.gwId, so any post-resolution GW notification/email built off the
+  // current order would have `gwId: null` and broadcast to every GW persona
+  // in the prototype. Same for customer (defense in depth — currently no
+  // outcome clears customerId, but the pattern keeps both paths symmetric).
+  const originalGwId = o.gwId;
+  const originalCustomerId = o.customerId;
 
   // Apply outcome side effects FIRST so any failure (e.g. extension fields
   // missing) doesn't leave a half-resolved dispute. Each outcome is delegated
@@ -1514,18 +1531,20 @@ function resolveDispute(orderId, payload = {}) {
   }
 
   // Customer + GW notifications. Localized per outcome — see fan-out matrix in
-  // docs/flows/dispute/dispute_flow_design_review.md §11.
+  // docs/flows/dispute/dispute_flow_design_review.md §11. Pass the *original*
+  // ids explicitly: after reassign, order.gwId is null and notifyOrder would
+  // emit `gwId: null` notifications that any GW persona picks up.
   const notifBody = outcomeNote.length > 140 ? outcomeNote.slice(0, 140) + '…' : outcomeNote;
-  notifyOrder(orderId, { to: 'customer', kind: 'dispute_resolved', title: `Streitfall gelöst · Auftrag #${orderId}`, body: notifBody });
-  notifyOrder(orderId, { to: 'gw', kind: 'dispute_resolved', title: `Dispute resolved · #${orderId}`, body: notifBody });
+  notifyOrder(orderId, { to: 'customer', kind: 'dispute_resolved', customerId: originalCustomerId, gwId: originalGwId, title: `Streitfall gelöst · Auftrag #${orderId}`, body: notifBody });
+  notifyOrder(orderId, { to: 'gw', kind: 'dispute_resolved', customerId: originalCustomerId, gwId: originalGwId, title: `Dispute resolved · #${orderId}`, body: notifBody });
 
   DomainEvents.emit('dispute.resolved', {
     orderId,
     disputeId: open.id,
     outcome,
     outcomeNote,
-    customerId: o.customerId,
-    gwId: o.gwId,
+    customerId: originalCustomerId,
+    gwId: originalGwId,
     scenarioId: o.scenarioId || null,
   });
 
@@ -1533,13 +1552,34 @@ function resolveDispute(orderId, payload = {}) {
 }
 
 // Back-compat shim — keeps any caller that still passes a free-text resolution
-// working until they migrate. Maps to outcome=continue_revision so the chat
-// unlocks and the dispute closes cleanly.
+// working until they migrate. If a structured open dispute exists, route through
+// the proper outcome=continue_revision resolution. Otherwise (legacy boolean-only
+// `disputeOpen=true` rows from seeds), clear the boolean + chat lock directly so
+// admin can dismiss the stale flag without inventing a fake structured dispute.
 function closeDispute(orderId, resolution) {
-  return resolveDispute(orderId, {
-    outcome: 'continue_revision',
-    outcomeNote: resolution || 'Resolved by admin.',
+  const o = order(orderId);
+  if (!o) { toast({ text: 'Order not found.', tone: 'danger' }); return false; }
+  if (W.currentOpenDispute(o)) {
+    return resolveDispute(orderId, {
+      outcome: 'continue_revision',
+      outcomeNote: resolution || 'Resolved by admin.',
+    });
+  }
+  // Legacy path: disputeOpen=true with no entry in disputes[]. Just clear the
+  // flag, unlock the chat if it was locked, stamp the resolution metadata.
+  if (!o.disputeOpen) {
+    toast({ text: 'No dispute is open on this order.', tone: 'info' });
+    return false;
+  }
+  const at = nowIso();
+  patchOrder(orderId, {
+    disputeOpen: false,
+    disputeResolution: resolution || 'Legacy dispute cleared by admin.',
+    disputeClosedAt: at,
   });
+  OC.unlockFromDispute(orderId);
+  notifyOrder(orderId, { to: 'admin', kind: 'dispute_resolved', title: `Legacy dispute cleared · #${orderId}`, body: resolution || 'Legacy disputeOpen flag cleared.' });
+  return true;
 }
 
 // =============================================================================

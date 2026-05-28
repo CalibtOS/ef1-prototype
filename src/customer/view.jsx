@@ -271,7 +271,7 @@ function CustOrderCard({ o, onOpen, startCheckout, goTo }) {
         <div className="flex items-center gap-2 mb-2">
           <span className="mono fs-11 text-faint">#{o.id}</span>
           <span className={`pill pill-${meta.color}`}><Icon name={meta.icon} size={10}/> {meta.label}</span>
-          {o.disputeOpen && <span className="pill pill-red" style={{ fontSize: 10 }}><Icon name="alert-triangle" size={9}/> Streitfall offen</span>}
+          {W.isOrderDisputed(o) && <span className="pill pill-red" style={{ fontSize: 10 }}><Icon name="alert-triangle" size={9}/> Streitfall offen</span>}
           <span style={{ flex: 1 }}/>
           <span className={`fs-11 ${dl.tone === 'danger' ? 'text-danger' : 'text-muted'}`}>
             {isComplete ? 'Geliefert' : 'Fällig'} {U.fmtDate(o.finalDeadline)}
@@ -1058,7 +1058,7 @@ function CustOrderFiles({ o, toast }) {
           );
         })()}
 
-        {o.disputeOpen && (
+        {W.isOrderDisputed(o) && (
           <div className="card" style={{ borderLeft: '4px solid var(--red)' }}>
             <div className="card-head">
               <div className="card-title">Streitfall in Prüfung</div>
@@ -1071,7 +1071,7 @@ function CustOrderFiles({ o, toast }) {
           </div>
         )}
 
-        {!o.disputeOpen && (o.status === 'interim_submitted' || o.status === 'under_customer_review') && (
+        {!W.isOrderDisputed(o) && (o.status === 'interim_submitted' || o.status === 'under_customer_review') && (
           <div className="card">
             <div className="card-head">
               <div className="card-title">Ihr Feedback</div>
@@ -1083,7 +1083,7 @@ function CustOrderFiles({ o, toast }) {
           </div>
         )}
 
-        {!o.disputeOpen && o.status === 'delivered' && (
+        {!W.isOrderDisputed(o) && o.status === 'delivered' && (
           <div className="card">
             <div className="card-head">
               <div className="card-title">Endabgabe prüfen</div>

@@ -164,8 +164,21 @@ function resolveContactEntity(state, contactType, contactId) {
 
 function selectOrderChat(state, orderId) {
   if (orderId == null) return null;
+  const chats = tableItems(state.entities.order_chats || { byId: {}, allIds: [] })
+    .filter(c => Number(c.orderId) === Number(orderId));
+  if (!chats.length) return null;
+  // Prefer an open chat over an archived one — reassignment (dispute outcome B)
+  // archives the old transcript and the new GW gets a fresh generation. See
+  // ensureOrderChat below for the create-after-archive path.
+  const open = chats.filter(c => !c.closedAt);
+  const pool = open.length ? open : chats;
+  return [...pool].sort((a, b) => new Date(b.openedAt || 0) - new Date(a.openedAt || 0))[0];
+}
+
+function selectAllChatsForOrder(state, orderId) {
+  if (orderId == null) return [];
   return tableItems(state.entities.order_chats || { byId: {}, allIds: [] })
-    .find(c => Number(c.orderId) === Number(orderId)) || null;
+    .filter(c => Number(c.orderId) === Number(orderId));
 }
 
 function selectAllOrderChats(state) {
@@ -186,8 +199,12 @@ function isOrderChatOpen(order, chat, opts = {}) {
   if (!order.gwId) return false;
   // Dispute lock blocks customer + GW from posting. Admin bypasses via
   // `opts.bypassDisputeLock: true` so the dispute panel can still mediate
-  // by posting into the chat directly.
+  // by posting into the chat directly. We check both the per-chat
+  // `disputeLockedAt` flag *and* the order-level dispute state — the latter
+  // covers the case where the dispute opened before any chat object existed
+  // (otherwise customer/GW could create + use an unlocked chat mid-dispute).
   if (chat && chat.disputeLockedAt && !opts.bypassDisputeLock) return false;
+  if (!opts.bypassDisputeLock && W.isOrderDisputed(order)) return false;
   return W.isOrderPaid(order);
 }
 
@@ -207,7 +224,7 @@ function orderChatLockReason(order, chat, opts = {}) {
   if (!order) return 'Order not found.';
   if (isOrderChatArchived(order, chat)) return 'This chat is archived — the order is closed.';
   if (order.status === STATUS.CANCELLED || order.status === STATUS.COMPLETED) return 'The order is closed.';
-  if (chat && chat.disputeLockedAt && !opts.bypassDisputeLock) {
+  if (!opts.bypassDisputeLock && ((chat && chat.disputeLockedAt) || W.isOrderDisputed(order))) {
     return 'Chat paused — efactory1 is mediating an open dispute.';
   }
   const paid = W.isOrderPaid(order);
@@ -395,12 +412,25 @@ function markExternalContactRead(contactType, contactId) {
 function ensureOrderChat(orderId) {
   const state = store.getState();
   const existing = selectOrderChat(state, orderId);
-  if (existing) return existing;
+  // If the active (preferred) chat is still open, reuse it. If selectOrderChat
+  // returned an archived chat (because no open one exists), drop through to
+  // the create path — a reassignment may have closed the previous chat and
+  // the new GW needs a fresh generation.
+  if (existing && !existing.closedAt) return existing;
   const o = I.order(orderId);
   if (!o || !isOrderChatOpen(o)) return null;
+  // Per-generation chat id. The legacy `chat-${orderId}` id is preserved when
+  // no prior chat exists, so seeds and back-compat code paths keep working.
+  // Subsequent chats (after reassign) use `chat-${orderId}-g${n}` so the
+  // archived transcript and the live chat coexist in the `order_chats` table.
+  const priorChats = selectAllChatsForOrder(state, orderId);
+  const chatId = priorChats.length === 0
+    ? `chat-${orderId}`
+    : `chat-${orderId}-g${priorChats.length + 1}`;
   const chat = {
-    id: `chat-${orderId}`,
+    id: chatId,
     orderId: Number(orderId),
+    generation: priorChats.length + 1,
     openedAt: I.nowIso(),
     closedAt: null,
     unread: { admin: 0, gw: 0, customer: 0 },
@@ -440,7 +470,19 @@ function sendOrderChat(payload = {}) {
   // (intake_in_progress, archived, etc.) still apply to every role. Admin
   // lifecycle notices that need to bypass everything go through
   // postSystemMessage, not this path.
-  const chat = selectOrderChat(store.getState(), orderId);
+  let chat = selectOrderChat(store.getState(), orderId);
+  // Reassignment carve-out: if the only chat surfaced for this order is
+  // archived (closedAt set) but the order itself is still live (paid +
+  // assigned + non-terminal), the archived chat belongs to a prior generation
+  // and a fresh chat should be opened. Drop it from the gate so isOrderChatOpen
+  // evaluates the order-level signals and ensureOrderChat below creates a
+  // new `chat-${orderId}-g${n}` for the new GW.
+  if (chat && chat.closedAt
+      && o.status !== STATUS.COMPLETED
+      && o.status !== STATUS.CANCELLED
+      && o.gwId) {
+    chat = null;
+  }
   const sendOpts = role === 'admin' ? { bypassDisputeLock: true } : undefined;
   if (!isOrderChatOpen(o, chat, sendOpts)) {
     I.toast({ text: orderChatLockReason(o, chat, sendOpts) || 'Order chat is not available.', tone: 'info' });

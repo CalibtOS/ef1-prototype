@@ -138,7 +138,7 @@ const RESOLUTION_PRECONDITIONS = {
   reject_extension:  (o) => o.status === 'extension_requested' || !!o.extensionPending,
   accept_delay:      (o) => o.status === 'delay_reported',
   propose_delay:     (o) => o.status === 'delay_reported',
-  close_dispute:     (o) => !!o.disputeOpen,
+  close_dispute:     (o) => isOrderDisputed(o),
   confirm_violation: (o) => o.status === 'ai_violation_review' || o.status === 'plagiarism_violation_review',
   clear_violation:   (o) => o.status === 'ai_violation_review' || o.status === 'plagiarism_violation_review',
 };
@@ -221,6 +221,59 @@ function isOrderDisputed(order) {
   // The derived predicate. Also honors the legacy boolean for seed data that
   // pre-dates the disputes[] array — keeps old fixtures rendering correctly.
   return !!order?.disputeOpen || openDisputes(order).length > 0;
+}
+
+// Per-kind revision round policy.
+//   - Interim revisions: max 3 rounds (across interim_1 + interim_2 cumulatively).
+//   - Final revisions:   max 3 rounds (customer + QA combined).
+// Hitting the cap forces the dispute/escalation fallback — see Annex A / P2.1
+// of docs/flows/dispute/dispute_flow_design_review.md.
+const MAX_REVISION_ROUNDS_PER_KIND = 3;
+
+// Which counter does a customer "request revision" target right now? Derived
+// from order.status because the status decides whether the open milestone is
+// an interim under review or a delivered final.
+function revisionKindForCustomerRequest(order) {
+  if (!order) return null;
+  if (order.status === 'delivered') return 'final';
+  if (order.status === 'under_customer_review' || order.status === 'interim_submitted') {
+    return order.pendingCustomerReviewKind || order.lastSubmittedInterimKind || order.lastSubmissionKind || 'interim_1';
+  }
+  return null;
+}
+
+// Returns the count of revision rounds already burned for the given kind.
+// 'final' / 'interim_1' / 'interim_2' all share the per-kind counters that
+// requestCustomerRevision / qaRequestRevision maintain.
+function revisionRoundsForKind(order, kind) {
+  if (!order || !kind) return 0;
+  if (kind === 'final') return order.finalRevisionRounds || 0;
+  // Interim 1 and interim 2 share `interimRevisionRounds` — the cap is for
+  // the interim phase as a whole, not per slot.
+  return order.interimRevisionRounds || 0;
+}
+
+// Single source of truth for "can another revision round be requested?".
+//   - Returns { ok: true } when the round is allowed.
+//   - Returns { ok: false, reason, escalationRecommended } otherwise.
+// Use in `requestCustomerRevision`, `qaRequestRevision`, and any UI gate that
+// shows / hides revision CTAs vs. the "open dispute" fallback.
+function canRequestRevision(order, kind /* optional */) {
+  if (!order) return { ok: false, reason: 'Order not found.' };
+  if (isOrderDisputed(order)) {
+    return { ok: false, reason: 'Dispute is open — admin must resolve before another revision.', escalationRecommended: false };
+  }
+  const targetKind = kind || revisionKindForCustomerRequest(order) || 'final';
+  const rounds = revisionRoundsForKind(order, targetKind);
+  if (rounds >= MAX_REVISION_ROUNDS_PER_KIND) {
+    const phaseLabel = targetKind === 'final' ? 'final' : 'interim';
+    return {
+      ok: false,
+      reason: `Max ${MAX_REVISION_ROUNDS_PER_KIND} ${phaseLabel} revision rounds reached. Open a dispute to escalate.`,
+      escalationRecommended: true,
+    };
+  }
+  return { ok: true };
 }
 
 // Per-kind revision round counter. Interim and Final revisions each have their
@@ -437,7 +490,10 @@ function releaseGates(order) {
   const gates = {
     customer_satisfied:      order.customerSatisfied === true,
     quality_approved:        order.qaPassed === true && !order.flagged && order.status !== 'ai_violation_review' && order.status !== 'plagiarism_violation_review',
-    revisions_complete:      !order.disputeOpen && order.status !== 'revision_required',
+    // Use the derived predicate, not the legacy boolean. A stale `disputeOpen=false`
+    // with a structured open dispute in `disputes[]` would otherwise let the
+    // Friday batch release payment despite an unresolved mediation.
+    revisions_complete:      !isOrderDisputed(order) && order.status !== 'revision_required',
     all_installments_paid:   allInstallmentsPaid(order),
     gw_invoice_received:     order.gwPaymentStatus === 'invoice_received' || order.gwPaymentStatus === 'paid',
   };
@@ -835,6 +891,10 @@ export {
   isInterimKind,
   isQaReviewKind,
   currentRevisionRound,
+  canRequestRevision,
+  revisionKindForCustomerRequest,
+  revisionRoundsForKind,
+  MAX_REVISION_ROUNDS_PER_KIND,
   disputes,
   openDisputes,
   currentOpenDispute,

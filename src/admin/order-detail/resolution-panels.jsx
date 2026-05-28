@@ -342,9 +342,14 @@ function DisputeResolutionPanel({ order, toast }) {
             ))}
           </div>
           {outcome === 'reassign_gw' && (
-            <label className="flex items-center gap-2 fs-12 mt-2" style={{ cursor: 'pointer' }}>
-              <input type="checkbox" checked={alsoBlockGw} onChange={e => setAlsoBlockGw(e.target.checked)}/>
-              <span>Also block {gw?.name || 'GW'}'s platform account (login disabled)</span>
+            <label className="flex-col gap-1 fs-12 mt-2" style={{ cursor: 'pointer' }}>
+              <span className="flex items-center gap-2">
+                <input type="checkbox" checked={alsoBlockGw} onChange={e => setAlsoBlockGw(e.target.checked)}/>
+                <span>Flag {gw?.name || 'GW'}'s account for review</span>
+              </span>
+              <span className="text-faint fs-11" style={{ marginLeft: 22 }}>
+                Records <code>accountBlockedAt</code> + reason on the GW for follow-up. (Prototype: login is not yet enforced.)
+              </span>
             </label>
           )}
           {outcome === 'cancel_refund' && (

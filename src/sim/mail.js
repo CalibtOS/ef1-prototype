@@ -620,7 +620,7 @@ function disputeOpenedCounterpartyNotify({ orderId, disputeId, openedBy, counter
   });
 }
 
-function disputeResolvedCustomerNotify({ orderId, disputeId, outcome, outcomeNote, customerEmail, customerName, scenarioId }) {
+function disputeResolvedCustomerNotify({ orderId, disputeId, outcome, outcomeNote, customerEmail, customerName, customerId, scenarioId }) {
   const outcomeLabel = {
     continue_revision: 'Bearbeitung läuft weiter',
     reassign_gw: 'Wir weisen Ihnen einen neuen Ghostwriter zu',
@@ -650,12 +650,15 @@ function disputeResolvedCustomerNotify({ orderId, disputeId, outcome, outcomeNot
     cta: { label: 'Auftrag öffnen', action: 'open_customer_order', orderId, tab: 'files' },
     kind: 'dispute_resolved_customer',
     orderId,
-    customerId: null,
+    // Scope to the affected customer so the demo inbox doesn't broadcast this
+    // resolution mail to every customer persona. listForRole filters on
+    // session.customerId === mail.customerId; null means "broadcast".
+    customerId: customerId || null,
     scenarioId,
   });
 }
 
-function disputeResolvedGwNotify({ orderId, disputeId, outcome, outcomeNote, gwEmail, gwName, scenarioId }) {
+function disputeResolvedGwNotify({ orderId, disputeId, outcome, outcomeNote, gwEmail, gwName, gwId, scenarioId }) {
   const outcomeLabel = {
     continue_revision: 'Continue revision',
     reassign_gw: 'Order reassigned to another GW',
@@ -685,7 +688,12 @@ function disputeResolvedGwNotify({ orderId, disputeId, outcome, outcomeNote, gwE
     cta: { label: 'Open order', action: 'open_gw_assignment', orderId },
     kind: 'dispute_resolved_gw',
     orderId,
+    // Scope to the affected GW. Reassignment is the critical case: by the time
+    // this mail goes out, order.gwId is null, so we rely on the explicit gwId
+    // passed in from the resolved-event payload (originalGwId captured in
+    // resolveDispute before side effects).
     customerId: null,
+    gwId: gwId || null,
     scenarioId,
   });
 }

@@ -35,7 +35,7 @@ function CustomerDetail({ customerId, navigate }) {
             <Avatar initials={c.initials} size={36} tone="blue"/>
             <span>{c.name}</span>
             {c.tags?.includes('VIP') && <span className="pill pill-yellow">VIP</span>}
-            {orders.some(o => o.disputeOpen) && <span className="pill pill-orange">Dispute open</span>}
+            {orders.some(o => W.isOrderDisputed(o)) && <span className="pill pill-orange">Dispute open</span>}
           </h1>
           <div className="page-subtitle"><span className="mono">{c.email}</span> · <span className="mono">{c.phone}</span> · {c.country} · lead via {c.leadSource}</div>
         </div>

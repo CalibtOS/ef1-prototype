@@ -503,6 +503,9 @@ DomainEvents.on('dispute.opened', (payload) => {
 
 DomainEvents.on('dispute.resolved', (payload) => {
   const { orderId, disputeId, outcome, outcomeNote, customerId, gwId, scenarioId } = payload;
+  // Use the customer/gw ids captured in actions.resolveDispute *before* outcome
+  // side effects ran — reassign clears order.gwId, so we cannot re-resolve
+  // these from the order at this point.
   const g = selectGw(gwId);
   const customerName = selectCustomerName(customerId);
   const cust = store.getState().entities.customers?.byId?.[customerId];
@@ -520,6 +523,7 @@ DomainEvents.on('dispute.resolved', (payload) => {
       outcomeNote,
       customerEmail: cust.email,
       customerName,
+      customerId,
       scenarioId,
     });
   }
@@ -531,6 +535,7 @@ DomainEvents.on('dispute.resolved', (payload) => {
       outcomeNote,
       gwEmail: g.email,
       gwName: g.name,
+      gwId,
       scenarioId,
     });
   }

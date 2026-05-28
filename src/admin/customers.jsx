@@ -20,7 +20,7 @@ function CustomersPage({ navigate }) {
   const customersWithStats = D.CUSTOMERS.map(c => {
     const orders = liveOrders.filter(o => o.customerId === c.id);
     const openBalance = orders.reduce((s, o) => s + (W.canShowReceivable(o) ? (o.outstandingEur || 0) : 0), 0);
-    const hasDispute = orders.some(o => o.disputeOpen);
+    const hasDispute = orders.some(o => W.isOrderDisputed(o));
     const lastOrder = orders.sort((a,b) => (b.acceptedAt||'').localeCompare(a.acceptedAt||''))[0];
     return { ...c, orderCount: orders.length, openBalance, hasDispute, lastOrderDate: lastOrder?.acceptedAt };
   });

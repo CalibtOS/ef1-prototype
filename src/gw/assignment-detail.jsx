@@ -353,7 +353,7 @@ function GWAssignmentDetail({ orderId, navigate, toast }) {
               {noteText}
             </div>
             <div className="flex gap-2 mt-3" style={{ flexWrap: 'wrap' }}>
-              <button className="btn btn-primary btn-sm" disabled={order.disputeOpen} title={order.disputeOpen ? 'Paused — dispute under review by efactory1' : undefined} onClick={() => {
+              <button className="btn btn-primary btn-sm" disabled={W.isOrderDisputed(order)} title={W.isOrderDisputed(order) ? 'Paused — dispute under review by efactory1' : undefined} onClick={() => {
                 // Route to the submit page using the kind the revision actually targets.
                 // For interim revisions we re-upload that interim (kind: 'interim_1' /
                 // 'interim_2'); for a final revision (customer- or QA-triggered) the
@@ -367,7 +367,7 @@ function GWAssignmentDetail({ orderId, navigate, toast }) {
               <button className="btn btn-sm" onClick={scrollToOrderChat}>
                 <Icon name="message-square" size={12}/> Reply to {replyTarget}
               </button>
-              {!fromQa && !order.disputeOpen && (
+              {!fromQa && !W.isOrderDisputed(order) && (
                 <button className="btn btn-sm" onClick={() => setDisputeOpen(true)}>
                   <Icon name="alert-triangle" size={12}/> Escalate dispute
                 </button>
@@ -416,7 +416,7 @@ function GWAssignmentDetail({ orderId, navigate, toast }) {
             // Soft-block: SOP D requires the GW introduction before any work goes to the customer.
             const introBlocks = !introDone;
             // Dispute freeze — GW production is paused while admin mediates.
-            const disputeBlocks = !!order.disputeOpen;
+            const disputeBlocks = !!W.isOrderDisputed(order);
             // Revision upload — the targeted kind comes from lastSubmissionKind.
             // If the customer requested a revision on an interim, the matching
             // interim slot reopens (not the final slot). Falls back to 'final'

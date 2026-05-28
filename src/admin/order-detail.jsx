@@ -102,7 +102,7 @@ function OrderDetail({ orderId, navigate, toast, initialTab, focusSubmissionId, 
   const _gates = D.releaseGates(order);
   const completedPaid = order.status === 'completed' && order.gwPaymentStatus === 'paid';
   const gateChecks = releaseGateRelevant ? [
-    { key: 'customer_satisfied',    label: 'Customer satisfied',                state: _gates.gates.customer_satisfied    ? 'pass' : (order.disputeOpen ? 'fail' : 'pending'), detail: order.disputeOpen ? 'Dispute open' : null },
+    { key: 'customer_satisfied',    label: 'Customer satisfied',                state: _gates.gates.customer_satisfied    ? 'pass' : (W.isOrderDisputed(order) ? 'fail' : 'pending'), detail: W.isOrderDisputed(order) ? 'Dispute open' : null },
     { key: 'quality_approved',      label: 'Quality approved (no plagiarism, no AI)', state: _gates.gates.quality_approved      ? 'pass' : (order.flagged ? 'fail' : 'pending') },
     { key: 'revisions_complete',    label: 'Revision rounds complete',          state: _gates.gates.revisions_complete    ? 'pass' : (order.status === 'revision_required' ? 'fail' : 'pending') },
     { key: 'all_installments_paid', label: 'All customer installments paid',    state: _gates.gates.all_installments_paid ? 'pass' : 'fail', detail: (order.outstandingEur || 0) > 0 ? `${order.installments?.filter(i=>i.status!=='paid').length||1} installment(s) outstanding — ${U.EUR(order.outstandingEur)}` : null },
@@ -157,7 +157,7 @@ function OrderDetail({ orderId, navigate, toast, initialTab, focusSubmissionId, 
             <span><Icon name="calendar" size={12} style={{ verticalAlign: 'text-bottom' }}/> Final deadline <span className="mono">{U.fmtDate(order.finalDeadline)}, 18:00</span></span>
             <span className={`pill pill-${dm.tone === 'danger' ? 'red' : dm.tone === 'warn' ? 'amber' : 'slate'}`}>{dm.label}</span>
             {showReceivable && order.outstandingEur > 0 && <span className="pill pill-amber">Outstanding {U.EUR(order.outstandingEur)} of {U.EUR(order.grossEur)}</span>}
-            {order.disputeOpen && <span className="pill pill-orange">Dispute open</span>}
+            {W.isOrderDisputed(order) && <span className="pill pill-orange">Dispute open</span>}
           </div>
         </div>
         <div className="page-actions">
@@ -262,7 +262,7 @@ function OrderDetail({ orderId, navigate, toast, initialTab, focusSubmissionId, 
         <DelayResolutionPanel order={order} toast={toast}/>
       )}
 
-      {order.disputeOpen && (
+      {W.isOrderDisputed(order) && (
         <DisputeResolutionPanel order={order} toast={toast}/>
       )}
 

@@ -82,7 +82,7 @@ function QAOrderDetail({ orderId, navigate, toast, initialTab }) {
           <div className="page-subtitle flex gap-3 items-center" style={{ marginTop: 6 }}>
             <span><Icon name="calendar" size={12} style={{ verticalAlign: 'text-bottom' }}/> Final deadline <span className="mono">{U.fmtDate(order.finalDeadline)}, 18:00</span></span>
             <span className={`pill pill-${dm.tone === 'danger' ? 'red' : dm.tone === 'warn' ? 'amber' : 'slate'}`}>{dm.label}</span>
-            {order.disputeOpen && <span className="pill pill-orange">Dispute open</span>}
+            {W.isOrderDisputed(order) && <span className="pill pill-orange">Dispute open</span>}
             {(order.finalRevisionRounds || 0) > 0 && <span className="pill pill-amber">Revision round {order.finalRevisionRounds}</span>}
           </div>
         </div>
@@ -166,7 +166,7 @@ function QAOrderDetail({ orderId, navigate, toast, initialTab }) {
               </div>
             </div>
 
-            {(order.disputeOpen || order.revisionRequestSource === 'qa') && (() => {
+            {(W.isOrderDisputed(order) || order.revisionRequestSource === 'qa') && (() => {
               const fromQa = order.revisionRequestSource === 'qa';
               const title = fromQa
                 ? `QA feedback (round ${W.currentRevisionRound(order) || 1})`
