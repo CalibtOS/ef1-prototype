@@ -41,6 +41,8 @@ const MAIL_TEMPLATES = {
   'payments.batch.released':          ['payoutReleasedGw', 'payoutBatchAdminNotify'],
   'payment.failed':                   ['paymentFailedRetryCustomer'],
   'payment.confirmed':                ['paymentReceiptCustomer', 'paymentReceivedAdminNotify'],
+  'chat.report_submitted':            ['chatReportAdminNotify'],
+  'chat.report_reviewed':             ['chatReportReviewedNotify'],
 };
 
 // Startup validation: every builder referenced in MAIL_TEMPLATES must exist
@@ -82,6 +84,16 @@ function selectCustomerEmail(customerId) {
 function selectCustomerName(customerId) {
   const c = store.getState().entities.customers?.byId?.[customerId];
   return c?.name || '';
+}
+
+function selectGwEmail(gwId) {
+  const g = store.getState().entities.ghostwriters?.byId?.[gwId];
+  return g?.email || '';
+}
+
+function selectGwName(gwId) {
+  const g = store.getState().entities.ghostwriters?.byId?.[gwId];
+  return g?.name || '';
 }
 
 DomainEvents.on('order.offer_sent', (payload) => {
@@ -769,5 +781,37 @@ DomainEvents.on('payment.failed', (payload) => {
     customerId,
     title: 'Zahlung fehlgeschlagen',
     body: `Auftrag #${orderId} · Bitte Zahlung erneut starten.`,
+  });
+});
+
+DomainEvents.on('chat.report_submitted', (payload) => {
+  const { reportId, orderId, reporterRole, reportedRole, count, reason, scenarioId } = payload;
+  sendMail('chat.report_submitted', 'chatReportAdminNotify', {
+    reportId,
+    orderId,
+    reporterRole,
+    reportedRole,
+    count,
+    reason,
+    scenarioId,
+  });
+});
+
+DomainEvents.on('chat.report_reviewed', (payload) => {
+  const { reportId, orderId, customerId, gwId, reporterRole, count, reviewNote, scenarioId } = payload;
+  const isCustomer = reporterRole === 'customer';
+  const reporterEmail = isCustomer ? selectCustomerEmail(customerId) : selectGwEmail(gwId);
+  const reporterName = isCustomer ? selectCustomerName(customerId) : selectGwName(gwId);
+  sendMail('chat.report_reviewed', 'chatReportReviewedNotify', {
+    reportId,
+    orderId,
+    customerId,
+    gwId,
+    reporterRole,
+    count,
+    reviewNote,
+    reporterEmail,
+    reporterName,
+    scenarioId,
   });
 });

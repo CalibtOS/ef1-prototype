@@ -8,6 +8,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Icon, StatusPill, Avatar, Money, Bi, ScoreBar, NotReady, PlannedTag, EmptyState, Skeleton, ChatNotice } from '../../utils.jsx';
 import { OrderChat } from '../shared/order-chat.jsx';
+import { useReportChat, ReportChatPanel } from '../components/ReportChatPanel.jsx';
 import * as U from '../../utils.jsx';
 import { CrumbBar } from '../../shell.jsx';
 import * as W from '../core/workflow.js';
@@ -169,6 +170,7 @@ function GWAssignmentDetail({ orderId, navigate, toast }) {
   const [outOfBandOpen, setOutOfBandOpen] = useState(false);
   const [disputeOpen, setDisputeOpen] = useState(false);
   const [focusChatComposer, setFocusChatComposer] = useState(false);
+  const report = useReportChat(orderId, toast);
   if (!order) return <div className="page">Assignment not found.</div>;
   // Ownership guard — a GW may only view assignments where they are the assigned writer
   // OR the order is on the public job board. Otherwise no leakage of customer/order data.
@@ -561,6 +563,10 @@ function GWAssignmentDetail({ orderId, navigate, toast }) {
                   toast={toast}
                   embedded
                   autoFocusComposer={focusChatComposer}
+                  reportMode={report.reportMode}
+                  selectedMessageIds={report.selectedIds}
+                  onToggleMessage={report.toggleMessage}
+                  reportTargetRole="customer"
                 />
               )}
             </div>
@@ -630,6 +636,14 @@ function GWAssignmentDetail({ orderId, navigate, toast }) {
                 <span className="fs-11 mono">200_Formulierungen.docx</span>
               </a>
               <button className="btn btn-sm mt-2" onClick={() => navigate('gw-templates')} style={{ justifyContent: 'center' }}>Open library →</button>
+            </div>
+          </div>
+
+          {/* Report customer message */}
+          <div className="card">
+            <div className="card-head"><div className="card-title">Support</div></div>
+            <div className="card-pad flex-col gap-2">
+              <ReportChatPanel reportState={report} lang="en"/>
             </div>
           </div>
 

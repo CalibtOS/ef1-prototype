@@ -11,6 +11,7 @@ import * as EFSelectors from '../core/selectors.js';
 import store from '../core/store.js';
 import EF from '../core/ef.js';
 import { OrderChat } from '../shared/order-chat.jsx';
+import { useReportChat, ReportChatPanel } from '../components/ReportChatPanel.jsx';
 
 const D = EF;
 
@@ -25,6 +26,47 @@ function orderChatSearchHaystack(entry, cust) {
     lastMsg?.body,
     lastMsg?.authorRole === 'gw' ? 'you' : lastMsg?.authorRole === 'admin' ? 'berat' : cust?.name?.split(/\s+/)[0],
   ].filter(Boolean).join(' ').toLowerCase();
+}
+
+// Renders the chat column + support sidebar as two separate grid items.
+// display:contents makes this wrapper transparent to the parent grid so both
+// children participate directly in the 3-column chat-app-grid.with-side layout.
+// Keyed by orderId so report state resets when switching between orders.
+function GWChatWithSidebar({ orderId, navigate, toast }) {
+  const report = useReportChat(orderId, toast);
+  return (
+    <div style={{ display: 'contents' }}>
+      <div className="chat-pane-right">
+        <OrderChat
+          orderId={orderId}
+          currentRole="gw"
+          toast={toast}
+          fillHeight
+          reportMode={report.reportMode}
+          selectedMessageIds={report.selectedIds}
+          onToggleMessage={report.toggleMessage}
+          reportTargetRole="customer"
+        />
+        <div className="chat-pane-footer">
+          <button
+            type="button"
+            className="btn btn-sm"
+            onClick={() => navigate('gw-assignment-detail', { id: orderId })}
+          >
+            <Icon name="external-link" size={12}/> Open assignment
+          </button>
+        </div>
+      </div>
+      <div className="flex-col gap-3" style={{ padding: 12, borderLeft: '1px solid var(--border)', overflowY: 'auto' }}>
+        <div className="card">
+          <div className="card-head"><div className="card-title">Support</div></div>
+          <div className="card-pad flex-col gap-2">
+            <ReportChatPanel reportState={report} lang="en"/>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 function GWMessages({ navigate, initialOrderId, toast }) {
@@ -100,7 +142,7 @@ function GWMessages({ navigate, initialOrderId, toast }) {
         Each order has one platform chat (you, the customer, Berat). You can also reply from the assignment page without leaving the job context.
       </ChatNotice>
 
-      <div className="chat-app-grid mt-3" style={{ height: 'calc(100vh - 240px)', minHeight: 560 }}>
+      <div className={`chat-app-grid mt-3${activeEntry ? ' with-side' : ''}`} style={{ height: 'calc(100vh - 240px)', minHeight: 560 }}>
         <div className="chat-shell">
           <div className="chat-header inbox-sidebar-head">
             <div className="chat-title" style={{ marginBottom: 2 }}>
@@ -182,18 +224,12 @@ function GWMessages({ navigate, initialOrderId, toast }) {
         </div>
 
         {activeEntry ? (
-          <div className="chat-pane-right">
-            <OrderChat orderId={activeEntry.order.id} currentRole="gw" toast={toast} fillHeight/>
-            <div className="chat-pane-footer">
-              <button
-                type="button"
-                className="btn btn-sm"
-                onClick={() => navigate('gw-assignment-detail', { id: activeEntry.order.id })}
-              >
-                <Icon name="external-link" size={12}/> Open assignment
-              </button>
-            </div>
-          </div>
+          <GWChatWithSidebar
+            key={activeEntry.order.id}
+            orderId={activeEntry.order.id}
+            navigate={navigate}
+            toast={toast}
+          />
         ) : (
           <div className="chat-shell chat-shell-soft chat-pane-empty">
             <EmptyState compact icon="message-square" title="Select a chat" body="Pick an order on the left, or open an assignment to chat in context."/>

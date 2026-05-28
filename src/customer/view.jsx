@@ -20,6 +20,8 @@ import { QA_STATUS } from '../core/status.js';
 import * as SimCheckout from '../sim/checkout.js';
 import { CheckoutModal } from './checkout-modal.jsx';
 import { OrderChat } from '../shared/order-chat.jsx';
+import { useReportChat, ReportChatPanel } from '../components/ReportChatPanel.jsx';
+import { MyReportsView } from '../components/MyReportsView.jsx';
 const D = EF;
 
 const CUST_PERSONA = (EFShell?.ROLES || []).find(r => r.id === 'customer') ||
@@ -150,6 +152,7 @@ function CustHeader({ tab, setTab, role, setRole, selectPersona, onOpenNotificat
     { id: 'invoices', label: 'Rechnungen', icon: 'file-text' },
     { id: 'downloads', label: 'Downloads', icon: 'download' },
     { id: 'profile', label: 'Profil', icon: 'user' },
+    { id: 'reports', label: 'Meine Meldungen', icon: 'flag' },
   ];
   return (
     <div style={{ background: 'var(--surface)', borderBottom: '1px solid var(--border)' }}>
@@ -621,41 +624,60 @@ function CustOrderStatus({ o, startCheckout }) {
 }
 
 function CustOrderChat({ o, toast }) {
+  const report = useReportChat(o.id, toast);
+
   return (
     <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 280px', gap: 12 }}>
-      <OrderChat orderId={o.id} currentRole="customer" toast={toast}/>
+      <OrderChat
+        orderId={o.id}
+        currentRole="customer"
+        toast={toast}
+        reportMode={report.reportMode}
+        selectedMessageIds={report.selectedIds}
+        onToggleMessage={report.toggleMessage}
+      />
 
       <div className="flex-col gap-3">
-        <div className="card">
-          <div className="card-head"><div className="card-title">Kontaktregeln</div></div>
-          <div className="card-pad flex-col gap-2">
-            <ChatNotice compact icon="clock">Antwortzeit: 24 Stunden</ChatNotice>
-            <ChatNotice compact icon="users">Berat (efactory1) ist Teilnehmer im Chat — er liest mit und kann jederzeit eingreifen.</ChatNotice>
-            <ChatNotice compact icon="mail">Allgemeine Fragen außerhalb des Auftrags gerne weiterhin per E-Mail an Berat.</ChatNotice>
+        {!report.reportMode && (
+          <div className="card">
+            <div className="card-head"><div className="card-title">Kontaktregeln</div></div>
+            <div className="card-pad flex-col gap-2">
+              <ChatNotice compact icon="clock">Antwortzeit: 24 Stunden</ChatNotice>
+              <ChatNotice compact icon="users">Berat (efactory1) ist Teilnehmer im Chat — er liest mit und kann jederzeit eingreifen.</ChatNotice>
+              <ChatNotice compact icon="mail">Allgemeine Fragen außerhalb des Auftrags gerne weiterhin per E-Mail an Berat.</ChatNotice>
+            </div>
           </div>
-        </div>
+        )}
 
         <div className="card">
           <div className="card-head"><div className="card-title">Support</div></div>
           <div className="card-pad flex-col gap-2">
-            <NotReady className="btn btn-sm" feature="request-callback" style={{ justifyContent: 'flex-start' }}><Icon name="phone" size={12}/> Rückruf anfordern</NotReady>
-            <a className="btn btn-sm" href="mailto:kundenservice@efactory1.de" style={{ justifyContent: 'flex-start', textDecoration: 'none' }}><Icon name="mail" size={12}/> kundenservice@efactory1.de</a>
-            <a className="btn btn-sm" href="tel:+498001234567" style={{ justifyContent: 'flex-start', textDecoration: 'none' }}><Icon name="phone" size={12}/> +49 800 123 4567</a>
-            {['interim_submitted','under_customer_review','revision_required','on_hold','delay_reported'].includes(o.status) && (
-              <NotReady className="btn btn-sm btn-ghost" feature="report-dispute" style={{ justifyContent: 'flex-start', fontSize: 11.5, color: 'var(--text-3)' }}>
-                <Icon name="alert-triangle" size={11}/> Problem eskalieren
-              </NotReady>
+            {!report.reportMode && (
+              <>
+                <NotReady className="btn btn-sm" feature="request-callback" style={{ justifyContent: 'flex-start' }}><Icon name="phone" size={12}/> Rückruf anfordern</NotReady>
+                <a className="btn btn-sm" href="mailto:kundenservice@efactory1.de" style={{ justifyContent: 'flex-start', textDecoration: 'none' }}><Icon name="mail" size={12}/> kundenservice@efactory1.de</a>
+                <a className="btn btn-sm" href="tel:+498001234567" style={{ justifyContent: 'flex-start', textDecoration: 'none' }}><Icon name="phone" size={12}/> +49 800 123 4567</a>
+                {['interim_submitted','under_customer_review','revision_required','on_hold','delay_reported'].includes(o.status) && (
+                  <NotReady className="btn btn-sm btn-ghost" feature="report-dispute" style={{ justifyContent: 'flex-start', fontSize: 11.5, color: 'var(--text-3)' }}>
+                    <Icon name="alert-triangle" size={11}/> Problem eskalieren
+                  </NotReady>
+                )}
+                <hr style={{ margin: '2px 0', border: 'none', borderTop: '1px solid var(--border)' }}/>
+              </>
             )}
+            <ReportChatPanel reportState={report} lang="de"/>
           </div>
         </div>
 
-        <div className="banner info cust-chat-admin-hint">
-          <Icon name="info" size={14} aria-hidden="true"/>
-          <span>
-            Es gibt zwei Wege, mit Berat zu sprechen: Erwähnen Sie ihn direkt im Chat mit <strong>@Berat</strong>.
-            Wenn er nicht antwortet, erreichen Sie uns über die E-Mail und Telefonnummer oben.
-          </span>
-        </div>
+        {!report.reportMode && (
+          <div className="banner info cust-chat-admin-hint">
+            <Icon name="info" size={14} aria-hidden="true"/>
+            <span>
+              Es gibt zwei Wege, mit Berat zu sprechen: Erwähnen Sie ihn direkt im Chat mit <strong>@Berat</strong>.
+              Wenn er nicht antwortet, erreichen Sie uns über die E-Mail und Telefonnummer oben.
+            </span>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -1660,7 +1682,7 @@ function CustomerView({ role, setRole, selectPersona, toast, section, navigate, 
 
   // Map internal tab IDs to the shell route names so inner-tab clicks update the URL
   // and the sidebar highlight at the same time (no more divergent navigation state).
-  const ROUTE_FOR_TAB = { orders: 'cust-orders', messages: 'cust-messages', invoices: 'cust-invoices', downloads: 'cust-downloads', profile: 'cust-profile' };
+  const ROUTE_FOR_TAB = { orders: 'cust-orders', messages: 'cust-messages', invoices: 'cust-invoices', downloads: 'cust-downloads', profile: 'cust-profile', reports: 'cust-reports' };
   const switchTab = (t) => {
     if (navigate && ROUTE_FOR_TAB[t]) navigate(ROUTE_FOR_TAB[t]);
   };
@@ -1684,6 +1706,15 @@ function CustomerView({ role, setRole, selectPersona, toast, section, navigate, 
     body = <CustDownloads toast={toast}/>;
   } else if (tab === 'profile') {
     body = <CustProfile toast={toast}/>;
+  } else if (tab === 'reports') {
+    const cid = activeCustomer().id;
+    body = (
+      <div style={{ paddingTop: 24 }}>
+        <h2 style={{ fontSize: 20, fontWeight: 700, marginBottom: 4 }}>Meine Meldungen</h2>
+        <p className="text-muted fs-13" style={{ marginBottom: 20 }}>Ihre gemeldeten Chatnachrichten und der aktuelle Bearbeitungsstatus</p>
+        <MyReportsView lang="de" userId={cid} reporterRole="customer"/>
+      </div>
+    );
   } else {
     body = <CustOrdersList openOrder={openOrder} startCheckout={startCheckout} goTo={goTo}/>;
   }

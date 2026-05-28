@@ -562,6 +562,7 @@ function hydrate() {
     inbox_internal_notes: normalize(buildInboxInternalNotes()),
     order_chats: normalize(buildOrderChats()),
     notifications: normalize(roleSeedNotifications()),
+    chat_reports: normalize([]),
     sim_events: normalize([]),
     emails: normalize([]),
     tokens: normalize([]),
