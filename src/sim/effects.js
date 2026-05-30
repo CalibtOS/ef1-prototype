@@ -25,15 +25,23 @@ const MAIL_TEMPLATES = {
   'order.offer_accepted':             ['invoiceEmailCustomer'],
   'order.assignment.posted_to_board': ['gwJobAvailableToGw'],
   'gw.application.created':           ['gwApplicationAdminNotify'],
-  'order.assignment.approved':        ['gwAssignedToGw', 'gwApplicationRejected'],
+  // The approved GW's assignment email rides on `order.gw_assigned` (emitted by
+  // assignGw, which approveApplication calls). This event only fans out the
+  // rejection emails to the non-approved applicants.
+  'order.assignment.approved':        ['gwApplicationRejected'],
   'order.assignment.board_cancelled': ['gwApplicationRejected'],
   'order.gw_assigned':                ['gwAssignedToGw', 'gwAssignedToCustomer'],
   'gw.first_contact_sent':            ['firstContactSentToCustomer'],
   'customer.interim.approved':        ['interimApprovedGwNotify'],
   'customer.revision.requested':      ['revisionRequestedGwNotify', 'revisionRequestedAdminNotify'],
   'qa.revision.requested':            ['qaRevisionRequestedGwNotify', 'qaRevisionRequestedAdminNotify'],
+  'qa.clarification.requested':       ['qaClarificationGwNotify'],
   'dispute.opened':                   ['disputeOpenedAdminNotify', 'disputeOpenedCounterpartyNotify'],
   'dispute.resolved':                 ['disputeResolvedCustomerNotify', 'disputeResolvedGwNotify'],
+  'order.extension.approval_requested': ['extensionApprovalRequestCustomer'],
+  'order.extension.invoice_issued':   ['extensionInvoiceCustomer'],
+  'order.extension.applied':          ['extensionAppliedCustomer', 'extensionAppliedGw'],
+  'order.extension.declined':         ['extensionDeclinedGw'],
   'gw.submission.interim':            ['interimSubmittedCustomerNotify', 'interimSubmittedAdminNotify'],
   'gw.submission.final':              ['finalSubmittedAdminNotify'],
   'customer.final.accepted':          ['finalAcceptedAdminNotify'],
@@ -241,7 +249,8 @@ function selectGw(gwId) {
 
 function eligibleGws() {
   const t = store.getState().entities.ghostwriters;
-  return (t?.allIds || []).map(id => t.byId[id]).filter(g => g && !g.banned);
+  // Exclude shadow-banned (no job alerts) AND account-blocked (no access) GWs.
+  return (t?.allIds || []).map(id => t.byId[id]).filter(g => g && !g.banned && !g.accountBlockedAt);
 }
 
 DomainEvents.on('order.assignment.posted_to_board', (payload) => {
@@ -458,6 +467,23 @@ DomainEvents.on('qa.revision.requested', (payload) => {
   });
 });
 
+// QA → GW clarification (audit A-19): GW-only Demo Inbox email with a CTA to the
+// assignment. The in-app bells are already fired in core/actions.js.
+DomainEvents.on('qa.clarification.requested', (payload) => {
+  const { orderId, submissionId, gwId, note, scenarioId } = payload;
+  const g = selectGw(gwId);
+  if (!g?.email) return;
+  sendMail('qa.clarification.requested', 'qaClarificationGwNotify', {
+    orderId,
+    submissionId,
+    gwId,
+    gwEmail: g.email,
+    gwName: g.name,
+    note,
+    scenarioId,
+  });
+});
+
 DomainEvents.on('dispute.opened', (payload) => {
   const { orderId, disputeId, openedBy, customerId, gwId, scenarioId, reasonCategory, reason } = payload;
   const g = selectGw(gwId);
@@ -539,6 +565,87 @@ DomainEvents.on('dispute.resolved', (payload) => {
       scenarioId,
     });
   }
+});
+
+// Extension / scope-amendment customer-approval flow (audit A-03). Mirror the
+// dispute.resolved listener: resolve recipient email/name from the ids captured
+// in the action payload, then route the milestone mail through sendMail so the
+// MAIL_TEMPLATES manifest validates it. The in-app bell is already pinged by
+// core/actions.js — these add the Demo Inbox email with a deep-link CTA.
+DomainEvents.on('order.extension.approval_requested', (payload) => {
+  const { orderId, customerId, source, extraPages, extraFee, newDeadline, description, scenarioId } = payload;
+  const cust = store.getState().entities.customers?.byId?.[customerId];
+  if (!cust?.email) return;
+  sendMail('order.extension.approval_requested', 'extensionApprovalRequestCustomer', {
+    orderId,
+    customerId,
+    customerEmail: cust.email,
+    customerName: cust.name || '',
+    source,
+    extraPages,
+    extraFee,
+    newDeadline,
+    description,
+    scenarioId,
+  });
+});
+
+DomainEvents.on('order.extension.invoice_issued', (payload) => {
+  const { orderId, customerId, invoiceNo, extraFee, scenarioId } = payload;
+  const cust = store.getState().entities.customers?.byId?.[customerId];
+  if (!cust?.email) return;
+  sendMail('order.extension.invoice_issued', 'extensionInvoiceCustomer', {
+    orderId,
+    customerId,
+    customerEmail: cust.email,
+    customerName: cust.name || '',
+    invoiceNo,
+    extraFee,
+    scenarioId,
+  });
+});
+
+DomainEvents.on('order.extension.applied', (payload) => {
+  const { orderId, customerId, gwId, extraPages, extraFee, newDeadline, scenarioId } = payload;
+  const cust = store.getState().entities.customers?.byId?.[customerId];
+  const g = selectGw(gwId);
+  if (cust?.email) {
+    sendMail('order.extension.applied', 'extensionAppliedCustomer', {
+      orderId,
+      customerId,
+      customerEmail: cust.email,
+      customerName: cust.name || '',
+      extraPages,
+      extraFee,
+      newDeadline,
+      scenarioId,
+    });
+  }
+  if (g?.email) {
+    sendMail('order.extension.applied', 'extensionAppliedGw', {
+      orderId,
+      gwId,
+      gwEmail: g.email,
+      gwName: g.name,
+      extraPages,
+      newDeadline,
+      scenarioId,
+    });
+  }
+});
+
+DomainEvents.on('order.extension.declined', (payload) => {
+  const { orderId, gwId, reason, scenarioId } = payload;
+  const g = selectGw(gwId);
+  if (!g?.email) return;
+  sendMail('order.extension.declined', 'extensionDeclinedGw', {
+    orderId,
+    gwId,
+    gwEmail: g.email,
+    gwName: g.name,
+    reason,
+    scenarioId,
+  });
 });
 
 DomainEvents.on('customer.interim.approved', (payload) => {

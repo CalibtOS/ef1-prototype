@@ -546,6 +546,35 @@ function qaRevisionRequestedAdminNotify({ orderId, submissionId, customerId, cus
   });
 }
 
+// QA → GW clarification (audit A-19). NOT a rejection: QA needs an answer before
+// signing off, the work stays in review. GW-scoped (never the customer). CTA
+// opens the GW assignment.
+function qaClarificationGwNotify({ orderId, submissionId, gwId, gwEmail, gwName, note, scenarioId }) {
+  return createEmail({
+    to: gwEmail,
+    toRole: 'gw',
+    from: 'qa@efactory1.de',
+    subject: `Clarification needed before QA sign-off · Order #${orderId}`,
+    bodyMd: [
+      `Hi ${gwName || ''},`,
+      ``,
+      `Our QA reviewer needs a quick clarification on your submission for order #${orderId} before the review can be completed. Your work is **not** rejected — we just need an answer to proceed.`,
+      ``,
+      note ? `**QA's question:**` : null,
+      note ? `> ${note}` : null,
+      ``,
+      `Please reply with the clarification (or re-upload if you decide a change is warranted).`,
+    ].filter(v => v !== null).join('\n'),
+    cta: { label: 'Open assignment', action: 'open_gw_assignment', orderId },
+    kind: 'qa_clarification_gw',
+    orderId,
+    submissionId,
+    customerId: null,
+    gwId: gwId || null,
+    scenarioId,
+  });
+}
+
 function disputeOpenedAdminNotify({ orderId, disputeId, openedBy, customerId, customerName, gwId, gwName, reasonCategory, reason, scenarioId }) {
   const openerLabel = openedBy === 'gw' ? `${gwName || 'The ghostwriter'} (GW)` : `${customerName || 'The customer'} (customer)`;
   const categoryLabel = (reasonCategory || 'other').replace(/_/g, ' ');
@@ -645,9 +674,16 @@ function disputeResolvedCustomerNotify({ orderId, disputeId, outcome, outcomeNot
       outcome === 'continue_revision' ? `Der Plattform-Chat ist wieder freigegeben. Ihr Ghostwriter arbeitet an Ihrer Überarbeitung weiter.` : null,
       outcome === 'cancel_refund' ? `Die Erstattung wird über Sevdesk angestoßen — Sie erhalten eine separate Bestätigung.` : null,
       outcome === 'reassign_gw' ? `Wir suchen kurzfristig einen neuen Ghostwriter und melden uns mit der Zuweisung.` : null,
-      outcome === 'scope_amendment' ? `Der angepasste Umfang inkl. ggf. zusätzlicher Kosten und neuer Frist wurde übernommen.` : null,
+      outcome === 'scope_amendment' ? `Bitte geben Sie die vorgeschlagene Umfangsanpassung in Ihrem Auftrag frei und begleichen Sie ggf. die Erweiterungsrechnung — erst danach wird der neue Umfang (Seiten, Frist, Preis) aktiv.` : null,
     ].filter(v => v !== null).join('\n'),
-    cta: { label: 'Auftrag öffnen', action: 'open_customer_order', orderId, tab: 'files' },
+    // A scope amendment parks the order in extension_customer_approval_pending —
+    // the approve/pay panel lives on the customer order's STATUS tab, so route
+    // there. Other outcomes deep-link to files (delivery/refund evidence).
+    cta: {
+      label: outcome === 'scope_amendment' ? 'Anpassung freigeben' : 'Auftrag öffnen',
+      action: 'open_customer_order', orderId,
+      tab: outcome === 'scope_amendment' ? 'status' : 'files',
+    },
     kind: 'dispute_resolved_customer',
     orderId,
     // Scope to the affected customer so the demo inbox doesn't broadcast this
@@ -683,7 +719,7 @@ function disputeResolvedGwNotify({ orderId, disputeId, outcome, outcomeNote, gwE
       outcome === 'continue_revision' ? `Platform chat is unlocked. Please continue with the revision as originally requested.` : null,
       outcome === 'reassign_gw' ? `This assignment has been ended. Honorarium does not apply (Werkvertrag). Other orders are unaffected.` : null,
       outcome === 'cancel_refund' ? `The order was cancelled. No honorarium for unfinished work (Werkvertrag).` : null,
-      outcome === 'scope_amendment' ? `Scope has been updated — check the order detail for the new deadline and any extra-fee adjustment.` : null,
+      outcome === 'scope_amendment' ? `A scope amendment was proposed. Do not start the extra work yet — it applies only once the customer approves and pays the extension invoice.` : null,
     ].filter(v => v !== null).join('\n'),
     cta: { label: 'Open order', action: 'open_gw_assignment', orderId },
     kind: 'dispute_resolved_gw',
@@ -692,6 +728,159 @@ function disputeResolvedGwNotify({ orderId, disputeId, outcome, outcomeNote, gwE
     // this mail goes out, order.gwId is null, so we rely on the explicit gwId
     // passed in from the resolved-event payload (originalGwId captured in
     // resolveDispute before side effects).
+    customerId: null,
+    gwId: gwId || null,
+    scenarioId,
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Extension / scope-amendment customer-approval flow (audit A-03).
+// The core gate parks the order in extension_customer_approval_pending and
+// pings the in-app bell. These builders give the same milestones a Demo Inbox
+// email with a CTA that deep-links to the customer order STATUS tab, where the
+// CustExtensionApproval approve/pay/decline panel lives. Without them the
+// customer would have to notice a bell to act on a scope change they must
+// approve and pay — every other customer-money milestone arrives by email.
+// ---------------------------------------------------------------------------
+
+function extensionScopeLines(extraPages, extraFee, newDeadline) {
+  const money = (n) => `${Number(n || 0).toLocaleString('de-DE', { minimumFractionDigits: 2 })} €`;
+  const ddl = newDeadline ? String(newDeadline).slice(0, 10) : null;
+  return [
+    extraPages > 0 ? `**Zusätzliche Seiten:** +${extraPages}` : null,
+    `**Mehrkosten:** ${extraFee > 0 ? money(extraFee) : 'keine'}`,
+    ddl ? `**Neuer Liefertermin:** ${ddl}` : null,
+  ].filter(Boolean);
+}
+
+// Admin approved a scope change — customer must approve (and pay any fee) before
+// pages/price/deadline move. Reused for the dedicated extension path; the
+// dispute scope-amendment path is covered by disputeResolvedCustomerNotify.
+function extensionApprovalRequestCustomer({ orderId, customerId, customerEmail, customerName, source, extraPages, extraFee, newDeadline, description, scenarioId }) {
+  const fee = Number(extraFee) || 0;
+  const fromDispute = source === 'dispute_scope_amendment';
+  return createEmail({
+    to: customerEmail,
+    toRole: 'customer',
+    from: 'kundenservice@efactory1.de',
+    subject: `Umfangserweiterung — Ihre Freigabe nötig · Auftrag #${orderId}`,
+    bodyMd: [
+      `Hallo ${customerName || ''},`,
+      ``,
+      fromDispute
+        ? `im Rahmen der Streitfall-Lösung schlägt efactory1 eine Umfangsanpassung für Auftrag #${orderId} vor:`
+        : `efactory1 schlägt eine Umfangserweiterung für Auftrag #${orderId} vor:`,
+      ``,
+      ...extensionScopeLines(extraPages, fee, newDeadline),
+      description ? `` : null,
+      description ? `> ${description}` : null,
+      ``,
+      `Wichtig: Umfang, Preis und Liefertermin bleiben unverändert, bis Sie zustimmen${fee > 0 ? ' und die Erweiterungsrechnung bezahlen' : ''}. Ihr Ghostwriter beginnt erst danach mit der Mehrleistung.`,
+    ].filter(v => v !== null).join('\n'),
+    cta: { label: fee > 0 ? 'Prüfen & freigeben' : 'Erweiterung freigeben', action: 'open_customer_order', orderId, tab: 'status', customerId },
+    kind: 'extension_approval_request',
+    orderId,
+    customerId: customerId || null,
+    scenarioId,
+  });
+}
+
+// Customer approved a fee-bearing scope change — the extension invoice (a new
+// installment) was issued. Pay to activate the extended scope.
+function extensionInvoiceCustomer({ orderId, customerId, customerEmail, customerName, invoiceNo, extraFee, scenarioId }) {
+  const money = (n) => `${Number(n || 0).toLocaleString('de-DE', { minimumFractionDigits: 2 })} €`;
+  return createEmail({
+    to: customerEmail,
+    toRole: 'customer',
+    from: 'kundenservice@efactory1.de',
+    subject: `Erweiterungsrechnung ${invoiceNo || ''} · Auftrag #${orderId}`,
+    bodyMd: [
+      `Hallo ${customerName || ''},`,
+      ``,
+      `vielen Dank für Ihre Freigabe. Für die vereinbarte Umfangserweiterung zu Auftrag #${orderId} haben wir folgende Rechnung erstellt:`,
+      ``,
+      invoiceNo ? `**Rechnungs-Nr.:** ${invoiceNo}` : null,
+      `**Betrag:** ${money(extraFee)}`,
+      ``,
+      `Sobald die Zahlung eingegangen ist, wird der erweiterte Umfang aktiv und Ihr Ghostwriter setzt die Mehrleistung um.`,
+    ].filter(v => v !== null).join('\n'),
+    cta: { label: 'Erweiterungsrechnung bezahlen', action: 'open_customer_order', orderId, tab: 'status', customerId },
+    kind: 'extension_invoice',
+    orderId,
+    customerId: customerId || null,
+    scenarioId,
+  });
+}
+
+// Scope change is live — customer confirmation.
+function extensionAppliedCustomer({ orderId, customerId, customerEmail, customerName, extraPages, extraFee, newDeadline, scenarioId }) {
+  const ddl = newDeadline ? String(newDeadline).slice(0, 10) : null;
+  return createEmail({
+    to: customerEmail,
+    toRole: 'customer',
+    from: 'kundenservice@efactory1.de',
+    subject: `Erweiterung bestätigt · Auftrag #${orderId}`,
+    bodyMd: [
+      `Hallo ${customerName || ''},`,
+      ``,
+      `der erweiterte Umfang für Auftrag #${orderId} ist jetzt aktiv.`,
+      ``,
+      ...extensionScopeLines(Number(extraPages) || 0, Number(extraFee) || 0, newDeadline),
+      ``,
+      ddl ? `Ihr Ghostwriter arbeitet bis zum neuen Liefertermin ${ddl} an Ihrem Auftrag weiter.` : `Ihr Ghostwriter setzt die Mehrleistung nun um.`,
+    ].filter(v => v !== null).join('\n'),
+    cta: { label: 'Auftrag öffnen', action: 'open_customer_order', orderId, tab: 'status', customerId },
+    kind: 'extension_applied_customer',
+    orderId,
+    customerId: customerId || null,
+    scenarioId,
+  });
+}
+
+// Scope change is live — GW may now start the extra work.
+function extensionAppliedGw({ orderId, gwId, gwEmail, gwName, extraPages, newDeadline, scenarioId }) {
+  const ddl = newDeadline ? String(newDeadline).slice(0, 10) : null;
+  return createEmail({
+    to: gwEmail,
+    toRole: 'gw',
+    from: 'kundenservice@efactory1.de',
+    subject: `Scope change confirmed · Order #${orderId} — you may proceed`,
+    bodyMd: [
+      `Hi ${gwName || ''},`,
+      ``,
+      `the customer approved${extraPages > 0 ? ` and the +${extraPages} page` : ''} scope change on order #${orderId}, and any extension invoice is paid.`,
+      ``,
+      ddl ? `**New deadline:** ${ddl}` : null,
+      ``,
+      `You may now start the additional work.`,
+    ].filter(v => v !== null).join('\n'),
+    cta: { label: 'Open assignment', action: 'open_gw_assignment', orderId },
+    kind: 'extension_applied_gw',
+    orderId,
+    customerId: null,
+    gwId: gwId || null,
+    scenarioId,
+  });
+}
+
+// Customer declined the staged scope change — GW continues with original scope.
+function extensionDeclinedGw({ orderId, gwId, gwEmail, gwName, reason, scenarioId }) {
+  return createEmail({
+    to: gwEmail,
+    toRole: 'gw',
+    from: 'kundenservice@efactory1.de',
+    subject: `Scope change declined · Order #${orderId}`,
+    bodyMd: [
+      `Hi ${gwName || ''},`,
+      ``,
+      `the customer declined the proposed scope change on order #${orderId}. Please continue with the original scope, deadline and page count.`,
+      reason ? `` : null,
+      reason ? `**Customer note:** ${reason}` : null,
+    ].filter(v => v !== null).join('\n'),
+    cta: { label: 'Open assignment', action: 'open_gw_assignment', orderId },
+    kind: 'extension_declined_gw',
+    orderId,
     customerId: null,
     gwId: gwId || null,
     scenarioId,
@@ -1063,10 +1252,16 @@ export {
   revisionRequestedAdminNotify,
   qaRevisionRequestedGwNotify,
   qaRevisionRequestedAdminNotify,
+  qaClarificationGwNotify,
   disputeOpenedAdminNotify,
   disputeOpenedCounterpartyNotify,
   disputeResolvedCustomerNotify,
   disputeResolvedGwNotify,
+  extensionApprovalRequestCustomer,
+  extensionInvoiceCustomer,
+  extensionAppliedCustomer,
+  extensionAppliedGw,
+  extensionDeclinedGw,
   payoutReleasedGw,
   payoutBatchAdminNotify,
   chatReportAdminNotify,

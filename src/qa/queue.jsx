@@ -8,6 +8,7 @@ import { Icon, StatusPill, Avatar, Money, Bi, ScoreBar, NotReady, PlannedTag, Em
 import * as U from '../../utils.jsx';
 import { CrumbBar } from '../../shell.jsx';
 import * as EFHooks from '../core/hooks.js';
+import * as W from '../core/workflow.js';
 import EFActions from '../core/actions.js';
 import EF from '../core/ef.js';
 const D = EF;
@@ -376,9 +377,12 @@ function QAQueue({ navigate, toast, initialOrderId }) {
   const [aiOpen, setAiOpen] = useState(false);
   const [revisionNote, setRevisionNote] = useState('');
   const canSubmitRevision = revisionNote.trim().length >= 10;
+  const [clarifyOpen, setClarifyOpen] = useState(false);
+  const [clarifyNote, setClarifyNote] = useState('');
+  const canSubmitClarify = clarifyNote.trim().length >= 10;
 
   // Reset detail panels when switching submissions
-  useEffect(() => { setPreviewOpen(false); setCompareOpen(false); setPlagOpen(false); setAiOpen(false); setVerdict(null); setRevisionNote(''); }, [active?.id]);
+  useEffect(() => { setPreviewOpen(false); setCompareOpen(false); setPlagOpen(false); setAiOpen(false); setVerdict(null); setRevisionNote(''); setClarifyOpen(false); setClarifyNote(''); }, [active?.id]);
 
   const decide = (kind) => {
     // Per PRD `qa.permissions = review/approve/reject + orders.read`: QA may FLAG quality
@@ -539,9 +543,9 @@ function QAQueue({ navigate, toast, initialOrderId }) {
                   <Icon name="check-circle" size={14}/> Pass · forward to customer
                 </button>
                 <button type="button" className={`btn ${verdict==='request_revision'?'btn-primary':''}`} onClick={() => decide('request_revision')}>
-                  <Icon name="alert-triangle" size={14}/> {verdict === 'request_revision' ? `Send revision request (round ${(order.finalRevisionRounds || 0) + 1})` : `Request revision (round ${(order.finalRevisionRounds || 0) + 1})`}
+                  <Icon name="alert-triangle" size={14}/> {verdict === 'request_revision' ? `Send revision request (round ${W.revisionRoundsForKind(order, 'final') + 1})` : `Request revision (round ${W.revisionRoundsForKind(order, 'final') + 1})`}
                 </button>
-                <button type="button" className="btn" onClick={() => toast({ text: `Clarification request sent to ${gw?.name}`, tone: 'info' })}>
+                <button type="button" className={`btn ${clarifyOpen ? 'btn-primary' : ''}`} onClick={() => setClarifyOpen(o => !o)}>
                   <Icon name="message-square" size={14}/> Send to GW for clarification
                 </button>
                 <button type="button" className={`btn ${verdict==='flag_plagiarism'?'btn-danger':''}`} style={ verdict !== 'flag_plagiarism' ? { background: 'color-mix(in oklab, var(--red) 8%, var(--surface))', borderColor: 'color-mix(in oklab, var(--red) 25%, var(--border))', color: 'var(--red)' } : {}} onClick={() => decide('flag_plagiarism')}>
@@ -567,7 +571,31 @@ function QAQueue({ navigate, toast, initialOrderId }) {
                   <div className="flex gap-2 mt-2">
                     <button type="button" className="btn btn-sm" onClick={() => { setVerdict(null); setRevisionNote(''); }}>Cancel</button>
                     <button type="button" className="btn btn-sm btn-primary" disabled={!canSubmitRevision} onClick={() => decide('request_revision')}>
-                      <Icon name="send" size={12}/> Send revision request (round {(order.finalRevisionRounds || 0) + 1})
+                      <Icon name="send" size={12}/> Send revision request (round {W.revisionRoundsForKind(order, 'final') + 1})
+                    </button>
+                  </div>
+                </div>
+              )}
+              {clarifyOpen && (
+                <div className="card-pad" style={{ borderTop: '1px solid var(--border)' }}>
+                  <div className="banner info mb-2" style={{ fontSize: 12 }}>
+                    <Icon name="message-square" size={14}/>
+                    <span>Ask the GW a question before you decide — this is <strong>not</strong> a revision. The submission stays in QA, the note is saved on it, and the GW gets a notification + Demo Inbox email. The customer is not involved. Min. 10 characters.</span>
+                  </div>
+                  <label className="fs-11 text-muted mb-1" style={{ display: 'block' }}>Clarification question for {gw?.name || 'the ghostwriter'}:</label>
+                  <textarea
+                    style={{ width: '100%', minHeight: 90, resize: 'vertical', padding: 10, fontSize: 13, border: `1px solid ${canSubmitClarify ? 'var(--border)' : 'var(--amber)'}`, borderRadius: 8, background: 'var(--surface)', color: 'var(--text)', fontFamily: 'inherit', boxSizing: 'border-box' }}
+                    placeholder="e.g. Which edition of the APA manual did you cite in §2? The reference list mixes 6th and 7th edition formatting — confirm before I sign off."
+                    value={clarifyNote}
+                    onChange={(e) => setClarifyNote(e.target.value)}
+                  />
+                  <div className="flex gap-2 mt-2">
+                    <button type="button" className="btn btn-sm" onClick={() => { setClarifyOpen(false); setClarifyNote(''); }}>Cancel</button>
+                    <button type="button" className="btn btn-sm btn-primary" disabled={!canSubmitClarify} onClick={() => {
+                      const ok = EFActions.qa.requestClarification(active.id, clarifyNote);
+                      if (ok) { toast({ tone: 'info', text: `Clarification sent to ${gw?.name || 'the ghostwriter'} · saved on submission + email sent` }); setClarifyOpen(false); setClarifyNote(''); }
+                    }}>
+                      <Icon name="send" size={12}/> Send clarification request
                     </button>
                   </div>
                 </div>

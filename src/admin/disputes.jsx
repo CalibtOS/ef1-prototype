@@ -51,7 +51,7 @@ function DisputesPage({ navigate }) {
         summary: `${o.status === 'plagiarism_violation_review' ? 'Plagiarism' : `AI score ${sub?.aiScore || '—'}%`} — QA flag routed to admin decision`,
         daysOpen: 1,
       });
-    } else if (o.status === 'revision_required' && !o.disputeOpen) {
+    } else if (o.status === 'revision_required' && !W.isOrderDisputed(o)) {
       const round = W.currentRevisionRound(o) || 1;
       const phase = o.revisionTargetKind === 'final' ? 'final' : 'interim';
       const raisedBy = o.revisionRequestSource === 'qa' ? 'qa' : 'customer';
@@ -64,19 +64,6 @@ function DisputesPage({ navigate }) {
         status: 'revision_in_progress',
         summary: `Revision requested — ${phase} round ${round}`,
         daysOpen: 3,
-      });
-    } else if (o.disputeOpen && !open) {
-      // Legacy disputeOpen=true without a disputes[] entry. Show in the
-      // disputes section so admin can clean it up via the legacy panel.
-      realDisputeRows.push({
-        orderId: o.id,
-        kind: 'dispute_legacy',
-        raisedBy: 'customer',
-        category: 'other',
-        blocksPayment: true,
-        status: 'open',
-        summary: '⚠ Legacy disputeOpen flag — open order to resolve',
-        daysOpen: 6,
       });
     } else if (o.status === 'on_hold') {
       violationRows.push({

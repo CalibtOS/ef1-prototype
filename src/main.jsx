@@ -3,7 +3,7 @@
 // `core/toast.js`, which is wired here.
 
 import './core/dom-safety.js'
-import React, { useState, useEffect, useCallback } from 'react'
+import React, { useState, useEffect, useCallback, useRef } from 'react'
 import { createRoot } from 'react-dom/client'
 import EFActions from './core/actions.js'
 import * as EFHooks from './core/hooks.js'
@@ -24,37 +24,24 @@ if (import.meta.env?.DEV && typeof window !== 'undefined') {
   })
 }
 
-// Per-role route registry. Mirrors the keys of `routeTable[role]` below; any
-// route name not listed here will silently fall through to `_default` (the
-// role's home view). Kept at module scope so `applyRoute` can warn in dev when
-// it receives a (role, name) pair that doesn't actually have a handler — that
-// silent fall-through used to mask wiring bugs (notif builders shipping the
-// wrong role/route combo). See audit Arch-10.
-const VALID_ROUTES_BY_ROLE = {
-  admin: new Set([
-    'admin-dashboard', 'orders', 'order-detail', 'friday-batch', 'qa', 'inbox',
-    'ai-bi', 'gw-job-board', 'ghostwriters', 'ghostwriter-detail', 'pipeline',
-    'admin-calendar', 'customers', 'customer-detail', 'disputes', 'reports',
-    'admin-chat-reports', 'settings', 'order-new', 'offers',
-  ]),
-  gw: new Set([
-    'gw-dashboard', 'admin-dashboard', 'gw-active', 'orders', 'gw-job-board',
-    'gw-submit', 'gw-report-delay', 'gw-extension', 'gw-first-contact',
-    'gw-onboarding', 'gw-submissions-list', 'gw-templates', 'gw-payments',
-    'gw-messages', 'gw-reports', 'gw-profile', 'gw-assignment-detail', 'order-detail',
-    'gw-calendar',
-  ]),
-  qa: new Set([
-    'qa-queue', 'qa', 'admin-dashboard', 'qa-plagiarism', 'qa-ai', 'qa-history',
-    'order-detail',
-  ]),
-  customer: new Set([
-    'cust-orders', 'cust-messages', 'cust-invoices', 'cust-downloads',
-    'cust-profile', 'cust-reports', 'admin-dashboard',
-  ]),
-  wp: new Set(['wp-hausarbeit', 'wp-vielen-dank']),
-  sim: new Set(['sim-stripe-checkout']),
-};
+// Per-role valid-route sets are DERIVED from `routeTable` (the render map built
+// inside App), never hand-maintained. The two registries used to be separate
+// literals and drifted — `gw-timeline` shipped in routeTable but was missing
+// from the manual list, so navigating there logged a spurious "no handler"
+// warning. `deriveValidRoutes` collapses them to one source of truth: the DEV
+// route guard now reads exactly the names routeTable can actually render, so a
+// new/removed route can't desync the validator. A role whose table uses
+// `_resolve` (customer) accepts every name, marked with the 'resolve' sentinel.
+// See audit Arch-10 / B-H2/B-H3.
+function deriveValidRoutes(table) {
+  return Object.fromEntries(
+    Object.entries(table).map(([roleName, handlers]) =>
+      handlers._resolve
+        ? [roleName, 'resolve']
+        : [roleName, new Set(Object.keys(handlers).filter(k => k !== '_default'))]
+    )
+  );
+}
 
 // Admin role
 import { AdminDashboard } from './admin/dashboard.jsx'
@@ -204,13 +191,18 @@ function App() {
     document.documentElement.style.setProperty('--blue', tweaks.accent)
   }, [tweaks.theme, tweaks.density, tweaks.locale, tweaks.accent])
 
+  // Mirror of deriveValidRoutes(routeTable), refreshed each render below (DEV
+  // only). A ref keeps applyRoute's [] deps stable while still reading the
+  // current handler set.
+  const validRoutesRef = useRef({});
+
   const applyRoute = useCallback((nextRole, name, params = {}, options = {}) => {
     if (import.meta.env?.DEV) {
-      const valid = VALID_ROUTES_BY_ROLE[nextRole];
-      if (valid && name && !valid.has(name)) {
-        console.warn(`[applyRoute] no handler for (${nextRole}, ${name}); falling back to ${nextRole}'s default. Caller passed:`, { params, options });
-      } else if (!valid) {
+      const valid = validRoutesRef.current[nextRole];
+      if (valid === undefined) {
         console.warn(`[applyRoute] unknown role "${nextRole}"; will use admin route table.`);
+      } else if (valid !== 'resolve' && name && !valid.has(name)) {
+        console.warn(`[applyRoute] no handler for (${nextRole}, ${name}); falling back to ${nextRole}'s default. Caller passed:`, { params, options });
       }
     }
     const nextRoute = { name, params: params || {} }
@@ -344,6 +336,10 @@ function App() {
       _default:             () => <AdminDashboard navigate={navigate} openFridayBatch={() => navigate('friday-batch')}/>,
     },
   }
+
+  // Keep the DEV route guard's valid-set in lockstep with the handlers above —
+  // derived, so it can never drift from what routeTable can actually render.
+  if (import.meta.env?.DEV) validRoutesRef.current = deriveValidRoutes(routeTable)
 
   const roleRoutes = routeTable[role] || routeTable.admin
   const params = route.params || {}

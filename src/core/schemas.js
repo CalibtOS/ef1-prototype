@@ -15,7 +15,7 @@
  *   'under_customer_review' | 'revision_required' |
  *   'qa_review' | 'ai_violation_review' | 'plagiarism_violation_review' |
  *   'delivered' | 'payment_pending' | 'completed' | 'cancelled' | 'on_hold' |
- *   'delay_reported' | 'extension_requested'
+ *   'delay_reported' | 'extension_requested' | 'extension_customer_approval_pending'
  * )} OrderStatus
  */
 
@@ -28,8 +28,10 @@
  * @property {number} n
  * @property {number} amt
  * @property {string} date            ISO date, payment due/paid
- * @property {'stripe_card'|'paypal'|'sepa'|'manual'} method
- * @property {'paid'|'pending'|'overdue'} status
+ * @property {'stripe_card'|'stripe_klarna'|'stripe_paypal'|'bank_transfer_sepa'} method
+ * @property {'paid'|'pending'|'scheduled'|'overdue'} status
+ * @property {boolean} [isExtension]  true when minted by a paid scope extension (A-03)
+ * @property {string} [extensionRef]  FK → Order.extensionApproval.id (when isExtension)
  */
 
 /**
@@ -57,13 +59,19 @@
  * @property {number} [plagiarismScore]
  * @property {string} [qaFlagReason]
  * @property {boolean} [flagged]
- * @property {boolean} [disputeOpen]    Derived from disputes[].some(d => d.status === 'open'); legacy boolean kept for back-compat seeds.
- * @property {Dispute[]} [disputes]     Append-only history of disputes opened against this order.
+ * @property {Dispute[]} [disputes]     Append-only history of disputes opened against this order. Single source of truth for dispute state (read via W.isOrderDisputed / W.currentOpenDispute).
+ * @property {string} [lastDisputeAt]   ISO datetime of the most recent dispute open.
  * @property {Refund} [refund]          Set on outcome C (cancel_refund); prototype-only field.
+ * @property {ExtensionPending} [extensionPending]    GW-requested scope extension awaiting admin approval (pre-gate).
+ * @property {ExtensionApproval} [extensionApproval]  Staged scope change awaiting customer approval + payment (A-03); the only writer of pages/deadline once applied.
+ * @property {string} [extensionApprovedAt]           ISO datetime the staged scope change went live.
+ * @property {ScopeAmendment[]} [scopeAmendments]     Append-only log of applied scope changes.
  * @property {string} [leadSource]
  * @property {string} [note]
  * @property {number} [revisionRounds]
- * @property {'not_started'|'work_in_progress'|'ready_for_release'|'released'} [gwPaymentStatus]
+ * @property {number} [finalRevisionRounds]    Per-kind counter: final/revision rounds burned.
+ * @property {number} [interimRevisionRounds]  Per-kind counter: interim rounds burned.
+ * @property {'work_in_progress'|'invoice_received'|'claim_pending'|'paid'|'no_payment_self_assigned'} [gwPaymentStatus]
  */
 
 /**
@@ -103,16 +111,67 @@
  */
 
 /**
+ * GW-requested scope extension, before admin approval. Lives on the order while
+ * status === 'extension_requested'; cleared when approveExtension stages it.
+ * @typedef {Object} ExtensionPending
+ * @property {string} requestedAt        ISO datetime
+ * @property {number} [extraPages]
+ * @property {number} [extraFee]
+ * @property {string} [proposedNewDeadline]
+ * @property {string} [description]
+ */
+
+/**
+ * Staged scope change awaiting customer approval + payment (audit A-03). Set by
+ * approveExtension (source 'extension') or resolveDispute (source
+ * 'dispute_scope_amendment'). Pages/price/deadline stay frozen until applied.
+ * @typedef {Object} ExtensionApproval
+ * @property {string} id                 'ext-live-{ts}-{rand}'
+ * @property {'extension'|'dispute_scope_amendment'} source
+ * @property {number} extraPages
+ * @property {number} extraFee
+ * @property {string|null} newDeadline
+ * @property {string} description
+ * @property {string} resumeStatus       order status to return to once applied
+ * @property {'pending_customer'|'pending_payment'|'applied'|'declined'} status
+ * @property {string|null} customerApprovedAt
+ * @property {string|null} invoiceNo      extension invoice no (when a fee is due)
+ * @property {number|null} installmentN   the minted extension installment
+ * @property {string|null} [appliedAt]
+ * @property {string|null} [declinedAt]
+ * @property {string|null} [declineReason]
+ */
+
+/**
+ * @typedef {Object} ScopeAmendment
+ * @property {string} at
+ * @property {string} source
+ * @property {number} extraPages
+ * @property {number} extraFee
+ * @property {string|null} newDeadline
+ * @property {string} description
+ */
+
+/**
  * @typedef {Object} Submission
  * @property {string} id
  * @property {number} orderId
- * @property {SubmissionKind} kind
- * @property {string} at                ISO datetime — when GW uploaded
- * @property {string} [filename]
+ * @property {SubmissionKind} kind         entity kind: interim_1|interim_2|final_work|revision
+ * @property {number} round                revision round (1 for the first submission)
+ * @property {string} gwId
+ * @property {string} submittedAt          ISO datetime — when GW uploaded
+ * @property {string|null} [forwardedAt]   set when auto-forwarded to QA (interims)
+ * @property {string} [fileName]
+ * @property {string|null} [invoiceFileName]   Honorarrechnung PDF (final only)
+ * @property {number} [size]
  * @property {number} [aiScore]
  * @property {number} [plagiarismScore]
+ * @property {Object} [selfChecks]         GW attestations (spelling/grammar/plagiarism/requirements/noAi/ready[/individual])
+ * @property {string|null} [changeSummary] GW note on what changed (resubmits)
  * @property {'pending'|'auto_forwarded'|'passed'|'revision_requested'|'flagged'|'archived'} qaStatus
- * @property {string} [qaNote]
+ * @property {string} [reviewedAt]
+ * @property {string} [clarificationRequestedAt]  set by qa.requestClarification (A-19)
+ * @property {string} [clarificationNote]
  */
 
 /**
@@ -241,7 +300,8 @@
 
 /**
  * @typedef {Object} State
- * @property {{ orders: Table<Order>, submissions: Table<Submission>, customers: Table<Customer>, ghostwriters: Table<Ghostwriter>, order_chats: Table<OrderChat>, external_messages: Table<ExternalMessage>, leads: Table<Lead>, notifications: Table<Notification> }} entities
+ * @property {{ orders: Table<Order>, submissions: Table<Submission>, customers: Table<Customer>, ghostwriters: Table<Ghostwriter>, order_chats: Table<OrderChat>, external_messages: Table<ExternalMessage>, inbox_internal_notes: Table<Object>, leads: Table<Lead>, notifications: Table<Notification>, emails: Table<Object>, gw_applications: Table<Object>, chat_reports: Table<Object>, sim_events: Table<Object> }} entities
+ *   NB: assignment + payment/installment data live ON the Order (order.gwId, order.installments, order.gwPaymentStatus); there is no separate `assignments` or `payments` table. See db_schema_draft.md.
  * @property {Session} session
  * @property {{ route: RouteState, tweaks: Object|null }} ui
  * @property {{ version: number, lastAction: string|null }} meta

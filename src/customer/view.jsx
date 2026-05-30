@@ -78,6 +78,8 @@ function custStatusMeta(o) {
   if (s === 'cancelled') return { color: 'red', label: 'Storniert', icon: 'x-circle' };
   if (s === 'on_hold') return { color: 'amber', label: 'Pausiert', icon: 'pause' };
   if (s === 'delay_reported') return { color: 'orange', label: 'Verzögerung gemeldet', icon: 'alert-triangle' };
+  if (s === 'extension_customer_approval_pending')
+    return { color: 'amber', label: 'Erweiterung bestätigen', icon: 'plus-circle' };
   if (s === 'interim_submitted' || s === 'under_customer_review')
     return { color: 'blue', label: 'Zwischenstand prüfen', icon: 'eye' };
   if (s === 'revision_required')
@@ -115,6 +117,7 @@ function custProgress(o, submissions = []) {
   }
   if (s === 'qa_review') return 90;
   if (s === 'on_hold') return 20;
+  if (s === 'extension_customer_approval_pending') return 40;
   return 30;
 }
 
@@ -434,7 +437,7 @@ function CustOrdersList({ openOrder, startCheckout, goTo }) {
   );
 }
 
-function CustOrderStatus({ o, startCheckout }) {
+function CustOrderStatus({ o, startCheckout, toast }) {
   const meta = custStatusMeta(o);
   const displaySubs = EFHooks.useDisplaySubmissions(o.id);
   const realSubs = (displaySubs || []).filter(s => !s.synthetic);
@@ -604,6 +607,18 @@ function CustOrderStatus({ o, startCheckout }) {
             </div>
           </div>
         </div>
+
+        {o.status === 'extension_customer_approval_pending' && o.extensionApproval && (
+          <div className="card" style={{ borderLeft: '4px solid var(--amber)' }}>
+            <div className="card-head">
+              <div className="card-title">Umfangserweiterung</div>
+              <span className="pill pill-amber" style={{ fontSize: 10 }}><Icon name="clock" size={9}/> Ihre Entscheidung</span>
+            </div>
+            <div className="card-pad">
+              <CustExtensionApproval o={o} toast={toast}/>
+            </div>
+          </div>
+        )}
 
         <div className="card">
           <div className="card-head"><div className="card-title">Eckdaten</div></div>
@@ -792,6 +807,66 @@ function CustInterimFeedback({ o, toast }) {
       >
         <Icon name="alert-triangle" size={11}/> Problem eskalieren
       </button>
+    </div>
+  );
+}
+
+// CustExtensionApproval — a scope change (extra pages / fee / new deadline)
+// approved by efactory1 is staged in order.extensionApproval with the order
+// parked in 'extension_customer_approval_pending'. Pages, price and deadline do
+// NOT change and the GW can't proceed until the customer approves here and (when
+// a fee is due) pays the extension invoice. See actions customer.approveExtension
+// / payExtension / declineExtension and the gate rationale in actions.js (A-03).
+function CustExtensionApproval({ o, toast }) {
+  const ea = o.extensionApproval;
+  if (!ea) return null;
+  const extraFee = Number(ea.extraFee) || 0;
+  const extraPages = Number(ea.extraPages) || 0;
+  const newDeadline = ea.newDeadline ? String(ea.newDeadline).slice(0, 10) : null;
+  const awaitingPayment = ea.status === 'pending_payment';
+  const decline = () => {
+    const ok = EFActions.customer.declineExtension(o.id);
+    if (ok) toast && toast({ tone: 'info', text: 'Erweiterung abgelehnt · ursprünglicher Umfang bleibt bestehen' });
+  };
+  return (
+    <div className="flex-col gap-2">
+      <div className="banner info" style={{ fontSize: 12 }}>
+        <Icon name="info" size={13}/>
+        <span>efactory1 schlägt eine Umfangserweiterung vor. Umfang, Preis und Liefertermin ändern sich erst, wenn Sie zustimmen{extraFee > 0 ? ' und die Erweiterungsrechnung bezahlen' : ''}.</span>
+      </div>
+      <div className="kv" style={{ fontSize: 12 }}>
+        {extraPages > 0 && <div className="kv-row"><dt>Zusätzliche Seiten</dt><dd className="mono">+{extraPages}</dd></div>}
+        <div className="kv-row"><dt>Mehrkosten</dt><dd className="mono">{extraFee > 0 ? U.EUR(extraFee) : 'keine'}</dd></div>
+        {newDeadline && <div className="kv-row"><dt>Neuer Liefertermin</dt><dd className="mono">{U.fmtDate(newDeadline)}</dd></div>}
+        {ea.description && <div className="kv-row"><dt>Begründung</dt><dd style={{ textAlign: 'right', maxWidth: 220 }}>{ea.description}</dd></div>}
+      </div>
+      {awaitingPayment ? (
+        <>
+          <div className="banner success" style={{ fontSize: 11.5 }}>
+            <Icon name="check-circle" size={12}/>
+            <span>Freigabe erteilt. Erweiterungsrechnung {ea.invoiceNo || ''} über {U.EUR(extraFee)} — nach Zahlung wird der erweiterte Umfang aktiv.</span>
+          </div>
+          <div className="flex gap-2">
+            <button type="button" className="btn btn-sm btn-success" onClick={()=>{
+              const ok = EFActions.customer.payExtension(o.id);
+              if (ok) toast && toast({ tone: 'success', transition: { entity: `Auftrag #${o.id}`, from: 'Erweiterung', to: 'In Bearbeitung' }, text: 'Erweiterung bezahlt · neuer Umfang aktiv · GW kann fortfahren' });
+            }}>
+              <Icon name="wallet" size={12}/> Erweiterungsrechnung bezahlen
+            </button>
+            <button type="button" className="btn btn-sm" onClick={decline}>Ablehnen</button>
+          </div>
+        </>
+      ) : (
+        <div className="flex gap-2">
+          <button type="button" className="btn btn-sm btn-success" onClick={()=>{
+            const ok = EFActions.customer.approveExtension(o.id);
+            if (ok) toast && toast({ tone: 'success', text: extraFee > 0 ? 'Freigabe erteilt · bitte Erweiterungsrechnung bezahlen' : 'Erweiterung freigegeben · neuer Umfang aktiv' });
+          }}>
+            <Icon name="check" size={12}/> {extraFee > 0 ? 'Erweiterung & Mehrkosten freigeben' : 'Erweiterung freigeben'}
+          </button>
+          <button type="button" className="btn btn-sm" onClick={decline}>Ablehnen</button>
+        </div>
+      )}
     </div>
   );
 }
@@ -1278,7 +1353,7 @@ function CustOrderDetail({ orderId, tab, onTabChange, onBack, toast, startChecko
         })()}
       </div>
 
-      {tab === 'status'   && <CustOrderStatus o={o} startCheckout={startCheckout}/>}
+      {tab === 'status'   && <CustOrderStatus o={o} startCheckout={startCheckout} toast={toast}/>}
       {tab === 'messages' && <CustOrderChat o={o} toast={toast}/>}
       {tab === 'files'    && <CustOrderFiles o={o} toast={toast}/>}
       {tab === 'payments' && <CustOrderPayments o={o} goTo={goTo}/>}

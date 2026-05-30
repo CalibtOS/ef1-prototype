@@ -101,7 +101,9 @@ function GhostwritersList({ navigate }) {
                   <td className="num mono">{g.rating ? '★ ' + g.rating.toFixed(1) : '—'}</td>
                   <td className="num mono">{g.rate != null ? Math.round(g.rate * 100) + '%' : <span className="text-faint">self</span>}</td>
                   <td>
-                    {g.banned
+                    {g.accountBlockedAt
+                      ? <span className="pill pill-red" title={g.accountBlockReason}>Account blocked</span>
+                      : g.banned
                       ? <span className="pill pill-red" title={g.banReason}>Shadow-banned</span>
                       : g.isOwner
                         ? <span className="pill pill-blue">Owner</span>

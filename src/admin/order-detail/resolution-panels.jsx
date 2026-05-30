@@ -32,7 +32,7 @@ function ExtensionResolutionPanel({ order, toast }) {
   const [rejectReason, setRejectReason] = useState('');
   const onApprove = () => {
     EFActions.orders.approveExtension(order.id, overrideDeadline ? { newDeadline: overrideDeadline + 'T18:00:00' } : {});
-    toast && toast({ tone: 'success', transition: { entity: `Order #${order.id}`, from: 'Extension Requested', to: 'Active' }, text: 'Extension approved · GW + customer notified' });
+    toast && toast({ tone: 'success', transition: { entity: `Order #${order.id}`, from: 'Extension Requested', to: 'Customer Approval' }, text: 'Extension approved · sent to customer for approval + payment before scope changes' });
   };
   const onReject = () => {
     EFActions.orders.rejectExtension(order.id, rejectReason);
@@ -223,32 +223,10 @@ function DisputeResolutionPanel({ order, toast }) {
     toast && toast({ tone: 'info', text: 'Note added to dispute log.' });
   };
 
-  if (!dispute) {
-    // Fallback for legacy disputeOpen orders without a disputes[] entry —
-    // show a hint so admin understands the data shape mismatch.
-    return (
-      <div className="card mb-3" style={{ borderLeft: '4px solid var(--orange)' }}>
-        <div className="card-head">
-          <div className="card-title flex items-center gap-2">
-            <Icon name="alert-triangle" size={14} style={{ color: 'var(--orange)' }}/> Dispute open (legacy)
-          </div>
-          <span className="text-faint fs-11">since {order.lastDisputeAt ? U.relTime(order.lastDisputeAt) : '—'}</span>
-        </div>
-        <div className="card-pad">
-          <div className="text-muted fs-12">
-            This order has the legacy disputeOpen flag set but no structured dispute entry.
-            Resolving as outcome A (continue revision) to clear the flag.
-          </div>
-          <div className="flex gap-2 mt-2">
-            <button type="button" className="btn btn-success btn-sm" onClick={() => {
-              EFActions.orders.closeDispute(order.id, 'Resolved from legacy dispute flag.');
-              toast && toast({ tone: 'success', text: 'Legacy dispute closed.' });
-            }}><Icon name="check" size={12}/> Close legacy dispute</button>
-          </div>
-        </div>
-      </div>
-    );
-  }
+  // The panel only renders when the order is disputed (isOrderDisputed), which
+  // is now exactly "has an open structured dispute", so `dispute` is always set.
+  // Guard defensively all the same.
+  if (!dispute) return null;
 
   const openerLabel = dispute.openedBy === 'gw' ? `${gw?.name || 'GW'} (ghostwriter)` : `${cust?.name || 'Customer'} (customer)`;
   const partyForContact = (recipient) => recipient === 'gw' ? (gw?.name || 'GW') : (cust?.name || 'Customer');
@@ -403,7 +381,7 @@ function ViolationResolutionPanel({ order, submissions, toast }) {
   const gw = D.gw(order.gwId);
   const onConfirm = () => {
     EFActions.orders.confirmViolation(order.id, { reason: order.qaFlagReason });
-    toast && toast({ tone: 'danger', transition: { entity: `Order #${order.id}`, from: isPlag ? 'Plagiarism Violation' : 'AI Violation', to: 'On Job Board (reassigning)' }, text: 'Violation confirmed · GW shadow-banned · customer notified about reassignment' });
+    toast && toast({ tone: 'danger', transition: { entity: `Order #${order.id}`, from: isPlag ? 'Plagiarism Violation' : 'AI Violation', to: 'On Job Board (reassigning)' }, text: 'Violation confirmed · GW account blocked · customer notified about reassignment' });
   };
   const onClear = () => {
     EFActions.orders.clearViolation(order.id, 'Reviewed and cleared after admin investigation');
@@ -431,17 +409,17 @@ function ViolationResolutionPanel({ order, submissions, toast }) {
             <div className="fs-11 text-muted mb-1">Ghostwriter</div>
             <div className="strong fs-12">{gw?.name || '—'}</div>
             <div className="fs-11 text-faint mt-1">
-              {gw?.lifetime || 0} jobs · ★{gw?.rating?.toFixed?.(1) || '—'} · on-time {Math.round((gw?.onTime || 0) * 100)}% {gw?.banned && '· already shadow-banned'}
+              {gw?.lifetime || 0} jobs · ★{gw?.rating?.toFixed?.(1) || '—'} · on-time {Math.round((gw?.onTime || 0) * 100)}% {gw?.accountBlockedAt ? '· account already blocked' : (gw?.banned && '· already shadow-banned')}
             </div>
           </div>
         </div>
         <div className="text-muted fs-12 mb-2" style={{ lineHeight: 1.5 }}>
           {isPlag
-            ? 'Confirm to shadow-ban the GW and return the order to the job board for reassignment. Customer is notified about the reassignment without mentioning the violation.'
-            : 'Confirm to shadow-ban the GW and reassign. Clear if the AI score is a false positive (legitimate writing flagged by GPTZero).'}
+            ? 'Confirm to block the GW account and return the order to the job board for reassignment. Customer is notified about the reassignment without mentioning the violation.'
+            : 'Confirm to block the GW account and reassign. Clear if the AI score is a false positive (legitimate writing flagged by GPTZero).'}
         </div>
         <div className="flex gap-2" style={{ flexWrap: 'wrap' }}>
-          <button type="button" className="btn btn-danger btn-sm" onClick={onConfirm}><Icon name="x" size={12}/> Confirm violation · ban + reassign</button>
+          <button type="button" className="btn btn-danger btn-sm" onClick={onConfirm}><Icon name="x" size={12}/> Confirm violation · block + reassign</button>
           <button type="button" className="btn btn-success btn-sm" onClick={onClear}><Icon name="check" size={12}/> False positive · clear flag</button>
           <button type="button" className="btn btn-sm" onClick={() => toast && toast({ tone: 'info', text: `Audit thread opened with ${gw?.name || 'GW'}` })}><Icon name="message-square" size={12}/> Open audit thread</button>
         </div>

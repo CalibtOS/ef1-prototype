@@ -62,6 +62,12 @@ function OrderDetail({ orderId, navigate, toast, initialTab, focusSubmissionId, 
   };
   const [showRateSlider, setShowRateSlider] = useState(false);
   const [approving, setApproving] = useState(null);
+  const [editSpecOpen, setEditSpecOpen] = useState(false);
+  const onConfirmEditSpec = (patch) => {
+    const res = EFActions.orders.editSpec(orderId, patch);
+    if (res?.ok && toast) toast({ tone: 'success', text: `#${orderId} · Job-Spezifikation aktualisiert` });
+    setEditSpecOpen(false);
+  };
   // Store-backed read so newly-created orders resolve across all role views.
   const order = EFHooks.useOrder(orderId);
   const submissions = EFHooks.useSubmissions({ orderId });
@@ -258,6 +264,22 @@ function OrderDetail({ orderId, navigate, toast, initialTab, focusSubmissionId, 
         <ExtensionResolutionPanel order={order} toast={toast}/>
       )}
 
+      {order.status === 'extension_customer_approval_pending' && order.extensionApproval && (
+        <div className="banner" style={{ background: 'color-mix(in oklab, var(--amber) 6%, var(--surface))', border: '1px solid color-mix(in oklab, var(--amber) 30%, var(--border))', marginBottom: 12 }}>
+          <Icon name="clock" size={16} style={{ color: 'var(--amber)' }}/>
+          <div style={{ flex: 1, fontSize: 12.5 }}>
+            <strong>Scope change awaiting customer approval{order.extensionApproval.source === 'dispute_scope_amendment' ? ' (from dispute)' : ''}.</strong>{' '}
+            {order.extensionApproval.extraPages ? `+${order.extensionApproval.extraPages} pages · ` : ''}
+            {order.extensionApproval.extraFee > 0 ? `+€${order.extensionApproval.extraFee} · ` : ''}
+            {order.extensionApproval.newDeadline ? `new deadline ${String(order.extensionApproval.newDeadline).slice(0, 10)} · ` : ''}
+            {order.extensionApproval.status === 'pending_payment'
+              ? 'customer approved — extension invoice issued, waiting for payment.'
+              : `waiting for the customer to approve${order.extensionApproval.extraFee > 0 ? ' and pay' : ''}.`}
+            {' '}Pages, price and deadline stay unchanged until then.
+          </div>
+        </div>
+      )}
+
       {order.status === 'delay_reported' && (
         <DelayResolutionPanel order={order} toast={toast}/>
       )}
@@ -297,7 +319,10 @@ function OrderDetail({ orderId, navigate, toast, initialTab, focusSubmissionId, 
             </div>
 
             <div className="card">
-              <div className="card-head"><div className="card-title">Work specification</div></div>
+              <div className="card-head">
+                <div className="card-title">Work specification</div>
+                <button className="btn btn-ghost btn-sm" onClick={() => setEditSpecOpen(true)}><Icon name="edit" size={12}/> Edit</button>
+              </div>
               <div className="card-pad">
                 <div className="kv">
                   <div className="kv-row"><dt>Type</dt><dd>{D.WORK_TYPE_LABELS[order.workType]}</dd></div>
@@ -452,7 +477,7 @@ function OrderDetail({ orderId, navigate, toast, initialTab, focusSubmissionId, 
 
             {gw && (
               <div className="card">
-                <div className="card-head"><div className="card-title">Assigned GW</div>{gw.banned && <span className="pill pill-red">Shadow-banned</span>}</div>
+                <div className="card-head"><div className="card-title">Assigned GW</div>{gw.accountBlockedAt && <span className="pill pill-red" title={gw.accountBlockReason}>Account blocked</span>}{gw.banned && <span className="pill pill-red">Shadow-banned</span>}</div>
                 <div className="card-pad flex items-center gap-3">
                   <Avatar initials={gw.initials} size={40}/>
                   <div className="flex-col" style={{ flex: 1 }}>
@@ -658,6 +683,9 @@ function OrderDetail({ orderId, navigate, toast, initialTab, focusSubmissionId, 
       )}
       {activeTab === 'demo' && (
         <CustomerSimulationPanel order={order} cust={cust} toast={toast}/>
+      )}
+      {editSpecOpen && (
+        <PostToBoardModal order={order} mode="edit" onCancel={() => setEditSpecOpen(false)} onConfirm={onConfirmEditSpec}/>
       )}
     </div>
   );
@@ -1615,7 +1643,7 @@ function AssignmentTab({ order, navigate, toast }) {
       <div id="assignment-direct-list" className="card">
         <div className="card-head"><div className="card-title">GW selection</div></div>
         <div className="card-pad flex-col gap-2">
-          {D.GHOSTWRITERS.filter(g => !g.banned && !g.isOwner).slice(0, 6).map(g => {
+          {D.GHOSTWRITERS.filter(g => !g.banned && !g.accountBlockedAt && !g.isOwner).slice(0, 6).map(g => {
             // Deterministic match score — stable across renders, derived from gw + order ids
             const exact = (g.expertise || []).some(e => e.toLowerCase().includes((order.field || '').toLowerCase().slice(0, 4)));
             const seed = ((g.id.charCodeAt(3) * 17) + Number(order.id)) % 41; // 0..40
@@ -1683,7 +1711,8 @@ function AssignmentTab({ order, navigate, toast }) {
   );
 }
 
-function PostToBoardModal({ order, onCancel, onConfirm }) {
+function PostToBoardModal({ order, onCancel, onConfirm, mode = 'publish' }) {
+  const isEdit = mode === 'edit';
   const toDateInput = (iso) => (iso ? String(iso).slice(0, 10) : '');
   const [form, setForm] = useState({
     title: order.titleTBD ? '' : (order.title || ''),
@@ -1716,8 +1745,8 @@ function PostToBoardModal({ order, onCancel, onConfirm }) {
       <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: 640 }}>
         <div className="modal-header">
           <div>
-            <div className="modal-title">Auftrag für GW Job Board veröffentlichen · #{order.id}</div>
-            <div className="text-faint fs-11 mt-1">Felder anpassen — so erscheint der Auftrag auf dem Board.</div>
+            <div className="modal-title">{isEdit ? `Job-Spezifikation bearbeiten · #${order.id}` : `Auftrag für GW Job Board veröffentlichen · #${order.id}`}</div>
+            <div className="text-faint fs-11 mt-1">{isEdit ? 'Felder korrigieren — z.B. Art der Arbeit (WP-Intake setzt immer „Hausarbeit").' : 'Felder anpassen — so erscheint der Auftrag auf dem Board.'}</div>
           </div>
           <button className="btn btn-sm" onClick={onCancel}><Icon name="x" size={14}/></button>
         </div>
@@ -1760,7 +1789,9 @@ function PostToBoardModal({ order, onCancel, onConfirm }) {
         <div className="modal-footer">
           <button className="btn" onClick={onCancel}>Abbrechen</button>
           <button className="btn btn-primary" onClick={submit}>
-            <Icon name="clipboard-list" size={14}/> Auf Job Board veröffentlichen
+            {isEdit
+              ? <><Icon name="check" size={14}/> Speichern</>
+              : <><Icon name="clipboard-list" size={14}/> Auf Job Board veröffentlichen</>}
           </button>
         </div>
       </div>

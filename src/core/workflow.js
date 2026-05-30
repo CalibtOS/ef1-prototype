@@ -8,7 +8,7 @@ const ORDER_STATES = [
   'active','interim_submitted','under_customer_review','revision_required',
   'qa_review','ai_violation_review','plagiarism_violation_review',
   'delivered','payment_pending','completed','cancelled','on_hold','delay_reported',
-  'extension_requested'
+  'extension_requested','extension_customer_approval_pending'
 ];
 
 const PRE_PROPOSAL_STATES = ['lead', 'qualified'];
@@ -64,6 +64,7 @@ const STATUS_RANK = {
   on_hold: 4,
   delay_reported: 6,
   extension_requested: 6,
+  extension_customer_approval_pending: 6,
   cancelled: 0,
   bye: 0,
 };
@@ -80,11 +81,13 @@ const CLOSED_SUBMISSION_REASONS = {
   on_hold: 'Order on hold',
   delay_reported: 'Delay reported — awaiting admin decision',
   extension_requested: 'Extension requested — awaiting admin decision',
+  extension_customer_approval_pending: 'Scope change awaiting customer approval + payment — no upload yet',
   ai_violation_review: 'AI violation under review',
   plagiarism_violation_review: 'Plagiarism violation under review',
 };
 
 const TRANSITIONS = {
+  send_offer:           { from: ['qualified'], to: 'offer_sent' },
   approve_claim:        { from: ['claimed_pending_approval'], to: 'active' },
   reject_claim:         { from: ['claimed_pending_approval'], to: 'available' },
   claim_job:            { from: ['available'], to: 'claimed_pending_approval' },
@@ -124,7 +127,7 @@ function canTransition(order, name) {
 }
 
 // Admin resolution actions (approveExtension, rejectExtension, acceptDelay,
-// closeDispute, confirmViolation, clearViolation) don't fit the normal
+// confirmViolation, clearViolation) don't fit the normal
 // transition graph because they exit a "stuck" state by patching multiple
 // fields at once. Rather than add transitions for every admin verb (and lose
 // the action-body semantics), each admin action declares its required
@@ -138,7 +141,6 @@ const RESOLUTION_PRECONDITIONS = {
   reject_extension:  (o) => o.status === 'extension_requested' || !!o.extensionPending,
   accept_delay:      (o) => o.status === 'delay_reported',
   propose_delay:     (o) => o.status === 'delay_reported',
-  close_dispute:     (o) => isOrderDisputed(o),
   confirm_violation: (o) => o.status === 'ai_violation_review' || o.status === 'plagiarism_violation_review',
   clear_violation:   (o) => o.status === 'ai_violation_review' || o.status === 'plagiarism_violation_review',
 };
@@ -191,10 +193,11 @@ function isInterimKind(kind) {
 // =============================================================================
 // Dispute helpers
 // =============================================================================
-// Disputes live as an append-only array on the order. The boolean `disputeOpen`
-// is kept on the order for legacy seed data and Friday-release gate predicates,
-// but the source of truth is `order.disputes` — when at least one entry has
-// `status === 'open'`, the order is disputed.
+// Disputes live as an append-only array on the order. `order.disputes` is the
+// SINGLE source of truth — when at least one entry has `status === 'open'`, the
+// order is disputed. The legacy `disputeOpen` boolean was removed (it was a
+// second, hand-mirrored source of truth); see
+// docs/audits/implementation_completion_audit.md.
 //
 // Design rationale: per docs/flows/dispute/dispute_flow_design_review.md §4, dispute is
 // orthogonal to status. Opening a dispute pushes to disputes[] and locks the
@@ -218,9 +221,19 @@ function currentOpenDispute(order) {
 }
 
 function isOrderDisputed(order) {
-  // The derived predicate. Also honors the legacy boolean for seed data that
-  // pre-dates the disputes[] array — keeps old fixtures rendering correctly.
-  return !!order?.disputeOpen || openDisputes(order).length > 0;
+  // Single source of truth: an order is disputed iff it has an open structured
+  // dispute. (The legacy `disputeOpen` boolean was removed; disputes[] is the
+  // only record. Seeds are backfilled.)
+  return openDisputes(order).length > 0;
+}
+
+// A GW account is BLOCKED (hard) when a confirmed AI/plagiarism violation
+// revoked platform access. Distinct from `banned` (shadow-ban) — a softer
+// job-board visibility throttle (see docs/business_rules.md). A blocked account
+// cannot claim or apply for jobs; a shadow-banned one still can, it just stops
+// receiving job-availability alerts.
+function isGwBlocked(gw) {
+  return !!gw?.accountBlockedAt;
 }
 
 // Per-kind revision round policy.
@@ -465,6 +478,7 @@ function releaseGateStageNote(order) {
     on_hold: 'Order is on hold. Resolve the hold before continuing the workflow.',
     delay_reported: 'Delay is awaiting admin decision. Delivery and payout gates are paused.',
     extension_requested: 'Scope extension is awaiting admin/customer approval. Delivery and payout gates are paused.',
+    extension_customer_approval_pending: 'Scope change approved by admin — waiting for the customer to approve and pay the extension invoice before work resumes.',
   };
   return map[order.status] || 'This workflow stage has not reached payout gating yet.';
 }
@@ -490,9 +504,7 @@ function releaseGates(order) {
   const gates = {
     customer_satisfied:      order.customerSatisfied === true,
     quality_approved:        order.qaPassed === true && !order.flagged && order.status !== 'ai_violation_review' && order.status !== 'plagiarism_violation_review',
-    // Use the derived predicate, not the legacy boolean. A stale `disputeOpen=false`
-    // with a structured open dispute in `disputes[]` would otherwise let the
-    // Friday batch release payment despite an unresolved mediation.
+    // An open structured dispute (or an active revision) blocks the Friday batch.
     revisions_complete:      !isOrderDisputed(order) && order.status !== 'revision_required',
     all_installments_paid:   allInstallmentsPaid(order),
     gw_invoice_received:     order.gwPaymentStatus === 'invoice_received' || order.gwPaymentStatus === 'paid',
@@ -525,6 +537,7 @@ function statusFor(order, role) {
       interim_submitted: 'Zwischenstand prüfen',
       under_customer_review: 'Zwischenstand prüfen',
       revision_required: 'Überarbeitung läuft',
+      extension_customer_approval_pending: 'Erweiterung bestätigen',
       qa_review: 'Qualitätsprüfung',
       delivered: 'Endabgabe prüfen',
       payment_pending: 'Abgeschlossen',
@@ -849,7 +862,7 @@ function buildOrderEvents(order, context) {
   });
 
   if (order.lastCustomerFeedbackAt && order.status === 'revision_required') addEvent(events, event('customer.revision', order.lastCustomerFeedbackAt, 'Customer requested revision', { icon: 'message-square', dot: 'amber', domain: 'customer', detail: bodyPreview(order.customerRevisionNote) }));
-  if (order.disputeOpen || order.lastDisputeAt) addEvent(events, event('customer.dispute', order.lastDisputeAt || order.lastCustomerFeedbackAt || dates.deliveredAt || dates.interimAt, 'Customer dispute opened', { icon: 'alert-triangle', dot: 'amber', domain: 'customer', detail: 'Blocks payout until resolved.' }));
+  if (isOrderDisputed(order) || order.lastDisputeAt) addEvent(events, event('customer.dispute', order.lastDisputeAt || order.lastCustomerFeedbackAt || dates.deliveredAt || dates.interimAt, 'Customer dispute opened', { icon: 'alert-triangle', dot: 'amber', domain: 'customer', detail: 'Blocks payout until resolved.' }));
   if (dates.finalAcceptedAt) addEvent(events, event('customer.final.accepted', dates.finalAcceptedAt, 'Customer accepted final delivery', { icon: 'check-circle', dot: 'green', domain: 'customer' }));
   if (order.delayReportedAt) addEvent(events, event('gw.delay', order.delayReportedAt, 'GW reported a delivery delay', { icon: 'clock', dot: 'amber', domain: 'assignment', detail: order.delayReason || null }));
   if (order.extensionPending?.requestedAt) addEvent(events, event('gw.extension', order.extensionPending.requestedAt, 'GW requested scope extension', { icon: 'plus', dot: 'amber', domain: 'assignment', detail: order.extensionPending.description || null }));
@@ -899,6 +912,7 @@ export {
   openDisputes,
   currentOpenDispute,
   isOrderDisputed,
+  isGwBlocked,
   isPreProposal,
   isPrePayment,
   isOrderPaid,

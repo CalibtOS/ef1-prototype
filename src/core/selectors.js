@@ -387,7 +387,7 @@ function selectSlaOperational(state) {
       }
     }
     // 4. Final submitted / in QA — Berat must review (final isn't auto-sent).
-    if (o.status === 'qa_review' && !o.disputeOpen) {
+    if (o.status === 'qa_review' && !W.isOrderDisputed(o)) {
       const pendingFinal = submissions.some(s =>
         Number(s.orderId) === Number(o.id) &&
         W.isQaReviewKind(s.kind) &&

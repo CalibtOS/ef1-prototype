@@ -83,7 +83,7 @@ function QAOrderDetail({ orderId, navigate, toast, initialTab }) {
             <span><Icon name="calendar" size={12} style={{ verticalAlign: 'text-bottom' }}/> Final deadline <span className="mono">{U.fmtDate(order.finalDeadline)}, 18:00</span></span>
             <span className={`pill pill-${dm.tone === 'danger' ? 'red' : dm.tone === 'warn' ? 'amber' : 'slate'}`}>{dm.label}</span>
             {W.isOrderDisputed(order) && <span className="pill pill-orange">Dispute open</span>}
-            {(order.finalRevisionRounds || 0) > 0 && <span className="pill pill-amber">Revision round {order.finalRevisionRounds}</span>}
+            {W.revisionRoundsForKind(order, 'final') > 0 && <span className="pill pill-amber">Revision round {W.revisionRoundsForKind(order, 'final')}</span>}
           </div>
         </div>
         <div className="page-actions">
@@ -186,7 +186,7 @@ function QAOrderDetail({ orderId, navigate, toast, initialTab }) {
           <div className="flex-col gap-3">
             {gw && (
               <div className="card">
-                <div className="card-head"><div className="card-title">Assigned GW</div>{gw.banned && <span className="pill pill-red">Shadow-banned</span>}</div>
+                <div className="card-head"><div className="card-title">Assigned GW</div>{gw.accountBlockedAt && <span className="pill pill-red" title={gw.accountBlockReason}>Account blocked</span>}{gw.banned && <span className="pill pill-red">Shadow-banned</span>}</div>
                 <div className="card-pad flex items-center gap-3">
                   <Avatar initials={gw.initials} size={40}/>
                   <div className="flex-col" style={{ flex: 1 }}>
