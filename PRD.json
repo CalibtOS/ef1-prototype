@@ -3,7 +3,7 @@
     "title": "eFactory One — Product Requirements (execution PRD)",
     "version": "2.1",
     "last_updated": "2026-05-13",
-    "docs_corpus_read": "All markdown under docs/: INDEX, QUICKREF, business_rules, gw_workflow_sops, decisions_log, open_questions, db_schema_draft, team_conventions, integrations (pipedrive, sevdesk, payment_flow, communications pointer), explorations (_overview, communications _overview + email, whatsapp, unified_chat, voice, ai_layer, internationalization, payment_methods, employee_access, ai_bi_dashboard, product_ux_workflow_discussion), source (wordpress_forms, clickup_answers, sheets/notion excerpts as referenced). docs/.git excluded.",
+    "docs_corpus_read": "All markdown under docs/: INDEX, QUICKREF, business_rules, flows/gw/gw_workflow_sops, decisions_log, open_questions, db_schema_draft, team_conventions, integrations (pipedrive, sevdesk, payment_flow, communications pointer), explorations (_overview, communications _overview + email, whatsapp, unified_chat, voice, ai_layer, internationalization, payment_methods, employee_access, ai_bi_dashboard, product_ux_workflow_discussion), source (wordpress_forms, clickup_answers, sheets/notion excerpts as referenced). docs/.git excluded.",
     "prototype_ground_truth": "Synthesized from index.html routeTable, shell.jsx, src/core/{workflow,actions,entities,routes,store}.js, data.js seeds, onTrack/IMPLEMENTATION_TRACKER.md — see prototype_* sections below.",
     "non_authoritative": "Repository JSX prototype (shell.jsx, src/, data.js) — UX and state-machine rehearsal only; single-tab in-memory store per onTrack/IMPLEMENTATION_TRACKER.md. For Project Charter, Scope Statement, and Proposal drafting, use prd-brief.json (distilled PM-oriented synthesis from this file + docs/)."
   },
@@ -119,7 +119,7 @@
       "docs/QUICKREF.md"
     ],
     "confirmed_rules": "docs/business_rules.md",
-    "gw_binding_sops": "docs/gw_workflow_sops.md (Notion SOPs A–C, 1–6, D–E; 11 sub-pages documented May 2026)",
+    "gw_binding_sops": "docs/flows/gw/gw_workflow_sops.md (Notion SOPs A–C, 1–6, D–E; 11 sub-pages documented May 2026)",
     "integrations": {
       "pipedrive": "docs/integrations/pipedrive.md — phases 1 read-only, 2 two-way new orders, 3 replace Zapier",
       "sevdesk": "docs/integrations/sevdesk.md — saveOrder, sendViaEmail, createInvoiceFromOrder, changeStatus; German templates TextTemplates; sevUser required",
@@ -165,7 +165,7 @@
     }
   ],
   "gw_sop_platform_mapping": {
-    "source": "docs/gw_workflow_sops.md",
+    "source": "docs/flows/gw/gw_workflow_sops.md",
     "general": [
       {
         "sop": "A",
@@ -1748,7 +1748,7 @@
       ],
       "status": "pending",
       "files": [
-        "docs/gw_workflow_sops.md",
+        "docs/flows/gw/gw_workflow_sops.md",
         "src/gw/job-board.jsx"
       ]
     },
@@ -1763,7 +1763,7 @@
       ],
       "status": "pending",
       "files": [
-        "docs/gw_workflow_sops.md",
+        "docs/flows/gw/gw_workflow_sops.md",
         "docs/business_rules.md",
         "src/gw/submit.jsx"
       ]
@@ -1794,7 +1794,7 @@
       ],
       "status": "pending",
       "files": [
-        "docs/gw_workflow_sops.md",
+        "docs/flows/gw/gw_workflow_sops.md",
         "src/admin/friday-batch.jsx"
       ]
     },
@@ -1809,7 +1809,7 @@
       ],
       "status": "pending",
       "files": [
-        "docs/gw_workflow_sops.md",
+        "docs/flows/gw/gw_workflow_sops.md",
         "src/admin/disputes.jsx"
       ]
     },
@@ -1824,7 +1824,7 @@
       ],
       "status": "pending",
       "files": [
-        "docs/gw_workflow_sops.md",
+        "docs/flows/gw/gw_workflow_sops.md",
         "src/gw/extension-request.jsx",
         "src/admin/order-detail.jsx"
       ]
@@ -1840,7 +1840,7 @@
       ],
       "status": "pending",
       "files": [
-        "docs/gw_workflow_sops.md",
+        "docs/flows/gw/gw_workflow_sops.md",
         "src/gw/first-contact.jsx"
       ]
     },
@@ -1855,7 +1855,7 @@
       ],
       "status": "pending",
       "files": [
-        "docs/gw_workflow_sops.md",
+        "docs/flows/gw/gw_workflow_sops.md",
         "src/qa/queue.jsx"
       ]
     },

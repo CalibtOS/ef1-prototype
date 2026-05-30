@@ -28,6 +28,10 @@ export const STATUS = Object.freeze({
   ON_HOLD: 'on_hold',
   DELAY_REPORTED: 'delay_reported',
   EXTENSION_REQUESTED: 'extension_requested',
+  // Admin approved a scope change (extension request or dispute scope amendment),
+  // but pages/price/deadline stay frozen until the customer approves AND pays the
+  // extension invoice. See approveExtension / confirmExtensionPayment.
+  EXTENSION_CUSTOMER_APPROVAL_PENDING: 'extension_customer_approval_pending',
 });
 
 // ---- Submission kinds (what a GW uploads) ----

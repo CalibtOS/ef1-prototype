@@ -169,6 +169,9 @@ function GenerateOfferModal({ orderId, toast, onClose }) {
       EFActions.orders.sendOffer(orderId, {
         status: 'offer_sent',
         offerSentAt: new Date().toISOString(),
+        // The modal's `preview` phase IS the proposal-PDF review — record it so
+        // the shared PDF-review gate in sendOffer is satisfied (audit A-06).
+        offerPdfPreviewedAt: new Date().toISOString(),
         sevdeskOfferNo: `AN-2026-${String(orderId).padStart(4, '0')}`,
         outstandingEur: 0,
         pipedriveStage: 'Proposal',

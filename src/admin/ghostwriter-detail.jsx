@@ -35,8 +35,9 @@ function GhostwriterDetail({ gwId, navigate, toast }) {
         <div>
           <CrumbBar trail={['Admin', 'Ghostwriters', g.name]}/>
           <h1 className="page-title" style={{ marginTop: 6, display: 'flex', gap: 12, alignItems: 'center' }}>
-            <Avatar initials={g.initials} size={36} tone={g.banned ? 'red' : 'neutral'}/>
+            <Avatar initials={g.initials} size={36} tone={(g.banned || g.accountBlockedAt) ? 'red' : 'neutral'}/>
             <span>{g.name}</span>
+            {g.accountBlockedAt && <span className="pill pill-red" title={g.accountBlockReason}>Account blocked</span>}
             {g.banned && <span className="pill pill-red">Shadow-banned</span>}
             {g.isOwner && <span className="pill pill-blue">Owner</span>}
           </h1>

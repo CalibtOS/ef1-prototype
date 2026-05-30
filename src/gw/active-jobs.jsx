@@ -211,7 +211,12 @@ function GWActiveJobs({ navigate }) {
                     <div className="fs-12" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                       {o.titleTBD ? <em className="text-faint">folgt — awaiting customer</em> : o.title}
                     </div>
-                    {o.revisionRounds > 0 && <div className="text-faint fs-11">round {o.revisionRounds + 1}</div>}
+                    {(() => {
+                      const current = W.currentRevisionRound(o);
+                      if (!current) return null;
+                      const phase = o.revisionTargetKind === 'final' ? 'final' : 'interim';
+                      return <div className="text-faint fs-11">{phase} revision · round {current}</div>;
+                    })()}
                   </td>
                   <td className="num mono">{o.pages || '—'}</td>
                   <td><StageDots stage={o.stage}/></td>

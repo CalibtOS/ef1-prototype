@@ -78,6 +78,8 @@ function custStatusMeta(o) {
   if (s === 'cancelled') return { color: 'red', label: 'Storniert', icon: 'x-circle' };
   if (s === 'on_hold') return { color: 'amber', label: 'Pausiert', icon: 'pause' };
   if (s === 'delay_reported') return { color: 'orange', label: 'Verzögerung gemeldet', icon: 'alert-triangle' };
+  if (s === 'extension_customer_approval_pending')
+    return { color: 'amber', label: 'Erweiterung bestätigen', icon: 'plus-circle' };
   if (s === 'interim_submitted' || s === 'under_customer_review')
     return { color: 'blue', label: 'Zwischenstand prüfen', icon: 'eye' };
   if (s === 'revision_required')
@@ -106,9 +108,16 @@ function custProgress(o, submissions = []) {
     return 35;
   }
   if (s === 'interim_submitted' || s === 'under_customer_review') return 55;
-  if (s === 'revision_required') return 50;
+  if (s === 'revision_required') {
+    // A final revision happens on a near-completed order (QA already passed it
+    // once before the customer asked for tweaks). Don't regress the progress
+    // bar from ~95% delivered all the way back to 50% — keep the user oriented.
+    if (o.revisionTargetKind === 'final' || o.finalSubmittedAt) return 88;
+    return 50;
+  }
   if (s === 'qa_review') return 90;
   if (s === 'on_hold') return 20;
+  if (s === 'extension_customer_approval_pending') return 40;
   return 30;
 }
 
@@ -265,7 +274,7 @@ function CustOrderCard({ o, onOpen, startCheckout, goTo }) {
         <div className="flex items-center gap-2 mb-2">
           <span className="mono fs-11 text-faint">#{o.id}</span>
           <span className={`pill pill-${meta.color}`}><Icon name={meta.icon} size={10}/> {meta.label}</span>
-          {o.disputeOpen && <span className="pill pill-red" style={{ fontSize: 10 }}><Icon name="alert-triangle" size={9}/> Streitfall offen</span>}
+          {W.isOrderDisputed(o) && <span className="pill pill-red" style={{ fontSize: 10 }}><Icon name="alert-triangle" size={9}/> Streitfall offen</span>}
           <span style={{ flex: 1 }}/>
           <span className={`fs-11 ${dl.tone === 'danger' ? 'text-danger' : 'text-muted'}`}>
             {isComplete ? 'Geliefert' : 'Fällig'} {U.fmtDate(o.finalDeadline)}
@@ -428,7 +437,7 @@ function CustOrdersList({ openOrder, startCheckout, goTo }) {
   );
 }
 
-function CustOrderStatus({ o, startCheckout }) {
+function CustOrderStatus({ o, startCheckout, toast }) {
   const meta = custStatusMeta(o);
   const displaySubs = EFHooks.useDisplaySubmissions(o.id);
   const realSubs = (displaySubs || []).filter(s => !s.synthetic);
@@ -599,6 +608,18 @@ function CustOrderStatus({ o, startCheckout }) {
           </div>
         </div>
 
+        {o.status === 'extension_customer_approval_pending' && o.extensionApproval && (
+          <div className="card" style={{ borderLeft: '4px solid var(--amber)' }}>
+            <div className="card-head">
+              <div className="card-title">Umfangserweiterung</div>
+              <span className="pill pill-amber" style={{ fontSize: 10 }}><Icon name="clock" size={9}/> Ihre Entscheidung</span>
+            </div>
+            <div className="card-pad">
+              <CustExtensionApproval o={o} toast={toast}/>
+            </div>
+          </div>
+        )}
+
         <div className="card">
           <div className="card-head"><div className="card-title">Eckdaten</div></div>
           <div className="card-pad">
@@ -678,8 +699,10 @@ function CustOrderChat({ o, toast }) {
 }
 
 function CustInterimFeedback({ o, toast }) {
-  const [mode, setMode] = useState(null); // null | 'approve' | 'revision'
+  const [mode, setMode] = useState(null); // null | 'approve' | 'revision' | 'dispute'
   const [note, setNote] = useState('');
+  const [disputeCategory, setDisputeCategory] = useState('quality');
+  const DISPUTE_MIN = 30;
 
   if (mode === 'approve') {
     return (
@@ -725,6 +748,42 @@ function CustInterimFeedback({ o, toast }) {
     );
   }
 
+  if (mode === 'dispute') {
+    const canSubmit = note.trim().length >= DISPUTE_MIN;
+    return (
+      <div className="flex-col gap-2">
+        <div className="banner warn" style={{ fontSize: 12 }}>
+          <Icon name="alert-triangle" size={13}/>
+          <span>Eskalieren Sie nur, wenn Sie das Problem nicht im Chat mit Ihrem Ghostwriter klären können. efactory1 prüft und mediiert. Der Chat wird während der Klärung pausiert.</span>
+        </div>
+        <label className="fs-12 text-muted">Kategorie:</label>
+        <select value={disputeCategory} onChange={e=>setDisputeCategory(e.target.value)} style={{ padding: 8, fontSize: 13, border: '1px solid var(--border)', borderRadius: 8, background: 'var(--surface)', color: 'var(--text)' }}>
+          <option value="quality">Qualität / Anforderungen</option>
+          <option value="unresponsive">Ghostwriter antwortet nicht</option>
+          <option value="late">Verzögerung / Termine</option>
+          <option value="abusive">Unprofessionelles Verhalten</option>
+          <option value="other">Sonstiges</option>
+        </select>
+        <label className="fs-12 text-muted">Was ist passiert? (mind. {DISPUTE_MIN} Zeichen)</label>
+        <textarea
+          style={{ width: '100%', minHeight: 100, resize: 'vertical', padding: 10, fontSize: 13, border: `1px solid ${canSubmit ? 'var(--border)' : 'var(--amber)'}`, borderRadius: 8, background: 'var(--surface)', color: 'var(--text)', fontFamily: 'inherit', boxSizing: 'border-box' }}
+          placeholder="Bitte beschreiben Sie das Problem konkret — was wurde besprochen, was hat nicht geklappt, was haben Sie bereits versucht."
+          value={note}
+          onChange={(e)=>setNote(e.target.value)}
+        />
+        <div className="flex gap-2">
+          <button type="button" className="btn btn-sm" onClick={()=>{setMode(null);setNote('');}}>Zurück</button>
+          <button type="button" className="btn btn-sm btn-danger" disabled={!canSubmit} onClick={()=>{
+            const ok = EFActions.disputes.openByCustomer(o.id, { reasonCategory: disputeCategory, reason: note.trim() });
+            if (ok) toast && toast({ tone: 'danger', transition: { entity: `Auftrag #${o.id}`, from: 'Zwischenstand', to: 'Streitfall' }, text: 'Streitfall eröffnet · Berat prüft · Chat pausiert.' });
+          }}>
+            <Icon name="alert-triangle" size={12}/> Streitfall eröffnen
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="flex-col gap-2">
       <div className="text-muted fs-12 mb-1">Bitte prüfen Sie den Zwischenstand im Tab und wählen Sie eine Aktion:</div>
@@ -735,12 +794,79 @@ function CustInterimFeedback({ o, toast }) {
         <Icon name="rotate-ccw" size={12}/> Überarbeitung anfordern
       </button>
       <hr style={{ border: 'none', borderTop: '1px solid var(--border)', margin: '4px 0' }}/>
-      <button type="button" className="btn btn-sm btn-ghost" style={{ fontSize: 11.5, color: 'var(--text-3)' }} onClick={()=>{
-        EFActions.customer.escalate(o.id);
-        toast && toast({ tone: 'danger', text: 'Streitfall gemeldet · Berat prüft und meldet sich.' });
-      }}>
+      <button
+        type="button"
+        className="btn btn-sm"
+        style={{
+          fontSize: 11.5,
+          color: 'var(--amber)',
+          background: 'color-mix(in oklab, var(--amber) 8%, var(--surface))',
+          borderColor: 'color-mix(in oklab, var(--amber) 55%, var(--border))',
+        }}
+        onClick={()=>setMode('dispute')}
+      >
         <Icon name="alert-triangle" size={11}/> Problem eskalieren
       </button>
+    </div>
+  );
+}
+
+// CustExtensionApproval — a scope change (extra pages / fee / new deadline)
+// approved by efactory1 is staged in order.extensionApproval with the order
+// parked in 'extension_customer_approval_pending'. Pages, price and deadline do
+// NOT change and the GW can't proceed until the customer approves here and (when
+// a fee is due) pays the extension invoice. See actions customer.approveExtension
+// / payExtension / declineExtension and the gate rationale in actions.js (A-03).
+function CustExtensionApproval({ o, toast }) {
+  const ea = o.extensionApproval;
+  if (!ea) return null;
+  const extraFee = Number(ea.extraFee) || 0;
+  const extraPages = Number(ea.extraPages) || 0;
+  const newDeadline = ea.newDeadline ? String(ea.newDeadline).slice(0, 10) : null;
+  const awaitingPayment = ea.status === 'pending_payment';
+  const decline = () => {
+    const ok = EFActions.customer.declineExtension(o.id);
+    if (ok) toast && toast({ tone: 'info', text: 'Erweiterung abgelehnt · ursprünglicher Umfang bleibt bestehen' });
+  };
+  return (
+    <div className="flex-col gap-2">
+      <div className="banner info" style={{ fontSize: 12 }}>
+        <Icon name="info" size={13}/>
+        <span>efactory1 schlägt eine Umfangserweiterung vor. Umfang, Preis und Liefertermin ändern sich erst, wenn Sie zustimmen{extraFee > 0 ? ' und die Erweiterungsrechnung bezahlen' : ''}.</span>
+      </div>
+      <div className="kv" style={{ fontSize: 12 }}>
+        {extraPages > 0 && <div className="kv-row"><dt>Zusätzliche Seiten</dt><dd className="mono">+{extraPages}</dd></div>}
+        <div className="kv-row"><dt>Mehrkosten</dt><dd className="mono">{extraFee > 0 ? U.EUR(extraFee) : 'keine'}</dd></div>
+        {newDeadline && <div className="kv-row"><dt>Neuer Liefertermin</dt><dd className="mono">{U.fmtDate(newDeadline)}</dd></div>}
+        {ea.description && <div className="kv-row"><dt>Begründung</dt><dd style={{ textAlign: 'right', maxWidth: 220 }}>{ea.description}</dd></div>}
+      </div>
+      {awaitingPayment ? (
+        <>
+          <div className="banner success" style={{ fontSize: 11.5 }}>
+            <Icon name="check-circle" size={12}/>
+            <span>Freigabe erteilt. Erweiterungsrechnung {ea.invoiceNo || ''} über {U.EUR(extraFee)} — nach Zahlung wird der erweiterte Umfang aktiv.</span>
+          </div>
+          <div className="flex gap-2">
+            <button type="button" className="btn btn-sm btn-success" onClick={()=>{
+              const ok = EFActions.customer.payExtension(o.id);
+              if (ok) toast && toast({ tone: 'success', transition: { entity: `Auftrag #${o.id}`, from: 'Erweiterung', to: 'In Bearbeitung' }, text: 'Erweiterung bezahlt · neuer Umfang aktiv · GW kann fortfahren' });
+            }}>
+              <Icon name="wallet" size={12}/> Erweiterungsrechnung bezahlen
+            </button>
+            <button type="button" className="btn btn-sm" onClick={decline}>Ablehnen</button>
+          </div>
+        </>
+      ) : (
+        <div className="flex gap-2">
+          <button type="button" className="btn btn-sm btn-success" onClick={()=>{
+            const ok = EFActions.customer.approveExtension(o.id);
+            if (ok) toast && toast({ tone: 'success', text: extraFee > 0 ? 'Freigabe erteilt · bitte Erweiterungsrechnung bezahlen' : 'Erweiterung freigegeben · neuer Umfang aktiv' });
+          }}>
+            <Icon name="check" size={12}/> {extraFee > 0 ? 'Erweiterung & Mehrkosten freigeben' : 'Erweiterung freigeben'}
+          </button>
+          <button type="button" className="btn btn-sm" onClick={decline}>Ablehnen</button>
+        </div>
+      )}
     </div>
   );
 }
@@ -751,8 +877,10 @@ function CustInterimFeedback({ o, toast }) {
 // customer_satisfied). Without this UI no live order can ever reach
 // payment_pending and the GW honorarium would stay stuck behind the gate.
 function CustFinalAcceptance({ o, toast }) {
-  const [mode, setMode] = useState(null); // null | 'accept' | 'revision'
+  const [mode, setMode] = useState(null); // null | 'accept' | 'revision' | 'dispute'
   const [note, setNote] = useState('');
+  const [disputeCategory, setDisputeCategory] = useState('quality');
+  const DISPUTE_MIN = 30;
 
   if (mode === 'accept') {
     return (
@@ -798,6 +926,42 @@ function CustFinalAcceptance({ o, toast }) {
     );
   }
 
+  if (mode === 'dispute') {
+    const canSubmit = note.trim().length >= DISPUTE_MIN;
+    return (
+      <div className="flex-col gap-2">
+        <div className="banner warn" style={{ fontSize: 12 }}>
+          <Icon name="alert-triangle" size={13}/>
+          <span>Eskalieren Sie nur, wenn Sie das Problem nicht im Chat mit Ihrem Ghostwriter klären können. efactory1 prüft und mediiert. Der Chat wird während der Klärung pausiert.</span>
+        </div>
+        <label className="fs-12 text-muted">Kategorie:</label>
+        <select value={disputeCategory} onChange={e=>setDisputeCategory(e.target.value)} style={{ padding: 8, fontSize: 13, border: '1px solid var(--border)', borderRadius: 8, background: 'var(--surface)', color: 'var(--text)' }}>
+          <option value="quality">Qualität / Anforderungen</option>
+          <option value="unresponsive">Ghostwriter antwortet nicht</option>
+          <option value="late">Verzögerung / Termine</option>
+          <option value="abusive">Unprofessionelles Verhalten</option>
+          <option value="other">Sonstiges</option>
+        </select>
+        <label className="fs-12 text-muted">Was ist passiert? (mind. {DISPUTE_MIN} Zeichen)</label>
+        <textarea
+          style={{ width: '100%', minHeight: 100, resize: 'vertical', padding: 10, fontSize: 13, border: `1px solid ${canSubmit ? 'var(--border)' : 'var(--amber)'}`, borderRadius: 8, background: 'var(--surface)', color: 'var(--text)', fontFamily: 'inherit', boxSizing: 'border-box' }}
+          placeholder="Bitte beschreiben Sie das Problem konkret — was wurde besprochen, was hat nicht geklappt, was haben Sie bereits versucht."
+          value={note}
+          onChange={(e)=>setNote(e.target.value)}
+        />
+        <div className="flex gap-2">
+          <button type="button" className="btn btn-sm" onClick={()=>{setMode(null);setNote('');}}>Zurück</button>
+          <button type="button" className="btn btn-sm btn-danger" disabled={!canSubmit} onClick={()=>{
+            const ok = EFActions.disputes.openByCustomer(o.id, { reasonCategory: disputeCategory, reason: note.trim() });
+            if (ok) toast && toast({ tone: 'danger', transition: { entity: `Auftrag #${o.id}`, from: 'Endversion', to: 'Streitfall' }, text: 'Streitfall eröffnet · Berat prüft · Chat pausiert.' });
+          }}>
+            <Icon name="alert-triangle" size={12}/> Streitfall eröffnen
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="flex-col gap-2">
       <div className="text-muted fs-12 mb-1">Die Endversion ist freigegeben. Bitte prüfen Sie sie und entscheiden Sie:</div>
@@ -808,10 +972,17 @@ function CustFinalAcceptance({ o, toast }) {
         <Icon name="rotate-ccw" size={12}/> Letzte Anpassungen anfordern
       </button>
       <hr style={{ border: 'none', borderTop: '1px solid var(--border)', margin: '4px 0' }}/>
-      <button type="button" className="btn btn-sm btn-ghost" style={{ fontSize: 11.5, color: 'var(--text-3)' }} onClick={()=>{
-        EFActions.customer.escalate(o.id);
-        toast && toast({ tone: 'danger', text: 'Streitfall gemeldet · Berat prüft und meldet sich.' });
-      }}>
+      <button
+        type="button"
+        className="btn btn-sm"
+        style={{
+          fontSize: 11.5,
+          color: 'var(--amber)',
+          background: 'color-mix(in oklab, var(--amber) 8%, var(--surface))',
+          borderColor: 'color-mix(in oklab, var(--amber) 55%, var(--border))',
+        }}
+        onClick={()=>setMode('dispute')}
+      >
         <Icon name="alert-triangle" size={11}/> Problem eskalieren
       </button>
     </div>
@@ -962,7 +1133,20 @@ function CustOrderFiles({ o, toast }) {
           );
         })()}
 
-        {(o.status === 'interim_submitted' || o.status === 'under_customer_review') && (
+        {W.isOrderDisputed(o) && (
+          <div className="card" style={{ borderLeft: '4px solid var(--red)' }}>
+            <div className="card-head">
+              <div className="card-title">Streitfall in Prüfung</div>
+              <span className="pill pill-red" style={{ fontSize: 10 }}><Icon name="alert-triangle" size={9}/> efactory1 mediiert</span>
+            </div>
+            <div className="card-pad text-muted fs-12" style={{ lineHeight: 1.6 }}>
+              Ihr Streitfall wurde an efactory1 übergeben. Der Plattform-Chat ist pausiert, bis Berat eine Entscheidung trifft.
+              Sie erhalten eine E-Mail, sobald der Fall gelöst ist — bis dahin sind keine weiteren Aktionen erforderlich.
+            </div>
+          </div>
+        )}
+
+        {!W.isOrderDisputed(o) && (o.status === 'interim_submitted' || o.status === 'under_customer_review') && (
           <div className="card">
             <div className="card-head">
               <div className="card-title">Ihr Feedback</div>
@@ -974,7 +1158,7 @@ function CustOrderFiles({ o, toast }) {
           </div>
         )}
 
-        {o.status === 'delivered' && (
+        {!W.isOrderDisputed(o) && o.status === 'delivered' && (
           <div className="card">
             <div className="card-head">
               <div className="card-title">Endabgabe prüfen</div>
@@ -1169,7 +1353,7 @@ function CustOrderDetail({ orderId, tab, onTabChange, onBack, toast, startChecko
         })()}
       </div>
 
-      {tab === 'status'   && <CustOrderStatus o={o} startCheckout={startCheckout}/>}
+      {tab === 'status'   && <CustOrderStatus o={o} startCheckout={startCheckout} toast={toast}/>}
       {tab === 'messages' && <CustOrderChat o={o} toast={toast}/>}
       {tab === 'files'    && <CustOrderFiles o={o} toast={toast}/>}
       {tab === 'payments' && <CustOrderPayments o={o} goTo={goTo}/>}

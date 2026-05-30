@@ -8,7 +8,7 @@ const ORDER_STATES = [
   'active','interim_submitted','under_customer_review','revision_required',
   'qa_review','ai_violation_review','plagiarism_violation_review',
   'delivered','payment_pending','completed','cancelled','on_hold','delay_reported',
-  'extension_requested'
+  'extension_requested','extension_customer_approval_pending'
 ];
 
 const PRE_PROPOSAL_STATES = ['lead', 'qualified'];
@@ -64,6 +64,7 @@ const STATUS_RANK = {
   on_hold: 4,
   delay_reported: 6,
   extension_requested: 6,
+  extension_customer_approval_pending: 6,
   cancelled: 0,
   bye: 0,
 };
@@ -80,11 +81,13 @@ const CLOSED_SUBMISSION_REASONS = {
   on_hold: 'Order on hold',
   delay_reported: 'Delay reported — awaiting admin decision',
   extension_requested: 'Extension requested — awaiting admin decision',
+  extension_customer_approval_pending: 'Scope change awaiting customer approval + payment — no upload yet',
   ai_violation_review: 'AI violation under review',
   plagiarism_violation_review: 'Plagiarism violation under review',
 };
 
 const TRANSITIONS = {
+  send_offer:           { from: ['qualified'], to: 'offer_sent' },
   approve_claim:        { from: ['claimed_pending_approval'], to: 'active' },
   reject_claim:         { from: ['claimed_pending_approval'], to: 'available' },
   claim_job:            { from: ['available'], to: 'claimed_pending_approval' },
@@ -124,7 +127,7 @@ function canTransition(order, name) {
 }
 
 // Admin resolution actions (approveExtension, rejectExtension, acceptDelay,
-// closeDispute, confirmViolation, clearViolation) don't fit the normal
+// confirmViolation, clearViolation) don't fit the normal
 // transition graph because they exit a "stuck" state by patching multiple
 // fields at once. Rather than add transitions for every admin verb (and lose
 // the action-body semantics), each admin action declares its required
@@ -138,7 +141,6 @@ const RESOLUTION_PRECONDITIONS = {
   reject_extension:  (o) => o.status === 'extension_requested' || !!o.extensionPending,
   accept_delay:      (o) => o.status === 'delay_reported',
   propose_delay:     (o) => o.status === 'delay_reported',
-  close_dispute:     (o) => !!o.disputeOpen,
   confirm_violation: (o) => o.status === 'ai_violation_review' || o.status === 'plagiarism_violation_review',
   clear_violation:   (o) => o.status === 'ai_violation_review' || o.status === 'plagiarism_violation_review',
 };
@@ -186,6 +188,105 @@ function nextStateAfterSubmit(kind) {
 
 function isInterimKind(kind) {
   return kind === 'interim_1' || kind === 'interim_2';
+}
+
+// =============================================================================
+// Dispute helpers
+// =============================================================================
+// Disputes live as an append-only array on the order. `order.disputes` is the
+// SINGLE source of truth — when at least one entry has `status === 'open'`, the
+// order is disputed. The legacy `disputeOpen` boolean was removed (it was a
+// second, hand-mirrored source of truth); see
+// docs/audits/implementation_completion_audit.md.
+//
+// Design rationale: per docs/flows/dispute/dispute_flow_design_review.md §4, dispute is
+// orthogonal to status. Opening a dispute pushes to disputes[] and locks the
+// chat (chat.disputeLockedAt). Closing applies an outcome that may or may not
+// move status — but the open/close itself never does.
+
+function disputes(order) {
+  return Array.isArray(order?.disputes) ? order.disputes : [];
+}
+
+function openDisputes(order) {
+  return disputes(order).filter(d => d?.status === 'open');
+}
+
+function currentOpenDispute(order) {
+  // Return the most recently opened dispute that's still open (typically there's
+  // at most one — concurrent disputes are blocked in the open action).
+  const open = openDisputes(order);
+  if (!open.length) return null;
+  return [...open].sort((a, b) => new Date(b.openedAt || 0) - new Date(a.openedAt || 0))[0];
+}
+
+function isOrderDisputed(order) {
+  // Single source of truth: an order is disputed iff it has an open structured
+  // dispute. (The legacy `disputeOpen` boolean was removed; disputes[] is the
+  // only record. Seeds are backfilled.)
+  return openDisputes(order).length > 0;
+}
+
+// A GW account is BLOCKED (hard) when a confirmed AI/plagiarism violation
+// revoked platform access. Distinct from `banned` (shadow-ban) — a softer
+// job-board visibility throttle (see docs/business_rules.md). A blocked account
+// cannot claim or apply for jobs; a shadow-banned one still can, it just stops
+// receiving job-availability alerts.
+function isGwBlocked(gw) {
+  return !!gw?.accountBlockedAt;
+}
+
+// Per-kind revision round policy.
+//   - Interim revisions: max 3 rounds (across interim_1 + interim_2 cumulatively).
+//   - Final revisions:   max 3 rounds (customer + QA combined).
+// Hitting the cap forces the dispute/escalation fallback — see Annex A / P2.1
+// of docs/flows/dispute/dispute_flow_design_review.md.
+const MAX_REVISION_ROUNDS_PER_KIND = 3;
+
+// Which counter does a customer "request revision" target right now? Derived
+// from order.status because the status decides whether the open milestone is
+// an interim under review or a delivered final.
+function revisionKindForCustomerRequest(order) {
+  if (!order) return null;
+  if (order.status === 'delivered') return 'final';
+  if (order.status === 'under_customer_review' || order.status === 'interim_submitted') {
+    return order.pendingCustomerReviewKind || order.lastSubmittedInterimKind || order.lastSubmissionKind || 'interim_1';
+  }
+  return null;
+}
+
+// Returns the count of revision rounds already burned for the given kind.
+// 'final' / 'interim_1' / 'interim_2' all share the per-kind counters that
+// requestCustomerRevision / qaRequestRevision maintain.
+function revisionRoundsForKind(order, kind) {
+  if (!order || !kind) return 0;
+  if (kind === 'final') return order.finalRevisionRounds || 0;
+  // Interim 1 and interim 2 share `interimRevisionRounds` — the cap is for
+  // the interim phase as a whole, not per slot.
+  return order.interimRevisionRounds || 0;
+}
+
+// Single source of truth for "can another revision round be requested?".
+//   - Returns { ok: true } when the round is allowed.
+//   - Returns { ok: false, reason, escalationRecommended } otherwise.
+// Use in `requestCustomerRevision`, `qaRequestRevision`, and any UI gate that
+// shows / hides revision CTAs vs. the "open dispute" fallback.
+function canRequestRevision(order, kind /* optional */) {
+  if (!order) return { ok: false, reason: 'Order not found.' };
+  if (isOrderDisputed(order)) {
+    return { ok: false, reason: 'Dispute is open — admin must resolve before another revision.', escalationRecommended: false };
+  }
+  const targetKind = kind || revisionKindForCustomerRequest(order) || 'final';
+  const rounds = revisionRoundsForKind(order, targetKind);
+  if (rounds >= MAX_REVISION_ROUNDS_PER_KIND) {
+    const phaseLabel = targetKind === 'final' ? 'final' : 'interim';
+    return {
+      ok: false,
+      reason: `Max ${MAX_REVISION_ROUNDS_PER_KIND} ${phaseLabel} revision rounds reached. Open a dispute to escalate.`,
+      escalationRecommended: true,
+    };
+  }
+  return { ok: true };
 }
 
 // Per-kind revision round counter. Interim and Final revisions each have their
@@ -377,6 +478,7 @@ function releaseGateStageNote(order) {
     on_hold: 'Order is on hold. Resolve the hold before continuing the workflow.',
     delay_reported: 'Delay is awaiting admin decision. Delivery and payout gates are paused.',
     extension_requested: 'Scope extension is awaiting admin/customer approval. Delivery and payout gates are paused.',
+    extension_customer_approval_pending: 'Scope change approved by admin — waiting for the customer to approve and pay the extension invoice before work resumes.',
   };
   return map[order.status] || 'This workflow stage has not reached payout gating yet.';
 }
@@ -402,7 +504,8 @@ function releaseGates(order) {
   const gates = {
     customer_satisfied:      order.customerSatisfied === true,
     quality_approved:        order.qaPassed === true && !order.flagged && order.status !== 'ai_violation_review' && order.status !== 'plagiarism_violation_review',
-    revisions_complete:      !order.disputeOpen && order.status !== 'revision_required',
+    // An open structured dispute (or an active revision) blocks the Friday batch.
+    revisions_complete:      !isOrderDisputed(order) && order.status !== 'revision_required',
     all_installments_paid:   allInstallmentsPaid(order),
     gw_invoice_received:     order.gwPaymentStatus === 'invoice_received' || order.gwPaymentStatus === 'paid',
   };
@@ -434,6 +537,7 @@ function statusFor(order, role) {
       interim_submitted: 'Zwischenstand prüfen',
       under_customer_review: 'Zwischenstand prüfen',
       revision_required: 'Überarbeitung läuft',
+      extension_customer_approval_pending: 'Erweiterung bestätigen',
       qa_review: 'Qualitätsprüfung',
       delivered: 'Endabgabe prüfen',
       payment_pending: 'Abgeschlossen',
@@ -758,7 +862,7 @@ function buildOrderEvents(order, context) {
   });
 
   if (order.lastCustomerFeedbackAt && order.status === 'revision_required') addEvent(events, event('customer.revision', order.lastCustomerFeedbackAt, 'Customer requested revision', { icon: 'message-square', dot: 'amber', domain: 'customer', detail: bodyPreview(order.customerRevisionNote) }));
-  if (order.disputeOpen || order.lastDisputeAt) addEvent(events, event('customer.dispute', order.lastDisputeAt || order.lastCustomerFeedbackAt || dates.deliveredAt || dates.interimAt, 'Customer dispute opened', { icon: 'alert-triangle', dot: 'amber', domain: 'customer', detail: 'Blocks payout until resolved.' }));
+  if (isOrderDisputed(order) || order.lastDisputeAt) addEvent(events, event('customer.dispute', order.lastDisputeAt || order.lastCustomerFeedbackAt || dates.deliveredAt || dates.interimAt, 'Customer dispute opened', { icon: 'alert-triangle', dot: 'amber', domain: 'customer', detail: 'Blocks payout until resolved.' }));
   if (dates.finalAcceptedAt) addEvent(events, event('customer.final.accepted', dates.finalAcceptedAt, 'Customer accepted final delivery', { icon: 'check-circle', dot: 'green', domain: 'customer' }));
   if (order.delayReportedAt) addEvent(events, event('gw.delay', order.delayReportedAt, 'GW reported a delivery delay', { icon: 'clock', dot: 'amber', domain: 'assignment', detail: order.delayReason || null }));
   if (order.extensionPending?.requestedAt) addEvent(events, event('gw.extension', order.extensionPending.requestedAt, 'GW requested scope extension', { icon: 'plus', dot: 'amber', domain: 'assignment', detail: order.extensionPending.description || null }));
@@ -800,6 +904,15 @@ export {
   isInterimKind,
   isQaReviewKind,
   currentRevisionRound,
+  canRequestRevision,
+  revisionKindForCustomerRequest,
+  revisionRoundsForKind,
+  MAX_REVISION_ROUNDS_PER_KIND,
+  disputes,
+  openDisputes,
+  currentOpenDispute,
+  isOrderDisputed,
+  isGwBlocked,
   isPreProposal,
   isPrePayment,
   isOrderPaid,

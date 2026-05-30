@@ -99,8 +99,17 @@ function selectOrdersByCustomer(state, customerId) {
 
 function selectOrderChat(state, orderId) {
   if (orderId == null) return null;
-  return tableItems(state.entities.order_chats || { byId: {}, allIds: [] })
-    .find(c => Number(c.orderId) === Number(orderId)) || null;
+  const chats = tableItems(state.entities.order_chats || { byId: {}, allIds: [] })
+    .filter(c => Number(c.orderId) === Number(orderId));
+  if (!chats.length) return null;
+  // An order can hold more than one chat over its lifetime — the original gets
+  // archived (closedAt set) when admin reassigns the GW (dispute outcome B),
+  // and the new assignment opens a fresh writable chat. Prefer the still-open
+  // chat; fall back to the most recent archived one so the transcript remains
+  // inspectable on completed/cancelled orders.
+  const open = chats.filter(c => !c.closedAt);
+  const pool = open.length ? open : chats;
+  return [...pool].sort((a, b) => new Date(b.openedAt || 0) - new Date(a.openedAt || 0))[0];
 }
 
 function selectNotifications(state, role) {
@@ -319,7 +328,7 @@ function selectNeedsDecision(state) {
     if (o.status === 'delay_reported') push('delay', 3, o);
   });
   orders.forEach(o => {
-    if (o.disputeOpen && !['ai_violation_review','plagiarism_violation_review','extension_requested','delay_reported'].includes(o.status)) {
+    if (W.isOrderDisputed(o) && !['ai_violation_review','plagiarism_violation_review','extension_requested','delay_reported'].includes(o.status)) {
       push('dispute', 4, o);
     }
   });
@@ -378,7 +387,7 @@ function selectSlaOperational(state) {
       }
     }
     // 4. Final submitted / in QA — Berat must review (final isn't auto-sent).
-    if (o.status === 'qa_review' && !o.disputeOpen) {
+    if (o.status === 'qa_review' && !W.isOrderDisputed(o)) {
       const pendingFinal = submissions.some(s =>
         Number(s.orderId) === Number(o.id) &&
         W.isQaReviewKind(s.kind) &&
@@ -494,7 +503,7 @@ function selectKpis(state) {
     qaPending: realSubs.filter(s => W.isQaReviewKind(s.kind) && s.qaStatus === QA_STATUS.PENDING).length,
     overdueInterim: sla.filter(it => it.kind === 'interim_missed').length,
     aiFlagged: realSubs.filter(s => s.aiScore >= 70 || s.flagged).length,
-    disputesOpen: realOrders.filter(o => o.disputeOpen).length,
+    disputesOpen: realOrders.filter(o => W.isOrderDisputed(o)).length,
     pipedriveSubs: `${realOrders.length} / 5,000`,
     eurAtRisk: Math.round(eurAtRisk * 100) / 100,
     riskItemCount: risk.length,

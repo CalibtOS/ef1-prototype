@@ -321,6 +321,7 @@ button:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
 .btn-success { background: var(--green); color: white; border-color: var(--green); }
 .btn-success:hover { background: color-mix(in oklab, var(--green) 88%, black); }
 .btn-danger { background: var(--red); color: white; border-color: var(--red); }
+.btn-danger:hover { background: color-mix(in oklab, var(--red) 88%, black); border-color: var(--red); }
 .btn-ghost { background: transparent; border-color: transparent; }
 .btn-ghost:hover { background: var(--surface-2); border-color: transparent; }
 .btn[disabled], .btn:disabled { opacity: 0.5; cursor: not-allowed; }

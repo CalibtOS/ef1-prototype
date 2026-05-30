@@ -124,7 +124,7 @@ function navItems(role, state) {
   if (role === 'admin') {
     const qaPending = submissions.filter(s => W.isQaReviewKind(s.kind) && s.qaStatus === QA_STATUS.PENDING).length;
     const friday = orders.filter(o => W.releaseGates(o).releasable).length;
-    const disputes = orders.filter(o => o.disputeOpen).length;
+    const disputes = orders.filter(o => W.isOrderDisputed(o)).length;
     const chatReportsPending = S.selectAllChatReports(state).filter(r => r.status === 'pending').length;
     return [
       { id: 'dashboard', label: 'Dashboard', icon: 'layout-dashboard' },
