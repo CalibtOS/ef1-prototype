@@ -56,8 +56,9 @@ function GWExtensionRequest({ orderId, navigate, toast }) {
             <div className="field"><label>Estimated extra pages</label>
               <input type="number" min="1" value={extraPages} onChange={e => setExtraPages(+e.target.value || 1)}/>
             </div>
-            <div className="field"><label>Proposed extra fee (€ net)</label>
+            <div className="field"><label>Proposed extra fee (€ net) — estimate</label>
               <input type="number" min="0" step="10" value={extraFee} onChange={e => setExtraFee(+e.target.value || 0)}/>
+              <span className="fs-11 text-faint">Berat sets the final price with the customer — you never discuss money with them directly.</span>
             </div>
           </div>
           <div className="banner" style={{ background: 'var(--surface-2)', border: '1px dashed var(--border)', fontSize: 11.5 }}>

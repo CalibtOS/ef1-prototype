@@ -744,6 +744,210 @@ function disputeResolvedGwNotify({ orderId, disputeId, outcome, outcomeNote, gwE
 // approve and pay — every other customer-money milestone arrives by email.
 // ---------------------------------------------------------------------------
 
+// Customer raised a scope extension (D-31). The in-app bells fire in
+// core/actions.customerRequestExtension; these add the Demo Inbox emails so the
+// admin + GW also get an inbox trail (every other order milestone arrives by
+// email, not just an in-app bell). The customer is the actor here, so they get
+// no email — they'll receive extensionApprovalRequestCustomer once admin prices
+// it and sends it back for approval.
+function extensionRequestedAdminNotify({ orderId, initiatedBy, customerId, customerName, gwId, gwName, description, extraPages, extraFee, scenarioId }) {
+  const byGw = initiatedBy === 'gw';
+  const money = (n) => `${Number(n || 0).toLocaleString('de-DE', { minimumFractionDigits: 2 })} €`;
+  const requester = byGw ? (gwName || 'Der Ghostwriter') : (customerName || customerId || 'Der Kunde');
+  return createEmail({
+    to: 'kundenservice@efactory1.de',
+    toRole: 'admin',
+    from: 'noreply@efactory1.de',
+    subject: byGw
+      ? `Erweiterung vom Ghostwriter angefragt · Auftrag #${orderId}`
+      : `Erweiterung vom Kunden angefragt · Auftrag #${orderId}`,
+    bodyMd: [
+      `**${requester}** hat zusätzliche Arbeit für Auftrag #${orderId} angefragt.`,
+      ``,
+      `**Kunde:** ${customerName || customerId || '—'}`,
+      `**Ghostwriter:** ${gwName || '—'} (\`${gwId || '—'}\`)`,
+      extraPages ? `**Geschätzte Mehrseiten:** +${extraPages}` : null,
+      (byGw && Number(extraFee) > 0) ? `**Vom GW geschätztes Honorar:** ${money(extraFee)} (Sie legen den finalen Preis mit dem Kunden fest)` : null,
+      ``,
+      description ? `**Beschreibung:**` : null,
+      description ? `> ${description}` : null,
+      description ? `` : null,
+      `Bitte Umfang prüfen, den Preis mit dem Kunden festlegen und zur Freigabe senden. Der Ghostwriter startet erst nach Freigabe + Zahlung mit der Mehrleistung.`,
+    ].filter(v => v !== null).join('\n'),
+    cta: { label: 'Auftrag öffnen', action: 'open_admin_order', orderId },
+    kind: 'extension_requested_admin',
+    orderId,
+    customerId: customerId || null,
+    gwId: gwId || null,
+    scenarioId,
+  });
+}
+
+function extensionRequestedGwNotify({ orderId, gwId, gwEmail, gwName, customerName, description, extraPages, scenarioId }) {
+  return createEmail({
+    to: gwEmail,
+    toRole: 'gw',
+    from: 'kundenservice@efactory1.de',
+    subject: `Customer requested more work · Order #${orderId}`,
+    bodyMd: [
+      `Hi ${gwName || ''},`,
+      ``,
+      `**${customerName || 'the customer'}** asked for additional work on order #${orderId}.`,
+      ``,
+      extraPages ? `**Estimated extra pages:** +${extraPages}` : null,
+      description ? `**Customer's request:**` : null,
+      description ? `> ${description}` : null,
+      description ? `` : null,
+      `efactory1 will confirm the scope, effort and price with you — **do not start the extra work yet**. You'll get a green light once the customer approves and pays the extension.`,
+    ].filter(v => v !== null).join('\n'),
+    cta: { label: 'Open assignment', action: 'open_gw_assignment', orderId },
+    kind: 'extension_requested_gw',
+    orderId,
+    customerId: null,
+    gwId: gwId || null,
+    scenarioId,
+  });
+}
+
+// Admin rejected an extension request before it reached the customer
+// (rejectExtension). GW parity for the in-app "extension declined" bell — note
+// this is the ADMIN rejecting the request, distinct from extensionDeclinedGw
+// (the CUSTOMER declining an already-staged scope change).
+function extensionRejectedGwNotify({ orderId, gwId, gwEmail, gwName, reason, scenarioId }) {
+  return createEmail({
+    to: gwEmail,
+    toRole: 'gw',
+    from: 'kundenservice@efactory1.de',
+    subject: `Extension request declined · Order #${orderId}`,
+    bodyMd: [
+      `Hi ${gwName || ''},`,
+      ``,
+      `efactory1 reviewed the extension request on order #${orderId} and decided not to proceed.`,
+      reason ? `` : null,
+      reason ? `**Reason:** ${reason}` : null,
+      reason ? `` : null,
+      `Please continue with the original scope, page count and deadline.`,
+    ].filter(v => v !== null).join('\n'),
+    cta: { label: 'Open assignment', action: 'open_gw_assignment', orderId },
+    kind: 'extension_rejected_gw',
+    orderId,
+    customerId: null,
+    gwId: gwId || null,
+    scenarioId,
+  });
+}
+
+// Admin staged the scope change (approveExtension) → it now waits on the
+// customer to approve + pay. GW parity for the in-app "do not start yet" bell.
+function extensionApprovalPendingGwNotify({ orderId, gwId, gwEmail, gwName, extraPages, extraFee, newDeadline, scenarioId }) {
+  const ddl = newDeadline ? String(newDeadline).slice(0, 10) : null;
+  return createEmail({
+    to: gwEmail,
+    toRole: 'gw',
+    from: 'kundenservice@efactory1.de',
+    subject: `Extension approved by efactory1 — awaiting customer · Order #${orderId}`,
+    bodyMd: [
+      `Hi ${gwName || ''},`,
+      ``,
+      `efactory1 reviewed the scope extension on order #${orderId} and sent it to the customer for approval.`,
+      ``,
+      extraPages ? `**Extra pages:** +${extraPages}` : null,
+      ddl ? `**Proposed new deadline:** ${ddl}` : null,
+      ``,
+      `**Do not start the extra work yet** — it applies only once the customer approves${Number(extraFee) > 0 ? ' and pays the extension invoice' : ''}. You'll get a green light then.`,
+    ].filter(v => v !== null).join('\n'),
+    cta: { label: 'Open assignment', action: 'open_gw_assignment', orderId },
+    kind: 'extension_pending_customer_gw',
+    orderId,
+    customerId: null,
+    gwId: gwId || null,
+    scenarioId,
+  });
+}
+
+// Customer approved a fee-bearing extension → invoice issued (customerApproveExtension).
+// Admin parity for the in-app "invoice issued" bell (customer gets extensionInvoiceCustomer).
+function extensionInvoiceAdminNotify({ orderId, customerId, customerName, invoiceNo, extraFee, scenarioId }) {
+  const money = (n) => `${Number(n || 0).toLocaleString('de-DE', { minimumFractionDigits: 2 })} €`;
+  return createEmail({
+    to: 'kundenservice@efactory1.de',
+    toRole: 'admin',
+    from: 'noreply@efactory1.de',
+    subject: `Erweiterung vom Kunden freigegeben · Auftrag #${orderId}`,
+    bodyMd: [
+      `**${customerName || customerId || 'Der Kunde'}** hat die Umfangserweiterung für Auftrag #${orderId} freigegeben.`,
+      ``,
+      invoiceNo ? `**Erweiterungsrechnung:** ${invoiceNo}` : null,
+      `**Betrag:** ${money(extraFee)}`,
+      ``,
+      `Der erweiterte Umfang wird aktiv, sobald die Zahlung eingegangen ist — dann darf der Ghostwriter mit der Mehrleistung starten.`,
+    ].filter(v => v !== null).join('\n'),
+    cta: { label: 'Auftrag öffnen', action: 'open_admin_order', orderId },
+    kind: 'extension_invoice_admin',
+    orderId,
+    customerId: customerId || null,
+    scenarioId,
+  });
+}
+
+// Scope change is live (applyExtensionScope). Admin parity for the in-app
+// "extension applied" bell (customer + GW get their own confirmations). Fires
+// for both the dedicated extension path and the dispute scope-amendment path.
+function extensionAppliedAdminNotify({ orderId, customerId, customerName, gwId, gwName, source, extraPages, extraFee, newDeadline, scenarioId }) {
+  const money = (n) => `${Number(n || 0).toLocaleString('de-DE', { minimumFractionDigits: 2 })} €`;
+  const ddl = newDeadline ? String(newDeadline).slice(0, 10) : null;
+  const srcLabel = source === 'dispute_scope_amendment' ? 'Streitfall-Anpassung' : 'Umfangserweiterung';
+  return createEmail({
+    to: 'kundenservice@efactory1.de',
+    toRole: 'admin',
+    from: 'noreply@efactory1.de',
+    subject: `${srcLabel} aktiv · Auftrag #${orderId}`,
+    bodyMd: [
+      `Die ${srcLabel} für Auftrag #${orderId} ist jetzt aktiv — der Auftrag läuft weiter.`,
+      ``,
+      `**Kunde:** ${customerName || customerId || '—'}`,
+      `**Ghostwriter:** ${gwName || '—'} (\`${gwId || '—'}\`)`,
+      extraPages ? `**Zusätzliche Seiten:** +${extraPages}` : null,
+      Number(extraFee) > 0 ? `**Mehrkosten:** ${money(extraFee)}` : null,
+      ddl ? `**Neuer Liefertermin:** ${ddl}` : null,
+      ``,
+      `**Status:** Aktiv — keine Aktion nötig.`,
+    ].filter(v => v !== null).join('\n'),
+    cta: { label: 'Auftrag öffnen', action: 'open_admin_order', orderId },
+    kind: 'extension_applied_admin',
+    orderId,
+    customerId: customerId || null,
+    gwId: gwId || null,
+    scenarioId,
+  });
+}
+
+// Customer declined the staged scope change (declineExtension). Admin parity for
+// the in-app "declined by customer" bell (the GW gets extensionDeclinedGw).
+function extensionDeclinedAdminNotify({ orderId, customerId, customerName, gwId, gwName, reason, scenarioId }) {
+  return createEmail({
+    to: 'kundenservice@efactory1.de',
+    toRole: 'admin',
+    from: 'noreply@efactory1.de',
+    subject: `Erweiterung vom Kunden abgelehnt · Auftrag #${orderId}`,
+    bodyMd: [
+      `**${customerName || customerId || 'Der Kunde'}** hat die vorgeschlagene Umfangsanpassung für Auftrag #${orderId} abgelehnt.`,
+      ``,
+      `**Ghostwriter:** ${gwName || '—'} (\`${gwId || '—'}\`)`,
+      ``,
+      reason ? `**Begründung:** ${reason}` : null,
+      reason ? `` : null,
+      `Eine etwaige Erweiterungsrechnung wurde storniert. Ursprünglicher Umfang, Preis und Liefertermin bleiben unverändert.`,
+    ].filter(v => v !== null).join('\n'),
+    cta: { label: 'Auftrag öffnen', action: 'open_admin_order', orderId },
+    kind: 'extension_declined_admin',
+    orderId,
+    customerId: customerId || null,
+    gwId: gwId || null,
+    scenarioId,
+  });
+}
+
 function extensionScopeLines(extraPages, extraFee, newDeadline) {
   const money = (n) => `${Number(n || 0).toLocaleString('de-DE', { minimumFractionDigits: 2 })} €`;
   const ddl = newDeadline ? String(newDeadline).slice(0, 10) : null;
@@ -880,6 +1084,234 @@ function extensionDeclinedGw({ orderId, gwId, gwEmail, gwName, reason, scenarioI
     ].filter(v => v !== null).join('\n'),
     cta: { label: 'Open assignment', action: 'open_gw_assignment', orderId },
     kind: 'extension_declined_gw',
+    orderId,
+    customerId: null,
+    gwId: gwId || null,
+    scenarioId,
+  });
+}
+
+// GW proposed a new deadline (delay). Customer CTA to review & approve/reject.
+// Platform-initiated (not a GW-authored email); the new date applies only on
+// customer approval (G-05 / SOP B).
+const DELAY_REASON_LABELS = {
+  illness: 'Krankheit',
+  emergency: 'Notfall',
+  scope: 'Rückfrage zum Umfang',
+  other: 'Sonstiges',
+};
+function delayApprovalRequestCustomer({ orderId, customerId, customerEmail, customerName, reasonKind, reasonNote, newDate, proposedBy, scenarioId }) {
+  const reasonLabel = DELAY_REASON_LABELS[reasonKind] || reasonKind || 'Sonstiges';
+  // proposedBy === 'admin' → this is an admin counter-proposal after the customer
+  // rejected the GW's date; otherwise it's the GW's original delay report.
+  const fromAdmin = proposedBy === 'admin';
+  const lead = fromAdmin
+    ? `efactory1 hat die Situation geprüft und schlägt für Auftrag #${orderId} einen neuen Liefertermin vor:`
+    : `Ihr Ghostwriter muss den Liefertermin für Auftrag #${orderId} anpassen und schlägt einen neuen Termin vor:`;
+  return createEmail({
+    to: customerEmail,
+    toRole: 'customer',
+    from: 'kundenservice@efactory1.de',
+    subject: fromAdmin
+      ? `Neuer Terminvorschlag — Ihre Freigabe nötig · Auftrag #${orderId}`
+      : `Neuer Liefertermin — Ihre Freigabe nötig · Auftrag #${orderId}`,
+    bodyMd: [
+      `Hallo ${customerName || ''},`,
+      ``,
+      lead,
+      ``,
+      fromAdmin ? null : `• Grund: ${reasonLabel}`,
+      (!fromAdmin && reasonNote) ? `• Details: ${reasonNote}` : null,
+      newDate ? `• Neuer Liefertermin: ${newDate}` : null,
+      ``,
+      `Bitte prüfen Sie den Vorschlag und geben Sie ihn frei oder lehnen Sie ihn ab. Der neue Termin gilt erst, wenn Sie zustimmen.`,
+    ].filter(v => v !== null).join('\n'),
+    cta: { label: 'Termin prüfen & freigeben', action: 'open_customer_order', orderId, tab: 'status', customerId },
+    kind: 'delay_approval_request',
+    orderId,
+    customerId: customerId || null,
+    scenarioId,
+  });
+}
+
+// Customer approved the new deadline — GW may resume.
+function delayAcceptedGw({ orderId, gwId, gwEmail, gwName, newDeadline, scenarioId }) {
+  const ddl = newDeadline ? String(newDeadline).slice(0, 10) : null;
+  return createEmail({
+    to: gwEmail,
+    toRole: 'gw',
+    from: 'kundenservice@efactory1.de',
+    subject: `New deadline confirmed · Order #${orderId} — resume work`,
+    bodyMd: [
+      `Hi ${gwName || ''},`,
+      ``,
+      `the customer approved the new deadline on order #${orderId}${ddl ? ` (**${ddl}**)` : ''}. You may resume work.`,
+      ``,
+      `Per SOP B, tell the customer and efactory1 in the order chat once you're back on track.`,
+    ].join('\n'),
+    cta: { label: 'Open assignment', action: 'open_gw_assignment', orderId },
+    kind: 'delay_accepted_gw',
+    orderId,
+    customerId: null,
+    gwId: gwId || null,
+    scenarioId,
+  });
+}
+
+// GW reported a delay (proposed a new deadline). Admin parity email → lands in
+// the Demo Inbox (toRole 'admin'). Informational: the happy path is still the
+// CUSTOMER's approval (G-05); the admin monitors, can counter-propose or step
+// in. Mirrors the customer CTA above so both sides have an inbox trail.
+function delayReportedAdmin({ orderId, customerId, customerName, gwId, gwName, reasonKind, reasonNote, newDate, scenarioId }) {
+  const reasonLabel = DELAY_REASON_LABELS[reasonKind] || reasonKind || 'Sonstiges';
+  return createEmail({
+    to: 'kundenservice@efactory1.de',
+    toRole: 'admin',
+    from: 'noreply@efactory1.de',
+    subject: `Verzögerung gemeldet · Auftrag #${orderId} · Kundenfreigabe ausstehend`,
+    bodyMd: [
+      `${gwName || gwId || 'Ein Ghostwriter'} hat eine **Verzögerung** gemeldet und einen neuen Liefertermin vorgeschlagen. Der Kunde wurde um Freigabe gebeten — der neue Termin gilt erst nach dessen Zustimmung (G-05).`,
+      ``,
+      `**Auftrag:** #${orderId}`,
+      `**Kunde:** ${customerName || customerId || '—'}`,
+      `**Ghostwriter:** ${gwName || '—'} (\`${gwId}\`)`,
+      `**Grund:** ${reasonLabel}`,
+      reasonNote ? `**Details:** ${reasonNote}` : null,
+      newDate ? `**Vorgeschlagener neuer Termin:** ${newDate}` : null,
+      ``,
+      `**Status:** Wartet auf Kundenfreigabe. Sie können den Vorgang beobachten, einen Gegenvorschlag senden oder eingreifen.`,
+    ].filter(v => v !== null).join('\n'),
+    cta: { label: 'Auftrag öffnen', action: 'open_admin_order', orderId },
+    kind: 'delay_reported_admin',
+    orderId,
+    customerId: customerId || null,
+    gwId: gwId || null,
+    scenarioId,
+  });
+}
+
+// Customer APPROVED the new deadline → admin parity email (Demo Inbox trail).
+// Pairs with delayAcceptedGw; both fire when the customer approves (G-05).
+function delayAcceptedAdmin({ orderId, customerId, customerName, gwId, gwName, newDeadline, scenarioId }) {
+  const ddl = newDeadline ? String(newDeadline).slice(0, 10) : null;
+  return createEmail({
+    to: 'kundenservice@efactory1.de',
+    toRole: 'admin',
+    from: 'noreply@efactory1.de',
+    subject: `Verzögerung bestätigt · Auftrag #${orderId} · neuer Termin steht`,
+    bodyMd: [
+      `Der Kunde hat den vorgeschlagenen neuen Liefertermin **freigegeben**. Der Auftrag läuft weiter.`,
+      ``,
+      `**Auftrag:** #${orderId}`,
+      `**Kunde:** ${customerName || customerId || '—'}`,
+      `**Ghostwriter:** ${gwName || '—'} (\`${gwId}\`)`,
+      ddl ? `**Neuer Liefertermin:** ${ddl}` : null,
+      ``,
+      `**Status:** Aktiv — keine Aktion nötig.`,
+    ].filter(v => v !== null).join('\n'),
+    cta: { label: 'Auftrag öffnen', action: 'open_admin_order', orderId },
+    kind: 'delay_accepted_admin',
+    orderId,
+    customerId: customerId || null,
+    gwId: gwId || null,
+    scenarioId,
+  });
+}
+
+// Admin OVERRODE / confirmed the new deadline (acceptDelay) → tell the customer.
+// (On a customer-driven approval the customer is the actor and gets no email.)
+function delayAcceptedCustomer({ orderId, customerId, customerEmail, customerName, newDeadline, scenarioId }) {
+  const ddl = newDeadline ? String(newDeadline).slice(0, 10) : null;
+  return createEmail({
+    to: customerEmail,
+    toRole: 'customer',
+    from: 'kundenservice@efactory1.de',
+    subject: `Liefertermin bestätigt · Auftrag #${orderId}`,
+    bodyMd: [
+      `Hallo ${customerName || ''},`,
+      ``,
+      `efactory1 hat den neuen Liefertermin für Auftrag #${orderId} bestätigt${ddl ? ` (**${ddl}**)` : ''}. Ihr Ghostwriter arbeitet weiter.`,
+      ``,
+      `Bei Fragen sind wir jederzeit für Sie da.`,
+    ].join('\n'),
+    cta: { label: 'Auftrag öffnen', action: 'open_customer_order', orderId, tab: 'status', customerId },
+    kind: 'delay_accepted_customer',
+    orderId,
+    customerId: customerId || null,
+    scenarioId,
+  });
+}
+
+// Customer REJECTED the new deadline → GW informed to hold for mediation.
+function delayRejectedGw({ orderId, gwId, gwEmail, gwName, reason, scenarioId }) {
+  return createEmail({
+    to: gwEmail,
+    toRole: 'gw',
+    from: 'kundenservice@efactory1.de',
+    subject: `Customer declined the new deadline · Order #${orderId}`,
+    bodyMd: [
+      `Hi ${gwName || ''},`,
+      ``,
+      `the customer declined the new delivery date you proposed on order #${orderId}.`,
+      reason ? `\n> ${reason}\n` : null,
+      `efactory1 will mediate — please hold for instructions before continuing.`,
+    ].filter(v => v !== null).join('\n'),
+    cta: { label: 'Open assignment', action: 'open_gw_assignment', orderId },
+    kind: 'delay_rejected_gw',
+    orderId,
+    customerId: null,
+    gwId: gwId || null,
+    scenarioId,
+  });
+}
+
+// Customer REJECTED the new deadline → admin parity email (Demo Inbox), mediation
+// needed. Carries the customer's reason so the admin can choose counter / reassign
+// / cancel without chasing it down.
+function delayRejectedAdmin({ orderId, customerId, customerName, gwId, gwName, reason, scenarioId }) {
+  return createEmail({
+    to: 'kundenservice@efactory1.de',
+    toRole: 'admin',
+    from: 'noreply@efactory1.de',
+    subject: `Verzögerung abgelehnt · Auftrag #${orderId} · Mediation nötig`,
+    bodyMd: [
+      `Der Kunde hat den vorgeschlagenen neuen Liefertermin **abgelehnt**. Bitte vermitteln Sie: Gegenvorschlag senden, neu zuweisen oder stornieren.`,
+      ``,
+      `**Auftrag:** #${orderId}`,
+      `**Kunde:** ${customerName || customerId || '—'}`,
+      `**Ghostwriter:** ${gwName || '—'} (\`${gwId}\`)`,
+      reason ? `**Begründung des Kunden:** ${reason}` : null,
+      ``,
+      `**Status:** Wartet auf Ihre Entscheidung.`,
+    ].filter(v => v !== null).join('\n'),
+    cta: { label: 'Auftrag öffnen', action: 'open_admin_order', orderId },
+    kind: 'delay_rejected_admin',
+    orderId,
+    customerId: customerId || null,
+    gwId: gwId || null,
+    scenarioId,
+  });
+}
+
+// Admin sent the customer a COUNTER-proposal (proposeNewDelay) → GW informed to
+// hold until the customer approves. (The customer gets delayApprovalRequestCustomer
+// with proposedBy='admin'.)
+function delayCounterGw({ orderId, gwId, gwEmail, gwName, newDate, scenarioId }) {
+  const ddl = newDate ? String(newDate).slice(0, 10) : null;
+  return createEmail({
+    to: gwEmail,
+    toRole: 'gw',
+    from: 'kundenservice@efactory1.de',
+    subject: `efactory1 proposed a new deadline to the customer · Order #${orderId}`,
+    bodyMd: [
+      `Hi ${gwName || ''},`,
+      ``,
+      `efactory1 has sent the customer a new proposed delivery date${ddl ? ` (**${ddl}**)` : ''} on order #${orderId} for approval.`,
+      ``,
+      `Please hold until the customer approves — we'll let you know once it's confirmed.`,
+    ].join('\n'),
+    cta: { label: 'Open assignment', action: 'open_gw_assignment', orderId },
+    kind: 'delay_counter_gw',
     orderId,
     customerId: null,
     gwId: gwId || null,
@@ -1064,18 +1496,24 @@ function gwAssignedToGw({ orderId, gwId, gwEmail, gwName, customerName, title, f
   });
 }
 
-function firstContactSentToCustomer({ orderId, customerId, customerEmail, customerName, gwEmail, gwName, ccEmail, subject, body, scenarioId }) {
+// CTA-only onboarding ping (D-28). NOT a GW-authored email: no GW body, not
+// `from` the GW, no customer-visible GW address. The actual introduction lives
+// in the order chat; this email only tells the customer a new message is
+// waiting and deep-links them into the platform.
+function firstContactCtaCustomer({ orderId, customerId, customerEmail, customerName, gwName, scenarioId }) {
   return createEmail({
     to: customerEmail,
     toRole: 'customer',
-    cc: ccEmail || 'kundenservice@efactory1.de',
-    from: gwEmail || 'kundenservice@efactory1.de',
-    subject: subject || `Auftrag #${orderId} · Erstkontakt`,
-    bodyMd: body || '',
-    // CTA lands the customer directly in the order chat — the email's whole
-    // job is to funnel them into the platform, where all further
-    // communication continues.
-    cta: { label: 'Im Auftragschat antworten', action: 'open_customer_dashboard', orderId, customerId, tab: 'messages' },
+    from: 'notifications@efactory1.de',
+    subject: `Neue Nachricht im Auftragschat · Auftrag #${orderId}`,
+    bodyMd: [
+      `Hallo ${customerName || ''},`,
+      ``,
+      `Ihr Ghostwriter${gwName ? ` ${gwName}` : ''} hat Ihnen die erste Nachricht im Auftragschat zu Auftrag #${orderId} geschrieben.`,
+      ``,
+      `Der gesamte Austausch zu Ihrem Auftrag — Nachrichten, Dateien und Updates — läuft ab jetzt direkt im efactory1-Auftragschat. Öffnen Sie den Chat, um die Nachricht zu lesen und zu antworten.`,
+    ].join('\n'),
+    cta: { label: 'Auftragschat öffnen', action: 'open_customer_dashboard', orderId, customerId, tab: 'messages' },
     kind: 'gw_first_contact',
     orderId,
     customerId,
@@ -1239,7 +1677,7 @@ export {
   gwJobAvailableToGw,
   gwAssignedToGw,
   gwAssignedToCustomer,
-  firstContactSentToCustomer,
+  firstContactCtaCustomer,
   gwApplicationRejected,
   gwApplicationAdminNotify,
   finalSubmittedAdminNotify,
@@ -1257,11 +1695,26 @@ export {
   disputeOpenedCounterpartyNotify,
   disputeResolvedCustomerNotify,
   disputeResolvedGwNotify,
+  extensionRequestedAdminNotify,
+  extensionRequestedGwNotify,
+  extensionRejectedGwNotify,
+  extensionApprovalPendingGwNotify,
+  extensionInvoiceAdminNotify,
+  extensionAppliedAdminNotify,
+  extensionDeclinedAdminNotify,
   extensionApprovalRequestCustomer,
   extensionInvoiceCustomer,
   extensionAppliedCustomer,
   extensionAppliedGw,
   extensionDeclinedGw,
+  delayApprovalRequestCustomer,
+  delayAcceptedGw,
+  delayReportedAdmin,
+  delayAcceptedAdmin,
+  delayAcceptedCustomer,
+  delayRejectedGw,
+  delayRejectedAdmin,
+  delayCounterGw,
   payoutReleasedGw,
   payoutBatchAdminNotify,
   chatReportAdminNotify,

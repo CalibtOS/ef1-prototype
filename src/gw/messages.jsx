@@ -18,11 +18,12 @@ const D = EF;
 function orderChatSearchHaystack(entry, cust) {
   const { order, chat } = entry;
   const lastMsg = [...(chat.messages || [])].reverse().find(m => m.authorRole !== 'system');
+  // D-28/D-29: the GW never sees or searches by the customer's email — name,
+  // title, and message body only.
   return [
     order.id,
     order.title,
     cust?.name,
-    cust?.email,
     lastMsg?.body,
     lastMsg?.authorRole === 'gw' ? 'you' : lastMsg?.authorRole === 'admin' ? 'berat' : cust?.name?.split(/\s+/)[0],
   ].filter(Boolean).join(' ').toLowerCase();

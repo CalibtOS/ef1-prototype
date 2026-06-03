@@ -31,17 +31,22 @@ const MAIL_TEMPLATES = {
   'order.assignment.approved':        ['gwApplicationRejected'],
   'order.assignment.board_cancelled': ['gwApplicationRejected'],
   'order.gw_assigned':                ['gwAssignedToGw', 'gwAssignedToCustomer'],
-  'gw.first_contact_sent':            ['firstContactSentToCustomer'],
+  'gw.first_contact_posted':          ['firstContactCtaCustomer'],
   'customer.interim.approved':        ['interimApprovedGwNotify'],
   'customer.revision.requested':      ['revisionRequestedGwNotify', 'revisionRequestedAdminNotify'],
   'qa.revision.requested':            ['qaRevisionRequestedGwNotify', 'qaRevisionRequestedAdminNotify'],
   'qa.clarification.requested':       ['qaClarificationGwNotify'],
   'dispute.opened':                   ['disputeOpenedAdminNotify', 'disputeOpenedCounterpartyNotify'],
   'dispute.resolved':                 ['disputeResolvedCustomerNotify', 'disputeResolvedGwNotify'],
-  'order.extension.approval_requested': ['extensionApprovalRequestCustomer'],
-  'order.extension.invoice_issued':   ['extensionInvoiceCustomer'],
-  'order.extension.applied':          ['extensionAppliedCustomer', 'extensionAppliedGw'],
-  'order.extension.declined':         ['extensionDeclinedGw'],
+  'order.extension.requested':          ['extensionRequestedAdminNotify', 'extensionRequestedGwNotify'],
+  'order.extension.rejected':           ['extensionRejectedGwNotify'],
+  'order.extension.approval_requested': ['extensionApprovalRequestCustomer', 'extensionApprovalPendingGwNotify'],
+  'order.extension.invoice_issued':   ['extensionInvoiceCustomer', 'extensionInvoiceAdminNotify'],
+  'order.extension.applied':          ['extensionAppliedCustomer', 'extensionAppliedGw', 'extensionAppliedAdminNotify'],
+  'order.extension.declined':         ['extensionDeclinedGw', 'extensionDeclinedAdminNotify'],
+  'order.delay.proposal':             ['delayApprovalRequestCustomer', 'delayReportedAdmin', 'delayCounterGw'],
+  'order.delay.accepted':             ['delayAcceptedGw', 'delayAcceptedAdmin', 'delayAcceptedCustomer'],
+  'order.delay.rejected':             ['delayRejectedGw', 'delayRejectedAdmin'],
   'gw.submission.interim':            ['interimSubmittedCustomerNotify', 'interimSubmittedAdminNotify'],
   'gw.submission.final':              ['finalSubmittedAdminNotify'],
   'customer.final.accepted':          ['finalAcceptedAdminNotify'],
@@ -370,27 +375,25 @@ DomainEvents.on('order.gw_assigned', (payload) => {
   }
 });
 
-DomainEvents.on('gw.first_contact_sent', (payload) => {
-  const { orderId, customerId, scenarioId, gwId, gwName, gwEmail, subject, body, ccEmail } = payload;
+DomainEvents.on('gw.first_contact_posted', (payload) => {
+  const { orderId, customerId, scenarioId, gwId, gwName } = payload;
   const customerEmail = selectCustomerEmail(customerId);
   const customerName = selectCustomerName(customerId);
   if (!customerEmail) return;
   SimEvents.emit({
     source: 'gw',
-    kind: 'gw.first_contact.sent',
+    kind: 'gw.first_contact.posted',
     orderId, customerId, scenarioId,
-    detail: { gwId, gwName, subject },
+    detail: { gwId, gwName },
   });
-  sendMail('gw.first_contact_sent', 'firstContactSentToCustomer', {
+  // CTA-only onboarding email — no GW body, no GW `from`, no CC. Tells the
+  // customer a new chat message is waiting and deep-links into the order chat.
+  sendMail('gw.first_contact_posted', 'firstContactCtaCustomer', {
     orderId,
     customerId,
     customerEmail,
     customerName,
-    gwEmail,
     gwName,
-    ccEmail,
-    subject,
-    body,
     scenarioId,
   });
 });
@@ -572,33 +575,112 @@ DomainEvents.on('dispute.resolved', (payload) => {
 // in the action payload, then route the milestone mail through sendMail so the
 // MAIL_TEMPLATES manifest validates it. The in-app bell is already pinged by
 // core/actions.js — these add the Demo Inbox email with a deep-link CTA.
-DomainEvents.on('order.extension.approval_requested', (payload) => {
-  const { orderId, customerId, source, extraPages, extraFee, newDeadline, description, scenarioId } = payload;
-  const cust = store.getState().entities.customers?.byId?.[customerId];
-  if (!cust?.email) return;
-  sendMail('order.extension.approval_requested', 'extensionApprovalRequestCustomer', {
+// Customer-initiated extension request (D-31). The in-app bells for admin + GW
+// fire in core/actions.customerRequestExtension; mirror them with Demo Inbox
+// emails so both sides also get an inbox trail. The customer is the actor, so
+// they get no email here — their CTA arrives later via approval_requested.
+DomainEvents.on('order.extension.requested', (payload) => {
+  const { orderId, initiatedBy, customerId, gwId, description, extraPages, extraFee, scenarioId } = payload;
+  const g = selectGw(gwId);
+  const customerName = selectCustomerName(customerId);
+  sendMail('order.extension.requested', 'extensionRequestedAdminNotify', {
     orderId,
+    initiatedBy,
     customerId,
-    customerEmail: cust.email,
-    customerName: cust.name || '',
-    source,
+    customerName,
+    gwId,
+    gwName: g?.name || null,
+    description,
     extraPages,
     extraFee,
-    newDeadline,
-    description,
     scenarioId,
   });
+  // The GW only gets the heads-up email when they are NOT the actor — i.e. the
+  // customer (or admin) raised it. On a GW-initiated request the GW already
+  // knows (they submitted the form), matching the in-app fan-out.
+  if (initiatedBy !== 'gw' && g?.email) {
+    sendMail('order.extension.requested', 'extensionRequestedGwNotify', {
+      orderId,
+      gwId,
+      gwEmail: g.email,
+      gwName: g.name,
+      customerName,
+      description,
+      extraPages,
+      scenarioId,
+    });
+  }
+});
+
+// Admin rejected an extension request before it reached the customer
+// (rejectExtension). The in-app bell pings the GW; mirror it with an email.
+DomainEvents.on('order.extension.rejected', (payload) => {
+  const { orderId, gwId, reason, scenarioId } = payload;
+  const g = selectGw(gwId);
+  if (!g?.email) return;
+  sendMail('order.extension.rejected', 'extensionRejectedGwNotify', {
+    orderId,
+    gwId,
+    gwEmail: g.email,
+    gwName: g.name,
+    reason,
+    scenarioId,
+  });
+});
+
+DomainEvents.on('order.extension.approval_requested', (payload) => {
+  const { orderId, customerId, gwId, source, extraPages, extraFee, newDeadline, description, scenarioId } = payload;
+  const cust = store.getState().entities.customers?.byId?.[customerId];
+  if (cust?.email) {
+    sendMail('order.extension.approval_requested', 'extensionApprovalRequestCustomer', {
+      orderId,
+      customerId,
+      customerEmail: cust.email,
+      customerName: cust.name || '',
+      source,
+      extraPages,
+      extraFee,
+      newDeadline,
+      description,
+      scenarioId,
+    });
+  }
+  // GW parity for the in-app "awaiting customer approval — do not start" bell.
+  const g = selectGw(gwId);
+  if (g?.email) {
+    sendMail('order.extension.approval_requested', 'extensionApprovalPendingGwNotify', {
+      orderId,
+      gwId,
+      gwEmail: g.email,
+      gwName: g.name,
+      extraPages,
+      extraFee,
+      newDeadline,
+      scenarioId,
+    });
+  }
 });
 
 DomainEvents.on('order.extension.invoice_issued', (payload) => {
   const { orderId, customerId, invoiceNo, extraFee, scenarioId } = payload;
   const cust = store.getState().entities.customers?.byId?.[customerId];
-  if (!cust?.email) return;
-  sendMail('order.extension.invoice_issued', 'extensionInvoiceCustomer', {
+  if (cust?.email) {
+    sendMail('order.extension.invoice_issued', 'extensionInvoiceCustomer', {
+      orderId,
+      customerId,
+      customerEmail: cust.email,
+      customerName: cust.name || '',
+      invoiceNo,
+      extraFee,
+      scenarioId,
+    });
+  }
+  // Admin parity for the in-app "extension invoice issued" bell. Addressed to the
+  // fixed kundenservice@ inbox, so it sends regardless of the customer's email.
+  sendMail('order.extension.invoice_issued', 'extensionInvoiceAdminNotify', {
     orderId,
     customerId,
-    customerEmail: cust.email,
-    customerName: cust.name || '',
+    customerName: cust?.name || '',
     invoiceNo,
     extraFee,
     scenarioId,
@@ -606,7 +688,7 @@ DomainEvents.on('order.extension.invoice_issued', (payload) => {
 });
 
 DomainEvents.on('order.extension.applied', (payload) => {
-  const { orderId, customerId, gwId, extraPages, extraFee, newDeadline, scenarioId } = payload;
+  const { orderId, customerId, gwId, source, extraPages, extraFee, newDeadline, scenarioId } = payload;
   const cust = store.getState().entities.customers?.byId?.[customerId];
   const g = selectGw(gwId);
   if (cust?.email) {
@@ -632,19 +714,113 @@ DomainEvents.on('order.extension.applied', (payload) => {
       scenarioId,
     });
   }
+  // Admin parity for the in-app "extension applied" bell.
+  sendMail('order.extension.applied', 'extensionAppliedAdminNotify', {
+    orderId,
+    customerId,
+    customerName: cust?.name || '',
+    gwId,
+    gwName: g?.name || null,
+    source,
+    extraPages,
+    extraFee,
+    newDeadline,
+    scenarioId,
+  });
 });
 
 DomainEvents.on('order.extension.declined', (payload) => {
-  const { orderId, gwId, reason, scenarioId } = payload;
+  const { orderId, customerId, gwId, reason, scenarioId } = payload;
   const g = selectGw(gwId);
-  if (!g?.email) return;
-  sendMail('order.extension.declined', 'extensionDeclinedGw', {
+  if (g?.email) {
+    sendMail('order.extension.declined', 'extensionDeclinedGw', {
+      orderId,
+      gwId,
+      gwEmail: g.email,
+      gwName: g.name,
+      reason,
+      scenarioId,
+    });
+  }
+  // Admin parity for the in-app "declined by customer" bell.
+  sendMail('order.extension.declined', 'extensionDeclinedAdminNotify', {
     orderId,
+    customerId,
+    customerName: selectCustomerName(customerId),
     gwId,
-    gwEmail: g.email,
-    gwName: g.name,
+    gwName: g?.name || null,
     reason,
     scenarioId,
+  });
+});
+
+// Delay flow (D-29 model): GW proposes a new deadline → customer CTA email to
+// approve/reject. The new date applies only on customer approval (G-05).
+// Delay-flow emails mirror the in-app notification recipients for each
+// transition (actor gets a toast; the other parties get email + in-app):
+//   • GW reports (source gw_report)         → customer CTA + admin notify
+//   • Admin counters (source admin_counter)  → customer CTA + GW hold
+//   • Customer approves (by customer)        → GW resume + admin notify
+//   • Admin overrides (by admin)             → GW resume + customer confirm
+//   • Customer rejects                       → GW hold + admin mediate
+DomainEvents.on('order.delay.proposal', (payload) => {
+  const { orderId, customerId, gwId, reasonKind, reasonNote, newDate, source, scenarioId } = payload;
+  const isCounter = source === 'admin_counter';
+  const cust = store.getState().entities.customers?.byId?.[customerId];
+  const g = selectGw(gwId);
+  if (cust?.email) {
+    sendMail('order.delay.proposal', 'delayApprovalRequestCustomer', {
+      orderId, customerId, customerEmail: cust.email, customerName: cust.name || '',
+      reasonKind, reasonNote, newDate, proposedBy: isCounter ? 'admin' : 'gw', scenarioId,
+    });
+  }
+  if (isCounter) {
+    // Admin counter → GW holds until the customer approves (admin is the actor).
+    if (g?.email) sendMail('order.delay.proposal', 'delayCounterGw', {
+      orderId, gwId, gwEmail: g.email, gwName: g.name, newDate, scenarioId,
+    });
+  } else {
+    // GW report → admin parity email (Demo Inbox). Addressed to the fixed
+    // kundenservice@ inbox, so sent regardless of the customer's email.
+    sendMail('order.delay.proposal', 'delayReportedAdmin', {
+      orderId, customerId, customerName: cust?.name || '', gwId, gwName: g?.name || '',
+      reasonKind, reasonNote, newDate, scenarioId,
+    });
+  }
+});
+
+// Delay accepted — the GW is informed in both cases (never the actor on accept).
+// A customer-driven approval also notifies admin (Demo Inbox trail); an admin
+// override notifies the customer instead.
+DomainEvents.on('order.delay.accepted', (payload) => {
+  const { orderId, gwId, customerId, newDeadline, by, scenarioId } = payload;
+  const g = selectGw(gwId);
+  const cust = store.getState().entities.customers?.byId?.[customerId];
+  if (g?.email) sendMail('order.delay.accepted', 'delayAcceptedGw', {
+    orderId, gwId, gwEmail: g.email, gwName: g.name, newDeadline, scenarioId,
+  });
+  if (by === 'admin') {
+    if (cust?.email) sendMail('order.delay.accepted', 'delayAcceptedCustomer', {
+      orderId, customerId, customerEmail: cust.email, customerName: cust.name || '', newDeadline, scenarioId,
+    });
+  } else {
+    sendMail('order.delay.accepted', 'delayAcceptedAdmin', {
+      orderId, customerId, customerName: cust?.name || '', gwId, gwName: g?.name || '', newDeadline, scenarioId,
+    });
+  }
+});
+
+// Delay rejected by the customer → GW holds + admin mediates (email + in-app for
+// both). Carries the customer's reason so the admin can decide without chasing.
+DomainEvents.on('order.delay.rejected', (payload) => {
+  const { orderId, gwId, customerId, reason, scenarioId } = payload;
+  const g = selectGw(gwId);
+  const cust = store.getState().entities.customers?.byId?.[customerId];
+  if (g?.email) sendMail('order.delay.rejected', 'delayRejectedGw', {
+    orderId, gwId, gwEmail: g.email, gwName: g.name, reason, scenarioId,
+  });
+  sendMail('order.delay.rejected', 'delayRejectedAdmin', {
+    orderId, customerId, customerName: cust?.name || '', gwId, gwName: g?.name || '', reason, scenarioId,
   });
 });
 

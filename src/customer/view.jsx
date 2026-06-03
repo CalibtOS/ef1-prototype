@@ -77,7 +77,11 @@ function custStatusMeta(o) {
   }
   if (s === 'cancelled') return { color: 'red', label: 'Storniert', icon: 'x-circle' };
   if (s === 'on_hold') return { color: 'amber', label: 'Pausiert', icon: 'pause' };
-  if (s === 'delay_reported') return { color: 'orange', label: 'Verzögerung gemeldet', icon: 'alert-triangle' };
+  if (s === 'delay_reported') return o.delayRejectedAt
+    ? { color: 'orange', label: 'Verzögerung — efactory1 prüft', icon: 'clock' }
+    : { color: 'orange', label: 'Neuer Termin — Ihre Freigabe', icon: 'clock' };
+  if (s === 'extension_requested')
+    return { color: 'amber', label: 'Erweiterung in Prüfung', icon: 'plus-circle' };
   if (s === 'extension_customer_approval_pending')
     return { color: 'amber', label: 'Erweiterung bestätigen', icon: 'plus-circle' };
   if (s === 'interim_submitted' || s === 'under_customer_review')
@@ -117,26 +121,21 @@ function custProgress(o, submissions = []) {
   }
   if (s === 'qa_review') return 90;
   if (s === 'on_hold') return 20;
+  if (s === 'extension_requested') return 40;
   if (s === 'extension_customer_approval_pending') return 40;
   return 30;
 }
 
-// Per business_rules §6 (assignment emails): once Berat approves the claim,
-// customer receives the GW's name, email and phone (and vice versa).
-// Before approval the customer simply doesn't have a GW yet, so we return null.
+// D-28/D-29: customer ↔ GW is platform-only — the customer sees the writer's
+// NAME after Berat approves the claim, never their email/phone, and reaches them
+// only through the order chat. Before approval there's no GW yet, so return null.
 function custGwLabel(o) {
   if (!o.gwId) return null;
   const gw = D.gw(o.gwId);
   if (!gw) return null;
-  // The order is in claim-pending until admin approves; only then is the contact disclosed.
+  // The order is in claim-pending until admin approves; only then is the name disclosed.
   if (o.status === 'claimed_pending_approval') return null;
   return gw.name || null;
-}
-function custGwContact(o) {
-  if (!o.gwId) return null;
-  const gw = D.gw(o.gwId);
-  if (!gw || o.status === 'claimed_pending_approval') return null;
-  return { name: gw.name, email: gw.email, phone: gw.phone };
 }
 
 function CustHeader({ tab, setTab, role, setRole, selectPersona, onOpenNotification }) {
@@ -603,6 +602,10 @@ function CustOrderStatus({ o, startCheckout, toast }) {
                 'Die Endversion hat die Qualitätsprüfung bestanden und steht für Sie bereit. Bitte prüfen Sie sie und nehmen Sie die Endabgabe an oder fordern Sie letzte Anpassungen an.' :
                 o.status === 'completed' || o.status === 'payment_pending' ?
                 'Ihre Arbeit wurde erfolgreich geliefert. Die Endrechnung finden Sie im Tab „Zahlungen".' :
+                o.status === 'extension_requested' ?
+                (o.extensionPending?.initiatedBy === 'customer'
+                  ? 'Ihre Anfrage für zusätzliche Arbeit liegt efactory1 vor. Wir prüfen den Aufwand und melden uns mit den Konditionen zur Freigabe.'
+                  : 'Eine mögliche Umfangserweiterung wird geprüft. efactory1 meldet sich mit den Konditionen, sobald diese feststehen.') :
                 'Ihr Auftrag wird bearbeitet.'}
             </div>
           </div>
@@ -616,6 +619,48 @@ function CustOrderStatus({ o, startCheckout, toast }) {
             </div>
             <div className="card-pad">
               <CustExtensionApproval o={o} toast={toast}/>
+            </div>
+          </div>
+        )}
+
+        {o.status === 'delay_reported' && o.proposedNewDeadline && (
+          <div className="card" style={{ borderLeft: '4px solid var(--orange)' }}>
+            <div className="card-head">
+              <div className="card-title">Neuer Liefertermin</div>
+              <span className="pill pill-amber" style={{ fontSize: 10 }}><Icon name="clock" size={9}/> Ihre Entscheidung</span>
+            </div>
+            <div className="card-pad">
+              <CustDelayApproval o={o} toast={toast}/>
+            </div>
+          </div>
+        )}
+
+        {o.status === 'extension_requested' && o.extensionPending?.initiatedBy === 'customer' && (
+          <div className="card" style={{ borderLeft: '4px solid var(--amber)' }}>
+            <div className="card-head">
+              <div className="card-title">Anfrage gesendet</div>
+              <span className="pill pill-amber" style={{ fontSize: 10 }}><Icon name="clock" size={9}/> In Prüfung</span>
+            </div>
+            <div className="card-pad flex-col gap-2">
+              <div className="banner info" style={{ fontSize: 12 }}>
+                <Icon name="info" size={13}/>
+                <span>Ihre Anfrage für zusätzliche Arbeit liegt efactory1 vor. Wir prüfen Umfang und Aufwand und melden uns mit den Konditionen — der Umfang ändert sich erst nach Ihrer Freigabe.</span>
+              </div>
+              {o.extensionPending?.description && (
+                <div className="kv" style={{ fontSize: 12 }}>
+                  <div className="kv-row"><dt>Ihre Anfrage</dt><dd style={{ textAlign: 'right', maxWidth: 240 }}>{o.extensionPending.description}</dd></div>
+                  {o.extensionPending.extraPages && <div className="kv-row"><dt>Gewünschte Zusatzseiten</dt><dd className="mono">+{o.extensionPending.extraPages}</dd></div>}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {o.status === 'active' && (
+          <div className="card">
+            <div className="card-head"><div className="card-title">Mehr Arbeit anfragen</div></div>
+            <div className="card-pad">
+              <CustExtensionRequest o={o} toast={toast}/>
             </div>
           </div>
         )}
@@ -811,6 +856,68 @@ function CustInterimFeedback({ o, toast }) {
   );
 }
 
+// CustDelayApproval — the GW proposed a new deadline (order parked in
+// 'delay_reported'). The new date applies only when the customer approves here
+// (G-05 / SOP B). Rejecting routes the order to efactory1 to mediate; it does
+// NOT restore the old (now-unmeetable) deadline. See actions customer.acceptDelay
+// / rejectDelay.
+const DELAY_REASON_LABELS_DE = {
+  illness: 'Krankheit',
+  emergency: 'Notfall',
+  scope: 'Rückfrage zum Umfang',
+  other: 'Sonstiges',
+};
+function CustDelayApproval({ o, toast }) {
+  const [rejecting, setRejecting] = useState(false);
+  const [rejectReason, setRejectReason] = useState('');
+  const proposed = o.proposedNewDeadline ? String(o.proposedNewDeadline).slice(0, 10) : null;
+  if (!proposed) return null;
+  const rejected = !!o.delayRejectedAt;
+  const reasonLabel = DELAY_REASON_LABELS_DE[o.delayReason] || o.delayReason || 'Sonstiges';
+  const accept = () => {
+    const ok = EFActions.customer.acceptDelay(o.id);
+    if (ok) toast && toast({ tone: 'success', transition: { entity: `Auftrag #${o.id}`, from: 'Verzögerung', to: 'In Bearbeitung' }, text: 'Neuer Liefertermin bestätigt · Ihr Ghostwriter arbeitet weiter' });
+  };
+  const sendReject = () => {
+    const ok = EFActions.customer.rejectDelay(o.id, rejectReason.trim() || null);
+    if (ok) toast && toast({ tone: 'info', text: 'Vorschlag abgelehnt · efactory1 prüft und meldet sich' });
+  };
+  return (
+    <div className="flex-col gap-2">
+      <div className="banner info" style={{ fontSize: 12 }}>
+        <Icon name="info" size={13}/>
+        <span>Ihr Ghostwriter muss den Liefertermin anpassen und schlägt einen neuen Termin vor. Der neue Termin gilt erst, wenn Sie zustimmen.</span>
+      </div>
+      <div className="kv" style={{ fontSize: 12 }}>
+        <div className="kv-row"><dt>Grund</dt><dd>{reasonLabel}</dd></div>
+        {o.delayReasonNote && <div className="kv-row"><dt>Details</dt><dd style={{ textAlign: 'right', maxWidth: 240 }}>{o.delayReasonNote}</dd></div>}
+        <div className="kv-row"><dt>Ursprünglicher Termin</dt><dd className="mono">{U.fmtDate(o.finalDeadline)}</dd></div>
+        <div className="kv-row"><dt>Neuer Termin</dt><dd className="mono" style={{ color: 'var(--orange)' }}>{U.fmtDate(proposed)}</dd></div>
+      </div>
+      {rejected ? (
+        <div className="banner warn" style={{ fontSize: 11.5 }}>
+          <Icon name="clock" size={12}/>
+          <span>Sie haben den Vorschlag abgelehnt. efactory1 prüft die Situation und meldet sich.</span>
+        </div>
+      ) : rejecting ? (
+        <div className="flex-col gap-2">
+          <label className="fs-12 strong">Warum können Sie den Termin nicht akzeptieren? <span className="text-faint" style={{ fontWeight: 400 }}>(optional — hilft efactory1 bei der Lösung)</span></label>
+          <textarea value={rejectReason} onChange={e => setRejectReason(e.target.value)} placeholder="z. B. Fester Abgabetermin an der Uni am 15.06. — später ist nicht möglich." style={{ width: '100%', minHeight: 64, border: '1px solid var(--border)', borderRadius: 8, padding: 8, fontFamily: 'inherit', fontSize: 12, resize: 'vertical', background: 'var(--surface)', color: 'var(--text)', boxSizing: 'border-box' }}/>
+          <div className="flex gap-2">
+            <button type="button" className="btn btn-sm" onClick={sendReject}><Icon name="x" size={12}/> Ablehnung senden</button>
+            <button type="button" className="btn btn-sm btn-ghost" onClick={() => { setRejecting(false); setRejectReason(''); }}>Zurück</button>
+          </div>
+        </div>
+      ) : (
+        <div className="flex gap-2">
+          <button type="button" className="btn btn-sm btn-success" onClick={accept}><Icon name="check" size={12}/> Neuen Termin bestätigen</button>
+          <button type="button" className="btn btn-sm" onClick={() => setRejecting(true)}>Ablehnen</button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // CustExtensionApproval — a scope change (extra pages / fee / new deadline)
 // approved by efactory1 is staged in order.extensionApproval with the order
 // parked in 'extension_customer_approval_pending'. Pages, price and deadline do
@@ -867,6 +974,62 @@ function CustExtensionApproval({ o, toast }) {
           <button type="button" className="btn btn-sm" onClick={decline}>Ablehnen</button>
         </div>
       )}
+    </div>
+  );
+}
+
+// CustExtensionRequest — customer entry point to raise a scope change (D-31).
+// SOP §6 allows "GW or client" to flag the need for more work; this routes the
+// order into the SAME admin-mediated gate as the GW path (extension_requested).
+// The customer describes what they want and (optionally) how many extra pages —
+// they never name a price: the admin discusses cost with them (financial firewall,
+// SOP D §6), and scope/price/deadline change only after the customer approves +
+// pays. See actions customer.requestExtension.
+function CustExtensionRequest({ o, toast }) {
+  const [open, setOpen] = useState(false);
+  const [desc, setDesc] = useState('');
+  const [extraPages, setExtraPages] = useState('');
+  const valid = desc.trim().length > 15;
+  const submit = () => {
+    const ok = EFActions.customer.requestExtension(o.id, {
+      description: desc.trim(),
+      extraPages: extraPages ? Math.max(1, +extraPages || 0) : '',
+    });
+    if (ok) {
+      toast && toast({ tone: 'success', text: 'Anfrage gesendet · efactory1 prüft den Umfang und meldet sich mit den Konditionen' });
+      setOpen(false); setDesc(''); setExtraPages('');
+    }
+  };
+  if (!open) {
+    return (
+      <div className="flex-col gap-2">
+        <div className="text-muted fs-12" style={{ lineHeight: 1.5 }}>
+          Brauchen Sie zusätzliche Kapitel, mehr Seiten oder erweiterten Umfang? efactory1 bespricht Aufwand und Kosten mit Ihnen — der Umfang ändert sich erst nach Ihrer Freigabe und Zahlung.
+        </div>
+        <button type="button" className="btn btn-sm" onClick={() => setOpen(true)} style={{ alignSelf: 'flex-start' }}>
+          <Icon name="plus" size={12}/> Zusätzliche Arbeit anfragen
+        </button>
+      </div>
+    );
+  }
+  return (
+    <div className="flex-col gap-2">
+      <div className="field">
+        <label>Was möchten Sie zusätzlich?</label>
+        <textarea value={desc} onChange={e => setDesc(e.target.value)} placeholder="z. B. ein zusätzliches Kapitel zur empirischen Erhebung, oder 10 weitere Seiten Diskussion." style={{ width: '100%', minHeight: 84, border: '1px solid var(--border)', borderRadius: 8, padding: 10, fontFamily: 'inherit', fontSize: 12, resize: 'vertical', background: 'var(--surface)' }}/>
+      </div>
+      <div className="field" style={{ maxWidth: 200 }}>
+        <label>Geschätzte Zusatzseiten (optional)</label>
+        <input type="number" min="1" value={extraPages} onChange={e => setExtraPages(e.target.value)} placeholder="—"/>
+      </div>
+      <div className="banner" style={{ background: 'var(--surface-2)', border: '1px dashed var(--border)', fontSize: 11.5 }}>
+        <Icon name="lock" size={12}/>
+        <span>Die Kosten legt efactory1 mit Ihnen fest — Sie geben hier keinen Preis an.</span>
+      </div>
+      <div className="flex gap-2">
+        <button type="button" className="btn btn-sm btn-primary" disabled={!valid} onClick={submit}><Icon name="check" size={12}/> Anfrage senden</button>
+        <button type="button" className="btn btn-sm" onClick={() => { setOpen(false); setDesc(''); setExtraPages(''); }}>Abbrechen</button>
+      </div>
     </div>
   );
 }

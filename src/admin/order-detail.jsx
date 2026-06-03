@@ -127,7 +127,7 @@ function OrderDetail({ orderId, navigate, toast, initialTab, focusSubmissionId, 
       toast({
         tone: 'success',
         transition: { entity: `Order #${orderId}`, from: 'GW Claimed — Approve', to: 'Active' },
-        text: 'Briefing email sent · customer introduced',
+        text: 'Briefing email sent · customer notified',
       });
     }, 1700);
     setTimeout(() => setApproving(null), 2400);
@@ -187,7 +187,7 @@ function OrderDetail({ orderId, navigate, toast, initialTab, focusSubmissionId, 
           <Icon name="feather" size={16}/>
           <div style={{ flex: 1 }}>
             <strong>{gw?.name}</strong> claimed this job 3h 18m ago. All 6 acknowledgements signed (AGB v3.2, no-AI, GDPR, deadline, fee, individual creation).
-            On approve: GW briefing email + customer GW-intro email send simultaneously.
+            On approve: the GW briefing email sends and the customer is notified their writer is assigned. The GW posts their introduction in the order chat.
           </div>
           <button type="button" className="btn btn-success btn-sm" onClick={approveClaim}>Approve & notify</button>
         </div>
@@ -238,7 +238,7 @@ function OrderDetail({ orderId, navigate, toast, initialTab, focusSubmissionId, 
             <div className="modal-footer">
               <span className="text-faint fs-11">
                 {approving.phase === 'gw' && 'Sending GW briefing…'}
-                {approving.phase === 'cust' && 'Sending customer intro…'}
+                {approving.phase === 'cust' && 'Notifying customer…'}
                 {approving.phase === 'done' && '✓ Both emails delivered · order moved to Active'}
               </span>
               <span style={{ flex: 1 }}/>
@@ -1569,7 +1569,7 @@ function AssignmentTab({ order, navigate, toast }) {
     if (toast) toast({
       tone: 'success',
       transition: { entity: `Order #${order.id}`, from: order.status === 'available' ? 'On Job Board' : 'Awaiting Assignment', to: 'Active' },
-      text: `${g.name} assigned · briefing + customer intro emails queued`,
+      text: `${g.name} assigned · briefing sent · customer notified`,
     });
   };
   return (

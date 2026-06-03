@@ -464,6 +464,13 @@ function acceptOffer(orderId, payload = {}) {
   };
   patchOrder(orderId, {
     status: 'invoice_sent',
+    // Top-level acceptedAt = the offer-acceptance timestamp. The static seed
+    // bakes this in; orders driven through the live flow (WP intake → offer →
+    // accept) must set it too, or they diverge from the seed. Several selectors
+    // key off it — notably enrichCustomerSummary, which counts booked orders /
+    // LTV by `!!o.acceptedAt`, so omitting it would zero out a paying customer's
+    // LTV and order count. It's also the fallback anchor for pipeline/timeline/SLA.
+    acceptedAt,
     invoiceSentAt: acceptedAt,
     sevdeskInvoiceNo: invoiceNo,
     paymentMethodChoice: paymentMethod,
@@ -681,17 +688,18 @@ function confirmFirstContactReceipt(orderId) {
   return true;
 }
 
-// The GW introduction is the one dual-channel message in the system: the same
-// body is posted into the order chat AND sent to the customer as an email (via
-// the `gw.first_contact_sent` event → firstContactSentToCustomer mail). It is
-// the only GW-initiated email to the customer — it onboards them into the
-// platform, and every message after this stays in the order chat.
+// The GW introduction is a single platform-chat message — NOT an email (D-28).
+// The body is posted into the order chat as the first GW message; the customer
+// is then notified by a content-free platform CTA email whose only job is to
+// deep-link them into the chat. The GW never emails the customer and never sees
+// their address. After the intro, every message stays in the order chat.
 function completeFirstContact(orderId, payload = {}) {
   const o = order(orderId);
   if (!o) return null;
   if (!confirmFirstContactReceipt(orderId)) return null;
 
-  // Channel 1 — post the introduction into the platform order chat.
+  // Post the introduction into the platform order chat. OC.send already fires
+  // the in-app `message_received` notification to the customer + admin.
   const msg = OC.send({
     orderId,
     role: 'gw',
@@ -702,83 +710,35 @@ function completeFirstContact(orderId, payload = {}) {
     return null;
   }
 
-  const subject = (payload.subject || '').trim();
   patchOrder(orderId, prev => ({
     ...prev,
     firstContactDone: true,
     firstContactDoneAt: prev.firstContactDoneAt || msg.at,
     firstContactMessageId: msg.id,
     firstContactChatId: msg.chatId,
-    firstContactSubject: subject || prev.firstContactSubject || null,
     firstContactReceiptConfirmedAt: prev.firstContactReceiptConfirmedAt || msg.at,
     firstContactReceiptConfirmedBy: prev.firstContactReceiptConfirmedBy || store.getState().session.gwId,
   }));
   const after = order(orderId);
   const sendingGw = gw(store.getState().session.gwId);
-  // Channel 2 — the same body goes out to the customer as an email. The sim
-  // effects layer turns this event into firstContactSentToCustomer.
-  DomainEvents.emit('gw.first_contact_sent', {
-    order: after,
+  // Notify the customer by a CTA-only platform email (no GW body, no GW `from`,
+  // no customer address exposed to the GW). The sim effects layer turns this
+  // into firstContactCtaCustomer — a "new message, open the chat" onboarding
+  // ping, not a GW-authored email.
+  DomainEvents.emit('gw.first_contact_posted', {
     orderId,
     customerId: after?.customerId,
     scenarioId: after?.scenarioId || null,
     gwId: sendingGw?.id || null,
     gwName: sendingGw?.name || null,
-    gwEmail: sendingGw?.email || null,
-    subject: subject || after?.firstContactSubject || null,
-    body: payload.body || '',
-    ccEmail: 'kundenservice@efactory1.de',
-    sentAt: msg.at,
   });
   return msg;
 }
 
-function recordFirstContactOutOfBand(orderId, payload = {}) {
-  const o = order(orderId);
-  if (!o) return false;
-  const currentGwId = store.getState().session.gwId;
-  if (o.gwId !== currentGwId) {
-    toast({ text: 'This assignment is not assigned to your account.', tone: 'danger' });
-    return false;
-  }
-  if (o.firstContactDoneAt) return true;
-  const reason = (payload.reason || '').trim();
-  if (!reason) {
-    toast({ text: 'Please describe how you contacted the customer.', tone: 'danger' });
-    return false;
-  }
-  const channel = (payload.channel || 'other').trim();
-  const at = nowIso();
-  patchOrder(orderId, prev => ({
-    ...prev,
-    firstContactDone: true,
-    firstContactDoneAt: at,
-    firstContactReceiptConfirmedAt: prev.firstContactReceiptConfirmedAt || at,
-    firstContactReceiptConfirmedBy: prev.firstContactReceiptConfirmedBy || currentGwId,
-    firstContactSkippedTemplate: true,
-    firstContactSkipChannel: channel,
-    firstContactSkipReason: reason,
-  }));
-  DomainEvents.emit('gw.first_contact.recorded_out_of_band', {
-    orderId,
-    gwId: currentGwId,
-    customerId: o.customerId,
-    channel,
-    reason,
-    at,
-  });
-  notify({
-    to: 'admin',
-    kind: 'first_contact_out_of_band',
-    orderId,
-    gwId: currentGwId,
-    customerId: o.customerId,
-    title: `Intro recorded out-of-band · #${orderId}`,
-    body: `${gw(currentGwId)?.name || 'GW'} skipped the intro-email template (channel: ${channel}). Reason: ${reason}`,
-  });
-  toast({ text: 'Recorded · submissions unlocked. Berat will see this on the admin queue.', tone: 'success' });
-  return true;
-}
+// NOTE: the legacy "record out-of-band introduction" path (WhatsApp / phone /
+// personal email) was removed per D-28/D-29. The GW introduction is a single
+// platform-chat message (completeFirstContact) — there is no direct customer
+// channel to record, and submissions only unlock once the chat intro is posted.
 
 function submitWork(orderId, payload = {}) {
   const o = order(orderId);
@@ -800,13 +760,12 @@ function submitWork(orderId, payload = {}) {
   // SOP D intro lock — defense in depth. The GW assignment-detail UI greys out
   // the submission tiles until firstContactDoneAt is set, but a direct call to
   // EFActions.gw.submit (or a stale route) could otherwise post work before
-  // the customer has been introduced. Mirror the same gate the UI uses:
-  // either the SOP D wizard recorded firstContactDoneAt, or an out-of-band
-  // record was logged (firstContactMessageId / firstContactChatId / explicit
-  // firstContactSkippedTemplate flag).
-  const introDone = !!(o?.firstContactDoneAt || o?.firstContactDone || o?.firstContactMessageId || o?.firstContactChatId || o?.firstContactSkippedTemplate);
+  // the customer has been introduced. Mirror the same gate the UI uses: the
+  // SOP D wizard posts the intro into the order chat, recording firstContactDoneAt
+  // (plus the message / chat ids).
+  const introDone = !!(o?.firstContactDoneAt || o?.firstContactDone || o?.firstContactMessageId || o?.firstContactChatId);
   if (!introDone) {
-    toast({ text: 'Send the intro email first — required by SOP D before any submission.', tone: 'danger' });
+    toast({ text: 'Post your introduction in the order chat first — required by SOP D before any submission.', tone: 'danger' });
     return null;
   }
   // Input validation — defense in depth (audit A-04). The GW submit form already
@@ -1446,6 +1405,11 @@ function deleteChatReport(reportId) {
   return true;
 }
 
+// The GW proposes a new deadline in-platform — NO GW→customer email (D-26/D-28).
+// Per G-05 / SOP B / the FigJam flow, the delay only takes effect once the
+// CUSTOMER approves the new date (customerAcceptDelay); admin is informed and
+// can step in (proposeNewDelay / acceptDelay) but does not gate the happy path
+// (RD-01). The order parks in `delay_reported` = "awaiting customer approval".
 function reportDelay(orderId, payload = {}) {
   const o = order(orderId);
   // Guard the write through the transition graph (audit: route critical status
@@ -1453,14 +1417,38 @@ function reportDelay(orderId, payload = {}) {
   // revision_required only.
   const guard = W.canTransition(o, 'report_delay');
   if (!guard.ok) { toast({ text: guard.reason, tone: 'danger' }); return false; }
+  // Remember the status we paused FROM so the resume returns there. A delay
+  // reported during a revision must come back to revision_required — resuming
+  // blindly to active would silently drop the open revision. report_delay is
+  // only valid from active / revision_required, so anything else is active.
+  const resumeStatus = o.status === 'revision_required' ? 'revision_required' : 'active';
   patchOrder(orderId, {
     status: 'delay_reported',
+    delayResumeStatus: resumeStatus,
     delayReason: payload.reasonKind || payload.reason || 'other',
+    delayReasonNote: payload.reason || null,
     delayReportedAt: nowIso(),
+    delayAcceptedAt: null,
+    delayAcceptedBy: null,
+    delayRejectedAt: null,
+    delayRejectReason: null,
     proposedNewDeadline: payload.newDate ? payload.newDate + 'T18:00:00' : payload.proposedNewDeadline,
   });
-  notifyOrder(orderId, { to: 'admin', kind: 'delay_reported', title: `Delay reported · #${orderId}`, body: `New proposed date ${payload.newDate || 'TBD'} · reason: ${payload.reasonKind || payload.reason || 'other'}`, urgent: true });
-  notifyOrder(orderId, { to: 'customer', kind: 'delay_reported', title: 'Lieferdatum-Anpassung gemeldet', body: `Neuer Termin: ${payload.newDate || 'TBD'}. Wir kümmern uns.` });
+  notifyOrder(orderId, { to: 'admin', kind: 'delay_reported', title: `Delay reported · #${orderId}`, body: `GW proposes ${payload.newDate || 'TBD'} · awaiting customer approval · reason: ${payload.reasonKind || payload.reason || 'other'}`, urgent: true });
+  notifyOrder(orderId, { to: 'customer', kind: 'delay_reported', title: 'Neuer Liefertermin — Ihre Freigabe nötig', body: `Auftrag #${orderId} · vorgeschlagen: ${payload.newDate || 'TBD'}. Bitte prüfen und freigeben.` });
+  // Demo Inbox parity: email the customer the approve/reject request with a CTA
+  // into the status tab (effects.js → delayApprovalRequestCustomer). This is a
+  // platform-initiated CTA, not a GW-authored email.
+  DomainEvents.emit('order.delay.proposal', {
+    orderId,
+    source: 'gw_report',
+    customerId: o.customerId || null,
+    gwId: o.gwId || null,
+    reasonKind: payload.reasonKind || payload.reason || 'other',
+    reasonNote: payload.reason || '',
+    newDate: payload.newDate || (o.proposedNewDeadline ? String(o.proposedNewDeadline).slice(0, 10) : null),
+    scenarioId: o.scenarioId || null,
+  });
   return true;
 }
 
@@ -1475,11 +1463,64 @@ function requestExtension(orderId, payload = {}) {
     extensionPending: {
       description: payload.description || '',
       extraPages: payload.extraPages || '',
-      extraFee: payload.extraFee || '',
+      extraFee: payload.extraFee || '',     // GW's proposed estimate; admin sets the final price.
+      initiatedBy: 'gw',
       requestedAt: nowIso(),
     },
   });
   notifyOrder(orderId, { to: 'admin', kind: 'extension_requested', title: `Extension requested · #${orderId}`, body: 'GW requests scope review and customer approval before work proceeds' });
+  // Demo Inbox parity: email the admin too (effects.js → extensionRequestedAdminNotify).
+  // initiatedBy 'gw' → the GW is the actor, so no GW email here (they got a toast).
+  DomainEvents.emit('order.extension.requested', {
+    orderId,
+    initiatedBy: 'gw',
+    customerId: o.customerId || null,
+    gwId: o.gwId || null,
+    description: payload.description || '',
+    extraPages: payload.extraPages || '',
+    extraFee: payload.extraFee || '',
+    scenarioId: o.scenarioId || null,
+  });
+  return true;
+}
+
+// Customer-initiated extension (D-31). SOP §6 / the FigJam allow "GW or client"
+// to raise the need for more work; this is the customer entry point. It lands in
+// the SAME admin-mediated gate as the GW path (status extension_requested) — the
+// only difference is initiator and that the customer never names a price: the
+// financial firewall (SOP D §6) means the admin discusses cost with the customer,
+// so extraFee is left blank for the admin to set on approveExtension.
+function customerRequestExtension(orderId, payload = {}) {
+  const o = order(orderId);
+  const guard = W.canTransition(o, 'request_extension');
+  if (!guard.ok) { toast({ text: guard.reason, tone: 'danger' }); return false; }
+  patchOrder(orderId, {
+    status: 'extension_requested',
+    extensionPending: {
+      description: payload.description || '',
+      extraPages: payload.extraPages || '',
+      extraFee: '',                          // financial firewall: admin prices it, not the customer.
+      initiatedBy: 'customer',
+      requestedAt: nowIso(),
+    },
+  });
+  notifyOrder(orderId, { to: 'admin', kind: 'extension_requested', title: `Extension requested by customer · #${orderId}`, body: 'Customer asks for additional work — review scope, set the price with them, then send for approval.' });
+  // GW is informed (they retain the right to decline via the admin) but must not
+  // start the extra work until the customer approves + pays (applyExtensionScope).
+  notifyOrder(orderId, { to: 'gw', kind: 'extension_requested', title: `Customer requested more work · #${orderId}`, body: 'efactory1 will confirm scope, effort and price with you — do not start yet.' });
+  // Demo Inbox parity: the same milestone also reaches admin + GW by email
+  // (effects.js → extensionRequested{Admin,Gw}Notify), so it's not only an
+  // in-app bell. The customer is the actor and gets no email here.
+  DomainEvents.emit('order.extension.requested', {
+    orderId,
+    initiatedBy: 'customer',
+    customerId: o.customerId || null,
+    gwId: o.gwId || null,
+    description: payload.description || '',
+    extraPages: payload.extraPages || '',
+    extraFee: '',
+    scenarioId: o.scenarioId || null,
+  });
   return true;
 }
 
@@ -1614,11 +1655,18 @@ function approveExtension(orderId, payload = {}) {
   }
   const ext = o.extensionPending || {};
   const newDeadline = payload.newDeadline || ext.proposedNewDeadline || null;
+  // The admin sets the final commercial terms (financial firewall, SOP D §6):
+  // they may adjust the GW's proposed fee/pages, and MUST set the fee on a
+  // customer-initiated request (which carries none). Fall back to the request's
+  // values only when the admin left a field untouched.
+  const hasVal = (v) => v != null && v !== '';
+  const extraFee = hasVal(payload.extraFee) ? payload.extraFee : ext.extraFee;
+  const extraPages = hasVal(payload.extraPages) ? payload.extraPages : ext.extraPages;
   // Stage only — scope stays frozen until the customer approves and pays.
   const approval = buildExtensionApproval({
     source: 'extension',
-    extraPages: ext.extraPages,
-    extraFee: ext.extraFee,
+    extraPages,
+    extraFee,
     newDeadline,
     description: ext.description || '',
     resumeStatus: 'active',
@@ -1633,12 +1681,14 @@ function approveExtension(orderId, payload = {}) {
   notifyOrder(orderId, { to: 'customer', kind: 'extension_customer_approval', title: 'Umfangserweiterung — Ihre Freigabe nötig', body: `Auftrag #${orderId} · ${approval.extraPages ? '+' + approval.extraPages + ' Seiten · ' : ''}${feeLabel}. Bitte prüfen und freigeben${approval.extraFee > 0 ? ' & bezahlen' : ''}.` });
   notifyOrder(orderId, { to: 'gw', kind: 'extension_pending_customer', title: `Extension awaiting customer approval · #${orderId}`, body: 'Approved by efactory1 — do not start the extra work until the customer approves and pays.' });
   // Demo Inbox parity: email the customer the approve/pay request with a CTA
-  // into the status tab (effects.js → extensionApprovalRequestCustomer). The
-  // dispute scope-amendment path is covered by disputeResolvedCustomerNotify
+  // into the status tab (effects.js → extensionApprovalRequestCustomer) and the
+  // GW the "approved — do not start yet" heads-up (extensionApprovalPendingGwNotify).
+  // The dispute scope-amendment path is covered by disputeResolved{Customer,Gw}Notify
   // instead, so it deliberately does NOT emit this event (no double email).
   DomainEvents.emit('order.extension.approval_requested', {
     orderId,
     customerId: o.customerId || null,
+    gwId: o.gwId || null,
     source: 'extension',
     extraPages: approval.extraPages,
     extraFee: approval.extraFee,
@@ -1739,9 +1789,11 @@ function declineExtension(orderId, reason) {
   notifyOrder(orderId, { to: 'gw', kind: 'extension_rejected', title: `Scope change declined · #${orderId}`, body: 'Customer declined the extension — continue with the original scope.' });
   notifyOrder(orderId, { to: 'admin', kind: 'extension_rejected', title: `Extension declined by customer · #${orderId}`, body: reason || 'Customer declined the staged scope change.' });
   // Demo Inbox parity: tell the GW by email to continue with the original scope
-  // (effects.js → extensionDeclinedGw).
+  // (effects.js → extensionDeclinedGw) and email the admin a record of the decline
+  // (extensionDeclinedAdminNotify).
   DomainEvents.emit('order.extension.declined', {
     orderId,
+    customerId: o.customerId || null,
     gwId: o.gwId || null,
     reason: reason || null,
     scenarioId: o.scenarioId || null,
@@ -1758,9 +1810,19 @@ function rejectExtension(orderId, reason) {
   }
   patchOrder(orderId, { status: 'active', extensionPending: null, extensionRejectedAt: nowIso(), extensionRejectReason: reason || null });
   notifyOrder(orderId, { to: 'gw', kind: 'extension_rejected', title: `Extension declined · #${orderId}`, body: reason ? `Reason: ${reason}` : 'Please continue with the original scope.' });
+  // Demo Inbox parity: email the GW the rejection too (effects.js → extensionRejectedGwNotify).
+  DomainEvents.emit('order.extension.rejected', {
+    orderId,
+    gwId: o.gwId || null,
+    reason: reason || null,
+    scenarioId: o.scenarioId || null,
+  });
   return true;
 }
 
+// Admin override / final confirmation. Per RD-01 the customer's approval is the
+// primary gate, but the admin keeps a manual confirm (e.g. customer confirmed
+// off-platform, or admin needs to force a date). Clears any prior rejection.
 function acceptDelay(orderId, payload = {}) {
   const o = order(orderId);
   const guard = W.canResolve(o, 'accept_delay');
@@ -1768,18 +1830,89 @@ function acceptDelay(orderId, payload = {}) {
     if (import.meta.env?.DEV) console.warn(`[acceptDelay] ${guard.reason}`);
     return false;
   }
+  // The override may NOT silently re-apply a date the customer rejected (G-05).
+  // After a rejection the admin must counter-propose a NEW date (proposeNewDelay,
+  // which clears the rejection) or take a deadlock exit (reassign / cancel).
+  // Passing an explicit newDeadline is a deliberate override to a different date
+  // and is still allowed.
+  if (o.delayRejectedAt && !payload.newDeadline) {
+    toast({ text: 'The customer rejected this date — counter-propose a new one or use reassign/cancel. The override cannot re-apply a rejected date.', tone: 'danger' });
+    return false;
+  }
   const newDeadline = payload.newDeadline || o.proposedNewDeadline || o.finalDeadline;
   patchOrder(orderId, {
-    status: 'active',
+    status: o.delayResumeStatus || 'active',
     finalDeadline: newDeadline,
     delayAcceptedAt: nowIso(),
+    delayAcceptedBy: payload.by || 'admin',
+    delayRejectedAt: null,
+    delayRejectReason: null,
+    delayResumeStatus: null,
     proposedNewDeadline: null,
   });
   notifyOrder(orderId, { to: 'gw', kind: 'delay_accepted', title: `New deadline confirmed · #${orderId}`, body: `Final deadline now ${newDeadline?.slice?.(0,10) || ''}` });
   notifyOrder(orderId, { to: 'customer', kind: 'delay_accepted', title: 'Neuer Liefertermin bestätigt', body: `Auftrag #${orderId} · neuer Termin ${newDeadline?.slice?.(0,10) || ''}` });
+  // Admin override/confirmation → email the GW (resume) + customer (confirmed).
+  // `by` routes the effects handler to the customer email rather than the admin one.
+  DomainEvents.emit('order.delay.accepted', { orderId, gwId: o.gwId || null, customerId: o.customerId || null, newDeadline, by: payload.by || 'admin', scenarioId: o.scenarioId || null });
   return true;
 }
 
+// Customer approves the GW's proposed new deadline — the primary gate (G-05).
+// Applies the new deadline, resumes work, informs GW + admin. No payment.
+function customerAcceptDelay(orderId) {
+  const o = order(orderId);
+  if (!o) return false;
+  // The proposal must be live: delay_reported, a proposed date, and NOT already
+  // rejected. Once the customer rejects, the proposal is dead until the admin
+  // counters (proposeNewDelay) or the GW re-reports — both clear delayRejectedAt.
+  // Without the reject check a stale/duplicate call could apply a date the
+  // customer already rejected (G-05).
+  if (o.status !== 'delay_reported' || !o.proposedNewDeadline || o.delayRejectedAt) {
+    toast({ text: 'No delay is awaiting your approval on this order.', tone: 'danger' });
+    return false;
+  }
+  const newDeadline = o.proposedNewDeadline;
+  patchOrder(orderId, {
+    status: o.delayResumeStatus || 'active',
+    finalDeadline: newDeadline,
+    delayAcceptedAt: nowIso(),
+    delayAcceptedBy: 'customer',
+    delayRejectedAt: null,
+    delayRejectReason: null,
+    delayResumeStatus: null,
+    proposedNewDeadline: null,
+  });
+  const ddl = newDeadline ? String(newDeadline).slice(0, 10) : '';
+  notifyOrder(orderId, { to: 'gw', kind: 'delay_accepted', title: `New deadline confirmed · #${orderId}`, body: `Customer approved the new deadline ${ddl} · resume work.` });
+  notifyOrder(orderId, { to: 'admin', kind: 'delay_accepted', title: `Delay accepted by customer · #${orderId}`, body: `New deadline ${ddl} is live.` });
+  DomainEvents.emit('order.delay.accepted', { orderId, gwId: o.gwId || null, customerId: o.customerId || null, newDeadline, by: 'customer', scenarioId: o.scenarioId || null });
+  return true;
+}
+
+// Customer rejects the proposed new deadline. The order STAYS in delay_reported
+// (the old deadline is already unmeetable) and is routed to admin to mediate —
+// counter-propose (proposeNewDelay) or escalate. Rejecting does not silently
+// restore the original deadline.
+function customerRejectDelay(orderId, reason) {
+  const o = order(orderId);
+  if (!o) return false;
+  if (o.status !== 'delay_reported') {
+    toast({ text: 'No delay is awaiting your approval on this order.', tone: 'danger' });
+    return false;
+  }
+  patchOrder(orderId, {
+    delayRejectedAt: nowIso(),
+    delayRejectReason: reason || null,
+  });
+  notifyOrder(orderId, { to: 'admin', kind: 'delay_rejected', title: `Delay rejected by customer · #${orderId}`, body: reason ? `Reason: ${reason}` : 'Customer declined the proposed new deadline — please mediate.', urgent: true });
+  notifyOrder(orderId, { to: 'gw', kind: 'delay_rejected', title: `Customer declined the new deadline · #${orderId}`, body: 'efactory1 will mediate — hold for instructions.' });
+  DomainEvents.emit('order.delay.rejected', { orderId, gwId: o.gwId || null, customerId: o.customerId || null, reason: reason || null, scenarioId: o.scenarioId || null });
+  return true;
+}
+
+// Admin counter-proposal. Re-opens the proposal for the customer to review
+// (clears any prior rejection) and re-sends the customer CTA.
 function proposeNewDelay(orderId, newDeadline) {
   const o = order(orderId);
   const guard = W.canResolve(o, 'propose_delay');
@@ -1787,9 +1920,74 @@ function proposeNewDelay(orderId, newDeadline) {
     if (import.meta.env?.DEV) console.warn(`[proposeNewDelay] ${guard.reason}`);
     return false;
   }
-  patchOrder(orderId, { proposedNewDeadline: newDeadline });
-  notifyOrder(orderId, { to: 'customer', kind: 'delay_counter', title: 'Gegenvorschlag für Liefertermin', body: `Auftrag #${orderId} · vorgeschlagen: ${newDeadline?.slice?.(0,10) || ''}` });
+  patchOrder(orderId, { proposedNewDeadline: newDeadline, delayRejectedAt: null, delayRejectReason: null });
+  notifyOrder(orderId, { to: 'customer', kind: 'delay_counter', title: 'Neuer Terminvorschlag — Ihre Freigabe nötig', body: `Auftrag #${orderId} · vorgeschlagen: ${newDeadline?.slice?.(0,10) || ''}. Bitte prüfen und freigeben.` });
   notifyOrder(orderId, { to: 'gw', kind: 'delay_counter', title: `Admin proposed new deadline · #${orderId}`, body: newDeadline?.slice?.(0,10) || '' });
+  DomainEvents.emit('order.delay.proposal', {
+    orderId,
+    source: 'admin_counter',
+    customerId: o.customerId || null,
+    gwId: o.gwId || null,
+    reasonKind: o.delayReason || 'other',
+    reasonNote: o.delayReasonNote || '',
+    newDate: newDeadline ? String(newDeadline).slice(0, 10) : null,
+    scenarioId: o.scenarioId || null,
+  });
+  return true;
+}
+
+// =============================================================================
+// Delay deadlock — terminal admin decisions (recommendation §2.5, option β).
+// =============================================================================
+// When the customer rejects the proposed date and no counter works (the GW
+// genuinely cannot meet anything the customer will accept), the propose/counter
+// loop has no legitimate exit — forcing a date onto an unwilling customer via
+// the override would break G-05. Instead the admin decides which variable
+// gives: the WRITER (reassign) or the MONEY (cancel + refund). Both delegate to
+// the same primitives the dispute resolver uses (reassign_gw → cancelAssignment,
+// cancel_refund → cancelOrder + refund) — one engine, not two. No "dispute" is
+// opened: a no-fault scheduling impasse isn't misconduct.
+
+// Reassign: the customer's deadline is reasonable, only THIS GW can't meet it.
+// Hand the order to a writer who can. The GW steps off (no-fault), the order
+// returns to the job board, the old chat is archived (the next GW gets a fresh
+// one). The pending delay decision is cleared so the next writer starts clean.
+function resolveDelayReassign(orderId, payload = {}) {
+  const o = order(orderId);
+  if (!o) { toast({ text: 'Order not found.', tone: 'danger' }); return false; }
+  if (o.status !== 'delay_reported') {
+    toast({ text: 'This order is not awaiting a delay decision.', tone: 'danger' });
+    return false;
+  }
+  if (!o.gwId) { toast({ text: 'No ghostwriter is assigned to reassign.', tone: 'danger' }); return false; }
+  // Clear the pending delay decision before the GW comes off — the next writer
+  // must not inherit the old GW's proposed/rejected date.
+  patchOrder(orderId, { proposedNewDeadline: null, delayRejectedAt: null, delayRejectReason: null });
+  cancelAssignment(orderId, payload.reason || "Delay could not be resolved — reassigning so the customer's deadline can be met by another ghostwriter");
+  OC.close(orderId, 'Ghostwriter wurde abgezogen — Chat archiviert. Die neue Zuweisung erhält einen neuen Chat.');
+  return true;
+}
+
+// Cancel + refund: no writer can meet the customer's hard deadline, so make the
+// customer whole rather than deliver something late and worthless. Mirrors the
+// dispute cancel_refund outcome (cancelOrder archives the chat; refund logged
+// on the order). RD-04 (who absorbs the cost / GW penalty for a no-fault delay)
+// stays open — refund amount is admin-set, no formula hardcoded.
+function resolveDelayCancel(orderId, payload = {}) {
+  const o = order(orderId);
+  if (!o) { toast({ text: 'Order not found.', tone: 'danger' }); return false; }
+  if (o.status !== 'delay_reported') {
+    toast({ text: 'This order is not awaiting a delay decision.', tone: 'danger' });
+    return false;
+  }
+  const refundAmount = Number(payload.refundAmount) || 0;
+  cancelOrder(orderId, payload.reason || 'Delay could not be resolved — order cancelled');
+  if (refundAmount > 0) {
+    patchOrder(orderId, prev => ({
+      ...prev,
+      refund: { amount: refundAmount, reason: payload.reason || 'Delay cancellation refund', at: nowIso() },
+    }));
+  }
   return true;
 }
 
@@ -2212,6 +2410,8 @@ const actions = {
     rejectExtension,
     acceptDelay,
     proposeNewDelay,
+    resolveDelayReassign,
+    resolveDelayCancel,
     confirmViolation,
     clearViolation,
   },
@@ -2220,7 +2420,6 @@ const actions = {
     applyForJob,
     confirmFirstContactReceipt,
     completeFirstContact,
-    recordFirstContactOutOfBand,
     submit: submitWork,
     reportDelay,
     requestExtension,
@@ -2239,9 +2438,12 @@ const actions = {
     acceptFinal,
     escalate: customerEscalate,
     reportChatMessages,
+    requestExtension: customerRequestExtension,
     approveExtension: customerApproveExtension,
     payExtension: confirmExtensionPayment,
     declineExtension,
+    acceptDelay: customerAcceptDelay,
+    rejectDelay: customerRejectDelay,
   },
   disputes: {
     open: openDispute,

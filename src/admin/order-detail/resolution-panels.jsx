@@ -28,10 +28,22 @@ const DISPUTE_OUTCOME_LABEL = {
 
 function ExtensionResolutionPanel({ order, toast }) {
   const ext = order.extensionPending || {};
+  const byCustomer = ext.initiatedBy === 'customer';
+  const hasVal = (v) => v != null && v !== '';
   const [overrideDeadline, setOverrideDeadline] = useState('');
+  // Fee/pages are admin-editable (financial firewall — the admin sets the final
+  // price): prefilled from the GW's estimate, blank on a customer-initiated
+  // request for the admin to fill in. EX-01/EX-02 (fee math / who is charged)
+  // are still open — no hardcoded formula, the admin types the agreed figure.
+  const [extraFee, setExtraFee] = useState(hasVal(ext.extraFee) ? String(ext.extraFee) : '');
+  const [extraPages, setExtraPages] = useState(hasVal(ext.extraPages) ? String(ext.extraPages) : '');
   const [rejectReason, setRejectReason] = useState('');
   const onApprove = () => {
-    EFActions.orders.approveExtension(order.id, overrideDeadline ? { newDeadline: overrideDeadline + 'T18:00:00' } : {});
+    EFActions.orders.approveExtension(order.id, {
+      ...(overrideDeadline ? { newDeadline: overrideDeadline + 'T18:00:00' } : {}),
+      ...(extraFee !== '' ? { extraFee: Math.max(0, +extraFee || 0) } : {}),
+      ...(extraPages !== '' ? { extraPages: Math.max(0, +extraPages || 0) } : {}),
+    });
     toast && toast({ tone: 'success', transition: { entity: `Order #${order.id}`, from: 'Extension Requested', to: 'Customer Approval' }, text: 'Extension approved · sent to customer for approval + payment before scope changes' });
   };
   const onReject = () => {
@@ -46,10 +58,21 @@ function ExtensionResolutionPanel({ order, toast }) {
       </div>
       <div className="card-pad">
         <div className="kv" style={{ fontSize: 12, marginBottom: 12 }}>
-          {ext.description && <div className="kv-row"><dt>Justification</dt><dd style={{ maxWidth: 480, textAlign: 'right' }}>{ext.description}</dd></div>}
-          {ext.extraPages && <div className="kv-row"><dt>Extra pages</dt><dd className="mono">+{ext.extraPages}</dd></div>}
-          {ext.extraFee && <div className="kv-row"><dt>Extra fee</dt><dd className="mono">+€{ext.extraFee}</dd></div>}
+          <div className="kv-row"><dt>Requested by</dt><dd>{byCustomer ? 'Customer' : 'Ghostwriter'}</dd></div>
+          {ext.description && <div className="kv-row"><dt>{byCustomer ? 'Customer request' : 'Justification'}</dt><dd style={{ maxWidth: 480, textAlign: 'right' }}>{ext.description}</dd></div>}
           <div className="kv-row"><dt>Current final deadline</dt><dd className="mono">{U.fmtDate(order.finalDeadline)}, 18:00</dd></div>
+        </div>
+        <div className="banner info" style={{ fontSize: 11.5, marginBottom: 10 }}>
+          <Icon name="info" size={12}/>
+          <span>{byCustomer
+            ? 'Customer-initiated — they did not set a price. Discuss the cost with them and set the extension fee here. The GW never negotiates money with the customer (financial firewall).'
+            : 'GW proposed an estimate — adjust to the price you agree with the customer before sending for approval.'}</span>
+        </div>
+        <div className="flex gap-2 items-center" style={{ flexWrap: 'wrap', marginBottom: 10 }}>
+          <label className="fs-11 text-muted">Extra pages:</label>
+          <input type="number" min="0" className="input" style={{ width: 84, padding: '4px 8px', fontSize: 12 }} value={extraPages} onChange={(e) => setExtraPages(e.target.value)} placeholder="0"/>
+          <label className="fs-11 text-muted">Extension fee (€ net):</label>
+          <input type="number" min="0" step="10" className="input" style={{ width: 110, padding: '4px 8px', fontSize: 12 }} value={extraFee} onChange={(e) => setExtraFee(e.target.value)} placeholder="0"/>
         </div>
         <div className="flex gap-2 items-center" style={{ flexWrap: 'wrap' }}>
           <label className="fs-11 text-muted">Override new deadline (optional):</label>
@@ -67,34 +90,81 @@ function ExtensionResolutionPanel({ order, toast }) {
 
 function DelayResolutionPanel({ order, toast }) {
   const [counter, setCounter] = useState('');
+  const [reassignReason, setReassignReason] = useState('');
+  const [cancelReason, setCancelReason] = useState('');
+  const [refundAmount, setRefundAmount] = useState('');
+  const rejected = !!order.delayRejectedAt;
+  // RD-01: the customer's approval is the primary gate — it applies the new
+  // deadline automatically. The admin monitors and can step in: counter-propose
+  // (re-sends to the customer for approval) or confirm now (override, e.g. the
+  // customer confirmed off-platform).
   const onAccept = () => {
-    EFActions.orders.acceptDelay(order.id, {});
-    toast && toast({ tone: 'success', transition: { entity: `Order #${order.id}`, from: 'Delay Reported', to: 'Active' }, text: 'New deadline confirmed · customer + GW notified' });
+    EFActions.orders.acceptDelay(order.id, { by: 'admin' });
+    toast && toast({ tone: 'success', transition: { entity: `Order #${order.id}`, from: 'Delay Reported', to: 'Active' }, text: 'New deadline confirmed (admin override) · customer + GW notified' });
   };
   const onCounter = () => {
     if (!counter) return;
     EFActions.orders.proposeNewDelay(order.id, counter + 'T18:00:00');
-    toast && toast({ tone: 'info', text: `Counter-deadline ${counter} proposed to customer + GW` });
+    toast && toast({ tone: 'info', text: `Counter-deadline ${counter} sent to the customer for approval` });
     setCounter('');
   };
+  // Deadlock exits (recommendation §2.5): when no date works, decide which
+  // variable gives — the writer (reassign) or the money (cancel + refund).
+  // These reuse the dispute outcome engine; the override is NOT for forcing a
+  // date onto a customer who rejected it (that would break G-05).
+  const onReassign = () => {
+    if (!reassignReason.trim()) return;
+    const ok = EFActions.orders.resolveDelayReassign(order.id, { reason: reassignReason.trim() });
+    if (ok) toast && toast({ tone: 'info', transition: { entity: `Order #${order.id}`, from: 'Delay Reported', to: 'On Job Board (reassigning)' }, text: "Order returned to the job board so another writer can meet the customer's deadline · customer + GW notified" });
+  };
+  const onCancelRefund = () => {
+    if (!cancelReason.trim()) return;
+    const amount = Number(refundAmount) || 0;
+    const ok = EFActions.orders.resolveDelayCancel(order.id, { reason: cancelReason.trim(), refundAmount: amount });
+    if (ok) toast && toast({ tone: 'danger', transition: { entity: `Order #${order.id}`, from: 'Delay Reported', to: 'Cancelled' }, text: amount > 0 ? `Order cancelled · €${amount} refund logged · customer notified` : 'Order cancelled · customer notified' });
+  };
   return (
-    <div className="card mb-3" style={{ borderLeft: '4px solid var(--orange)' }}>
+    <div className="card mb-3" style={{ borderLeft: `4px solid ${rejected ? 'var(--red)' : 'var(--orange)'}` }}>
       <div className="card-head">
-        <div className="card-title flex items-center gap-2"><Icon name="clock" size={14} style={{ color: 'var(--orange)' }}/> Delay reported — your decision</div>
+        <div className="card-title flex items-center gap-2"><Icon name="clock" size={14} style={{ color: rejected ? 'var(--red)' : 'var(--orange)' }}/> {rejected ? 'Delay — customer rejected, please mediate' : 'Delay reported — customer is reviewing'}</div>
         <span className="text-faint fs-11">reported {order.delayReportedAt ? U.relTime(order.delayReportedAt) : '—'}</span>
       </div>
       <div className="card-pad">
         <div className="kv" style={{ fontSize: 12, marginBottom: 12 }}>
-          <div className="kv-row"><dt>Reason</dt><dd>{order.delayReason || '—'}</dd></div>
+          <div className="kv-row"><dt>Reason</dt><dd>{order.delayReason || '—'}{order.delayReasonNote ? ` · ${order.delayReasonNote}` : ''}</dd></div>
           <div className="kv-row"><dt>Original deadline</dt><dd className="mono">{U.fmtDate(order.finalDeadline)}, 18:00</dd></div>
-          <div className="kv-row"><dt>GW proposed</dt><dd className="mono">{order.proposedNewDeadline ? U.fmtDate(order.proposedNewDeadline) : '—'}</dd></div>
+          <div className="kv-row"><dt>Proposed new date</dt><dd className="mono">{order.proposedNewDeadline ? U.fmtDate(order.proposedNewDeadline) : '—'}</dd></div>
+          <div className="kv-row"><dt>Customer decision</dt><dd>{rejected ? <span style={{ color: 'var(--red)' }}>Rejected{order.delayRejectReason ? ` — ${order.delayRejectReason}` : ''}</span> : 'Awaiting approval'}</dd></div>
+        </div>
+        <div className="banner info" style={{ fontSize: 11.5, marginBottom: 10 }}>
+          <Icon name="info" size={12}/>
+          <span>{rejected ? 'The customer declined the proposed date. Send a new counter-proposal for them to approve, or handle out-of-band.' : 'The customer approves the new date in their portal — that applies it automatically. Step in only if needed:'}</span>
         </div>
         <div className="flex gap-2 items-center" style={{ flexWrap: 'wrap' }}>
-          <button type="button" className="btn btn-success btn-sm" onClick={onAccept}><Icon name="check" size={12}/> Accept proposed deadline</button>
-          <span className="text-faint fs-11">or counter:</span>
+          <span className="text-faint fs-11">Counter-propose:</span>
           <input type="date" className="input" style={{ padding: '4px 8px', fontSize: 12 }} value={counter} onChange={(e) => setCounter(e.target.value)}/>
-          <button type="button" className="btn btn-sm" onClick={onCounter} disabled={!counter}><Icon name="arrow-right" size={12}/> Send counter-proposal</button>
+          <button type="button" className="btn btn-sm" onClick={onCounter} disabled={!counter}><Icon name="arrow-right" size={12}/> Send for customer approval</button>
+          <span className="text-faint fs-11">or</span>
+          <button type="button" className="btn btn-sm" onClick={onAccept}><Icon name="check" size={12}/> Confirm now (override)</button>
         </div>
+        {rejected && (
+          <div style={{ borderTop: '1px solid var(--border)', marginTop: 12, paddingTop: 12 }}>
+            <div className="fs-11 strong mb-1">If no date can work — decide the outcome</div>
+            <div className="text-faint fs-11 mb-2" style={{ lineHeight: 1.45 }}>
+              The customer's rejection stands — don't force a date via the override. Hand the order to a writer who can meet it, or make the customer whole.
+            </div>
+            <div className="flex gap-2 items-center mb-2" style={{ flexWrap: 'wrap' }}>
+              <button type="button" className="btn btn-sm" onClick={onReassign} disabled={!reassignReason.trim()}><Icon name="rotate-ccw" size={12}/> Reassign to a new ghostwriter</button>
+              <input type="text" className="input" placeholder="Why reassign? (e.g. customer's date is firm; this GW can't meet it)" value={reassignReason} onChange={(e) => setReassignReason(e.target.value)} style={{ flex: 1, minWidth: 240, padding: '4px 8px', fontSize: 12 }}/>
+            </div>
+            <div className="flex gap-2 items-center" style={{ flexWrap: 'wrap' }}>
+              <button type="button" className="btn btn-danger btn-sm" onClick={onCancelRefund} disabled={!cancelReason.trim()}><Icon name="x-circle" size={12}/> Cancel + refund</button>
+              <label className="fs-11 text-muted">Refund €</label>
+              <input type="number" min="0" step="0.01" className="input" value={refundAmount} onChange={(e) => setRefundAmount(e.target.value)} placeholder="0" style={{ width: 90, padding: '4px 8px', fontSize: 12 }}/>
+              <input type="text" className="input" placeholder="Why cancel? (e.g. hard submission deadline; no writer can meet it)" value={cancelReason} onChange={(e) => setCancelReason(e.target.value)} style={{ flex: 1, minWidth: 220, padding: '4px 8px', fontSize: 12 }}/>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

@@ -18,7 +18,6 @@ function GWFirstContact({ orderId, navigate, toast }) {
   const gwSelf = order?.gwId ? D.gw(order.gwId) : null;
   const gwSignName = gwSelf?.name || 'Ihr Ghostwriter';
   const receiptAlreadyConfirmed = !!order?.firstContactReceiptConfirmedAt;
-  const baseSubject = order ? `Auftrag #${orderId} · ${D.WORK_TYPE_LABELS[order.workType]} — Erstkontakt` : '';
   const baseBody = order ? `Hallo ${cust?.name?.split(' ')[0] || ''},
 
 ich freue mich, dass ich Ihren Auftrag übernehmen darf. Kurz zur Bestätigung:
@@ -28,7 +27,7 @@ ich freue mich, dass ich Ihren Auftrag übernehmen darf. Kurz zur Bestätigung:
 • Endabgabe: ${U.fmtDate(order.finalDeadline)}, 18:00 Uhr
 ${order.interimDeadline ? '• Zwischenstand 1: ' + U.fmtDate(order.interimDeadline) + ', 18:00 Uhr\n' : ''}
 So arbeiten wir ab jetzt zusammen:
-Diese Nachricht erhalten Sie per E-Mail — ab hier läuft unser gesamter Austausch jedoch direkt im Auftragsbereich der efactory1-Plattform. Bitte antworten Sie dort statt per E-Mail. Im Auftragsbereich finden Sie:
+Sie lesen diese Nachricht direkt im Auftragsbereich der efactory1-Plattform — hier läuft ab jetzt unser gesamter Austausch. Bitte antworten Sie einfach hier im Chat. Im Auftragsbereich finden Sie:
 • unseren Nachrichtenverlauf — Fragen und Rückmeldungen jederzeit
 • alle Dateien und Unterlagen
 • Zwischenstände und die Endabgabe
@@ -47,13 +46,11 @@ Beste Grüße
 ${gwSignName}` : '';
   const [step, setStep] = useState(receiptAlreadyConfirmed ? 2 : 1);
   const [confirmed, setConfirmed] = useState(receiptAlreadyConfirmed);
-  const [subject, setSubject] = useState(baseSubject);
   const [body, setBody] = useState(baseBody);
   const [sending, setSending] = useState(false);
 
   useEffect(() => {
     if (!order) return;
-    setSubject(baseSubject);
     setBody(baseBody);
   }, [order?.id]);
 
@@ -70,18 +67,18 @@ ${gwSignName}` : '';
     if (!ok) return;
     setConfirmed(true);
     setStep(2);
-    toast && toast({ text: 'Receipt confirmed to efactory1 · proceed to customer email', tone: 'success' });
+    toast && toast({ text: 'Receipt confirmed to efactory1 · proceed to your introduction', tone: 'success' });
   };
-  const sendEmail = () => {
+  const postIntro = () => {
     if (sending) return;
     setSending(true);
-    const msg = EFActions.gw.completeFirstContact(order.id, { subject, body });
+    const msg = EFActions.gw.completeFirstContact(order.id, { body });
     if (!msg) {
       setSending(false);
       return;
     }
     toast && toast({
-      text: `Introduction sent — email to ${cust?.name} + posted to the order chat`,
+      text: `Introduction posted to the order chat — ${cust?.name} notified by email to open it`,
       tone: 'success',
     });
     setTimeout(() => navigate('order-detail', { id: orderId }), 600);
@@ -94,7 +91,7 @@ ${gwSignName}` : '';
           <div>
             <CrumbBar trail={['Ghostwriter', 'My Assignments', `#${orderId}`, 'Introduction']}/>
             <h1 className="page-title" style={{ marginTop: 6 }}>Introduction complete · #{orderId}</h1>
-            <div className="page-subtitle">Sent as an email and posted to the order chat — communication now continues in the platform.</div>
+            <div className="page-subtitle">Posted to the order chat — communication now continues in the platform.</div>
           </div>
           <div className="page-actions">
             <button type="button" className="btn" onClick={() => navigate('order-detail', { id: orderId })}><Icon name="chevron-left" size={14}/> Back</button>
@@ -104,11 +101,11 @@ ${gwSignName}` : '';
           <div className="card-pad flex-col gap-3">
             <div className="banner success">
               <Icon name="check-circle" size={14}/>
-              <span>Introduction delivered — emailed to the customer (CC efactory1) and posted to the order chat. All further communication stays in the platform.</span>
+              <span>Introduction posted to the order chat — the customer was notified by email to open it. All further communication stays in the platform.</span>
             </div>
             <div className="kv" style={{ fontSize: 12 }}>
               <div className="kv-row"><dt>Receipt confirmed</dt><dd>{order.firstContactReceiptConfirmedAt ? U.relTime(order.firstContactReceiptConfirmedAt) : 'Recorded'}</dd></div>
-              <div className="kv-row"><dt>Introduction sent</dt><dd>{order.firstContactDoneAt ? U.relTime(order.firstContactDoneAt) : 'Sent'} · email + order chat</dd></div>
+              <div className="kv-row"><dt>Introduction posted</dt><dd>{order.firstContactDoneAt ? U.relTime(order.firstContactDoneAt) : 'Posted'} · order chat</dd></div>
               <div className="kv-row"><dt>Order chat</dt><dd className="mono">{order.firstContactChatId || 'order chat'}</dd></div>
             </div>
             <button type="button" className="btn btn-primary" onClick={() => navigate('order-detail', { id: orderId })} style={{ alignSelf: 'flex-start' }}>
@@ -126,7 +123,7 @@ ${gwSignName}` : '';
         <div>
           <CrumbBar trail={['Ghostwriter', 'My Assignments', `#${orderId}`, 'Introduction']}/>
           <h1 className="page-title" style={{ marginTop: 6 }}>Introduce yourself to {cust?.name?.split(' ')[0] || 'the customer'} · #{orderId}</h1>
-          <div className="page-subtitle">Confirm receipt to efactory1, then send the introduction. It goes out as an email <strong>and</strong> opens the order chat — every reply after this stays in the platform.</div>
+          <div className="page-subtitle">Confirm receipt to efactory1, then post your introduction to the order chat. The customer gets an email with a link to open the chat — you never see their email address.</div>
         </div>
         <div className="page-actions">
           <button type="button" className="btn" onClick={() => navigate('order-detail', { id: orderId })}><Icon name="chevron-left" size={14}/> Back</button>
@@ -136,7 +133,7 @@ ${gwSignName}` : '';
       <div className="card mb-3"><div className="card-pad flex justify-between items-center" style={{ flexWrap: 'wrap', gap: 8 }}>
         {[
           { i: 1, label: 'Confirm receipt to efactory1' },
-          { i: 2, label: 'Send introduction (email + order chat)' },
+          { i: 2, label: 'Post introduction to order chat' },
         ].map(s => (
           <div key={s.i} className="flex items-center gap-2" style={{ flex: 1 }}>
             <div style={{ width: 28, height: 28, borderRadius: 14, background: step > s.i || (step === s.i && step === 2 && confirmed) ? 'var(--green)' : step === s.i ? 'var(--blue)' : 'var(--surface-2)', color: step >= s.i ? 'white' : 'var(--text-3)', display: 'grid', placeItems: 'center', flexShrink: 0 }}>
@@ -171,17 +168,14 @@ ${gwSignName}` : '';
         <div className="card"><div className="card-pad flex-col gap-3">
           <div className="banner warn" style={{ fontSize: 12 }}>
             <Icon name="zap" size={14}/>
-            <span><strong>This is the one onboarding message — sent two ways at once.</strong> It goes to {cust?.name?.split(' ')[0] || 'the customer'} as an email <strong>and</strong> is posted into the platform order chat. This is the only email you send directly — from here on, all communication, files, and updates stay in the order chat. The message below tells the customer exactly that.</span>
+            <span><strong>This is your first message in the order chat.</strong> It posts as a chat message to {cust?.name?.split(' ')[0] || 'the customer'} — you never see their email address and never email them directly. The platform notifies them by email with a link to open the chat. From here on, all communication, files, and updates stay in the order chat. The message below tells the customer exactly that.</span>
           </div>
-          <div className="field"><label>To <span className="text-faint">— customer email</span></label><input value={`${cust?.name} <${cust?.email}>`} disabled style={{ background: 'var(--surface-2)' }}/></div>
-          <div className="field"><label>CC <span className="text-faint">— enforced, non-removable</span></label><input value="kundenservice@efactory1.de" disabled style={{ background: 'var(--surface-2)' }}/></div>
-          <div className="field"><label>Also posts to</label><input value={`Order chat · #${orderId} (Customer · You · Berat)`} disabled style={{ background: 'var(--surface-2)' }}/></div>
-          <div className="field"><label>Subject</label><input value={subject} onChange={e => setSubject(e.target.value)}/></div>
-          <div className="field"><label>Body</label>
+          <div className="field"><label>Posts to</label><input value={`Order chat · #${orderId} (Customer · You · Berat)`} disabled style={{ background: 'var(--surface-2)' }}/></div>
+          <div className="field"><label>Your introduction message</label>
             <textarea value={body} onChange={e => setBody(e.target.value)} style={{ width: '100%', minHeight: 340, border: '1px solid var(--border)', borderRadius: 8, padding: 10, fontFamily: 'inherit', fontSize: 12, resize: 'vertical', background: 'var(--surface)', lineHeight: 1.55 }}/>
             <div className="text-faint fs-11 mt-1">Template includes: topic confirmation, scope, deadlines, and the handover into the platform order chat (where files, updates, and interim/final discussion happen). Response SLA included.</div>
           </div>
-          <button type="button" className="btn btn-primary" onClick={sendEmail} disabled={sending || !body.trim()} style={{ alignSelf: 'flex-start' }}><Icon name="send" size={14}/> {sending ? 'Sending…' : 'Send introduction · email + order chat'}</button>
+          <button type="button" className="btn btn-primary" onClick={postIntro} disabled={sending || !body.trim()} style={{ alignSelf: 'flex-start' }}><Icon name="send" size={14}/> {sending ? 'Posting…' : 'Post introduction to chat'}</button>
         </div></div>
       )}
     </div>

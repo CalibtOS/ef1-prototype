@@ -79,7 +79,7 @@ const CLOSED_SUBMISSION_REASONS = {
   completed: 'Order complete',
   cancelled: 'Order cancelled',
   on_hold: 'Order on hold',
-  delay_reported: 'Delay reported — awaiting admin decision',
+  delay_reported: 'Delay reported — awaiting customer approval',
   extension_requested: 'Extension requested — awaiting admin decision',
   extension_customer_approval_pending: 'Scope change awaiting customer approval + payment — no upload yet',
   ai_violation_review: 'AI violation under review',
@@ -476,7 +476,7 @@ function releaseGateStageNote(order) {
     completed: 'Order is complete and the GW payout is already settled.',
     cancelled: 'Order is cancelled. No delivery or payout gate should be shown.',
     on_hold: 'Order is on hold. Resolve the hold before continuing the workflow.',
-    delay_reported: 'Delay is awaiting admin decision. Delivery and payout gates are paused.',
+    delay_reported: 'Delay is awaiting customer approval of the new date. Delivery and payout gates are paused.',
     extension_requested: 'Scope extension is awaiting admin/customer approval. Delivery and payout gates are paused.',
     extension_customer_approval_pending: 'Scope change approved by admin — waiting for the customer to approve and pay the extension invoice before work resumes.',
   };
@@ -831,19 +831,19 @@ function buildOrderEvents(order, context) {
       title = `Self-assigned to ${gw?.name || 'Berat'}`;
       detail = 'Hidden from GW board; no external GW payout.';
     } else if (hasApprovedApplicationForGw || order.assignmentMode === 'job_board') {
-      title = `${gw?.name || 'GW'} assigned · briefing + customer intro sent`;
-      detail = 'Application approved — GW briefing and customer intro emails dispatched.';
+      title = `${gw?.name || 'GW'} assigned · briefing sent`;
+      detail = 'Application approved — GW briefed; customer notified their writer is assigned (intro follows in the order chat).';
     } else if (order.claimedAt) {
-      title = `${gw?.name || 'GW'} assigned · briefing + customer intro sent`;
-      detail = 'Claim approved — GW briefing and customer intro emails dispatched.';
+      title = `${gw?.name || 'GW'} assigned · briefing sent`;
+      detail = 'Claim approved — GW briefed; customer notified their writer is assigned (intro follows in the order chat).';
     } else {
-      title = `${gw?.name || 'GW'} directly assigned · briefing + customer intro sent`;
-      detail = 'Admin assigned without job-board posting — GW briefing and customer intro emails dispatched.';
+      title = `${gw?.name || 'GW'} directly assigned · briefing sent`;
+      detail = 'Admin assigned without job-board posting — GW briefed; customer notified their writer is assigned (intro follows in the order chat).';
     }
     addEvent(events, event('gw.assigned', dates.assignedAt, title, { icon: 'user', dot: 'green', domain: 'assignment', detail }));
   }
   if (order.firstContactReceiptConfirmedAt) addEvent(events, event('gw.first_contact.receipt', order.firstContactReceiptConfirmedAt, 'GW confirmed assignment receipt to efactory1', { icon: 'check', dot: 'green', domain: 'assignment', detail: gw?.name || null }));
-  if (order.firstContactDoneAt) addEvent(events, event('gw.first_contact.sent', order.firstContactDoneAt, 'First customer contact sent', { icon: 'mail', dot: 'green', domain: 'communications', detail: order.firstContactSubject || 'efactory1 in CC' }));
+  if (order.firstContactDoneAt) addEvent(events, event('gw.first_contact.posted', order.firstContactDoneAt, 'Introduction posted to order chat', { icon: 'message-square', dot: 'green', domain: 'communications', detail: 'Customer notified to open the chat' }));
 
   submissions.forEach(s => {
     if (isInterimKind(s.kind)) {

@@ -106,71 +106,21 @@ function DisputeOpenModal({ orderId, openedBy, partyName, onClose, onConfirm, to
   );
 }
 
-// Modal: GW declares they introduced themselves out-of-band (WhatsApp, phone, etc.)
-// Records firstContactDoneAt without sending the SOP D template; audit log captures channel + reason.
-function OutOfBandIntroModal({ orderId, customerName, onClose, onConfirm }) {
-  const [channel, setChannel] = useState('whatsapp');
-  const [reason, setReason] = useState('');
-  const [submitting, setSubmitting] = useState(false);
-  const submit = () => {
-    if (submitting || !reason.trim()) return;
-    setSubmitting(true);
-    const ok = EFActions.gw.recordFirstContactOutOfBand(orderId, { channel, reason: reason.trim() });
-    if (ok) onConfirm && onConfirm();
-    else setSubmitting(false);
-  };
-  return (
-    <div className="modal-backdrop" style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'grid', placeItems: 'center', zIndex: 1000 }} onClick={onClose}>
-      <div className="card" style={{ maxWidth: 520, width: '92%' }} onClick={e => e.stopPropagation()}>
-        <div className="card-head">
-          <div className="card-title">Record out-of-band introduction</div>
-          <button type="button" className="btn btn-sm" onClick={onClose}><Icon name="x" size={12}/></button>
-        </div>
-        <div className="card-pad flex-col gap-3">
-          <div className="banner warn" style={{ fontSize: 12 }}>
-            <Icon name="alert-triangle" size={14}/>
-            <span>The SOP D template won&apos;t be sent. Berat will see this on the admin queue with your reason. Only use this if you already introduced yourself to {customerName} via another channel.</span>
-          </div>
-          <div className="field">
-            <label>Channel</label>
-            <select value={channel} onChange={e => setChannel(e.target.value)}>
-              <option value="whatsapp">WhatsApp</option>
-              <option value="phone">Phone call</option>
-              <option value="email_personal">Email (personal account)</option>
-              <option value="in_person">In person</option>
-              <option value="other">Other</option>
-            </select>
-          </div>
-          <div className="field">
-            <label>How did you introduce yourself? <span className="text-faint">— required, recorded for audit</span></label>
-            <textarea
-              value={reason}
-              onChange={e => setReason(e.target.value)}
-              placeholder="e.g. Spoke on WhatsApp 2026-05-17, confirmed topic + deadlines, explained that all files go via the platform and money questions go to kundenservice@efactory1.de."
-              style={{ width: '100%', minHeight: 110, border: '1px solid var(--border)', borderRadius: 8, padding: 10, fontFamily: 'inherit', fontSize: 12, resize: 'vertical', background: 'var(--surface)', lineHeight: 1.55 }}
-            />
-            <div className="text-faint fs-11 mt-1">Confirm you covered: topic + scope, file-flow rule (platform only), financial firewall (kundenservice@…), response SLA.</div>
-          </div>
-          <div className="flex gap-2" style={{ justifyContent: 'flex-end' }}>
-            <button type="button" className="btn" onClick={onClose}>Cancel</button>
-            <button type="button" className="btn btn-primary" onClick={submit} disabled={submitting || !reason.trim()}>
-              <Icon name="check" size={12}/> {submitting ? 'Recording…' : 'Record & unlock submissions'}
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 function GWAssignmentDetail({ orderId, navigate, toast }) {
   const chat = EFHooks.useOrderChat(orderId);
   const displaySubs = EFHooks.useDisplaySubmissions(orderId);
   const order = EFHooks.useOrder(orderId);
-  const [outOfBandOpen, setOutOfBandOpen] = useState(false);
   const [disputeOpen, setDisputeOpen] = useState(false);
   const [focusChatComposer, setFocusChatComposer] = useState(false);
   const report = useReportChat(orderId, toast);
+  // Composer auto-focus ping. Kept ABOVE the early returns so the hook order is
+  // stable whether or not `order` resolves (Rules of Hooks — a hook after a
+  // conditional return crashes when the same instance flips between states).
+  useEffect(() => {
+    if (!focusChatComposer) return undefined;
+    const t = setTimeout(() => setFocusChatComposer(false), 200);
+    return () => clearTimeout(t);
+  }, [focusChatComposer]);
   if (!order) return <div className="page">Assignment not found.</div>;
   // Ownership guard — a GW may only view assignments where they are the assigned writer
   // OR the order is on the public job board. Otherwise no leakage of customer/order data.
@@ -216,14 +166,9 @@ function GWAssignmentDetail({ orderId, navigate, toast }) {
     setFocusChatComposer(true);
   };
 
-  useEffect(() => {
-    if (!focusChatComposer) return undefined;
-    const t = setTimeout(() => setFocusChatComposer(false), 200);
-    return () => clearTimeout(t);
-  }, [focusChatComposer]);
   // Intro is the first task after approval. Required before any submission per SOP D.
-  // We treat it as "done" when the SOP D wizard recorded firstContactDoneAt, or an
-  // out-of-band record (firstContactSkippedTemplate) set it.
+  // We treat it as "done" once the SOP D wizard posts the intro into the order chat
+  // (firstContactDoneAt / message + chat ids).
   const introDone = !!order.firstContactDoneAt || hasFirstContactRecord;
   const showFirstContact = isApproved && order.status === 'active' && !introDone;
   const delivery = W.deliveryProgress(order, displaySubs || []);
@@ -273,41 +218,22 @@ function GWAssignmentDetail({ orderId, navigate, toast }) {
         <div className="card mb-3" style={{ borderLeft: '4px solid var(--blue)' }}>
           <div className="card-head">
             <div className="card-title flex items-center gap-2">
-              <Icon name="mail" size={14} style={{ color: 'var(--blue)' }}/>
+              <Icon name="message-square" size={14} style={{ color: 'var(--blue)' }}/>
               Introduce yourself to {cust?.name?.split(' ')[0] || 'the customer'}
             </div>
             <span className="text-faint fs-11">Required before submissions · SOP D</span>
           </div>
           <div className="card-pad flex-col gap-3">
             <div className="fs-12 text-muted" style={{ lineHeight: 1.55 }}>
-              The introduction goes out <strong>two ways at once</strong> — as an email to {cust?.name?.split(' ')[0] || 'the customer'} (CC efactory1) and as the first message in the order chat. It&apos;s the only email you send directly: it onboards the customer into the platform, and every message after it stays in the order chat.
+              Post your introduction as the <strong>first message in the order chat</strong>. The platform notifies {cust?.name?.split(' ')[0] || 'the customer'} by email to open it — you never see their email address and never email them directly. From here on, every message, file, and update stays in the order chat.
             </div>
             <div className="flex items-center gap-3" style={{ flexWrap: 'wrap' }}>
               <button className="btn btn-primary btn-sm" onClick={() => navigate('gw-first-contact', { id: order.id })}>
-                <Icon name="send" size={12}/> Send introduction
+                <Icon name="message-square" size={12}/> Post introduction to chat
               </button>
-              <a
-                role="button"
-                tabIndex={0}
-                className="fs-11"
-                style={{ color: 'var(--blue)', cursor: 'pointer' }}
-                onClick={() => setOutOfBandOpen(true)}
-                onKeyDown={e => (e.key === 'Enter' || e.key === ' ') && setOutOfBandOpen(true)}
-              >
-                Already introduced via another channel?
-              </a>
             </div>
           </div>
         </div>
-      )}
-
-      {outOfBandOpen && (
-        <OutOfBandIntroModal
-          orderId={order.id}
-          customerName={cust?.name || 'the customer'}
-          onClose={() => setOutOfBandOpen(false)}
-          onConfirm={() => { setOutOfBandOpen(false); toast && toast({ text: 'Introduction recorded · submissions unlocked.', tone: 'success' }); }}
-        />
       )}
 
       {disputeOpen && (
@@ -453,11 +379,11 @@ function GWAssignmentDetail({ orderId, navigate, toast }) {
               payment_pending: 'Payment pending — work complete',
               completed: 'Order complete',
               on_hold: 'Order on hold',
-              delay_reported: 'Delay reported — awaiting admin decision',
+              delay_reported: 'Delay reported — awaiting customer approval of the new date',
               ai_violation_review: 'AI violation flagged — admin review',
               plagiarism_violation_review: 'Plagiarism flagged — admin review',
             };
-            const introBlockReason = 'Send your intro email first — required before submissions (SOP D).';
+            const introBlockReason = 'Post your introduction in the order chat first — required before submissions (SOP D).';
             const disputeBlockReason = 'Dispute under review by efactory1 — work paused until resolved.';
             const stateReason = disputeBlocks
               ? disputeBlockReason
@@ -479,10 +405,10 @@ function GWAssignmentDetail({ orderId, navigate, toast }) {
               <div className="banner warn" style={{ margin: '0 16px', fontSize: 12 }}>
                 <Icon name="lock" size={14}/>
                 <div style={{ flex: 1 }}>
-                  <strong>Submissions locked.</strong> Send the intro email to {cust?.name?.split(' ')[0] || 'the customer'} first — required by SOP D so the customer is told that work goes via the platform.
+                  <strong>Submissions locked.</strong> Post your introduction in the order chat with {cust?.name?.split(' ')[0] || 'the customer'} first — required by SOP D so the customer is told that work goes via the platform.
                 </div>
                 <button className="btn btn-sm btn-primary" onClick={() => navigate('gw-first-contact', { id: order.id })}>
-                  <Icon name="send" size={12}/> Send intro email
+                  <Icon name="message-square" size={12}/> Post introduction
                 </button>
               </div>
             )}
@@ -608,12 +534,15 @@ function GWAssignmentDetail({ orderId, navigate, toast }) {
                     <Avatar initials={cust?.initials || '··'} size={40}/>
                     <div className="flex-col" style={{ lineHeight: 1.25 }}>
                       <strong className="fs-12">{cust?.name}</strong>
-                      <span className="text-faint fs-11">efactory1 always in CC</span>
+                      <span className="text-faint fs-11">Reach them in the order chat</span>
                     </div>
                   </div>
-                  {/* Per business_rules §6: after admin approval, GW receives customer email + phone. */}
-                  {cust?.email && <div className="fs-11 mono text-muted">{cust.email}</div>}
-                  {cust?.phone && <div className="fs-11 mono text-muted">{cust.phone}</div>}
+                  {/* D-28/D-29: customer ↔ GW is platform-only. The GW never sees the
+                      customer's email or phone and never contacts them off-platform. */}
+                  <div className="banner info" style={{ fontSize: 11 }}>
+                    <Icon name="lock" size={12}/>
+                    <span>Contact details are private — all communication goes through the order chat below.</span>
+                  </div>
                 </div>
               )}
             </div>
