@@ -83,7 +83,7 @@ function approveClaim(orderId) {
   if (!guard.ok) { toast({ text: guard.reason, tone: 'danger' }); return false; }
   patchOrder(orderId, { status: 'active', claimApprovedAt: nowIso(), assignedAt: nowIso() });
   const g = gw(o.gwId);
-  notifyOrder(orderId, { to: 'gw', kind: 'assignment_approved', gwId: o.gwId, title: `Order #${orderId} approved — you may begin`, body: 'Briefing email sent · customer was introduced' });
+  notifyOrder(orderId, { to: 'gw', kind: 'assignment_approved', gwId: o.gwId, title: `Order #${orderId} approved — you may begin`, body: 'Briefing sent · customer notified you are assigned' });
   notifyOrder(orderId, { to: 'customer', kind: 'assignment_intro', customerId: o.customerId, title: 'Ihr Ghostwriter wurde zugewiesen', body: `${g?.name || 'Ihr Ghostwriter'} meldet sich heute bei Ihnen.` });
   // No-op on a first assignment (no chat yet); on a re-claim after a prior
   // GW left, this records the handover in the existing transcript.
@@ -681,17 +681,19 @@ function confirmFirstContactReceipt(orderId) {
   return true;
 }
 
-// The GW introduction is the one dual-channel message in the system: the same
-// body is posted into the order chat AND sent to the customer as an email (via
-// the `gw.first_contact_sent` event → firstContactSentToCustomer mail). It is
-// the only GW-initiated email to the customer — it onboards them into the
-// platform, and every message after this stays in the order chat.
+// D-29: the GW introduction is an ordinary order-chat message — NOT an email.
+// We post it into the 3-party order chat (customer + GW + admin). The GW never
+// sees the customer's email address and never emails them. The platform then
+// pings the customer with a content-free CTA email (a link into the order chat);
+// the introduction text lives only in the chat. The "man-in-the-middle /
+// financial firewall" is structural — admin is already a participant in the
+// order chat — so there is no separate email to CC.
 function completeFirstContact(orderId, payload = {}) {
   const o = order(orderId);
   if (!o) return null;
   if (!confirmFirstContactReceipt(orderId)) return null;
 
-  // Channel 1 — post the introduction into the platform order chat.
+  // Post the introduction into the platform order chat — the only place it lives.
   const msg = OC.send({
     orderId,
     role: 'gw',
@@ -715,8 +717,10 @@ function completeFirstContact(orderId, payload = {}) {
   }));
   const after = order(orderId);
   const sendingGw = gw(store.getState().session.gwId);
-  // Channel 2 — the same body goes out to the customer as an email. The sim
-  // effects layer turns this event into firstContactSentToCustomer.
+  // Ping the customer with a content-free CTA email (no GW body, no CC, from
+  // notifications@efactory1.de) so they come into the order chat — the intro
+  // text itself lives only in the chat. The sim effects layer turns this event
+  // into the content-free firstContactSentToCustomer mail.
   DomainEvents.emit('gw.first_contact_sent', {
     order: after,
     orderId,
@@ -724,10 +728,6 @@ function completeFirstContact(orderId, payload = {}) {
     scenarioId: after?.scenarioId || null,
     gwId: sendingGw?.id || null,
     gwName: sendingGw?.name || null,
-    gwEmail: sendingGw?.email || null,
-    subject: subject || after?.firstContactSubject || null,
-    body: payload.body || '',
-    ccEmail: 'kundenservice@efactory1.de',
     sentAt: msg.at,
   });
   return msg;

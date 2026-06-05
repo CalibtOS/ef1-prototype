@@ -7,7 +7,9 @@
 
 One section per slide. Each has: **On the slide** (what Berat sees — keep it sparse), **What you say** (your spoken script — adapt to your voice), **Notes** (prep / reminders, not shown).
 
-**Framing assumption baked into v2:** Berat **co-owns CalibtOS** and separately owns eFactory. So this is a strategic-alignment conversation with a co-owner, not a vendor sale. Act III leans into that (Slide 13). Tone there = *shared strategic logic*, not "why hire us" — he already knows he owns CalibtOS; you're articulating how the pieces compound.
+**Single source of truth:** this MD is canonical. The HTML deck's `#speaker-notes` array is generated from each slide's *What you say* block by `python3 gen-notes.py` — edit notes here and regenerate; never hand-edit the HTML JSON (that's how the two drifted before).
+
+**Framing assumption baked into v2:** Berat **co-owns CalibtOS** and separately owns eFactory. So this is a strategic-alignment conversation with a co-owner, not a vendor sale. Act III leans into that (Slide 14). Tone there = *shared strategic logic*, not "why hire us" — he already knows he owns CalibtOS; you're articulating how the pieces compound.
 
 **Status legend** (small corner tags — never let a proposal read as "done"):
 - 🟢 **Working in the prototype today** · 🔵 **Designed, ready to build** · 🟠 **Needs your decision**
@@ -19,7 +21,7 @@ One section per slide. Each has: **On the slide** (what Berat sees — keep it s
 - Conservative planning estimate until Excel validates it: **3,410 deals over ~4 years ≈ 16 deals/week** as a historical baseline. If Berat spends only **5 min/order** on mechanical copy/paste, that is **~1.3 hrs/week**. The real load is the extra coordination: customer negotiation, GW questions, assignment decisions, payment checks, deadline chasing, and exceptions. Use **25–40 min/order total admin touch** as a conservative range → **~6–10 hrs/week** at that baseline.
 - Still needed from real data: open receivables, current monthly order volume, actual offers/week, support/dispute frequency, ROI/€-saved.
 
-Suggested length: **~35–40 min + discussion.** 17 core slides; depth in the Appendix.
+Suggested length: **~35–40 min + discussion.** 18 core slides; depth in the Appendix.
 
 ---
 ---
@@ -44,19 +46,19 @@ Suggested length: **~35–40 min + discussion.** 17 core slides; depth in the Ap
 > **You've built thousands of orders on freedom and grit.**
 > That freedom now runs on **9 disconnected tools** — with Berat still doing the coordination between them.
 > Zapier creates a practical timing point, but the real case is bigger: **keep your freedom and remove the busywork.**
-> We have a working prototype that proves the workflow.
+> You've already reviewed the working prototype and confirmed the direction — now it's the decision to build it for real.
 > And because **CalibtOS** builds it, this compounds across **both** your companies.
 >
-> **The ask:** your **go-ahead to start** — first automation milestone live before July 31.
+> **The ask:** your **go-ahead to build it for real** — first automation milestone live before July 31.
 
 **What you say:**
 > "If you take one thing from today, it's this slide — the rest is proof.
 > You've run thousands of orders, basically by hand, and made it work — impressive. But it runs on nine separate tools, and the coordination between them still runs through you.
 > Zapier gives us a practical date to work around, but it is not the reason to build eFactory. The reason is that the current process works because *you* absorb the complexity.
 > We have a working prototype that proves the workflow: it removes the repetitive coordination without taking the freedom you run the business with. And because it's CalibtOS building it, this isn't just an eFactory win; it compounds across both companies. We'll get to that.
-> All I'm asking today is your go-ahead to start — so the first automation milestone is live before that date."
+> And remember — you've already seen this working and told us the direction is right. So today isn't 'should we try' — it's 'should we build it for real.' That's all I'm asking: your go-ahead to build it, so the first automation milestone is live before that date."
 
-**Notes:** Pyramid-principle answer-first. The CalibtOS kicker is a *tease* — don't explain it yet (Slide 13). Watch his face on "keeps your freedom."
+**Notes:** Pyramid-principle answer-first. The CalibtOS kicker is a *tease* — don't explain it yet (Slide 14). Watch his face on "keeps your freedom."
 
 ---
 ---
@@ -101,14 +103,35 @@ Suggested length: **~35–40 min + discussion.** 17 core slides; depth in the Ap
 **What you say:**
 > "You've done it so long it feels normal. So let's be conservative and put a number on 'normal.' If the mechanical copy-paste is only five minutes per order, that is not the main argument — at about sixteen orders a week, it's just over an hour.
 > The real time is the invisible coordination around the order: answering the customer's negotiation question, deciding whether the scope is real, finding the right writer, checking whether the writer can take it, confirming payment, watching deadlines, handling a delay, chasing a missing invoice, or remembering what was agreed on WhatsApp. Conservatively, that is 25 to 40 minutes of admin touch per order — around 6 to 10 hours a week at the historical baseline.
-> Look at this number too — your Pipedrive is at 4,159 of 5,000 contacts. You're weeks from a wall you'll have to pay your way around.
+> Look at this number too — your Pipedrive is at 4,159 of 5,000 contacts. You're weeks from a wall you'll have to pay your way around. Put your own hourly value on those 6–10 hours and it's real money every week — but hold that thought, because staying manual has a bigger, rising cost I'll show you next.
 > But the minutes aren't the real cost. The real cost is this: *none of it happens without you.* You're not running eFactory — you *are* eFactory. That's the ceiling. And — we'll come back to this — it's also what's keeping you from the thing you actually want to build."
 
 **Notes:** Present these as planning estimates, not measured facts. Math: 3,410 Pipedrive deals over ~4 years ≈ 16/week historical baseline. Time model: 5 min/order mechanical copy/paste + 20–35 min/order coordination = 25–40 min/order total admin touch. Replace the baseline with the last 8–12 weeks from Berat/Ferhat Excel if it differs before final pricing or ROI.
 
 ---
 
-## Slide 5 — A practical moment to clean this up
+## Slide 5 — The cost of doing nothing
+
+**On the slide:**
+> **Doing nothing has a price too.** Staying manual isn't the free option — it's a bill you keep paying, in three currencies:
+> - 📅 **A forced bill, already dated** — Pipedrive at 4,159/5,000 + Zapier retires 31 Jul. You spend on the current setup either way, for nothing new.
+> - 📈 **A tax that grows with you** — ~6–10 hrs/week of coordination stays on your desk, and every new order adds more (it scales with *your* time, not the team's).
+> - 🗄️ **Four years of data, left dark** — 3,410 deals · 5,262 leads, unqueryable across 9 tools → no reporting, no automation, no AI possible.
+>
+> *The question was never "spend or save." It's keep paying the inaction tax — or invest once and own the asset.*
+
+**What you say:**
+> "One honest counter-argument before we go further — 'it works, so why spend anything?' Let me show that doing nothing isn't actually the free option; there are three bills you keep paying.
+> First, a forced one with a date on it: Pipedrive is nearly full and Zapier retires end of July, so you'll spend on the current setup either way — and get nothing new for it.
+> Second, the weekly tax — those 6 to 10 hours don't go away; they grow, because the work scales with your time, not the team's.
+> Third, the quiet one: four years of deals and leads sit locked across nine tools, so reporting, automation, and AI simply aren't possible on that data — and that stays true as long as it's scattered.
+> So the real choice was never spend versus save. It's keep paying that tax, forever — or invest once and turn the spend into an asset you own."
+
+**Notes:** This is the slide that directly answers "why invest vs stay manual." Use ONLY real, defensible numbers (4,159/5,000 · 3,410 deals · 5,262 leads · Zapier 31 Jul) — never the fabricated xlsx sample. State it as plain arithmetic, don't over-press; then hand to the Zapier/timing slide. Mirrors Slide 13's value tiles inverted (cost tiles in Act I ↔ value tiles in Act III).
+
+---
+
+## Slide 6 — A practical moment to clean this up
 
 **On the slide:**
 > **Zapier is not the business case. It is the timing trigger.**
@@ -131,7 +154,7 @@ Suggested length: **~35–40 min + discussion.** 17 core slides; depth in the Ap
 
 ---
 
-## Slide 6 — Where eFactory could be
+## Slide 7 — Where eFactory could be
 
 **On the slide:**
 > **From:** 9 tools + you as the glue → **To:** one platform + you as the owner who *decides*
@@ -144,7 +167,7 @@ Suggested length: **~35–40 min + discussion.** 17 core slides; depth in the Ap
 
 ---
 
-## Slide 7 — How it works: one platform, three doors
+## Slide 8 — How it works: one platform, three doors
 
 **On the slide:**
 ```
@@ -167,7 +190,7 @@ Suggested length: **~35–40 min + discussion.** 17 core slides; depth in the Ap
 
 ---
 
-## Slide 8 — And it keeps your freedom
+## Slide 9 — And it keeps your freedom
 
 **On the slide:**
 > Ferhat said it: *"He's lived in total freedom for years. To give it up, we have to give him something actually better."*
@@ -183,11 +206,11 @@ Suggested length: **~35–40 min + discussion.** 17 core slides; depth in the Ap
 > "Now — the real question in the back of your mind. You've run this in total freedom for years. Will a system put you in a box? We designed against that from day one. You can still override any price — even after the customer paid. Still create an order by hand when someone WhatsApps you. Still stack discounts however a deal needs. The software *suggests* — you always get the final say.
 > You lose the twenty manual steps. You don't lose one bit of control."
 
-**Notes:** **Most important slide for his personal hesitation.** Slow down; pause after "you decide." If he probes an edge case, answer with override/manual-path; log genuinely-open ones for Slide 17.
+**Notes:** **Most important slide for his personal hesitation.** Slow down; pause after "you decide." If he probes an edge case, answer with override/manual-path; log genuinely-open ones for Slide 18.
 
 ---
 
-## Slide 9 — Your moat, enforced 🟢
+## Slide 10 — Your moat, enforced 🟢
 
 **On the slide:**
 > Your model is a **matchmaker in the middle** — your value is that the writer can't run off with your customer. The platform makes "the middle" **structural** — not something you police by hand:
@@ -200,13 +223,13 @@ Suggested length: **~35–40 min + discussion.** 17 core slides; depth in the Ap
 
 **What you say:**
 > "This one's specific to *your* model. eFactory works because you sit in the middle — the matchmaker. The day a writer and a customer cut you out, you've lost the customer and the margin. Today you protect that by personally watching every email and CC'ing yourself on everything.
-> We didn't build a filter to police that — we made it so there's nothing *to* police. The writer and the customer can only ever talk in the platform's order chat, and you're a participant in every single one. The writer never even sees the customer's email — their introduction is just a chat message, and the customer only gets a link back into the platform. There's no private channel between them, so there's no back door. And during a dispute, the chat locks so no one can slip around you. Your biggest business risk — designed out, not by you watching, but by the architecture itself."
+> We didn't build a filter to police that — we made it so there's nothing *to* police. The writer and the customer can only ever talk in the platform's order chat, and you're a participant in every single one. The writer never even sees the customer's email — their introduction is just a chat message, and the customer only gets a link back into the platform. There's no private channel between them, so there's no back door. And during a dispute, the chat locks so no one can slip around you. Your biggest business risk — designed out, not by you watching, but by the architecture itself." [Demo guardrail: when this runs live, show only the 3-party chat and the dispute chat-lock — both work. Do NOT open the older GW onboarding screens; they still describe the previous CC-based model and contradict this slide until fixed.]
 
 **Notes:** **Corrected per D-28/D-29.** The old "CC efactory1 on every email" + "financial-keyword auto-redirect" mechanisms were *removed* — superseded by admin being a structural participant in the 3-party chat (`communication_architecture.md` §5.1; `selectors.js:335`). The 3-party chat + dispute chat-lock are coded (🟢). ⚠️ **Stale-UI warning for the demo:** `gw/first-contact.jsx`, `gw/assignment-detail.jsx`, and `gw/dashboard.jsx` still show old "sent two ways at once / CC efactory1 / financial auto-redirect" language that contradicts this slide — fix or avoid those screens before demoing.
 
 ---
 
-## Slide 10 — What's inside: six building blocks
+## Slide 11 — What's inside: six building blocks
 
 **On the slide:**
 
@@ -226,7 +249,7 @@ Suggested length: **~35–40 min + discussion.** 17 core slides; depth in the Ap
 
 ---
 
-## Slide 11 — See it run 🟢
+## Slide 12 — See it run 🟢
 
 **On the slide:**
 > ### Live walkthrough — the system enforcing *your* rules
@@ -234,7 +257,7 @@ Suggested length: **~35–40 min + discussion.** 17 core slides; depth in the Ap
 > *[DEMO — switch to prototype]*
 
 **What you say (framing before you switch):**
-> "Everything so far isn't a promise on a slide — we built it. This is a working prototype you can click. Two honesty notes: the screens and flows are all real and clickable today; wiring them to your *live* Sevdesk, Stripe and Pipedrive is the build we're proposing. And any orange tag is a decision I'll need from you later."
+> "You've clicked through this already, so I'll keep it quick — the point today isn't 'look, it exists,' it's to remind us what we're hardening into the real, wired-up build. Two honesty notes: the screens and flows are all real and clickable today; wiring them to your *live* Sevdesk, Stripe and Pipedrive is the build we're proposing. And any amber tag is a decision I'll need from you later."
 
 **Demo script — narrate "it runs my rules," not "look how many features":**
 > 1. **Offer in a click** → "Customer's details already here, pricing calculated. Generate and Send. The twenty steps — gone."
@@ -253,7 +276,7 @@ Suggested length: **~35–40 min + discussion.** 17 core slides; depth in the Ap
 
 ---
 
-## Slide 12 — What it's worth
+## Slide 13 — What it's worth
 
 **On the slide:**
 > - ⏱️ **~6–10 hrs/week of admin drag reduced or delegated** — conservative estimate from the historical order baseline
@@ -269,11 +292,11 @@ Suggested length: **~35–40 min + discussion.** 17 core slides; depth in the Ap
 > "What does it return? I want to be conservative here. The model says around 6 to 10 hours a week of admin drag can be reduced or delegated at the historical order baseline. Not because copy-paste alone is ten hours — it isn't. The copy-paste may only be an hour or so. The real gain is removing the repeated negotiation follow-up, writer coordination, payment checking, deadline chasing, and exception handling that keeps coming back to you.
 > But the headline isn't hours saved — it's this: today eFactory can't run without you, so it isn't really an asset, it's a job. The platform turns it into a company that can run through rules, queues, and approvals — something you could *sell* one day, with value that isn't trapped in your head. More volume with the same team. Problems caught before customers complain. And a path to expansion you simply can't manage by hand. I'd rather under-promise on the numbers and have every one hold."
 
-**Notes:** Lead the *asset/sellability* framing — it's a bigger motivator than time-saved and sets up Slide 13. Do not present the 6–10 hrs/week as audited; it is a conservative planning model. If Berat challenges it, say: "Let's measure it together from a normal week — the proposal does not depend on pretending this is exact."
+**Notes:** Lead the *asset/sellability* framing — it's a bigger motivator than time-saved and sets up Slide 14. Do not present the 6–10 hrs/week as audited; it is a conservative planning model. If Berat challenges it, say: "Let's measure it together from a normal week — the proposal does not depend on pretending this is exact."
 
 ---
 
-## Slide 13 — This is bigger than eFactory
+## Slide 14 — This is bigger than eFactory
 
 **On the slide:**
 > Because **CalibtOS** builds it, one project pays off across **both** your companies:
@@ -295,7 +318,7 @@ Suggested length: **~35–40 min + discussion.** 17 core slides; depth in the Ap
 
 ---
 
-## Slide 14 — Built to be reliable
+## Slide 15 — Built to be reliable
 
 **On the slide:**
 > - Modern, proven, scalable tech — no lock-in
@@ -311,7 +334,7 @@ Suggested length: **~35–40 min + discussion.** 17 core slides; depth in the Ap
 
 ---
 
-## Slide 15 — The plan: a quick win first, then phased and safe
+## Slide 16 — The plan: a quick win first, then phased and safe
 
 **On the slide:**
 
@@ -332,7 +355,7 @@ Suggested length: **~35–40 min + discussion.** 17 core slides; depth in the Ap
 
 ---
 
-## Slide 16 — The calls that stay yours 🟠
+## Slide 17 — The calls that stay yours 🟠
 
 **On the slide:**
 > Not gaps — **the judgment calls that stay with you, not the software.** A few examples of what we'll decide *together* once we start:
@@ -351,10 +374,10 @@ Suggested length: **~35–40 min + discussion.** 17 core slides; depth in the Ap
 
 ---
 
-## Slide 17 — Next steps
+## Slide 18 — Next steps
 
 **On the slide:**
-> 1. **Today** — your **go-ahead to start**
+> 1. **Today** — your **go-ahead to build it for real**
 > 2. **This week** — contract & kickoff, with the first automation milestone scoped
 > 3. **At kickoff** — requirements sessions (where the calls above get made) + build begins
 > 4. **Before Jul 31** — Phase 1 intake/sync safety live
@@ -362,8 +385,8 @@ Suggested length: **~35–40 min + discussion.** 17 core slides; depth in the Ap
 > *Commercials: in the contract proposal, separately — kept real even left-hand-to-right-hand, so eFactory is a legit reference client.*
 
 **What you say:**
-> "So here's the ask. Today: your go-ahead to start — that's it. This week we move to contract and kickoff, with the first automation milestone scoped clearly. Once we kick off, the first sessions lock the details and the build begins, with Phase 1 live before the current intake automation becomes a risk. Commercials we put in front of you separately — and we keep them real even though it's your money on both sides, because that's what makes eFactory a legitimate reference client for CalibtOS.
-> Berat — this is the rare decision that wins on both sides of your table. eFactory stops running on *you* and becomes an asset that could run without you — even sell one day. CalibtOS gets the one flagship client no one else can give it. The money moves from one of your accounts to the other and comes back as value on both. The real question is not whether Zapier is scary — it isn't. The question is whether this is the right moment to stop patching the old operating model. I say it is."
+> "So here's the ask. Today: your go-ahead to build it for real — that's it. This week we move to contract and kickoff, with the first automation milestone scoped clearly. Once we kick off, the first sessions lock the details and the build begins, with Phase 1 live before the current intake automation becomes a risk. Commercials we put in front of you separately — and we keep them real even though it's your money on both sides, because that's what makes eFactory a legitimate reference client for CalibtOS.
+> Berat — this is the rare decision that wins on both sides of your table. The real question isn't whether Zapier is scary — it isn't. It's whether this is the moment to stop patching the old operating model and build the thing you've already validated. I say it is."
 
 **Notes:** Single clean ask = the go-decision. The both-companies close is the payoff — land it, then **stop talking** and let him respond. Commercials deferred but flagged as real (legit reference client).
 

@@ -521,7 +521,7 @@ function roleSeedNotifications() {
 	  ...admin,
 	  { id: 'qn1', to: 'qa', kind: 'final_uploaded', orderId: 3530, customerId: 'c-ni', gwId: 'gw-fb', submissionId: 's1', title: 'New submission · #3530', body: 'Felix Becker · final work · pending', at: '2026-05-07T09:14:00', urgent: false, read: false },
 	  { id: 'qn2', to: 'qa', kind: 'ai_violation', orderId: 3517, customerId: 'c-sh', gwId: 'gw-ak', submissionId: 's2', title: 'AI flag · #3517', body: 'Score 87% — verdict required', at: '2026-05-07T08:42:00', urgent: true, read: false },
-	  { id: 'gn1', to: 'gw', gwId: 'gw-iw', customerId: 'c-mh', orderId: 3602, kind: 'assignment_approved', title: 'Order #3602 assigned', body: 'Briefing email sent · customer was introduced', at: '2026-05-06T18:40:00', read: false },
+	  { id: 'gn1', to: 'gw', gwId: 'gw-iw', customerId: 'c-mh', orderId: 3602, kind: 'assignment_approved', title: 'Order #3602 assigned', body: 'Briefing sent · customer notified you are assigned', at: '2026-05-06T18:40:00', read: false },
 	  { id: 'gn2', to: 'gw', gwId: 'gw-iw', customerId: 'c-ak', orderId: 3522, kind: 'interim_due_d1', title: 'Interim deadline today', body: '#3522 · Zwischenstand 1 · 18:00', at: '2026-05-15T09:00:00', read: false },
 	  { id: 'gn3', to: 'gw', gwId: 'gw-lb', customerId: 'c-rh', orderId: 3611, kind: 'claim_pending_your_approval', title: 'Claim awaiting approval · #3611', body: 'Berat is reviewing your acknowledgements for Edge-Computing Hausarbeit.', at: '2026-05-07T09:18:00', read: false },
 	  { id: 'gn4', to: 'gw', gwId: 'gw-lb', customerId: 'c-ek', orderId: 3612, kind: 'interim_due_d1', title: 'Interim 1 deadline tomorrow', body: '#3612 · Zwischenstand 1 · 18:00 · XAI Medical Imaging', at: '2026-05-17T09:00:00', read: false },

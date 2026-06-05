@@ -117,7 +117,7 @@ function GWDashboard({ navigate }) {
           </div>
           <div className="banner info">
             <Icon name="lock" size={14}/>
-            <span>All customer chats are auto-CC&apos;d to efactory1. Financial questions auto-redirect to kundenservice@efactory1.de.</span>
+            <span>All customer communication runs in the platform order chat — efactory1 (Berat) is a participant in every one. There&apos;s no email or CC: pricing and payment questions are efactory1&apos;s to answer, right there in the chat.</span>
           </div>
         </div>
       </div>
