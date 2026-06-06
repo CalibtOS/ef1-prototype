@@ -208,20 +208,7 @@
   .icard .ic-tag { margin-top:auto; padding-top:8px; font-size:18px; font-weight:600; color:var(--decision); text-transform:uppercase; letter-spacing:.07em; display:inline-flex; align-items:center; gap:9px; }
   .icard .ic-tag .d { width:9px; height:9px; border-radius:50%; background:var(--decision); flex:none; }
 
-  /* ===== Slide 6 — fork ===== */
-  .fork { flex:1; display:grid; grid-template-columns:1fr 1fr; gap:28px; align-items:stretch; }
-  .road { border-radius:18px; padding:34px 36px; display:flex; flex-direction:column; gap:14px; border:1px solid var(--border); }
-  .road.dim { background:var(--surface-2); opacity:.62; }
-  .road.pick { background:linear-gradient(160deg,var(--accent-soft),transparent),var(--surface); border:1.5px solid var(--accent); }
-  .road .opt-k { font-size:21px; text-transform:uppercase; letter-spacing:.12em; color:var(--faint); font-weight:600; }
-  .road.pick .opt-k { color:var(--accent); }
-  .road .opt-t { font-size:34px; font-weight:600; line-height:1.18; }
-  .road .opt-d { font-size:var(--t-small); color:var(--muted); line-height:1.4; }
-  .road .opt-tail { margin-top:auto; font-size:21px; color:var(--faint); display:flex; align-items:center; gap:10px; }
-  .road.pick .opt-tail { color:var(--accent); }
-  .fork-zap { display:inline-flex; align-items:center; gap:10px; background:var(--decision-soft); border:1px solid rgba(214,162,62,.4); color:var(--decision); border-radius:999px; padding:8px 16px; font-size:21px; font-weight:500; }
-
-  /* ===== Slide 7 — before/after ===== */
+  /* ===== Slide 6 — before/after ===== */
   .ba { flex:1; display:grid; grid-template-columns:1fr 1fr; gap:28px; }
   .ba .pane { border-radius:18px; padding:32px 34px; display:flex; flex-direction:column; gap:8px; }
   .ba .before { background:var(--surface-2); border:1px solid var(--border); }
@@ -238,7 +225,7 @@
 
   .nowrap { white-space:nowrap; }
 
-  /* ===== Slide 8 — three doors ===== */
+  /* ===== Slide 7 — three doors ===== */
   .arch { flex:1; display:flex; flex-direction:column; gap:0; justify-content:center; }
   .platform-slab {
     border-radius:18px; padding:30px 40px; text-align:center;
@@ -265,7 +252,7 @@
   .syschip { display:inline-flex; align-items:center; gap:10px; background:var(--surface-2); border:1px solid var(--border); border-radius:10px; padding:10px 16px; font-size:var(--t-small); }
   .syschip span { color:var(--muted); font-size:20px; }
 
-  /* ===== Slide 9 — control panel ===== */
+  /* ===== Slide 8 — control panel ===== */
   .ferhat-quote { font-size:26px; color:var(--muted); font-style:italic; max-width:80ch; margin:20px 0 6px; }
   .ferhat-quote b { font-style:normal; color:var(--text); }
   .controls { display:grid; grid-template-columns:repeat(2,1fr); gap:20px; margin-top:24px; flex:1; }
@@ -280,7 +267,7 @@
   .freedom-banner .fb-t { font-size:36px; font-weight:600; }
   .freedom-banner .fb-t .accent { color:var(--accent); }
 
-  /* ===== Slide 10 — moat triangle ===== */
+  /* ===== Slide 9 — moat triangle ===== */
   .moat { flex:1; display:grid; grid-template-columns:1.05fr .95fr; gap:40px; align-items:center; }
   .triangle { position:relative; height:560px; }
   .triangle > svg { position:absolute; inset:0; width:100%; height:100%; }
@@ -298,7 +285,7 @@
   .mp .mp-t { font-size:24px; font-weight:600; }
   .mp .mp-d { font-size:20px; color:var(--muted); line-height:1.35; margin-top:3px; }
 
-  /* ===== Slide 11 — heatmap ===== */
+  /* ===== Slide 10 — heatmap ===== */
   .blocks { flex:1; display:flex; flex-direction:column; gap:14px; margin-top:8px; }
   .block-row { display:grid; grid-template-columns:64px 1.15fr 1.85fr auto; gap:24px; align-items:center; background:var(--surface); border:1px solid var(--border); border-radius:14px; padding:22px 28px; }
   .block-row .bn { font-family:var(--mono); font-size:30px; color:var(--faint); }
@@ -307,19 +294,7 @@
   .block-row .bk b { color:var(--accent); font-weight:600; }
   .chip-row { display:flex; gap:8px; flex-wrap:nowrap; justify-content:flex-end; }
 
-  /* ===== Slide 12 — storyboard ===== */
-  .story { flex:1; display:grid; grid-template-columns:repeat(5,1fr); gap:18px; margin-top:8px; }
-  .scene { background:var(--surface); border:1px solid var(--border); border-radius:14px; padding:24px 22px; display:flex; flex-direction:column; gap:14px; }
-  .scene .sc-n { width:42px; height:42px; border-radius:11px; background:var(--accent-soft); color:var(--accent); display:grid; place-items:center; font-family:var(--mono); font-size:22px; font-weight:600; }
-  .scene .sc-t { font-size:25px; font-weight:600; line-height:1.18; }
-  .scene .sc-d { font-size:20px; color:var(--muted); line-height:1.35; }
-  .scene .sc-thumb { flex:1; min-height:150px; border-radius:10px; background:var(--surface-2); border:1px solid var(--border); position:relative; overflow:hidden; }
-  .scene .sc-thumb::before { content:''; position:absolute; left:14px; right:14px; top:14px; height:16px; border-radius:5px; background:var(--border); }
-  .scene .sc-thumb::after { content:''; position:absolute; left:14px; right:42%; top:44px; height:9px; border-radius:4px; background:var(--border-soft); box-shadow:0 18px 0 var(--border-soft), 0 36px 0 -1px var(--border-soft); }
-  .scene.key .sc-thumb { border-color:var(--accent-line); }
-  .scene.key { border-color:var(--accent-line); background:linear-gradient(180deg,var(--accent-soft),transparent),var(--surface); }
-
-  /* ===== Slide 13 — value dashboard ===== */
+  /* ===== Slide 11 — value dashboard ===== */
   .value-grid { flex:1; display:grid; grid-template-columns:repeat(3,1fr); grid-template-rows:1fr 1fr; gap:20px; margin-top:14px; }
   .vtile { background:var(--surface); border:1px solid var(--border); border-radius:16px; padding:28px 30px; display:flex; flex-direction:column; gap:10px; }
   .vtile.feature { grid-row:span 2; background:linear-gradient(160deg,var(--accent-soft),transparent),var(--surface); border:1.5px solid var(--accent-line); justify-content:flex-start; }
@@ -330,7 +305,15 @@
   .vtile .vt-d { font-size:20px; color:var(--muted); line-height:1.35; }
   .vtile .vt-big { font-family:var(--serif); font-size:64px; color:var(--accent); font-weight:600; line-height:1; }
 
-  /* ===== Slide 14 — flywheel ===== */
+  /* ===== Slide 12 — data ladder ===== */
+  .ladder { display:grid; grid-template-columns:repeat(4,1fr); gap:20px; }
+  .rung { background:var(--surface); border:1px solid var(--border); border-radius:16px; padding:26px 26px; display:flex; flex-direction:column; gap:11px; }
+  .rung .r-step { font-family:var(--mono); font-size:20px; color:var(--accent); font-weight:600; letter-spacing:.02em; }
+  .rung .r-t { font-size:26px; font-weight:600; line-height:1.16; }
+  .rung .r-d { font-size:20px; color:var(--muted); line-height:1.4; }
+  .rung .r-dir { display:inline-block; margin-top:6px; font-size:16px; font-weight:600; color:var(--designed); text-transform:uppercase; letter-spacing:.06em; }
+
+  /* ===== Slide 13 — flywheel ===== */
   .fly { flex:1; display:grid; place-items:center; }
   .fly-ring { width:520px; height:520px; border-radius:50%; border:2px dashed var(--accent-line); position:relative; }
   .fly-hub { position:absolute; left:50%; top:50%; transform:translate(-50%,-50%); width:280px; height:280px; border-radius:50%; background:radial-gradient(circle at 50% 35%,var(--accent-soft),transparent 70%),var(--surface); border:1.5px solid var(--accent); display:grid; place-items:center; text-align:center; padding:30px; }
@@ -351,14 +334,14 @@
   .fly-arrow.a3 { left:6%; bottom:6%; }
   .fly-arrow.a4 { left:6%; top:6%; }
 
-  /* ===== Slide 15 — reliability ===== */
+  /* ===== Slide 14 — reliability ===== */
   .rely { flex:1; display:grid; grid-template-columns:repeat(4,1fr); gap:22px; margin-top:14px; align-content:center; }
   .rely .rc { background:var(--surface); border:1px solid var(--border); border-radius:16px; padding:30px 28px; display:flex; flex-direction:column; gap:14px; }
   .rely .rc-ic { width:54px; height:54px; border-radius:13px; background:var(--surface-2); color:var(--accent); display:grid; place-items:center; font-size:26px; }
   .rely .rc-t { font-size:26px; font-weight:600; line-height:1.18; }
   .rely .rc-d { font-size:21px; color:var(--muted); line-height:1.38; }
 
-  /* ===== Slide 16 — roadmap ===== */
+  /* ===== Slide 15 — roadmap ===== */
   .road-map { flex:1; display:flex; flex-direction:column; justify-content:center; gap:0; margin-top:8px; }
   .phase-track { display:grid; grid-template-columns:repeat(5,1fr); gap:16px; position:relative; }
   .phase { background:var(--surface); border:1px solid var(--border); border-radius:14px 14px 0 0; padding:24px 24px 26px; display:flex; flex-direction:column; gap:10px; border-bottom:3px solid var(--border); }
@@ -376,7 +359,7 @@
   .parallel-lane .pl-t { font-size:23px; font-weight:600; color:var(--accent); }
   .parallel-lane .pl-d { font-size:21px; color:var(--muted); }
 
-  /* ===== Slide 17 — decision board ===== */
+  /* ===== Slide 16 — decision board ===== */
   .board { flex:1; display:flex; flex-direction:column; gap:14px; margin-top:6px; }
   .dec-row { display:grid; grid-template-columns:1.5fr auto 1.5fr; gap:28px; align-items:center; background:var(--surface); border:1px solid var(--border); border-radius:14px; padding:22px 28px; }
   .dec-q .dq-t { font-size:25px; font-weight:600; }
@@ -390,7 +373,7 @@
   .board-foot { margin-top:6px; font-size:23px; color:var(--muted); text-align:center; }
   .board-foot b { color:var(--accent); }
 
-  /* ===== Slide 18 — approval card ===== */
+  /* ===== Slide 17 — approval card ===== */
   .s-ask { justify-content:center; align-items:center; }
   .ask-card { width:min(1180px,92%); background:linear-gradient(160deg,var(--accent-soft),transparent),var(--surface); border:1.5px solid var(--accent); border-radius:24px; padding:56px 64px; display:flex; flex-direction:column; gap:0; }
   .ask-card .ac-lbl { font-size:var(--t-label); text-transform:uppercase; letter-spacing:.16em; color:var(--accent); font-weight:600; }
@@ -409,7 +392,7 @@
 </style>
 </head>
 <body>
-<deck-stage width="1920" height="1080">
+<deck-stage width="1920" height="1080" no-rail>
 
   <!-- ============ SLIDE 1 — TITLE ============ -->
   <section data-label="Title" class="s-title">
@@ -553,7 +536,7 @@
       <div class="icard anim d2">
         <div class="ic-ic"><svg class="icon" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M3 10h18M8 2v4M16 2v4"/></svg></div>
         <div class="ic-t">A forced bill, already dated</div>
-        <div class="ic-d">Pipedrive is at 4,159 / 5,000 and Zapier retires 31 July. You'll spend on the current setup either way — money out, nothing gained.</div>
+        <div class="ic-d">Pipedrive is at 4,159 / 5,000, and Pipedrive's old API — the one your Zapier intake runs on — retires 31 July. You pay to rebuild either way.</div>
         <div class="ic-tag"><span class="d"></span>Forced · this quarter</div>
       </div>
       <div class="icard anim d3">
@@ -576,36 +559,9 @@
     <div class="footline"><span class="brand">CalibtOS × eFactory</span><span>Staying manual is a recurring cost — not a saving</span></div>
   </section>
 
-  <!-- ============ SLIDE 6 — DECISION FORK ============ -->
-  <section data-label="Zapier is the timing, not the reason" data-screen-label="06">
-    <div class="head-row">
-      <div>
-        <div class="eyebrow anim"><span class="num">Act I · 06</span><span class="dash"></span>A practical moment</div>
-        <h2 class="title anim d1">Zapier is the timing, not the reason</h2>
-      </div>
-      <div class="fork-zap anim d1"><svg class="icon" viewBox="0 0 24 24"><path d="M13 2 3 14h7l-1 8 10-12h-7l1-8Z"/></svg>By 31 July, intake automation needs attention either way</div>
-    </div>
-    <p class="lead anim d1" style="max-width:70ch;margin-bottom:14px">If we're touching the intake layer anyway — one question follows: which operating model do we leave behind?</p>
-    <div class="fork">
-      <div class="road dim anim d2">
-        <div class="opt-k">Option A</div>
-        <div class="opt-t">Replace the connector, keep the manual system</div>
-        <div class="opt-d">Swap Zapier for another connector. The same nine-tool, coordinate-by-hand model stays — and it still all runs through you.</div>
-        <div class="opt-tail"><svg class="icon" viewBox="0 0 24 24"><path d="M3 12h18M3 6h18M3 18h18"/></svg>Nothing changes about the ceiling</div>
-      </div>
-      <div class="road pick anim d3">
-        <div class="opt-k">Option B · this proposal</div>
-        <div class="opt-t">Use the moment to remove the handoffs</div>
-        <div class="opt-d">Same trigger, bigger payoff: take the repetitive coordination off your desk while keeping every decision yours.</div>
-        <div class="opt-tail"><svg class="icon" viewBox="0 0 24 24"><path d="M5 12h14m-6-6 6 6-6 6"/></svg>Reduce the dependency on you</div>
-      </div>
-    </div>
-    <div class="footline"><span class="brand">CalibtOS × eFactory</span><span>Same trigger, same date — the real question is which model we keep</span></div>
-  </section>
-
-  <!-- ============ SLIDE 7 — BEFORE / AFTER ============ -->
-  <section data-label="A Monday where the busywork already happened" data-screen-label="07">
-    <div class="eyebrow anim"><span class="num">Act II · 07</span><span class="dash"></span>Where eFactory could be</div>
+  <!-- ============ SLIDE 6 — BEFORE / AFTER ============ -->
+  <section data-label="A Monday where the busywork already happened" data-screen-label="06">
+    <div class="eyebrow anim"><span class="num">Act II · 06</span><span class="dash"></span>Where eFactory could be</div>
     <h2 class="title anim d1">A Monday where the busywork already happened</h2>
     <div class="ba" style="margin-top:28px">
       <div class="pane before anim d2">
@@ -628,9 +584,9 @@
     <div class="footline"><span class="brand">CalibtOS × eFactory</span><span>From 9 tools + you as glue → one platform + you as the owner who decides</span></div>
   </section>
 
-  <!-- ============ SLIDE 8 — THREE DOORS ============ -->
-  <section data-label="One platform, three doors" data-screen-label="08">
-    <div class="eyebrow anim"><span class="num">Act II · 08</span><span class="dash"></span>How it works</div>
+  <!-- ============ SLIDE 7 — THREE DOORS ============ -->
+  <section data-label="One platform, three doors" data-screen-label="07">
+    <div class="eyebrow anim"><span class="num">Act II · 07</span><span class="dash"></span>How it works</div>
     <h2 class="title anim d1">One platform, three doors</h2>
     <div class="arch">
       <div class="platform-slab anim d2">
@@ -670,9 +626,9 @@
     <div class="footline"><span class="brand">CalibtOS × eFactory</span><span>Your systems of record stay — you stop being the wiring between them</span></div>
   </section>
 
-  <!-- ============ SLIDE 9 — CONTROL PANEL ============ -->
-  <section data-label="The system suggests — you decide" data-screen-label="09">
-    <div class="eyebrow anim"><span class="num">Act II · 09</span><span class="dash"></span>Freedom, preserved</div>
+  <!-- ============ SLIDE 8 — CONTROL PANEL ============ -->
+  <section data-label="The system suggests — you decide" data-screen-label="08">
+    <div class="eyebrow anim"><span class="num">Act II · 08</span><span class="dash"></span>Freedom, preserved</div>
     <h2 class="title anim d1">The system suggests — you decide</h2>
     <p class="ferhat-quote anim d1">Ferhat: <b>"He's lived in total freedom for years. To give it up, we have to give him something actually better."</b> So we built the freedom in.</p>
     <div class="controls">
@@ -703,11 +659,11 @@
     </div>
   </section>
 
-  <!-- ============ SLIDE 10 — MOAT ============ -->
-  <section data-label="Your moat, enforced by architecture" data-screen-label="10">
+  <!-- ============ SLIDE 9 — MOAT ============ -->
+  <section data-label="Your moat, enforced by architecture" data-screen-label="09">
     <div class="head-row">
       <div>
-        <div class="eyebrow anim"><span class="num">Act II · 10</span><span class="dash"></span>The moat</div>
+        <div class="eyebrow anim"><span class="num">Act II · 09</span><span class="dash"></span>The moat</div>
         <h2 class="title anim d1">Your moat, enforced by architecture</h2>
       </div>
       <span class="chip built anim d1" style="margin-top:8px"><span class="dot"></span>Working in prototype</span>
@@ -751,11 +707,11 @@
     </div>
   </section>
 
-  <!-- ============ SLIDE 11 — BUILDING BLOCKS ============ -->
-  <section data-label="Six building blocks, and where each stands" data-screen-label="11">
+  <!-- ============ SLIDE 10 — BUILDING BLOCKS ============ -->
+  <section data-label="Six building blocks, and where each stands" data-screen-label="10">
     <div class="head-row">
       <div>
-        <div class="eyebrow anim"><span class="num">Act II · 11</span><span class="dash"></span>What's inside</div>
+        <div class="eyebrow anim"><span class="num">Act II · 10</span><span class="dash"></span>What's inside</div>
         <h2 class="title anim d1">Six building blocks, and where each stands</h2>
       </div>
       <div class="legend anim d1" style="margin-top:14px">
@@ -771,48 +727,48 @@
       <div class="block-row anim d5"><div class="bn">5</div><div class="bt">Quality, Revisions &amp; Disputes</div><div class="bk">Lost context → bounded loops, 5 outcomes, <b>full audit trail</b></div><div class="chip-row"><span class="chip built"><span class="dot"></span>Working</span></div></div>
       <div class="block-row anim d6"><div class="bn">6</div><div class="bt">Payments &amp; GW Payouts</div><div class="bk">Friday spreadsheet math → auto-confirm + a <b>5-gate release</b></div><div class="chip-row"><span class="chip designed"><span class="dot"></span>Designed</span></div></div>
     </div>
-    <div class="footline"><span class="brand">CalibtOS × eFactory</span><span>This is the menu — the next slide is the meal</span></div>
+    <div class="footline"><span class="brand">CalibtOS × eFactory</span><span>Six modules — one connected system, end to end</span></div>
   </section>
 
-  <!-- ============ SLIDE 12 — DEMO STORYBOARD ============ -->
-  <section data-label="It's built — see it run" data-screen-label="12">
-    <div class="head-row">
-      <div>
-        <div class="eyebrow anim"><span class="num">Act II · 12</span><span class="dash"></span>Live walkthrough · the prototype you reviewed</div>
-        <h2 class="title anim d1">It's built — see it run</h2>
-      </div>
-      <span class="chip built anim d1" style="margin-top:8px"><span class="dot"></span>Clickable prototype today</span>
-    </div>
-    <div class="story">
-      <div class="scene anim d2"><div class="sc-n">1</div><div class="sc-thumb"></div><div class="sc-t">Offer in a click</div><div class="sc-d">Details already in, pricing calculated. Generate &amp; send — the 20 steps, gone.</div></div>
-      <div class="scene anim d3"><div class="sc-n">2</div><div class="sc-thumb"></div><div class="sc-t">Customer accepts &amp; pays</div><div class="sc-d">On their own dashboard — the status flips to Paid by itself.</div></div>
-      <div class="scene key anim d4"><div class="sc-n">3</div><div class="sc-thumb"></div><div class="sc-t">The moat, live</div><div class="sc-d">3-party chat with you in it. Open a dispute — the chat locks.</div></div>
-      <div class="scene key anim d5"><div class="sc-n">4</div><div class="sc-thumb"></div><div class="sc-t">Friday batch</div><div class="sc-d">No payout until 5 gates pass. The Blocked list says exactly why.</div></div>
-      <div class="scene anim d6"><div class="sc-n">5</div><div class="sc-thumb"></div><div class="sc-t">When it goes wrong</div><div class="sc-d">Dispute panel: you mediate, pick one of 5 outcomes, every message logged.</div></div>
-    </div>
-    <div class="footline"><span class="brand">CalibtOS × eFactory</span><span>Screens are real &amp; clickable · wiring to live Sevdesk / Stripe / Pipedrive is the build</span></div>
-  </section>
-
-  <!-- ============ SLIDE 13 — VALUE DASHBOARD ============ -->
-  <section data-label="What the platform is worth" data-screen-label="13">
-    <div class="eyebrow anim"><span class="num">Act III · 13</span><span class="dash"></span>The case</div>
+  <!-- ============ SLIDE 11 — VALUE DASHBOARD ============ -->
+  <section data-label="What the platform is worth" data-screen-label="11">
+    <div class="eyebrow anim"><span class="num">Act III · 11</span><span class="dash"></span>The case</div>
     <h2 class="title anim d1">What the platform is worth</h2>
     <div class="value-grid">
       <div class="vtile feature anim d2">
         <div class="vt-ic"><svg class="icon" viewBox="0 0 24 24"><path d="M3 21V8m6 13V3m6 18v-9m6 9V6"/></svg></div>
         <div class="vt-t">A business that runs without you</div>
-        <div class="vt-d">The headline isn't hours saved — it's that eFactory stops being a job and becomes an <b>asset you could one day sell</b>, with value no longer trapped in your head.</div>
+        <div class="vt-d">The headline isn't hours saved — it's that eFactory stops being a job and becomes an <b>asset you can keep, hand off, or one day sell</b> — value no longer trapped in your head.</div>
       </div>
       <div class="vtile anim d3"><div class="vt-v">6–10<span style="font-size:24px;color:var(--muted)"> hrs/wk</span></div><div class="vt-t">Admin drag reduced</div><div class="vt-d">Reduced or delegated — conservative estimate.</div></div>
       <div class="vtile anim d4"><div class="vt-ic"><svg class="icon" viewBox="0 0 24 24"><path d="M3 17l6-6 4 4 7-7"/><path d="M14 7h6v6"/></svg></div><div class="vt-t">More orders, same team</div><div class="vt-d">Capacity grows — coordination no longer scales 1:1 with your time.</div></div>
-      <div class="vtile anim d5"><div class="vt-ic"><svg class="icon" viewBox="0 0 24 24"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></div><div class="vt-t">Faster cash</div><div class="vt-d">Offer → accept → pay collapses; a professional experience justifies higher prices.</div></div>
+      <div class="vtile anim d5"><div class="vt-ic"><svg class="icon" viewBox="0 0 24 24"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></div><div class="vt-t">Faster cash</div><div class="vt-d">Offer → accept → pay collapses; a professional experience justifies higher prices — and brings customers back.</div></div>
       <div class="vtile anim d6"><div class="vt-ic"><svg class="icon" viewBox="0 0 24 24"><path d="M12 2 4 6v6c0 5 3.5 8 8 10 4.5-2 8-5 8-10V6Z"/></svg></div><div class="vt-t">Risk caught early</div><div class="vt-d">A missed deadline surfaces before the customer does; every dispute on the record.</div></div>
     </div>
     <div class="footline"><span class="brand">CalibtOS × eFactory</span><span>The real return: a business that no longer depends on you</span></div>
   </section>
-  <!-- ============ SLIDE 14 — FLYWHEEL ============ -->
-  <section data-label="One decision, both companies win" data-screen-label="14">
-    <div class="eyebrow anim"><span class="num">Act III · 14</span><span class="dash"></span>The multiplier</div>
+  <!-- ============ SLIDE 12 — DATA ASSET ============ -->
+  <section data-label="Your data becomes an asset" data-screen-label="12">
+    <div class="eyebrow anim"><span class="num">Act III · 12</span><span class="dash"></span>The compounding upside</div>
+    <h2 class="title anim d1">Your data becomes a compounding asset</h2>
+    <p class="lead anim d1" style="max-width:82ch">Four years of orders, customers and writers — structured for the first time. Not a feature; an asset that keeps paying off.</p>
+    <div class="grow" style="display:flex;flex-direction:column;justify-content:center;gap:0">
+    <div class="ladder">
+      <div class="rung anim d2"><div class="r-step">01 · See it</div><div class="r-t">Reporting &amp; dashboards</div><div class="r-d">Your Flamingo &amp; website lead data, finally visualized — value in week one (Phase 0).</div></div>
+      <div class="rung anim d3"><div class="r-step">02 · Understand it</div><div class="r-t">Operational intelligence</div><div class="r-d">Which writers, customers &amp; order types make money — and which cause disputes.</div></div>
+      <div class="rung anim d4"><div class="r-step">03 · Act on it</div><div class="r-t">Automation</div><div class="r-d">The repetitive decisions start running on rules — not on you.</div></div>
+      <div class="rung anim d5"><div class="r-step">04 · Ask it</div><div class="r-t">AI &amp; forecasting</div><div class="r-d">Ask your business in plain language; forecast cash &amp; capacity. <span class="r-dir">Direction, not v1</span></div></div>
+    </div>
+    <div class="truth anim d6" style="margin-top:24px">
+      <div class="tt">Today, 3,410 deals and 5,262 leads sit unqueryable across 9 tools. Structure is the foundation everything else is built on — and it's exactly what CalibtOS does.</div>
+    </div>
+    </div>
+    <div class="footline"><span class="brand">CalibtOS × eFactory</span><span>Beyond hours saved — an asset that compounds</span></div>
+  </section>
+
+  <!-- ============ SLIDE 13 — FLYWHEEL ============ -->
+  <section data-label="One decision, both companies win" data-screen-label="13">
+    <div class="eyebrow anim"><span class="num">Act III · 13</span><span class="dash"></span>The multiplier</div>
     <h2 class="title anim d1">One decision, both companies win</h2>
     <div class="fly">
       <div class="fly-ring anim d2">
@@ -821,7 +777,7 @@
         </div>
         <div class="fly-node n"><div class="fn-k">01</div><div class="fn-t">eFactory, proven</div><div class="fn-d">A real business runs on it, live — the hardest proof there is.</div></div>
         <div class="fly-node e"><div class="fn-k">02</div><div class="fn-t">CalibtOS's flagship reference</div><div class="fn-d">4 years of real data, real complexity. No other client can give this.</div></div>
-        <div class="fly-node s"><div class="fn-k">03</div><div class="fn-t">A reusable product</div><div class="fn-d">License the same platform to other agencies — eFactory becomes the template.</div></div>
+        <div class="fly-node s"><div class="fn-k">03</div><div class="fn-t">A product for other markets</div><div class="fn-d">Adapted for businesses in other industries — never your competitors. You share the upside, not the risk.</div></div>
         <div class="fly-node w"><div class="fn-k">04</div><div class="fn-t">You, freed for strategy</div><div class="fn-d">The grind that kept you from CalibtOS — finally lifted.</div></div>
         <div class="fly-arrow a1"><svg class="icon" viewBox="0 0 24 24"><path d="M5 12h14m-6-6 6 6-6 6"/></svg></div>
         <div class="fly-arrow a2"><svg class="icon" viewBox="0 0 24 24"><path d="M12 5v14m6-6-6 6-6-6"/></svg></div>
@@ -832,9 +788,9 @@
     <div class="footline"><span class="brand">CalibtOS × eFactory</span><span>The spend moves left-hand to right-hand — and returns as an asset on both balance sheets</span></div>
   </section>
 
-  <!-- ============ SLIDE 15 — RELIABILITY ============ -->
-  <section data-label="Built for reliability, not just speed" data-screen-label="15">
-    <div class="eyebrow anim"><span class="num">Act III · 15</span><span class="dash"></span>Trust</div>
+  <!-- ============ SLIDE 14 — RELIABILITY ============ -->
+  <section data-label="Built for reliability, not just speed" data-screen-label="14">
+    <div class="eyebrow anim"><span class="num">Act III · 14</span><span class="dash"></span>Trust</div>
     <h2 class="title anim d1">Built for reliability, not just speed</h2>
     <div class="rely">
       <div class="rc anim d2">
@@ -861,9 +817,9 @@
     <div class="footline"><span class="brand">CalibtOS × eFactory</span><span>Full technical detail in the appendix</span></div>
   </section>
 
-  <!-- ============ SLIDE 16 — ROADMAP ============ -->
-  <section data-label="Phased and parallel — never standing on one leg" data-screen-label="16">
-    <div class="eyebrow anim"><span class="num">Act III · 16</span><span class="dash"></span>The plan</div>
+  <!-- ============ SLIDE 15 — ROADMAP ============ -->
+  <section data-label="Phased and parallel — never standing on one leg" data-screen-label="15">
+    <div class="eyebrow anim"><span class="num">Act III · 15</span><span class="dash"></span>The plan</div>
     <h2 class="title anim d1">Phased and parallel — never standing on one leg</h2>
     <div class="road-map">
       <div class="phase-track">
@@ -901,47 +857,47 @@
     </div>
   </section>
 
-  <!-- ============ SLIDE 17 — DECISION BOARD ============ -->
-  <section data-label="The judgment calls stay yours" data-screen-label="17">
+  <!-- ============ SLIDE 16 — DECISION BOARD ============ -->
+  <section data-label="The judgment calls stay yours" data-screen-label="16">
     <div class="head-row">
       <div>
-        <div class="eyebrow anim"><span class="num">Act III · 17</span><span class="dash"></span>Your call</div>
+        <div class="eyebrow anim"><span class="num">Act III · 16</span><span class="dash"></span>Your call</div>
         <h2 class="title anim d1">The judgment calls stay yours</h2>
       </div>
-      <span class="chip decision anim d1" style="margin-top:8px"><span class="dot"></span>Decided together at kickoff</span>
+      <span class="chip decision anim d1" style="margin-top:8px"><span class="dot"></span>Your call, not our assumption</span>
     </div>
     <div class="board">
       <div class="dec-row anim d2">
-        <div class="dec-q"><div class="dq-t">Post-payment pricing</div><div class="dq-s">Customer pays installment 1, then adds 10 pages — re-price after payment?</div></div>
+        <div class="dec-q"><div class="dq-t">Post-payment scope change</div><div class="dq-s">Customer pays installment 1, then adds 10 pages — re-price after payment?</div></div>
         <div class="dec-arrow"><svg class="icon" viewBox="0 0 24 24"><path d="M5 12h14m-6-6 6 6-6 6"/></svg></div>
         <div class="dec-rec"><span class="rec-chip"><span class="dot" style="width:9px;height:9px;border-radius:50%;background:var(--decision)"></span>We recommend</span><div class="rec-t"><b>Yes</b> — with a logged override.</div></div>
       </div>
       <div class="dec-row anim d3">
-        <div class="dec-q"><div class="dq-t">Off-form orders</div><div class="dq-s">A customer only ever WhatsApps you and never uses the form.</div></div>
+        <div class="dec-q"><div class="dq-t">A writer goes silent</div><div class="dq-s">3 days to deadline, the writer goes quiet — reassign, or hold for you?</div></div>
         <div class="dec-arrow"><svg class="icon" viewBox="0 0 24 24"><path d="M5 12h14m-6-6 6 6-6 6"/></svg></div>
-        <div class="dec-rec"><span class="rec-chip"><span class="dot" style="width:9px;height:9px;border-radius:50%;background:var(--decision)"></span>We recommend</span><div class="rec-t"><b>Yes</b> — a manual order path.</div></div>
+        <div class="dec-rec"><span class="rec-chip"><span class="dot" style="width:9px;height:9px;border-radius:50%;background:var(--decision)"></span>We recommend</span><div class="rec-t"><b>You decide</b> — the customer approves any new date.</div></div>
       </div>
       <div class="dec-row anim d4">
-        <div class="dec-q"><div class="dq-t">Deadline changes</div><div class="dq-s">A writer needs 3 more days — tell the customer automatically, or you first?</div></div>
+        <div class="dec-q"><div class="dq-t">Refund after payout</div><div class="dq-s">A dispute is upheld after you've already paid the writer — who absorbs it?</div></div>
         <div class="dec-arrow"><svg class="icon" viewBox="0 0 24 24"><path d="M5 12h14m-6-6 6 6-6 6"/></svg></div>
-        <div class="dec-rec"><span class="rec-chip"><span class="dot" style="width:9px;height:9px;border-radius:50%;background:var(--decision)"></span>We recommend</span><div class="rec-t"><b>You approve</b> first.</div></div>
+        <div class="dec-rec"><span class="rec-chip"><span class="dot" style="width:9px;height:9px;border-radius:50%;background:var(--decision)"></span>We recommend</span><div class="rec-t">Set <b>together</b> — the system enforces it.</div></div>
       </div>
       <div class="dec-row anim d5">
-        <div class="dec-q"><div class="dq-t">Reassignment</div><div class="dq-s">Swap a writer mid-order — does the first get paid for partial work, and who absorbs it?</div></div>
+        <div class="dec-q"><div class="dq-t">Proven writers vs newcomers</div><div class="dq-s">Every writer sees every job, or do your proven ones get first pick?</div></div>
         <div class="dec-arrow"><svg class="icon" viewBox="0 0 24 24"><path d="M5 12h14m-6-6 6 6-6 6"/></svg></div>
-        <div class="dec-rec"><span class="rec-chip"><span class="dot" style="width:9px;height:9px;border-radius:50%;background:var(--decision)"></span>We recommend</span><div class="rec-t">Set the rule <b>together</b> at kickoff.</div></div>
+        <div class="dec-rec"><span class="rec-chip"><span class="dot" style="width:9px;height:9px;border-radius:50%;background:var(--decision)"></span>We recommend</span><div class="rec-t"><b>Your call</b> — reward track record.</div></div>
       </div>
       <div class="dec-row anim d6">
-        <div class="dec-q"><div class="dq-t">Job-board visibility</div><div class="dq-s">Does every writer see every job, or only writers you've tagged?</div></div>
+        <div class="dec-q"><div class="dq-t">The WhatsApp-only regular</div><div class="dq-s">A loyal customer only uses WhatsApp — order by hand, keep nudging them in?</div></div>
         <div class="dec-arrow"><svg class="icon" viewBox="0 0 24 24"><path d="M5 12h14m-6-6 6 6-6 6"/></svg></div>
-        <div class="dec-rec"><span class="rec-chip"><span class="dot" style="width:9px;height:9px;border-radius:50%;background:var(--decision)"></span>We recommend</span><div class="rec-t">Set the rule <b>together</b> at kickoff.</div></div>
+        <div class="dec-rec"><span class="rec-chip"><span class="dot" style="width:9px;height:9px;border-radius:50%;background:var(--decision)"></span>We recommend</span><div class="rec-t">Manual path <b>+ a gentle nudge.</b></div></div>
       </div>
     </div>
-    <div class="board-foot anim d6">We bring the recommendation. <b>You make the call.</b></div>
+    <div class="board-foot anim d6">We recommend; <b>you decide</b> — then the system enforces it. A handful of the dozens we've logged.</div>
   </section>
 
-  <!-- ============ SLIDE 18 — THE ASK ============ -->
-  <section data-label="The ask — your go-ahead to build" data-screen-label="18" class="s-ask">
+  <!-- ============ SLIDE 17 — THE ASK ============ -->
+  <section data-label="The ask — your go-ahead to build" data-screen-label="17" class="s-ask">
     <div class="ask-card anim">
       <div class="ac-lbl">The ask, today</div>
       <div class="ac-h">Your go-ahead to build it for real.</div>
@@ -966,19 +922,18 @@
   "\"If you take one thing from today, it's this slide — the rest is proof. You've run thousands of orders, basically by hand, and made it work — impressive. But it runs on nine separate tools, and the coordination between them still runs through you. Zapier gives us a practical date to work around, but it is not the reason to build eFactory. The reason is that the current process works because you absorb the complexity. We have a working prototype that proves the workflow: it removes the repetitive coordination without taking the freedom you run the business with. And because it's CalibtOS building it, this isn't just an eFactory win; it compounds across both companies. We'll get to that. And remember — you've already seen this working and told us the direction is right. So today isn't 'should we try' — it's 'should we build it for real.' That's all I'm asking: your go-ahead to build it, so the first automation milestone is live before that date.\"",
   "\"I won't lecture you about your own business — you know it better than anyone. I just want to show you what we saw mapping it end to end, because in one picture it's striking. A customer inquires on WordPress. Zapier pushes it to Pipedrive. You open Sevdesk for the offer. Outlook to send it. Stripe for the payment link. Google Sheets — four tabs — is your real source of truth. Notion is the writers' board. WhatsApp is where half the real conversations live. Nine tools. None talk to each other. The thing connecting them is you, copying between them. Not a criticism — it's how the business grew. But it's the honest picture.\"",
   "\"You've done it so long it feels normal. So let's be conservative and put a number on 'normal.' If the mechanical copy-paste is only five minutes per order, that is not the main argument — at about sixteen orders a week, it's just over an hour. The real time is the invisible coordination around the order: answering the customer's negotiation question, deciding whether the scope is real, finding the right writer, checking whether the writer can take it, confirming payment, watching deadlines, handling a delay, chasing a missing invoice, or remembering what was agreed on WhatsApp. Conservatively, that is 25 to 40 minutes of admin touch per order — around 6 to 10 hours a week at the historical baseline. Look at this number too — your Pipedrive is at 4,159 of 5,000 contacts. You're weeks from a wall you'll have to pay your way around. Put your own hourly value on those 6–10 hours and it's real money every week — but hold that thought, because staying manual has a bigger, rising cost I'll show you next. But the minutes aren't the real cost. The real cost is this: none of it happens without you. You're not running eFactory — you are eFactory. That's the ceiling. And — we'll come back to this — it's also what's keeping you from the thing you actually want to build.\"",
-  "\"One honest counter-argument before we go further — 'it works, so why spend anything?' Let me show that doing nothing isn't actually the free option; there are three bills you keep paying. First, a forced one with a date on it: Pipedrive is nearly full and Zapier retires end of July, so you'll spend on the current setup either way — and get nothing new for it. Second, the weekly tax — those 6 to 10 hours don't go away; they grow, because the work scales with your time, not the team's. Third, the quiet one: four years of deals and leads sit locked across nine tools, so reporting, automation, and AI simply aren't possible on that data — and that stays true as long as it's scattered. So the real choice was never spend versus save. It's keep paying that tax, forever — or invest once and turn the spend into an asset you own.\"",
-  "\"I don't want to overstate Zapier. Zapier is not the business case — it is just a useful timing trigger. By July 31, the intake automation needs work either way. So the real question is simple: do we replace the connector and keep the same manual operating model, or do we use the same moment to remove the handoffs that keep landing on you? This proposal is the second option.\"",
+  "\"One honest counter-argument before we go further — 'it works, so why spend anything?' Let me show that doing nothing isn't actually the free option; there are three bills you keep paying. First, a forced one with a date on it: Pipedrive is nearly full, and Pipedrive is retiring the old API your Zapier intake runs on at the end of July — so that intake has to be rebuilt either way, and you get nothing new for it. Second, the weekly tax — those 6 to 10 hours don't go away; they grow, because the work scales with your time, not the team's. Third, the quiet one: four years of deals and leads sit locked across nine tools, so reporting, automation, and AI simply aren't possible on that data — and that stays true as long as it's scattered. So the real choice was never spend versus save. It's keep paying that tax, forever — or invest once and turn the spend into an asset you own.\"",
   "\"Picture the other side. A Monday where the busywork already happened without you. New inquiries already in your pipeline without you retyping them. Offers out in a click. Customers accept and pay themselves. Writers apply for jobs in one place, and you approve the right one. And you spend your morning on the things that actually need you — pricing the tricky deals, checking quality, deciding how to grow. Not copy-pasting across nine tabs. That's the platform. Let me show you.\"",
   "\"The whole thing in one picture. One platform, three doors — customers, you, writers — all looking at the same order in real time. And notice what we did not do: we didn't throw away your tools. Sevdesk still issues every legal invoice. Stripe still takes the money. Pipedrive still holds the CRM. They stay — they work, and they keep you compliant. What changes is you stop being the wiring between them. The platform does that, in the background.\"",
   "\"Now — the real question in the back of your mind. You've run this in total freedom for years. Will a system put you in a box? We designed against that from day one. You can still override any price — even after the customer paid. Still create an order by hand when someone WhatsApps you. Still stack discounts however a deal needs. The software suggests — you always get the final say. You lose the twenty manual steps. You don't lose one bit of control.\"",
-  "\"This one's specific to your model. eFactory works because you sit in the middle — the matchmaker. The day a writer and a customer cut you out, you've lost the customer and the margin. Today you protect that by personally watching every email and CC'ing yourself on everything. We didn't build a filter to police that — we made it so there's nothing to police. The writer and the customer can only ever talk in the platform's order chat, and you're a participant in every single one. The writer never even sees the customer's email — their introduction is just a chat message, and the customer only gets a link back into the platform. There's no private channel between them, so there's no back door. And during a dispute, the chat locks so no one can slip around you. Your biggest business risk — designed out, not by you watching, but by the architecture itself.\" [Demo guardrail: when this runs live, show only the 3-party chat and the dispute chat-lock — both work. Do NOT open the older GW onboarding screens; they still describe the previous CC-based model and contradict this slide until fixed.]",
-  "\"Six building blocks. I'll show you the heart of each in a second, so here just the headline of what each one removes: the offer engine turns repeated Sevdesk/email/payment work into a controlled review-and-send flow; the dashboard lets customers accept and pay themselves; the inbox keeps external messages visible in one place; the job board lets writers apply while you keep approval; quality-and-disputes gives bounded revision rounds and a clean record of every decision; and payments confirm themselves instead of you checking logs every Friday.\"",
-  "\"You've clicked through this already, so I'll keep it quick — the point today isn't 'look, it exists,' it's to remind us what we're hardening into the real, wired-up build. Two honesty notes: the screens and flows are all real and clickable today; wiring them to your live Sevdesk, Stripe and Pipedrive is the build we're proposing. And any amber tag is a decision I'll need from you later.\" 1. Offer in a click → \"Customer's details already here, pricing calculated. Generate and Send. The twenty steps — gone.\" 2. Customer accepts & pays → \"On their own dashboard. Watch the status flip to Paid by itself.\" 3. The moat, live → \"Here's the order chat — customer, writer, and you, all in one thread. The writer can't see the customer's email; they have no other way to reach each other, and you're in every conversation. Now I'll open a dispute — watch the chat lock so neither side can sidestep you.\" 4. Friday batch — the showpiece → \"Here's payday. The system won't release a writer's fee until five things are true: customer satisfied, quality passed, no open dispute, every customer installment received, and the writer's invoice in. Look at the Blocked list — each one tells you exactly why it's held. That's your rule — 'pay the writer only after all the customer's money is in' — running itself.\" 5. When it goes wrong → \"Unhappy customer. Dispute panel: chat locks, you mediate, you pick one of five outcomes, every message logged. No more digging through WhatsApp to remember what was agreed.\" 6. The receipts → \"And every action is timestamped here — useful for taxes, disputes, compliance.\"",
-  "\"What does it return? I want to be conservative here. The model says around 6 to 10 hours a week of admin drag can be reduced or delegated at the historical order baseline. Not because copy-paste alone is ten hours — it isn't. The copy-paste may only be an hour or so. The real gain is removing the repeated negotiation follow-up, writer coordination, payment checking, deadline chasing, and exception handling that keeps coming back to you. But the headline isn't hours saved — it's this: today eFactory can't run without you, so it isn't really an asset, it's a job. The platform turns it into a company that can run through rules, queues, and approvals — something you could sell one day, with value that isn't trapped in your head. More volume with the same team. Problems caught before customers complain. And a path to expansion you simply can't manage by hand. I'd rather under-promise on the numbers and have every one hold.\"",
-  "\"And here's why this is bigger than eFactory — this part's just us, owner to owner. You own both. So the money for this moves from one of your companies to the other and comes back as an asset on both sides. CalibtOS needs a flagship reference client — and there is no better one than its own co-owner's business, four years of real data, running live. Every future CalibtOS pitch gets to say 'we run our own operation on this.' That's the most credible thing a software company can say. And if it works for eFactory — it will — CalibtOS can sell this same platform to other agencies like yours. eFactory becomes the template for CalibtOS's first product. The honest one, last: eFactory's manual grind is the thing that's kept you from building CalibtOS the way you wanted from the start. Systematizing eFactory is how you finally get to focus on it. One decision — and both companies win.\"",
+  "\"This one's specific to your model. eFactory works because you sit in the middle — the matchmaker. The day a writer and a customer cut you out, you've lost the customer and the margin. So we made that middle structural — not something you have to police. The writer and the customer only ever talk in the order's group chat, and you're right there in the group with them, seeing every message live as it's sent. The writer never even sees the customer's email — their introduction is just a chat message, and the customer only gets a link back into the platform. There's no private channel between them, so there's no back door. And during a dispute, the chat locks so no one can slip around you. Your biggest business risk — designed out, by the architecture itself.\" [Demo guardrail: when this runs live, show only the 3-party chat and the dispute chat-lock — both work. Do NOT open the older GW onboarding screens; they still describe the previous CC-based model and contradict this slide until fixed.]",
+  "\"Six building blocks. Here's the headline of what each one removes: the offer engine turns repeated Sevdesk/email/payment work into a controlled review-and-send flow; the dashboard lets customers accept and pay themselves; the inbox keeps external messages visible in one place; the job board lets writers apply while you keep approval; quality-and-disputes gives bounded revision rounds and a clean record of every decision; and payments confirm themselves instead of you checking logs every Friday.\"",
+  "\"What does it return? I want to be conservative here. The model says around 6 to 10 hours a week of admin drag can be reduced or delegated at the historical order baseline. Not because copy-paste alone is ten hours — it isn't. The copy-paste may only be an hour or so. The real gain is removing the repeated negotiation follow-up, writer coordination, payment checking, deadline chasing, and exception handling that keeps coming back to you. But the headline isn't hours saved — it's this: today eFactory can't run without you, so it isn't really an asset, it's a job. The platform turns it into a company that can run through rules, queues, and approvals — something you could keep running hands-off, hand to a manager, or sell one day — your choice, with value that isn't trapped in your head. More volume with the same team. Problems caught before customers complain — and because the experience feels professional, more customers come back, which is repeat revenue with no new acquisition cost. And a path to expansion you simply can't manage by hand. Two things people really underrate: continuity — today, if you're sick or away, eFactory basically stops, because it runs on you, and the platform removes that single point of failure; and delegation — for the first time you could hand parts of this to a junior hire who simply couldn't operate the nine-tool setup today. I'd rather under-promise on the numbers and have every one hold.\"",
+  "\"Beyond the hours, there's something that compounds. Right now four years of your data — every order, customer and writer — sits scattered across nine tools, so you can't really ask it anything. The moment it's structured in one place, a ladder opens up. First you can just see it — we start there in Phase 0, by visualizing the Flamingo and website lead data you've never actually looked at. Then you understand it — which writers and customers and order types actually make you money, and which ones cause the disputes. Then you can act on it — the repetitive decisions start running on rules instead of on you. And eventually you can simply ask it questions in plain language, and forecast your cash and capacity. That last part is direction, not version one — but none of it is even possible while the data is scattered. Structuring it is the foundation. And it happens to be exactly what CalibtOS is built to do — which is the last piece.\"",
+  "\"And here's why this is bigger than eFactory — this part's just us, owner to owner. You own both. So the money for this moves from one of your companies to the other and comes back as an asset on both sides. CalibtOS needs a flagship reference client — and there is no better one than its own co-owner's business, four years of real data, running live. Every future CalibtOS pitch gets to say 'we run our own operation on this.' That's the most credible thing a software company can say. And if it works for eFactory — it will — CalibtOS can take this same platform to businesses in other industries: companies with the same coordination problem, but never your competitors. You wouldn't be arming a rival — and because you co-own CalibtOS, you share that upside. eFactory just becomes the proof. The honest one, last: eFactory's manual grind is the thing that's kept you from building CalibtOS the way you wanted from the start. Systematizing eFactory is how you finally get to focus on it. One decision — and both companies win.\"",
   "\"I won't bore you with architecture — four things matter. Modern, proven tech, no lock-in. Your legal and financial systems of record don't change. Our rule is reliability over speed — we don't ship a flow until the messy edge cases are right. And the system tests its own flows automatically, so we catch a break before a customer ever hits it. Deep detail's in the appendix.\"",
   "\"We don't rip your operation out overnight — that's the thing that makes any owner nervous, rightly. Phases. And before the real build, a quick win: you've got years of lead data from your own website you've literally never seen visualized — we turn that into a dashboard first, so you get value in week one. Then Phase 1 does one practical job: make intake and sync safe before July 31. Then customer self-service, then writers, then communication. Each phase runs next to what you do today until you trust it. You're never standing on one leg.\"",
-  "\"Last thing about the product — and it's about you, not the software. As we build, some judgment calls should always be yours. I'll show one: a customer pays their first installment, then asks to add ten pages — should the system let you re-price after payment? We'd say yes, with a logged note. That's the kind of call — we recommend, you decide. There's a handful like this; we don't settle them today, that's what our first sessions after kickoff are for. I just wanted you to see the control stays with you.\"",
+  "\"Last thing about the product — and it's about you, not the software. Something honest first: we built this prototype from only a few sessions with you, so a lot of it is our best assumption about how you'd want it to work. These are the places where your judgment replaces our guess. I'll walk one: a customer pays the first installment, then adds ten pages — re-price after payment? We'd say yes, with a logged note. But look at the others — a writer goes silent three days before deadline; a refund lands after you've already paid the writer; whether your proven writers get first pick. Those need your read of the business, not ours. There are dozens like this — we've catalogued them — and working through them together is exactly what kickoff is for. We recommend; you decide; the system then enforces whatever you choose. The control stays with you.\"",
   "\"So here's the ask. Today: your go-ahead to build it for real — that's it. This week we move to contract and kickoff, with the first automation milestone scoped clearly. Once we kick off, the first sessions lock the details and the build begins, with Phase 1 live before the current intake automation becomes a risk. Commercials we put in front of you separately — and we keep them real even though it's your money on both sides, because that's what makes eFactory a legitimate reference client for CalibtOS. Berat — this is the rare decision that wins on both sides of your table. The real question isn't whether Zapier is scary — it isn't. It's whether this is the moment to stop patching the old operating model and build the thing you've already validated. I say it is.\""
 ]
 </script>

@@ -9,7 +9,7 @@ One section per slide. Each has: **On the slide** (what Berat sees — keep it s
 
 **Single source of truth:** this MD is canonical. The HTML deck's `#speaker-notes` array is generated from each slide's *What you say* block by `python3 gen-notes.py` — edit notes here and regenerate; never hand-edit the HTML JSON (that's how the two drifted before).
 
-**Framing assumption baked into v2:** Berat **co-owns CalibtOS** and separately owns eFactory. So this is a strategic-alignment conversation with a co-owner, not a vendor sale. Act III leans into that (Slide 14). Tone there = *shared strategic logic*, not "why hire us" — he already knows he owns CalibtOS; you're articulating how the pieces compound.
+**Framing assumption baked into v2:** Berat **co-owns CalibtOS** and separately owns eFactory. So this is a strategic-alignment conversation with a co-owner, not a vendor sale. Act III leans into that (Slide 13). Tone there = *shared strategic logic*, not "why hire us" — he already knows he owns CalibtOS; you're articulating how the pieces compound.
 
 **Status legend** (small corner tags — never let a proposal read as "done"):
 - 🟢 **Working in the prototype today** · 🔵 **Designed, ready to build** · 🟠 **Needs your decision**
@@ -21,7 +21,7 @@ One section per slide. Each has: **On the slide** (what Berat sees — keep it s
 - Conservative planning estimate until Excel validates it: **3,410 deals over ~4 years ≈ 16 deals/week** as a historical baseline. If Berat spends only **5 min/order** on mechanical copy/paste, that is **~1.3 hrs/week**. The real load is the extra coordination: customer negotiation, GW questions, assignment decisions, payment checks, deadline chasing, and exceptions. Use **25–40 min/order total admin touch** as a conservative range → **~6–10 hrs/week** at that baseline.
 - Still needed from real data: open receivables, current monthly order volume, actual offers/week, support/dispute frequency, ROI/€-saved.
 
-Suggested length: **~35–40 min + discussion.** 18 core slides; depth in the Appendix.
+Suggested length: **~35–40 min + discussion.** 17 core slides; depth in the Appendix.
 
 ---
 ---
@@ -31,7 +31,7 @@ Suggested length: **~35–40 min + discussion.** 18 core slides; depth in the Ap
 **On the slide:**
 > # eFactory: from manual hustle to a system that scales
 > Business Proposal · CalibtOS × eFactory
-> [Date] · Presented by Ferhat & Yasser
+> Prepared for Berat Özdemir · Presented by Ferhat & Yasser · June 2026
 
 **What you say:**
 > "Berat — thanks for the time. Over the last weeks we mapped how eFactory actually runs: every form, every tool, every manual step to move one order from inquiry to delivery. Today: what we found, what we've already built, and a clear path to put it to work — plus the few calls that are yours to make. About thirty-five minutes, and please interrupt me anytime."
@@ -58,7 +58,7 @@ Suggested length: **~35–40 min + discussion.** 18 core slides; depth in the Ap
 > We have a working prototype that proves the workflow: it removes the repetitive coordination without taking the freedom you run the business with. And because it's CalibtOS building it, this isn't just an eFactory win; it compounds across both companies. We'll get to that.
 > And remember — you've already seen this working and told us the direction is right. So today isn't 'should we try' — it's 'should we build it for real.' That's all I'm asking: your go-ahead to build it, so the first automation milestone is live before that date."
 
-**Notes:** Pyramid-principle answer-first. The CalibtOS kicker is a *tease* — don't explain it yet (Slide 14). Watch his face on "keeps your freedom."
+**Notes:** Pyramid-principle answer-first. The CalibtOS kicker is a *tease* — don't explain it yet (Slide 13). Watch his face on "keeps your freedom."
 
 ---
 ---
@@ -114,7 +114,7 @@ Suggested length: **~35–40 min + discussion.** 18 core slides; depth in the Ap
 
 **On the slide:**
 > **Doing nothing has a price too.** Staying manual isn't the free option — it's a bill you keep paying, in three currencies:
-> - 📅 **A forced bill, already dated** — Pipedrive at 4,159/5,000 + Zapier retires 31 Jul. You spend on the current setup either way, for nothing new.
+> - 📅 **A forced bill, already dated** — Pipedrive at 4,159/5,000, and Pipedrive's old API (your Zapier intake) retires 31 Jul. You pay to rebuild either way, for nothing new.
 > - 📈 **A tax that grows with you** — ~6–10 hrs/week of coordination stays on your desk, and every new order adds more (it scales with *your* time, not the team's).
 > - 🗄️ **Four years of data, left dark** — 3,410 deals · 5,262 leads, unqueryable across 9 tools → no reporting, no automation, no AI possible.
 >
@@ -122,30 +122,12 @@ Suggested length: **~35–40 min + discussion.** 18 core slides; depth in the Ap
 
 **What you say:**
 > "One honest counter-argument before we go further — 'it works, so why spend anything?' Let me show that doing nothing isn't actually the free option; there are three bills you keep paying.
-> First, a forced one with a date on it: Pipedrive is nearly full and Zapier retires end of July, so you'll spend on the current setup either way — and get nothing new for it.
+> First, a forced one with a date on it: Pipedrive is nearly full, and Pipedrive is retiring the old API your Zapier intake runs on at the end of July — so that intake has to be rebuilt either way, and you get nothing new for it.
 > Second, the weekly tax — those 6 to 10 hours don't go away; they grow, because the work scales with your time, not the team's.
 > Third, the quiet one: four years of deals and leads sit locked across nine tools, so reporting, automation, and AI simply aren't possible on that data — and that stays true as long as it's scattered.
 > So the real choice was never spend versus save. It's keep paying that tax, forever — or invest once and turn the spend into an asset you own."
 
-**Notes:** This is the slide that directly answers "why invest vs stay manual." Use ONLY real, defensible numbers (4,159/5,000 · 3,410 deals · 5,262 leads · Zapier 31 Jul) — never the fabricated xlsx sample. State it as plain arithmetic, don't over-press; then hand to the Zapier/timing slide. Mirrors Slide 13's value tiles inverted (cost tiles in Act I ↔ value tiles in Act III).
-
----
-
-## Slide 6 — A practical moment to clean this up
-
-**On the slide:**
-> **Zapier is not the business case. It is the timing trigger.**
-> By July 31, the intake automation needs attention anyway.
->
-> The decision:
-> • Replace the connector and keep the same manual system
-> • Use the moment to remove the handoffs that keep landing on you
-
-**What you say:**
-> "I don't want to overstate Zapier. Zapier is not the business case — it is just a useful timing trigger. By July 31, the intake automation needs work either way.
-> So the real question is simple: do we replace the connector and keep the same manual operating model, or do we use the same moment to remove the handoffs that keep landing on you? This proposal is the second option."
-
-**Notes:** Do not sell fear. Berat already knows the process works. The point is: if we are touching the intake layer anyway, use that moment to reduce dependency on Berat.
+**Notes:** This is the slide that directly answers "why invest vs stay manual." Use ONLY real, defensible numbers (4,159/5,000 · 3,410 deals · 5,262 leads · Zapier 31 Jul) — never the fabricated xlsx sample. State it as plain arithmetic, don't over-press; then move straight into the platform (Act II). Mirrors Slide 11's value tiles inverted (cost tiles in Act I ↔ value tiles in Act III).
 
 ---
 ---
@@ -154,7 +136,7 @@ Suggested length: **~35–40 min + discussion.** 18 core slides; depth in the Ap
 
 ---
 
-## Slide 7 — Where eFactory could be
+## Slide 6 — Where eFactory could be
 
 **On the slide:**
 > **From:** 9 tools + you as the glue → **To:** one platform + you as the owner who *decides*
@@ -167,7 +149,7 @@ Suggested length: **~35–40 min + discussion.** 18 core slides; depth in the Ap
 
 ---
 
-## Slide 8 — How it works: one platform, three doors
+## Slide 7 — How it works: one platform, three doors
 
 **On the slide:**
 ```
@@ -190,7 +172,7 @@ Suggested length: **~35–40 min + discussion.** 18 core slides; depth in the Ap
 
 ---
 
-## Slide 9 — And it keeps your freedom
+## Slide 8 — And it keeps your freedom
 
 **On the slide:**
 > Ferhat said it: *"He's lived in total freedom for years. To give it up, we have to give him something actually better."*
@@ -206,11 +188,11 @@ Suggested length: **~35–40 min + discussion.** 18 core slides; depth in the Ap
 > "Now — the real question in the back of your mind. You've run this in total freedom for years. Will a system put you in a box? We designed against that from day one. You can still override any price — even after the customer paid. Still create an order by hand when someone WhatsApps you. Still stack discounts however a deal needs. The software *suggests* — you always get the final say.
 > You lose the twenty manual steps. You don't lose one bit of control."
 
-**Notes:** **Most important slide for his personal hesitation.** Slow down; pause after "you decide." If he probes an edge case, answer with override/manual-path; log genuinely-open ones for Slide 18.
+**Notes:** **Most important slide for his personal hesitation.** Slow down; pause after "you decide." If he probes an edge case, answer with override/manual-path; log genuinely-open ones for Slide 17.
 
 ---
 
-## Slide 10 — Your moat, enforced 🟢
+## Slide 9 — Your moat, enforced 🟢
 
 **On the slide:**
 > Your model is a **matchmaker in the middle** — your value is that the writer can't run off with your customer. The platform makes "the middle" **structural** — not something you police by hand:
@@ -222,14 +204,14 @@ Suggested length: **~35–40 min + discussion.** 18 core slides; depth in the Ap
 > *Your biggest business risk — losing a customer to a writer — designed out, by architecture.*
 
 **What you say:**
-> "This one's specific to *your* model. eFactory works because you sit in the middle — the matchmaker. The day a writer and a customer cut you out, you've lost the customer and the margin. Today you protect that by personally watching every email and CC'ing yourself on everything.
-> We didn't build a filter to police that — we made it so there's nothing *to* police. The writer and the customer can only ever talk in the platform's order chat, and you're a participant in every single one. The writer never even sees the customer's email — their introduction is just a chat message, and the customer only gets a link back into the platform. There's no private channel between them, so there's no back door. And during a dispute, the chat locks so no one can slip around you. Your biggest business risk — designed out, not by you watching, but by the architecture itself." [Demo guardrail: when this runs live, show only the 3-party chat and the dispute chat-lock — both work. Do NOT open the older GW onboarding screens; they still describe the previous CC-based model and contradict this slide until fixed.]
+> "This one's specific to *your* model. eFactory works because you sit in the middle — the matchmaker. The day a writer and a customer cut you out, you've lost the customer and the margin. So we made that middle structural — not something you have to police.
+> The writer and the customer only ever talk in the order's group chat, and you're right there in the group with them, seeing every message live as it's sent. The writer never even sees the customer's email — their introduction is just a chat message, and the customer only gets a link back into the platform. There's no private channel between them, so there's no back door. And during a dispute, the chat locks so no one can slip around you. Your biggest business risk — designed out, by the architecture itself." [Demo guardrail: when this runs live, show only the 3-party chat and the dispute chat-lock — both work. Do NOT open the older GW onboarding screens; they still describe the previous CC-based model and contradict this slide until fixed.]
 
 **Notes:** **Corrected per D-28/D-29.** The old "CC efactory1 on every email" + "financial-keyword auto-redirect" mechanisms were *removed* — superseded by admin being a structural participant in the 3-party chat (`communication_architecture.md` §5.1; `selectors.js:335`). The 3-party chat + dispute chat-lock are coded (🟢). ⚠️ **Stale-UI warning for the demo:** `gw/first-contact.jsx`, `gw/assignment-detail.jsx`, and `gw/dashboard.jsx` still show old "sent two ways at once / CC efactory1 / financial auto-redirect" language that contradicts this slide — fix or avoid those screens before demoing.
 
 ---
 
-## Slide 11 — What's inside: six building blocks
+## Slide 10 — What's inside: six building blocks
 
 **On the slide:**
 
@@ -243,31 +225,9 @@ Suggested length: **~35–40 min + discussion.** 18 core slides; depth in the Ap
 | 6 | **Payments & GW Payouts** | log-checking & Friday spreadsheet math → auto-confirm + a 5-gate release | 🔵 |
 
 **What you say:**
-> "Six building blocks. I'll show you the heart of each in a second, so here just the headline of what each one *removes*: the offer engine turns repeated Sevdesk/email/payment work into a controlled review-and-send flow; the dashboard lets customers accept and pay themselves; the inbox keeps external messages visible in one place; the job board lets writers apply while you keep approval; quality-and-disputes gives bounded revision rounds and a clean record of every decision; and payments confirm themselves instead of you checking logs every Friday."
+> "Six building blocks. Here's the headline of what each one *removes*: the offer engine turns repeated Sevdesk/email/payment work into a controlled review-and-send flow; the dashboard lets customers accept and pay themselves; the inbox keeps external messages visible in one place; the job board lets writers apply while you keep approval; quality-and-disputes gives bounded revision rounds and a clean record of every decision; and payments confirm themselves instead of you checking logs every Friday."
 
-**Notes:** Confirm each label against the live prototype. This is the menu; the demo is the meal.
-
----
-
-## Slide 12 — See it run 🟢
-
-**On the slide:**
-> ### Live walkthrough — the system enforcing *your* rules
-> *Legend:* 🟢 working now · 🔵 designed · 🟠 your call
-> *[DEMO — switch to prototype]*
-
-**What you say (framing before you switch):**
-> "You've clicked through this already, so I'll keep it quick — the point today isn't 'look, it exists,' it's to remind us what we're hardening into the real, wired-up build. Two honesty notes: the screens and flows are all real and clickable today; wiring them to your *live* Sevdesk, Stripe and Pipedrive is the build we're proposing. And any amber tag is a decision I'll need from you later."
-
-**Demo script — narrate "it runs my rules," not "look how many features":**
-> 1. **Offer in a click** → "Customer's details already here, pricing calculated. Generate and Send. The twenty steps — gone."
-> 2. **Customer accepts & pays** → "On their own dashboard. Watch the status flip to Paid by itself."
-> 3. **The moat, live** → "Here's the order chat — customer, writer, and you, all in one thread. The writer can't see the customer's email; they have no other way to reach each other, and you're in every conversation. Now I'll open a dispute — watch the chat lock so neither side can sidestep you."
-> 4. **Friday batch — the showpiece** → "Here's payday. The system won't release a writer's fee until five things are true: customer satisfied, quality passed, no open dispute, *every* customer installment received, and the writer's invoice in. Look at the Blocked list — each one tells you exactly why it's held. That's *your* rule — 'pay the writer only after all the customer's money is in' — running itself."
-> 5. **When it goes wrong** → "Unhappy customer. Dispute panel: chat locks, you mediate, you pick one of five outcomes, every message logged. No more digging through WhatsApp to remember what was agreed."
-> 6. **The receipts** → "And every action is timestamped here — useful for taxes, disputes, compliance."
-
-**Notes:** This is the emotional peak — give it room. Rehearse cold on a **clean dataset**; have a **screen recording** fallback. The Friday 5-gate batch and the 3-party-chat-with-dispute-lock are your two "wow, this is real and it's *mine*" moments.
+**Notes:** Confirm each label against the live prototype.
 
 ---
 ---
@@ -276,7 +236,7 @@ Suggested length: **~35–40 min + discussion.** 18 core slides; depth in the Ap
 
 ---
 
-## Slide 13 — What it's worth
+## Slide 11 — What it's worth
 
 **On the slide:**
 > - ⏱️ **~6–10 hrs/week of admin drag reduced or delegated** — conservative estimate from the historical order baseline
@@ -290,20 +250,38 @@ Suggested length: **~35–40 min + discussion.** 18 core slides; depth in the Ap
 
 **What you say:**
 > "What does it return? I want to be conservative here. The model says around 6 to 10 hours a week of admin drag can be reduced or delegated at the historical order baseline. Not because copy-paste alone is ten hours — it isn't. The copy-paste may only be an hour or so. The real gain is removing the repeated negotiation follow-up, writer coordination, payment checking, deadline chasing, and exception handling that keeps coming back to you.
-> But the headline isn't hours saved — it's this: today eFactory can't run without you, so it isn't really an asset, it's a job. The platform turns it into a company that can run through rules, queues, and approvals — something you could *sell* one day, with value that isn't trapped in your head. More volume with the same team. Problems caught before customers complain. And a path to expansion you simply can't manage by hand. I'd rather under-promise on the numbers and have every one hold."
+> But the headline isn't hours saved — it's this: today eFactory can't run without you, so it isn't really an asset, it's a job. The platform turns it into a company that can run through rules, queues, and approvals — something you could keep running hands-off, hand to a manager, or sell one day — your choice, with value that isn't trapped in your head. More volume with the same team. Problems caught before customers complain — and because the experience feels professional, more customers come back, which is repeat revenue with no new acquisition cost. And a path to expansion you simply can't manage by hand. Two things people really underrate: continuity — today, if you're sick or away, eFactory basically stops, because it runs on you, and the platform removes that single point of failure; and delegation — for the first time you could hand parts of this to a junior hire who simply couldn't operate the nine-tool setup today. I'd rather under-promise on the numbers and have every one hold."
 
-**Notes:** Lead the *asset/sellability* framing — it's a bigger motivator than time-saved and sets up Slide 14. Do not present the 6–10 hrs/week as audited; it is a conservative planning model. If Berat challenges it, say: "Let's measure it together from a normal week — the proposal does not depend on pretending this is exact."
+**Notes:** Lead the *asset/sellability* framing — it's a bigger motivator than time-saved and sets up Slide 13. Do not present the 6–10 hrs/week as audited; it is a conservative planning model. If Berat challenges it, say: "Let's measure it together from a normal week — the proposal does not depend on pretending this is exact."
 
 ---
 
-## Slide 14 — This is bigger than eFactory
+## Slide 12 — Your data becomes a compounding asset
+
+**On the slide:**
+> Four years of orders, customers and writers — **structured for the first time.** Not a feature; an asset that keeps paying off:
+> - 📊 **See it** — reporting & dashboards (your Flamingo / website lead data, finally visualized — Phase 0)
+> - 🔎 **Understand it** — which writers, customers & order types make money, and which cause disputes
+> - ⚙️ **Act on it** — the repetitive decisions run on rules, not on you
+> - 🤖 **Ask it** — plain-language questions, cash & capacity forecasts *(direction, not v1)*
+>
+> *Today 3,410 deals · 5,262 leads sit unqueryable across 9 tools. Structure is the foundation — and exactly what CalibtOS does.*
+
+**What you say:**
+> "Beyond the hours, there's something that compounds. Right now four years of your data — every order, customer and writer — sits scattered across nine tools, so you can't really *ask* it anything. The moment it's structured in one place, a ladder opens up. First you can just *see* it — we start there in Phase 0, by visualizing the Flamingo and website lead data you've never actually looked at. Then you *understand* it — which writers and customers and order types actually make you money, and which ones cause the disputes. Then you can *act* on it — the repetitive decisions start running on rules instead of on you. And eventually you can simply *ask* it questions in plain language, and forecast your cash and capacity. That last part is direction, not version one — but none of it is even possible while the data is scattered. Structuring it is the foundation. And it happens to be exactly what CalibtOS is built to do — which is the last piece."
+
+**Notes:** Strongest non-obvious benefit for a software/AI co-owner — surfaces the BI/AI upside the audit flagged as buried. Phase 0 (Flamingo viz) is the concrete near-term proof; AI labelled *direction, not v1* to stay honest. The closing "exactly what CalibtOS does" hands straight into the flywheel slide next. Real numbers only.
+
+---
+
+## Slide 13 — This is bigger than eFactory
 
 **On the slide:**
 > Because **CalibtOS** builds it, one project pays off across **both** your companies:
 > - 🔁 **Left hand to right hand** — the spend moves between two companies you own, and comes back as an **asset on both balance sheets**
 > - 🏅 **CalibtOS's flagship reference client** — 4 years of real data, real complexity, running live. *No other client can give CalibtOS this.*
 > - 🗣️ **The ultimate sales proof** — "we run our own business on this." Dogfooding is the strongest pitch CalibtOS has
-> - 📦 **A product, not a project** — if it works for eFactory, CalibtOS can **license it to other agencies**. eFactory becomes the template
+> - 📦 **A product, not a project** — CalibtOS can adapt it for businesses in **other industries** (never your competitors). eFactory is the template; you share the upside as co-owner
 > - 🎯 **It frees you for CalibtOS** — eFactory's manual grind is exactly what's kept you from the company you set out to build
 >
 > *One decision. Both companies win.*
@@ -311,14 +289,14 @@ Suggested length: **~35–40 min + discussion.** 18 core slides; depth in the Ap
 **What you say:**
 > "And here's why this is bigger than eFactory — this part's just us, owner to owner. You own both. So the money for this moves from one of your companies to the other and comes back as an asset on *both* sides.
 > CalibtOS needs a flagship reference client — and there is no better one than its own co-owner's business, four years of real data, running live. Every future CalibtOS pitch gets to say 'we run our own operation on this.' That's the most credible thing a software company can say.
-> And if it works for eFactory — it will — CalibtOS can sell this same platform to other agencies like yours. eFactory becomes the template for CalibtOS's first product.
+> And if it works for eFactory — it will — CalibtOS can take this same platform to businesses in *other* industries: companies with the same coordination problem, but never your competitors. You wouldn't be arming a rival — and because you co-own CalibtOS, you share that upside. eFactory just becomes the proof.
 > The honest one, last: eFactory's manual grind is the thing that's kept you from building CalibtOS the way you wanted from the start. Systematizing eFactory is how you finally get to focus on it. One decision — and both companies win."
 
 **Notes:** **The clincher for a co-owner.** Frame as *shared strategic logic* (he knows he owns CalibtOS) — not "why hire us." The "frees you for CalibtOS" line is the emotional core; deliver it sincerely, then pause.
 
 ---
 
-## Slide 15 — Built to be reliable
+## Slide 14 — Built to be reliable
 
 **On the slide:**
 > - Modern, proven, scalable tech — no lock-in
@@ -334,7 +312,7 @@ Suggested length: **~35–40 min + discussion.** 18 core slides; depth in the Ap
 
 ---
 
-## Slide 16 — The plan: a quick win first, then phased and safe
+## Slide 15 — The plan: a quick win first, then phased and safe
 
 **On the slide:**
 
@@ -355,26 +333,26 @@ Suggested length: **~35–40 min + discussion.** 18 core slides; depth in the Ap
 
 ---
 
-## Slide 17 — The calls that stay yours 🟠
+## Slide 16 — The calls that stay yours 🟠
 
 **On the slide:**
-> Not gaps — **the judgment calls that stay with you, not the software.** A few examples of what we'll decide *together* once we start:
-> 1. **Post-payment pricing** — *Customer pays installment 1, then adds 10 pages. Re-price after payment?* → **Rec: yes, with a logged override.**
-> 2. **Off-form orders** — *Customer WhatsApps you, never uses the form. You create the order by hand?* → **Rec: yes — manual order path.**
-> 3. **Deadline changes** — *A writer needs 3 more days. Auto-tell the customer, or you approve first?* → **Rec: you approve first.**
-> 4. **Reassignment** — *Swap a writer mid-order. Does the first get paid for partial work; who absorbs the cost?* → **Rec: [FILL with Ferhat].**
-> 5. **Job-board visibility** — *Every writer sees every job, or only writers you've tagged?* → **Rec: [FILL].**
+> Not gaps — **the calls where your judgment replaces our assumption.** We built the prototype from a few early sessions, so much of it is our best guess. These are yours to settle — a handful of the dozens we've logged:
+> 1. **Post-payment scope change** — *Pays installment 1, then adds 10 pages. Re-price after payment?* → **Rec: yes, logged override.**
+> 2. **A writer goes silent** — *3 days to deadline, the writer goes quiet. Reassign, or hold for you — and who tells the customer?* → **Rec: you decide; customer approves any new date.**
+> 3. **Refund after payout** — *A dispute is upheld after you've already paid the writer. Who absorbs it?* → **Rec: set together; the system enforces it.**
+> 4. **Proven writers vs newcomers** — *Everyone sees every job at the same terms, or do your proven writers get first pick?* → **Rec: your call — reward track record.**
+> 5. **The WhatsApp-only regular** — *A loyal customer never uses the form. Order by hand — keep nudging them onto the platform?* → **Rec: manual path + a gentle nudge.**
 >
-> *We bring the recommendation. You make the call.*
+> *We recommend; you decide; the system then enforces whatever you choose.*
 
 **What you say:**
-> "Last thing about the product — and it's about *you*, not the software. As we build, some judgment calls should always be yours. I'll show one: a customer pays their first installment, then asks to add ten pages — should the system let you re-price after payment? We'd say yes, with a logged note. That's the kind of call — we recommend, you decide. There's a handful like this; we don't settle them today, that's what our first sessions after kickoff are for. I just wanted you to see the control stays with you."
+> "Last thing about the product — and it's about *you*, not the software. Something honest first: we built this prototype from only a few sessions with you, so a lot of it is our best assumption about how you'd want it to work. These are the places where your judgment replaces our guess. I'll walk one: a customer pays the first installment, then adds ten pages — re-price after payment? We'd say yes, with a logged note. But look at the others — a writer goes silent three days before deadline; a refund lands *after* you've already paid the writer; whether your proven writers get first pick. Those need *your* read of the business, not ours. There are dozens like this — we've catalogued them — and working through them together is exactly what kickoff is for. We recommend; you decide; the system then enforces whatever you choose. The control stays with you."
 
-**Notes:** Persuasion, not requirements-gathering — proves depth + reinforces control. Walk **one** live, max. Full open list in Appendix.
+**Notes:** Persuasion + depth, not requirements-gathering. Frame = "the prototype is our assumption from a few sessions; these are where your judgment takes over — and there are dozens." Walk **one** live (post-payment); gesture at the sharper ones (silent writer, refund-after-payout, writer tiers) to show we understand the operation. These resolve the old [FILL] rows (RD-04 reassignment economics, E-12 job-board visibility). Stronger spare examples to swap in: negotiation money-vs-time routing (price = your authority, deadline = writer feasibility); B2B vs B2C intake pricing; when/whether a writer-block is reversible or tiered.
 
 ---
 
-## Slide 18 — Next steps
+## Slide 17 — Next steps
 
 **On the slide:**
 > 1. **Today** — your **go-ahead to build it for real**

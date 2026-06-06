@@ -171,6 +171,16 @@ function GWAssignmentDetail({ orderId, navigate, toast }) {
   const [disputeOpen, setDisputeOpen] = useState(false);
   const [focusChatComposer, setFocusChatComposer] = useState(false);
   const report = useReportChat(orderId, toast);
+  // ALL hooks must run before the early returns below (missing-order + ownership
+  // guards). If a hook sits after them, React throws "Rendered fewer hooks than
+  // expected" whenever a guard path is taken on one render but not another
+  // (e.g. an async order load, or a persona switch while viewing) — and with no
+  // error boundary that blanks the whole app. Keep this useEffect up here.
+  useEffect(() => {
+    if (!focusChatComposer) return undefined;
+    const t = setTimeout(() => setFocusChatComposer(false), 200);
+    return () => clearTimeout(t);
+  }, [focusChatComposer]);
   if (!order) return <div className="page">Assignment not found.</div>;
   // Ownership guard — a GW may only view assignments where they are the assigned writer
   // OR the order is on the public job board. Otherwise no leakage of customer/order data.
@@ -216,11 +226,6 @@ function GWAssignmentDetail({ orderId, navigate, toast }) {
     setFocusChatComposer(true);
   };
 
-  useEffect(() => {
-    if (!focusChatComposer) return undefined;
-    const t = setTimeout(() => setFocusChatComposer(false), 200);
-    return () => clearTimeout(t);
-  }, [focusChatComposer]);
   // Intro is the first task after approval. Required before any submission per SOP D.
   // We treat it as "done" when the SOP D wizard recorded firstContactDoneAt, or an
   // out-of-band record (firstContactSkippedTemplate) set it.
