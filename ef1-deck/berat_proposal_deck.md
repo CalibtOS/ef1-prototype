@@ -9,7 +9,7 @@ One section per slide. Each has: **On the slide** (what Berat sees — keep it s
 
 **Single source of truth:** this MD is canonical. The HTML deck's `#speaker-notes` array is generated from each slide's *What you say* block by `python3 gen-notes.py` — edit notes here and regenerate; never hand-edit the HTML JSON (that's how the two drifted before).
 
-**Framing assumption baked into v2:** Berat **co-owns CalibtOS** and separately owns eFactory. So this is a strategic-alignment conversation with a co-owner, not a vendor sale. Act III leans into that (Slide 13). Tone there = *shared strategic logic*, not "why hire us" — he already knows he owns CalibtOS; you're articulating how the pieces compound.
+**Framing assumption baked into v2:** Berat **co-owns CalibtOS** and separately owns eFactory. So this is a strategic-alignment conversation with a co-owner, not a vendor sale. Act III leans into that (Slide 15). Tone there = *shared strategic logic*, not "why hire us" — he already knows he owns CalibtOS; you're articulating how the pieces compound.
 
 **Status legend** (small corner tags — never let a proposal read as "done"):
 - 🟢 **Working in the prototype today** · 🔵 **Designed, ready to build** · 🟠 **Needs your decision**
@@ -21,7 +21,7 @@ One section per slide. Each has: **On the slide** (what Berat sees — keep it s
 - Conservative planning estimate until Excel validates it: **3,410 deals over ~4 years ≈ 16 deals/week** as a historical baseline. If Berat spends only **5 min/order** on mechanical copy/paste, that is **~1.3 hrs/week**. The real load is the extra coordination: customer negotiation, GW questions, assignment decisions, payment checks, deadline chasing, and exceptions. Use **25–40 min/order total admin touch** as a conservative range → **~6–10 hrs/week** at that baseline.
 - Still needed from real data: open receivables, current monthly order volume, actual offers/week, support/dispute frequency, ROI/€-saved.
 
-Suggested length: **~35–40 min + discussion.** 17 core slides; depth in the Appendix.
+Suggested length: **~35–40 min + discussion.** 19 core slides; depth in the Appendix.
 
 ---
 ---
@@ -58,7 +58,7 @@ Suggested length: **~35–40 min + discussion.** 17 core slides; depth in the Ap
 > We have a working prototype that proves the workflow: it removes the repetitive coordination without taking the freedom you run the business with. And because it's CalibtOS building it, this isn't just an eFactory win; it compounds across both companies. We'll get to that.
 > And remember — you've already seen this working and told us the direction is right. So today isn't 'should we try' — it's 'should we build it for real.' That's all I'm asking: your go-ahead to build it, so the first automation milestone is live before that date."
 
-**Notes:** Pyramid-principle answer-first. The CalibtOS kicker is a *tease* — don't explain it yet (Slide 13). Watch his face on "keeps your freedom."
+**Notes:** Pyramid-principle answer-first. The CalibtOS kicker is a *tease* — don't explain it yet (Slide 15). Watch his face on "keeps your freedom."
 
 ---
 ---
@@ -91,7 +91,29 @@ Suggested length: **~35–40 min + discussion.** 17 core slides; depth in the Ap
 
 ---
 
-## Slide 4 — What "normal" is actually costing you
+## Slide 4 — The case, at a glance
+
+**On the slide:**
+> Six findings from mapping eFactory end to end — the whole case for change, in one view:
+> - 🧩 **9 disconnected tools** — you're the integration between them
+> - 🔁 **20–30 steps per offer** — across four systems, by hand
+> - ⏱️ **6–10 hrs/week on your desk** — ~16 orders × 25–40 min (conservative)
+> - 📅 **A forced bill, dated** — Pipedrive 4,159/5,000; its old API (your intake) retires 31 Jul
+> - 🗄️ **Four years of data, dark** — 3,410 deals · 5,262 leads · ~913 Flamingo, unqueryable
+> - 🛡️ **One person holds the moat** — protected only by you watching; eFactory stops if you do
+>
+> *Every number is yours — real, or a conservative estimate from your own baseline.*
+
+**What you say:**
+> "Before we go deeper, let me put the whole case on one slide — so it's not just a feeling.
+> Six things the mapping turned up: nine disconnected tools, with you as the integration; twenty to thirty steps to send one offer; six to ten hours a week of coordination on your desk; a forced bill with a date on it — Pipedrive nearly full, its old API retiring end of July; four years of data sitting dark across nine tools; and one person — you — holding the whole moat together.
+> None of these is dramatic on its own. Together, they're the case for change. And every number here is yours — real, or a conservative estimate from your own baseline. We'll go deeper on the ones that cost you most."
+
+**Notes:** AGGREGATES the discovery arguments into one high-impact board (Ferhat's rehearsal request). ⚠️ Reconcile against the actual Excalidraw board — pull in any convincing argument that's there and missing here; keep ONLY real/safe numbers (never the fabricated xlsx sample). Placement = Act I anchor after the map; adjustable. Mahmoud: add hover-highlight (base hover is in) + a staggered entrance animation.
+
+---
+
+## Slide 5 — What "normal" is actually costing you
 
 **On the slide:**
 > **One order still creates many small admin touches** across Sevdesk, Pipedrive, Stripe, email, WhatsApp, Sheets, and the GW side.
@@ -110,7 +132,7 @@ Suggested length: **~35–40 min + discussion.** 17 core slides; depth in the Ap
 
 ---
 
-## Slide 5 — The cost of doing nothing
+## Slide 6 — The cost of doing nothing
 
 **On the slide:**
 > **Doing nothing has a price too.** Staying manual isn't the free option — it's a bill you keep paying, in three currencies:
@@ -127,7 +149,7 @@ Suggested length: **~35–40 min + discussion.** 17 core slides; depth in the Ap
 > Third, the quiet one: four years of deals and leads sit locked across nine tools, so reporting, automation, and AI simply aren't possible on that data — and that stays true as long as it's scattered.
 > So the real choice was never spend versus save. It's keep paying that tax, forever — or invest once and turn the spend into an asset you own."
 
-**Notes:** This is the slide that directly answers "why invest vs stay manual." Use ONLY real, defensible numbers (4,159/5,000 · 3,410 deals · 5,262 leads · Zapier 31 Jul) — never the fabricated xlsx sample. State it as plain arithmetic, don't over-press; then move straight into the platform (Act II). Mirrors Slide 11's value tiles inverted (cost tiles in Act I ↔ value tiles in Act III).
+**Notes:** This is the slide that directly answers "why invest vs stay manual." Use ONLY real, defensible numbers (4,159/5,000 · 3,410 deals · 5,262 leads · Zapier 31 Jul) — never the fabricated xlsx sample. State it as plain arithmetic, don't over-press; then move straight into the platform (Act II). Mirrors Slide 12's value tiles inverted (cost tiles in Act I ↔ value tiles in Act III).
 
 ---
 ---
@@ -136,7 +158,7 @@ Suggested length: **~35–40 min + discussion.** 17 core slides; depth in the Ap
 
 ---
 
-## Slide 6 — Where eFactory could be
+## Slide 7 — Where eFactory could be
 
 **On the slide:**
 > **From:** 9 tools + you as the glue → **To:** one platform + you as the owner who *decides*
@@ -149,7 +171,7 @@ Suggested length: **~35–40 min + discussion.** 17 core slides; depth in the Ap
 
 ---
 
-## Slide 7 — How it works: one platform, three doors
+## Slide 8 — How it works: one platform, three doors
 
 **On the slide:**
 ```
@@ -172,7 +194,7 @@ Suggested length: **~35–40 min + discussion.** 17 core slides; depth in the Ap
 
 ---
 
-## Slide 8 — And it keeps your freedom
+## Slide 9 — And it keeps your freedom
 
 **On the slide:**
 > Ferhat said it: *"He's lived in total freedom for years. To give it up, we have to give him something actually better."*
@@ -188,11 +210,11 @@ Suggested length: **~35–40 min + discussion.** 17 core slides; depth in the Ap
 > "Now — the real question in the back of your mind. You've run this in total freedom for years. Will a system put you in a box? We designed against that from day one. You can still override any price — even after the customer paid. Still create an order by hand when someone WhatsApps you. Still stack discounts however a deal needs. The software *suggests* — you always get the final say.
 > You lose the twenty manual steps. You don't lose one bit of control."
 
-**Notes:** **Most important slide for his personal hesitation.** Slow down; pause after "you decide." If he probes an edge case, answer with override/manual-path; log genuinely-open ones for Slide 17.
+**Notes:** **Most important slide for his personal hesitation.** Slow down; pause after "you decide." If he probes an edge case, answer with override/manual-path; log genuinely-open ones for Slide 19.
 
 ---
 
-## Slide 9 — Your moat, enforced 🟢
+## Slide 10 — Your moat, enforced 🟢
 
 **On the slide:**
 > Your model is a **matchmaker in the middle** — your value is that the writer can't run off with your customer. The platform makes "the middle" **structural** — not something you police by hand:
@@ -211,7 +233,7 @@ Suggested length: **~35–40 min + discussion.** 17 core slides; depth in the Ap
 
 ---
 
-## Slide 10 — What's inside: six building blocks
+## Slide 11 — What's inside: six building blocks
 
 **On the slide:**
 
@@ -236,7 +258,7 @@ Suggested length: **~35–40 min + discussion.** 17 core slides; depth in the Ap
 
 ---
 
-## Slide 11 — What it's worth
+## Slide 12 — What it's worth
 
 **On the slide:**
 > - ⏱️ **~6–10 hrs/week of admin drag reduced or delegated** — conservative estimate from the historical order baseline
@@ -250,13 +272,13 @@ Suggested length: **~35–40 min + discussion.** 17 core slides; depth in the Ap
 
 **What you say:**
 > "What does it return? I want to be conservative here. The model says around 6 to 10 hours a week of admin drag can be reduced or delegated at the historical order baseline. Not because copy-paste alone is ten hours — it isn't. The copy-paste may only be an hour or so. The real gain is removing the repeated negotiation follow-up, writer coordination, payment checking, deadline chasing, and exception handling that keeps coming back to you.
-> But the headline isn't hours saved — it's this: today eFactory can't run without you, so it isn't really an asset, it's a job. The platform turns it into a company that can run through rules, queues, and approvals — something you could keep running hands-off, hand to a manager, or sell one day — your choice, with value that isn't trapped in your head. More volume with the same team. Problems caught before customers complain — and because the experience feels professional, more customers come back, which is repeat revenue with no new acquisition cost. And a path to expansion you simply can't manage by hand. Two things people really underrate: continuity — today, if you're sick or away, eFactory basically stops, because it runs on you, and the platform removes that single point of failure; and delegation — for the first time you could hand parts of this to a junior hire who simply couldn't operate the nine-tool setup today. I'd rather under-promise on the numbers and have every one hold."
+> But the headline isn't hours saved — it's this: today eFactory can't run without you, so it isn't really an asset, it's a job. The platform turns it into a company that can run through rules, queues, and approvals — something you could keep running hands-off, hand to a manager, or sell one day — your choice, with value that isn't trapped in your head. More volume with the same team. Problems caught before customers complain — and because the experience feels professional, more customers come back, which is repeat revenue with no new acquisition cost. And a path to expansion you simply can't manage by hand. Two things people really underrate: continuity — today, if you're sick or away, eFactory basically stops, because it runs on you, and the platform removes that single point of failure; and delegation — for the first time, you could actually work *with* other people. You'd stop being the one who takes every call: someone on your team picks it up first, and only what truly needs *you* ever reaches you — no more answering a client from the supermarket queue. A junior hire can't even operate the nine-tool setup today; on the platform, they can. I'd rather under-promise on the numbers and have every one hold."
 
-**Notes:** Lead the *asset/sellability* framing — it's a bigger motivator than time-saved and sets up Slide 13. Do not present the 6–10 hrs/week as audited; it is a conservative planning model. If Berat challenges it, say: "Let's measure it together from a normal week — the proposal does not depend on pretending this is exact."
+**Notes:** Lead the *asset/sellability* framing — it's a bigger motivator than time-saved and sets up Slide 15. Do not present the 6–10 hrs/week as audited; it is a conservative planning model. If Berat challenges it, say: "Let's measure it together from a normal week — the proposal does not depend on pretending this is exact."
 
 ---
 
-## Slide 12 — Your data becomes a compounding asset
+## Slide 13 — Your data becomes a compounding asset
 
 **On the slide:**
 > Four years of orders, customers and writers — **structured for the first time.** Not a feature; an asset that keeps paying off:
@@ -274,7 +296,28 @@ Suggested length: **~35–40 min + discussion.** 17 core slides; depth in the Ap
 
 ---
 
-## Slide 13 — This is bigger than eFactory
+## Slide 14 — What today's foundation unlocks
+
+**On the slide:**
+> We're not building these yet — but **structuring eFactory now is the foundation each one is built on.** *(Direction, not v1.)*
+> Hub: **The foundation we build now** — eFactory as one structured system. Branches:
+> - ✍️ **Online writing & research** — draft and research the whole thesis in-platform
+> - 📚 **Citation & source management** — structured citations, connected to academic sources
+> - 🔎 **Deep document analysis** — the system reads and analyzes the files themselves
+> - 🪄 **AI draft → writer upsell** — describe the work → AI-built start + check → upsell a writer
+> - 🛡️ **Originality & quality checks** — plagiarism / AI-detection, built in
+> - 🌍 **A wider market** — the same foundation opens adjacent segments
+
+**What you say:**
+> "One more thing — and this is about where it goes *after* today. We're not building these now, but I want you to see them, because structuring eFactory is the foundation every one of them sits on.
+> Picture a full online workspace where the whole thesis gets written and researched in-platform. Structured citations and sources, connected to academic databases. The system reading and analyzing the documents themselves. A funnel where a customer describes what they need, gets an AI-built start and an AI-check — and then we upsell them a writer. Originality and quality checks built in. And the same foundation opening a wider market.
+> None of this is version one — but none of it is even *possible* on nine scattered tools. The moment eFactory becomes one structured system, every one of these becomes buildable. That's what you're really deciding to start."
+
+**Notes:** Future-vision slide (Ferhat's rehearsal request) — frame as "the foundation enables these," NOT as promises; say "direction, not v1" out loud. All branches are Ferhat's stated future interests (online academic writing/research, citations/sources, deep file analysis, AI-draft→writer funnel, plagiarism/AI-checks, wider market). Keep it text-light — it's a MIND-MAP to gesture/hover over. Mahmoud: base hover-highlight is in; add connector-line glow on hover + a staggered entrance/transition animation.
+
+---
+
+## Slide 15 — This is bigger than eFactory
 
 **On the slide:**
 > Because **CalibtOS** builds it, one project pays off across **both** your companies:
@@ -296,7 +339,7 @@ Suggested length: **~35–40 min + discussion.** 17 core slides; depth in the Ap
 
 ---
 
-## Slide 14 — Built to be reliable
+## Slide 16 — Built to be reliable
 
 **On the slide:**
 > - Modern, proven, scalable tech — no lock-in
@@ -312,7 +355,7 @@ Suggested length: **~35–40 min + discussion.** 17 core slides; depth in the Ap
 
 ---
 
-## Slide 15 — The plan: a quick win first, then phased and safe
+## Slide 17 — The plan: a quick win first, then phased and safe
 
 **On the slide:**
 
@@ -333,7 +376,7 @@ Suggested length: **~35–40 min + discussion.** 17 core slides; depth in the Ap
 
 ---
 
-## Slide 16 — The calls that stay yours 🟠
+## Slide 18 — The calls that stay yours 🟠
 
 **On the slide:**
 > Not gaps — **the calls where your judgment replaces our assumption.** We built the prototype from a few early sessions, so much of it is our best guess. These are yours to settle — a handful of the dozens we've logged:
@@ -352,7 +395,7 @@ Suggested length: **~35–40 min + discussion.** 17 core slides; depth in the Ap
 
 ---
 
-## Slide 17 — Next steps
+## Slide 19 — Next steps
 
 **On the slide:**
 > 1. **Today** — your **go-ahead to build it for real**

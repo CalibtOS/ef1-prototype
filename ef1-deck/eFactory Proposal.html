@@ -171,7 +171,15 @@
   .map .wires line { stroke:var(--border-strong,#3a4350); stroke-width:1.5; }
   .tag-amber { font-size:19px; color:var(--decision); display:inline-flex; align-items:center; gap:6px; font-weight:500; margin-top:3px; }
 
-  /* ===== Slide 4 — cost model ===== */
+  /* ===== Slide 4 — evidence grid ===== */
+  .evgrid { display:grid; grid-template-columns:repeat(3,1fr); gap:20px; }
+  .evtile { background:var(--surface); border:1px solid var(--border); border-radius:16px; padding:26px 28px; display:flex; flex-direction:column; gap:11px; transition:border-color .15s, transform .15s; }
+  .evtile:hover { border-color:var(--accent-line); transform:translateY(-2px); }
+  .evtile .ev-ic { width:48px; height:48px; border-radius:12px; background:var(--surface-2); color:var(--accent); display:grid; place-items:center; font-size:23px; }
+  .evtile .ev-h { font-size:25px; font-weight:600; line-height:1.15; }
+  .evtile .ev-d { font-size:20px; color:var(--muted); line-height:1.4; }
+
+  /* ===== Slide 5 — cost model ===== */
   .cost-grid { display:grid; grid-template-columns:1.25fr .95fr; gap:30px; flex:1; }
   .equation { display:flex; flex-direction:column; justify-content:flex-start; gap:26px; padding-top:6px; }
   .bar-row { display:flex; flex-direction:column; gap:10px; }
@@ -199,7 +207,7 @@
   .truth .tt { font-size:30px; font-weight:600; line-height:1.2; }
   .estimate-tag { font-size:20px; color:var(--faint); font-style:italic; }
 
-  /* ===== Slide 5 — cost of inaction ===== */
+  /* ===== Slide 6 — cost of inaction ===== */
   .inaction { display:grid; grid-template-columns:repeat(3,1fr); gap:24px; margin-top:28px; }
   .icard { background:var(--surface); border:1px solid var(--border); border-radius:16px; padding:30px 30px; display:flex; flex-direction:column; gap:13px; }
   .icard .ic-ic { width:52px; height:52px; border-radius:13px; background:var(--surface-2); color:var(--decision); display:grid; place-items:center; font-size:24px; }
@@ -208,7 +216,7 @@
   .icard .ic-tag { margin-top:auto; padding-top:8px; font-size:18px; font-weight:600; color:var(--decision); text-transform:uppercase; letter-spacing:.07em; display:inline-flex; align-items:center; gap:9px; }
   .icard .ic-tag .d { width:9px; height:9px; border-radius:50%; background:var(--decision); flex:none; }
 
-  /* ===== Slide 6 — before/after ===== */
+  /* ===== Slide 7 — before/after ===== */
   .ba { flex:1; display:grid; grid-template-columns:1fr 1fr; gap:28px; }
   .ba .pane { border-radius:18px; padding:32px 34px; display:flex; flex-direction:column; gap:8px; }
   .ba .before { background:var(--surface-2); border:1px solid var(--border); }
@@ -225,7 +233,7 @@
 
   .nowrap { white-space:nowrap; }
 
-  /* ===== Slide 7 — three doors ===== */
+  /* ===== Slide 8 — three doors ===== */
   .arch { flex:1; display:flex; flex-direction:column; gap:0; justify-content:center; }
   .platform-slab {
     border-radius:18px; padding:30px 40px; text-align:center;
@@ -252,7 +260,7 @@
   .syschip { display:inline-flex; align-items:center; gap:10px; background:var(--surface-2); border:1px solid var(--border); border-radius:10px; padding:10px 16px; font-size:var(--t-small); }
   .syschip span { color:var(--muted); font-size:20px; }
 
-  /* ===== Slide 8 — control panel ===== */
+  /* ===== Slide 9 — control panel ===== */
   .ferhat-quote { font-size:26px; color:var(--muted); font-style:italic; max-width:80ch; margin:20px 0 6px; }
   .ferhat-quote b { font-style:normal; color:var(--text); }
   .controls { display:grid; grid-template-columns:repeat(2,1fr); gap:20px; margin-top:24px; flex:1; }
@@ -267,7 +275,7 @@
   .freedom-banner .fb-t { font-size:36px; font-weight:600; }
   .freedom-banner .fb-t .accent { color:var(--accent); }
 
-  /* ===== Slide 9 — moat triangle ===== */
+  /* ===== Slide 10 — moat triangle ===== */
   .moat { flex:1; display:grid; grid-template-columns:1.05fr .95fr; gap:40px; align-items:center; }
   .triangle { position:relative; height:560px; }
   .triangle > svg { position:absolute; inset:0; width:100%; height:100%; }
@@ -285,7 +293,7 @@
   .mp .mp-t { font-size:24px; font-weight:600; }
   .mp .mp-d { font-size:20px; color:var(--muted); line-height:1.35; margin-top:3px; }
 
-  /* ===== Slide 10 — heatmap ===== */
+  /* ===== Slide 11 — heatmap ===== */
   .blocks { flex:1; display:flex; flex-direction:column; gap:14px; margin-top:8px; }
   .block-row { display:grid; grid-template-columns:64px 1.15fr 1.85fr auto; gap:24px; align-items:center; background:var(--surface); border:1px solid var(--border); border-radius:14px; padding:22px 28px; }
   .block-row .bn { font-family:var(--mono); font-size:30px; color:var(--faint); }
@@ -294,7 +302,7 @@
   .block-row .bk b { color:var(--accent); font-weight:600; }
   .chip-row { display:flex; gap:8px; flex-wrap:nowrap; justify-content:flex-end; }
 
-  /* ===== Slide 11 — value dashboard ===== */
+  /* ===== Slide 12 — value dashboard ===== */
   .value-grid { flex:1; display:grid; grid-template-columns:repeat(3,1fr); grid-template-rows:1fr 1fr; gap:20px; margin-top:14px; }
   .vtile { background:var(--surface); border:1px solid var(--border); border-radius:16px; padding:28px 30px; display:flex; flex-direction:column; gap:10px; }
   .vtile.feature { grid-row:span 2; background:linear-gradient(160deg,var(--accent-soft),transparent),var(--surface); border:1.5px solid var(--accent-line); justify-content:flex-start; }
@@ -305,7 +313,7 @@
   .vtile .vt-d { font-size:20px; color:var(--muted); line-height:1.35; }
   .vtile .vt-big { font-family:var(--serif); font-size:64px; color:var(--accent); font-weight:600; line-height:1; }
 
-  /* ===== Slide 12 — data ladder ===== */
+  /* ===== Slide 13 — data ladder ===== */
   .ladder { display:grid; grid-template-columns:repeat(4,1fr); gap:20px; }
   .rung { background:var(--surface); border:1px solid var(--border); border-radius:16px; padding:26px 26px; display:flex; flex-direction:column; gap:11px; }
   .rung .r-step { font-family:var(--mono); font-size:20px; color:var(--accent); font-weight:600; letter-spacing:.02em; }
@@ -313,7 +321,22 @@
   .rung .r-d { font-size:20px; color:var(--muted); line-height:1.4; }
   .rung .r-dir { display:inline-block; margin-top:6px; font-size:16px; font-weight:600; color:var(--designed); text-transform:uppercase; letter-spacing:.06em; }
 
-  /* ===== Slide 13 — flywheel ===== */
+  /* ===== Slide 14 — future unlocks mind-map ===== */
+  .unlock { flex:1; position:relative; margin-top:10px; }
+  .unlock .ulines { position:absolute; inset:0; width:100%; height:100%; }
+  .unlock .ulines line { stroke:var(--accent); stroke-width:1.5; opacity:.38; }
+  .uhub { position:absolute; left:50%; top:50%; transform:translate(-50%,-50%); width:320px; text-align:center; background:radial-gradient(circle at 50% 35%,var(--accent-soft),transparent 70%),var(--surface); border:1.5px solid var(--accent); border-radius:18px; padding:24px 28px; z-index:2; }
+  .uhub .uh-t { font-size:26px; font-weight:600; color:var(--accent); line-height:1.2; }
+  .uhub .uh-s { font-size:19px; color:var(--muted); margin-top:6px; }
+  .unode { position:absolute; width:26%; background:var(--surface); border:1px solid var(--border); border-radius:14px; padding:18px 20px; display:flex; flex-direction:column; gap:8px; z-index:2; transition:border-color .15s, transform .15s, box-shadow .15s; }
+  .unode:hover { border-color:var(--accent); transform:scale(1.04); box-shadow:0 14px 34px rgba(0,0,0,.45); }
+  .unode .un-ic { width:40px; height:40px; border-radius:10px; background:var(--surface-2); color:var(--accent); display:grid; place-items:center; font-size:21px; }
+  .unode .un-t { font-size:22px; font-weight:600; line-height:1.15; }
+  .unode .un-d { font-size:18px; color:var(--muted); line-height:1.35; }
+  .unode.tl { left:0; top:2%; }   .unode.ml { left:0; top:39%; }   .unode.bl { left:0; top:76%; }
+  .unode.tr { right:0; top:2%; }  .unode.mr { right:0; top:39%; }  .unode.br { right:0; top:76%; }
+
+  /* ===== Slide 15 — flywheel ===== */
   .fly { flex:1; display:grid; place-items:center; }
   .fly-ring { width:520px; height:520px; border-radius:50%; border:2px dashed var(--accent-line); position:relative; }
   .fly-hub { position:absolute; left:50%; top:50%; transform:translate(-50%,-50%); width:280px; height:280px; border-radius:50%; background:radial-gradient(circle at 50% 35%,var(--accent-soft),transparent 70%),var(--surface); border:1.5px solid var(--accent); display:grid; place-items:center; text-align:center; padding:30px; }
@@ -334,14 +357,14 @@
   .fly-arrow.a3 { left:6%; bottom:6%; }
   .fly-arrow.a4 { left:6%; top:6%; }
 
-  /* ===== Slide 14 — reliability ===== */
+  /* ===== Slide 16 — reliability ===== */
   .rely { flex:1; display:grid; grid-template-columns:repeat(4,1fr); gap:22px; margin-top:14px; align-content:center; }
   .rely .rc { background:var(--surface); border:1px solid var(--border); border-radius:16px; padding:30px 28px; display:flex; flex-direction:column; gap:14px; }
   .rely .rc-ic { width:54px; height:54px; border-radius:13px; background:var(--surface-2); color:var(--accent); display:grid; place-items:center; font-size:26px; }
   .rely .rc-t { font-size:26px; font-weight:600; line-height:1.18; }
   .rely .rc-d { font-size:21px; color:var(--muted); line-height:1.38; }
 
-  /* ===== Slide 15 — roadmap ===== */
+  /* ===== Slide 17 — roadmap ===== */
   .road-map { flex:1; display:flex; flex-direction:column; justify-content:center; gap:0; margin-top:8px; }
   .phase-track { display:grid; grid-template-columns:repeat(5,1fr); gap:16px; position:relative; }
   .phase { background:var(--surface); border:1px solid var(--border); border-radius:14px 14px 0 0; padding:24px 24px 26px; display:flex; flex-direction:column; gap:10px; border-bottom:3px solid var(--border); }
@@ -359,7 +382,7 @@
   .parallel-lane .pl-t { font-size:23px; font-weight:600; color:var(--accent); }
   .parallel-lane .pl-d { font-size:21px; color:var(--muted); }
 
-  /* ===== Slide 16 — decision board ===== */
+  /* ===== Slide 18 — decision board ===== */
   .board { flex:1; display:flex; flex-direction:column; gap:14px; margin-top:6px; }
   .dec-row { display:grid; grid-template-columns:1.5fr auto 1.5fr; gap:28px; align-items:center; background:var(--surface); border:1px solid var(--border); border-radius:14px; padding:22px 28px; }
   .dec-q .dq-t { font-size:25px; font-weight:600; }
@@ -373,7 +396,7 @@
   .board-foot { margin-top:6px; font-size:23px; color:var(--muted); text-align:center; }
   .board-foot b { color:var(--accent); }
 
-  /* ===== Slide 17 — approval card ===== */
+  /* ===== Slide 19 — approval card ===== */
   .s-ask { justify-content:center; align-items:center; }
   .ask-card { width:min(1180px,92%); background:linear-gradient(160deg,var(--accent-soft),transparent),var(--surface); border:1.5px solid var(--accent); border-radius:24px; padding:56px 64px; display:flex; flex-direction:column; gap:0; }
   .ask-card .ac-lbl { font-size:var(--t-label); text-transform:uppercase; letter-spacing:.16em; color:var(--accent); font-weight:600; }
@@ -489,9 +512,27 @@
     </div>
   </section>
 
-  <!-- ============ SLIDE 4 — COST OF NORMAL ============ -->
-  <section data-label="What 'normal' costs you each week" data-screen-label="04">
-    <div class="eyebrow anim"><span class="num">Act I · 04</span><span class="dash"></span>The cost of normal</div>
+  <!-- ============ SLIDE 4 — THE CASE AT A GLANCE ============ -->
+  <section data-label="The case, at a glance" data-screen-label="04">
+    <div class="eyebrow anim"><span class="num">Act I · 04</span><span class="dash"></span>The evidence</div>
+    <h2 class="title anim d1">What the mapping turned up</h2>
+    <p class="lead anim d1" style="max-width:84ch">Six findings from mapping eFactory end to end — the whole case for change, in one view.</p>
+    <div class="grow" style="display:flex;flex-direction:column;justify-content:center;gap:0">
+    <div class="evgrid">
+      <div class="evtile anim d2"><div class="ev-ic"><svg class="icon" viewBox="0 0 24 24"><path d="m12 2 9 5-9 5-9-5 9-5Z"/><path d="m3 12 9 5 9-5"/><path d="m3 17 9 5 9-5"/></svg></div><div class="ev-h">9 disconnected tools</div><div class="ev-d">WordPress · Zapier · Pipedrive · Sevdesk · Stripe · Sheets · Notion · Outlook · WhatsApp — and you're the integration between them.</div></div>
+      <div class="evtile anim d3"><div class="ev-ic"><svg class="icon" viewBox="0 0 24 24"><path d="m17 2 4 4-4 4"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><path d="m7 22-4-4 4-4"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg></div><div class="ev-h">20–30 steps per offer</div><div class="ev-d">Across four systems, by hand — every single time.</div></div>
+      <div class="evtile anim d4"><div class="ev-ic"><svg class="icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></div><div class="ev-h">6–10 hrs/week on your desk</div><div class="ev-d">~16 orders × 25–40 min of coordination. A conservative estimate from your own baseline.</div></div>
+      <div class="evtile anim d5"><div class="ev-ic"><svg class="icon" viewBox="0 0 24 24"><path d="m10.3 3.9-8 13.9A2 2 0 0 0 4 21h16a2 2 0 0 0 1.7-3.2l-8-13.9a2 2 0 0 0-3.4 0Z"/><path d="M12 9v4M12 17h.01"/></svg></div><div class="ev-h">A forced bill, already dated</div><div class="ev-d">Pipedrive at 4,159 / 5,000, and its old API — your intake — retires 31 July.</div></div>
+      <div class="evtile anim d6"><div class="ev-ic"><svg class="icon" viewBox="0 0 24 24"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5v14c0 1.7 4 3 9 3s9-1.3 9-3V5"/><path d="M3 12c0 1.7 4 3 9 3s9-1.3 9-3"/></svg></div><div class="ev-h">Four years of data, left dark</div><div class="ev-d">3,410 deals · 5,262 leads · ~913 Flamingo — unqueryable across 9 tools, so no reporting or AI.</div></div>
+      <div class="evtile anim d6"><div class="ev-ic"><svg class="icon" viewBox="0 0 24 24"><path d="M12 2 4 6v6c0 5 3.5 8 8 10 4.5-2 8-5 8-10V6Z"/></svg></div><div class="ev-h">One person holds the moat</div><div class="ev-d">The matchmaker margin is protected only by you, watching — and eFactory stops if you do.</div></div>
+    </div>
+    </div>
+    <div class="footline"><span class="brand">CalibtOS × eFactory</span><span>Every number is yours — real, or a conservative estimate from your baseline</span></div>
+  </section>
+
+  <!-- ============ SLIDE 5 — COST OF NORMAL ============ -->
+  <section data-label="What 'normal' costs you each week" data-screen-label="05">
+    <div class="eyebrow anim"><span class="num">Act I · 05</span><span class="dash"></span>The cost of normal</div>
     <h2 class="title anim d1">"Normal" already costs you 6–10 hours a week</h2>
     <div class="cost-grid" style="margin-top:30px">
       <div class="equation">
@@ -526,9 +567,9 @@
     <div class="footline"><span class="brand">CalibtOS × eFactory</span><span>A conservative estimate, grounded in your own order baseline</span></div>
   </section>
 
-  <!-- ============ SLIDE 5 — COST OF DOING NOTHING ============ -->
-  <section data-label="Doing nothing has a price too" data-screen-label="05">
-    <div class="eyebrow anim"><span class="num">Act I · 05</span><span class="dash"></span>The cost of inaction</div>
+  <!-- ============ SLIDE 6 — COST OF DOING NOTHING ============ -->
+  <section data-label="Doing nothing has a price too" data-screen-label="06">
+    <div class="eyebrow anim"><span class="num">Act I · 06</span><span class="dash"></span>The cost of inaction</div>
     <h2 class="title anim d1">Doing nothing has a price too</h2>
     <p class="lead anim d1" style="max-width:78ch">Staying manual isn't the free option — it's a bill you keep paying, in three currencies.</p>
     <div class="grow" style="display:flex;flex-direction:column;justify-content:center;gap:0">
@@ -559,9 +600,9 @@
     <div class="footline"><span class="brand">CalibtOS × eFactory</span><span>Staying manual is a recurring cost — not a saving</span></div>
   </section>
 
-  <!-- ============ SLIDE 6 — BEFORE / AFTER ============ -->
-  <section data-label="A Monday where the busywork already happened" data-screen-label="06">
-    <div class="eyebrow anim"><span class="num">Act II · 06</span><span class="dash"></span>Where eFactory could be</div>
+  <!-- ============ SLIDE 7 — BEFORE / AFTER ============ -->
+  <section data-label="A Monday where the busywork already happened" data-screen-label="07">
+    <div class="eyebrow anim"><span class="num">Act II · 07</span><span class="dash"></span>Where eFactory could be</div>
     <h2 class="title anim d1">A Monday where the busywork already happened</h2>
     <div class="ba" style="margin-top:28px">
       <div class="pane before anim d2">
@@ -584,9 +625,9 @@
     <div class="footline"><span class="brand">CalibtOS × eFactory</span><span>From 9 tools + you as glue → one platform + you as the owner who decides</span></div>
   </section>
 
-  <!-- ============ SLIDE 7 — THREE DOORS ============ -->
-  <section data-label="One platform, three doors" data-screen-label="07">
-    <div class="eyebrow anim"><span class="num">Act II · 07</span><span class="dash"></span>How it works</div>
+  <!-- ============ SLIDE 8 — THREE DOORS ============ -->
+  <section data-label="One platform, three doors" data-screen-label="08">
+    <div class="eyebrow anim"><span class="num">Act II · 08</span><span class="dash"></span>How it works</div>
     <h2 class="title anim d1">One platform, three doors</h2>
     <div class="arch">
       <div class="platform-slab anim d2">
@@ -626,9 +667,9 @@
     <div class="footline"><span class="brand">CalibtOS × eFactory</span><span>Your systems of record stay — you stop being the wiring between them</span></div>
   </section>
 
-  <!-- ============ SLIDE 8 — CONTROL PANEL ============ -->
-  <section data-label="The system suggests — you decide" data-screen-label="08">
-    <div class="eyebrow anim"><span class="num">Act II · 08</span><span class="dash"></span>Freedom, preserved</div>
+  <!-- ============ SLIDE 9 — CONTROL PANEL ============ -->
+  <section data-label="The system suggests — you decide" data-screen-label="09">
+    <div class="eyebrow anim"><span class="num">Act II · 09</span><span class="dash"></span>Freedom, preserved</div>
     <h2 class="title anim d1">The system suggests — you decide</h2>
     <p class="ferhat-quote anim d1">Ferhat: <b>"He's lived in total freedom for years. To give it up, we have to give him something actually better."</b> So we built the freedom in.</p>
     <div class="controls">
@@ -659,11 +700,11 @@
     </div>
   </section>
 
-  <!-- ============ SLIDE 9 — MOAT ============ -->
-  <section data-label="Your moat, enforced by architecture" data-screen-label="09">
+  <!-- ============ SLIDE 10 — MOAT ============ -->
+  <section data-label="Your moat, enforced by architecture" data-screen-label="10">
     <div class="head-row">
       <div>
-        <div class="eyebrow anim"><span class="num">Act II · 09</span><span class="dash"></span>The moat</div>
+        <div class="eyebrow anim"><span class="num">Act II · 10</span><span class="dash"></span>The moat</div>
         <h2 class="title anim d1">Your moat, enforced by architecture</h2>
       </div>
       <span class="chip built anim d1" style="margin-top:8px"><span class="dot"></span>Working in prototype</span>
@@ -707,11 +748,11 @@
     </div>
   </section>
 
-  <!-- ============ SLIDE 10 — BUILDING BLOCKS ============ -->
-  <section data-label="Six building blocks, and where each stands" data-screen-label="10">
+  <!-- ============ SLIDE 11 — BUILDING BLOCKS ============ -->
+  <section data-label="Six building blocks, and where each stands" data-screen-label="11">
     <div class="head-row">
       <div>
-        <div class="eyebrow anim"><span class="num">Act II · 10</span><span class="dash"></span>What's inside</div>
+        <div class="eyebrow anim"><span class="num">Act II · 11</span><span class="dash"></span>What's inside</div>
         <h2 class="title anim d1">Six building blocks, and where each stands</h2>
       </div>
       <div class="legend anim d1" style="margin-top:14px">
@@ -730,9 +771,9 @@
     <div class="footline"><span class="brand">CalibtOS × eFactory</span><span>Six modules — one connected system, end to end</span></div>
   </section>
 
-  <!-- ============ SLIDE 11 — VALUE DASHBOARD ============ -->
-  <section data-label="What the platform is worth" data-screen-label="11">
-    <div class="eyebrow anim"><span class="num">Act III · 11</span><span class="dash"></span>The case</div>
+  <!-- ============ SLIDE 12 — VALUE DASHBOARD ============ -->
+  <section data-label="What the platform is worth" data-screen-label="12">
+    <div class="eyebrow anim"><span class="num">Act III · 12</span><span class="dash"></span>The case</div>
     <h2 class="title anim d1">What the platform is worth</h2>
     <div class="value-grid">
       <div class="vtile feature anim d2">
@@ -747,9 +788,9 @@
     </div>
     <div class="footline"><span class="brand">CalibtOS × eFactory</span><span>The real return: a business that no longer depends on you</span></div>
   </section>
-  <!-- ============ SLIDE 12 — DATA ASSET ============ -->
-  <section data-label="Your data becomes an asset" data-screen-label="12">
-    <div class="eyebrow anim"><span class="num">Act III · 12</span><span class="dash"></span>The compounding upside</div>
+  <!-- ============ SLIDE 13 — DATA ASSET ============ -->
+  <section data-label="Your data becomes an asset" data-screen-label="13">
+    <div class="eyebrow anim"><span class="num">Act III · 13</span><span class="dash"></span>The compounding upside</div>
     <h2 class="title anim d1">Your data becomes a compounding asset</h2>
     <p class="lead anim d1" style="max-width:82ch">Four years of orders, customers and writers — structured for the first time. Not a feature; an asset that keeps paying off.</p>
     <div class="grow" style="display:flex;flex-direction:column;justify-content:center;gap:0">
@@ -766,9 +807,34 @@
     <div class="footline"><span class="brand">CalibtOS × eFactory</span><span>Beyond hours saved — an asset that compounds</span></div>
   </section>
 
-  <!-- ============ SLIDE 13 — FLYWHEEL ============ -->
-  <section data-label="One decision, both companies win" data-screen-label="13">
-    <div class="eyebrow anim"><span class="num">Act III · 13</span><span class="dash"></span>The multiplier</div>
+  <!-- ============ SLIDE 14 — FUTURE UNLOCKS ============ -->
+  <section data-label="What today's foundation unlocks" data-screen-label="14">
+    <div class="eyebrow anim"><span class="num">Act III · 14</span><span class="dash"></span>The foundation unlocks</div>
+    <h2 class="title anim d1">What today's foundation unlocks next</h2>
+    <p class="lead anim d1" style="max-width:86ch">We're not building these yet — but structuring eFactory now is the foundation each one is built on. <span class="accent">Direction, not v1.</span></p>
+    <div class="unlock anim d2">
+      <svg viewBox="0 0 100 100" preserveAspectRatio="none" class="ulines">
+        <line x1="50" y1="50" x2="13" y2="17" vector-effect="non-scaling-stroke"/>
+        <line x1="50" y1="50" x2="13" y2="51" vector-effect="non-scaling-stroke"/>
+        <line x1="50" y1="50" x2="13" y2="85" vector-effect="non-scaling-stroke"/>
+        <line x1="50" y1="50" x2="87" y2="17" vector-effect="non-scaling-stroke"/>
+        <line x1="50" y1="50" x2="87" y2="51" vector-effect="non-scaling-stroke"/>
+        <line x1="50" y1="50" x2="87" y2="85" vector-effect="non-scaling-stroke"/>
+      </svg>
+      <div class="uhub"><div class="uh-t">The foundation we build now</div><div class="uh-s">eFactory, as one structured system</div></div>
+      <div class="unode tl"><div class="un-ic"><svg class="icon" viewBox="0 0 24 24"><path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg></div><div class="un-t">Online writing &amp; research</div><div class="un-d">Draft and research the whole thesis in-platform.</div></div>
+      <div class="unode ml"><div class="un-ic"><svg class="icon" viewBox="0 0 24 24"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2Z"/></svg></div><div class="un-t">Citation &amp; source management</div><div class="un-d">Structured citations, connected to academic sources.</div></div>
+      <div class="unode bl"><div class="un-ic"><svg class="icon" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z"/><path d="M14 2v6h6"/><circle cx="11" cy="14" r="2.5"/><path d="m12.8 15.8 1.7 1.7"/></svg></div><div class="un-t">Deep document analysis</div><div class="un-d">The system reads and analyzes the files themselves.</div></div>
+      <div class="unode tr"><div class="un-ic"><svg class="icon" viewBox="0 0 24 24"><path d="M3 3h18l-7 8v6l-4 2v-8Z"/></svg></div><div class="un-t">AI draft → writer upsell</div><div class="un-d">Customer describes the work, gets an AI-built start + check, then an upsell to a writer.</div></div>
+      <div class="unode mr"><div class="un-ic"><svg class="icon" viewBox="0 0 24 24"><path d="M12 2 4 6v6c0 5 3.5 8 8 10 4.5-2 8-5 8-10V6Z"/><path d="m9 12 2 2 4-4"/></svg></div><div class="un-t">Originality &amp; quality checks</div><div class="un-d">Plagiarism and AI-detection, built in.</div></div>
+      <div class="unode br"><div class="un-ic"><svg class="icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a15 15 0 0 1 0 18M12 3a15 15 0 0 0 0 18"/></svg></div><div class="un-t">A wider market</div><div class="un-d">The same foundation opens adjacent segments.</div></div>
+    </div>
+    <div class="footline"><span class="brand">CalibtOS × eFactory</span><span>None of it is possible on 9 scattered tools — the structured system is what makes it buildable</span></div>
+  </section>
+
+  <!-- ============ SLIDE 15 — FLYWHEEL ============ -->
+  <section data-label="One decision, both companies win" data-screen-label="15">
+    <div class="eyebrow anim"><span class="num">Act III · 15</span><span class="dash"></span>The multiplier</div>
     <h2 class="title anim d1">One decision, both companies win</h2>
     <div class="fly">
       <div class="fly-ring anim d2">
@@ -788,9 +854,9 @@
     <div class="footline"><span class="brand">CalibtOS × eFactory</span><span>The spend moves left-hand to right-hand — and returns as an asset on both balance sheets</span></div>
   </section>
 
-  <!-- ============ SLIDE 14 — RELIABILITY ============ -->
-  <section data-label="Built for reliability, not just speed" data-screen-label="14">
-    <div class="eyebrow anim"><span class="num">Act III · 14</span><span class="dash"></span>Trust</div>
+  <!-- ============ SLIDE 16 — RELIABILITY ============ -->
+  <section data-label="Built for reliability, not just speed" data-screen-label="16">
+    <div class="eyebrow anim"><span class="num">Act III · 16</span><span class="dash"></span>Trust</div>
     <h2 class="title anim d1">Built for reliability, not just speed</h2>
     <div class="rely">
       <div class="rc anim d2">
@@ -817,9 +883,9 @@
     <div class="footline"><span class="brand">CalibtOS × eFactory</span><span>Full technical detail in the appendix</span></div>
   </section>
 
-  <!-- ============ SLIDE 15 — ROADMAP ============ -->
-  <section data-label="Phased and parallel — never standing on one leg" data-screen-label="15">
-    <div class="eyebrow anim"><span class="num">Act III · 15</span><span class="dash"></span>The plan</div>
+  <!-- ============ SLIDE 17 — ROADMAP ============ -->
+  <section data-label="Phased and parallel — never standing on one leg" data-screen-label="17">
+    <div class="eyebrow anim"><span class="num">Act III · 17</span><span class="dash"></span>The plan</div>
     <h2 class="title anim d1">Phased and parallel — never standing on one leg</h2>
     <div class="road-map">
       <div class="phase-track">
@@ -857,11 +923,11 @@
     </div>
   </section>
 
-  <!-- ============ SLIDE 16 — DECISION BOARD ============ -->
-  <section data-label="The judgment calls stay yours" data-screen-label="16">
+  <!-- ============ SLIDE 18 — DECISION BOARD ============ -->
+  <section data-label="The judgment calls stay yours" data-screen-label="18">
     <div class="head-row">
       <div>
-        <div class="eyebrow anim"><span class="num">Act III · 16</span><span class="dash"></span>Your call</div>
+        <div class="eyebrow anim"><span class="num">Act III · 18</span><span class="dash"></span>Your call</div>
         <h2 class="title anim d1">The judgment calls stay yours</h2>
       </div>
       <span class="chip decision anim d1" style="margin-top:8px"><span class="dot"></span>Your call, not our assumption</span>
@@ -896,8 +962,8 @@
     <div class="board-foot anim d6">We recommend; <b>you decide</b> — then the system enforces it. A handful of the dozens we've logged.</div>
   </section>
 
-  <!-- ============ SLIDE 17 — THE ASK ============ -->
-  <section data-label="The ask — your go-ahead to build" data-screen-label="17" class="s-ask">
+  <!-- ============ SLIDE 19 — THE ASK ============ -->
+  <section data-label="The ask — your go-ahead to build" data-screen-label="19" class="s-ask">
     <div class="ask-card anim">
       <div class="ac-lbl">The ask, today</div>
       <div class="ac-h">Your go-ahead to build it for real.</div>
@@ -921,6 +987,7 @@
   "\"Berat — thanks for the time. Over the last weeks we mapped how eFactory actually runs: every form, every tool, every manual step to move one order from inquiry to delivery. Today: what we found, what we've already built, and a clear path to put it to work — plus the few calls that are yours to make. About thirty-five minutes, and please interrupt me anytime.\"",
   "\"If you take one thing from today, it's this slide — the rest is proof. You've run thousands of orders, basically by hand, and made it work — impressive. But it runs on nine separate tools, and the coordination between them still runs through you. Zapier gives us a practical date to work around, but it is not the reason to build eFactory. The reason is that the current process works because you absorb the complexity. We have a working prototype that proves the workflow: it removes the repetitive coordination without taking the freedom you run the business with. And because it's CalibtOS building it, this isn't just an eFactory win; it compounds across both companies. We'll get to that. And remember — you've already seen this working and told us the direction is right. So today isn't 'should we try' — it's 'should we build it for real.' That's all I'm asking: your go-ahead to build it, so the first automation milestone is live before that date.\"",
   "\"I won't lecture you about your own business — you know it better than anyone. I just want to show you what we saw mapping it end to end, because in one picture it's striking. A customer inquires on WordPress. Zapier pushes it to Pipedrive. You open Sevdesk for the offer. Outlook to send it. Stripe for the payment link. Google Sheets — four tabs — is your real source of truth. Notion is the writers' board. WhatsApp is where half the real conversations live. Nine tools. None talk to each other. The thing connecting them is you, copying between them. Not a criticism — it's how the business grew. But it's the honest picture.\"",
+  "\"Before we go deeper, let me put the whole case on one slide — so it's not just a feeling. Six things the mapping turned up: nine disconnected tools, with you as the integration; twenty to thirty steps to send one offer; six to ten hours a week of coordination on your desk; a forced bill with a date on it — Pipedrive nearly full, its old API retiring end of July; four years of data sitting dark across nine tools; and one person — you — holding the whole moat together. None of these is dramatic on its own. Together, they're the case for change. And every number here is yours — real, or a conservative estimate from your own baseline. We'll go deeper on the ones that cost you most.\"",
   "\"You've done it so long it feels normal. So let's be conservative and put a number on 'normal.' If the mechanical copy-paste is only five minutes per order, that is not the main argument — at about sixteen orders a week, it's just over an hour. The real time is the invisible coordination around the order: answering the customer's negotiation question, deciding whether the scope is real, finding the right writer, checking whether the writer can take it, confirming payment, watching deadlines, handling a delay, chasing a missing invoice, or remembering what was agreed on WhatsApp. Conservatively, that is 25 to 40 minutes of admin touch per order — around 6 to 10 hours a week at the historical baseline. Look at this number too — your Pipedrive is at 4,159 of 5,000 contacts. You're weeks from a wall you'll have to pay your way around. Put your own hourly value on those 6–10 hours and it's real money every week — but hold that thought, because staying manual has a bigger, rising cost I'll show you next. But the minutes aren't the real cost. The real cost is this: none of it happens without you. You're not running eFactory — you are eFactory. That's the ceiling. And — we'll come back to this — it's also what's keeping you from the thing you actually want to build.\"",
   "\"One honest counter-argument before we go further — 'it works, so why spend anything?' Let me show that doing nothing isn't actually the free option; there are three bills you keep paying. First, a forced one with a date on it: Pipedrive is nearly full, and Pipedrive is retiring the old API your Zapier intake runs on at the end of July — so that intake has to be rebuilt either way, and you get nothing new for it. Second, the weekly tax — those 6 to 10 hours don't go away; they grow, because the work scales with your time, not the team's. Third, the quiet one: four years of deals and leads sit locked across nine tools, so reporting, automation, and AI simply aren't possible on that data — and that stays true as long as it's scattered. So the real choice was never spend versus save. It's keep paying that tax, forever — or invest once and turn the spend into an asset you own.\"",
   "\"Picture the other side. A Monday where the busywork already happened without you. New inquiries already in your pipeline without you retyping them. Offers out in a click. Customers accept and pay themselves. Writers apply for jobs in one place, and you approve the right one. And you spend your morning on the things that actually need you — pricing the tricky deals, checking quality, deciding how to grow. Not copy-pasting across nine tabs. That's the platform. Let me show you.\"",
@@ -928,8 +995,9 @@
   "\"Now — the real question in the back of your mind. You've run this in total freedom for years. Will a system put you in a box? We designed against that from day one. You can still override any price — even after the customer paid. Still create an order by hand when someone WhatsApps you. Still stack discounts however a deal needs. The software suggests — you always get the final say. You lose the twenty manual steps. You don't lose one bit of control.\"",
   "\"This one's specific to your model. eFactory works because you sit in the middle — the matchmaker. The day a writer and a customer cut you out, you've lost the customer and the margin. So we made that middle structural — not something you have to police. The writer and the customer only ever talk in the order's group chat, and you're right there in the group with them, seeing every message live as it's sent. The writer never even sees the customer's email — their introduction is just a chat message, and the customer only gets a link back into the platform. There's no private channel between them, so there's no back door. And during a dispute, the chat locks so no one can slip around you. Your biggest business risk — designed out, by the architecture itself.\" [Demo guardrail: when this runs live, show only the 3-party chat and the dispute chat-lock — both work. Do NOT open the older GW onboarding screens; they still describe the previous CC-based model and contradict this slide until fixed.]",
   "\"Six building blocks. Here's the headline of what each one removes: the offer engine turns repeated Sevdesk/email/payment work into a controlled review-and-send flow; the dashboard lets customers accept and pay themselves; the inbox keeps external messages visible in one place; the job board lets writers apply while you keep approval; quality-and-disputes gives bounded revision rounds and a clean record of every decision; and payments confirm themselves instead of you checking logs every Friday.\"",
-  "\"What does it return? I want to be conservative here. The model says around 6 to 10 hours a week of admin drag can be reduced or delegated at the historical order baseline. Not because copy-paste alone is ten hours — it isn't. The copy-paste may only be an hour or so. The real gain is removing the repeated negotiation follow-up, writer coordination, payment checking, deadline chasing, and exception handling that keeps coming back to you. But the headline isn't hours saved — it's this: today eFactory can't run without you, so it isn't really an asset, it's a job. The platform turns it into a company that can run through rules, queues, and approvals — something you could keep running hands-off, hand to a manager, or sell one day — your choice, with value that isn't trapped in your head. More volume with the same team. Problems caught before customers complain — and because the experience feels professional, more customers come back, which is repeat revenue with no new acquisition cost. And a path to expansion you simply can't manage by hand. Two things people really underrate: continuity — today, if you're sick or away, eFactory basically stops, because it runs on you, and the platform removes that single point of failure; and delegation — for the first time you could hand parts of this to a junior hire who simply couldn't operate the nine-tool setup today. I'd rather under-promise on the numbers and have every one hold.\"",
+  "\"What does it return? I want to be conservative here. The model says around 6 to 10 hours a week of admin drag can be reduced or delegated at the historical order baseline. Not because copy-paste alone is ten hours — it isn't. The copy-paste may only be an hour or so. The real gain is removing the repeated negotiation follow-up, writer coordination, payment checking, deadline chasing, and exception handling that keeps coming back to you. But the headline isn't hours saved — it's this: today eFactory can't run without you, so it isn't really an asset, it's a job. The platform turns it into a company that can run through rules, queues, and approvals — something you could keep running hands-off, hand to a manager, or sell one day — your choice, with value that isn't trapped in your head. More volume with the same team. Problems caught before customers complain — and because the experience feels professional, more customers come back, which is repeat revenue with no new acquisition cost. And a path to expansion you simply can't manage by hand. Two things people really underrate: continuity — today, if you're sick or away, eFactory basically stops, because it runs on you, and the platform removes that single point of failure; and delegation — for the first time, you could actually work with other people. You'd stop being the one who takes every call: someone on your team picks it up first, and only what truly needs you ever reaches you — no more answering a client from the supermarket queue. A junior hire can't even operate the nine-tool setup today; on the platform, they can. I'd rather under-promise on the numbers and have every one hold.\"",
   "\"Beyond the hours, there's something that compounds. Right now four years of your data — every order, customer and writer — sits scattered across nine tools, so you can't really ask it anything. The moment it's structured in one place, a ladder opens up. First you can just see it — we start there in Phase 0, by visualizing the Flamingo and website lead data you've never actually looked at. Then you understand it — which writers and customers and order types actually make you money, and which ones cause the disputes. Then you can act on it — the repetitive decisions start running on rules instead of on you. And eventually you can simply ask it questions in plain language, and forecast your cash and capacity. That last part is direction, not version one — but none of it is even possible while the data is scattered. Structuring it is the foundation. And it happens to be exactly what CalibtOS is built to do — which is the last piece.\"",
+  "\"One more thing — and this is about where it goes after today. We're not building these now, but I want you to see them, because structuring eFactory is the foundation every one of them sits on. Picture a full online workspace where the whole thesis gets written and researched in-platform. Structured citations and sources, connected to academic databases. The system reading and analyzing the documents themselves. A funnel where a customer describes what they need, gets an AI-built start and an AI-check — and then we upsell them a writer. Originality and quality checks built in. And the same foundation opening a wider market. None of this is version one — but none of it is even possible on nine scattered tools. The moment eFactory becomes one structured system, every one of these becomes buildable. That's what you're really deciding to start.\"",
   "\"And here's why this is bigger than eFactory — this part's just us, owner to owner. You own both. So the money for this moves from one of your companies to the other and comes back as an asset on both sides. CalibtOS needs a flagship reference client — and there is no better one than its own co-owner's business, four years of real data, running live. Every future CalibtOS pitch gets to say 'we run our own operation on this.' That's the most credible thing a software company can say. And if it works for eFactory — it will — CalibtOS can take this same platform to businesses in other industries: companies with the same coordination problem, but never your competitors. You wouldn't be arming a rival — and because you co-own CalibtOS, you share that upside. eFactory just becomes the proof. The honest one, last: eFactory's manual grind is the thing that's kept you from building CalibtOS the way you wanted from the start. Systematizing eFactory is how you finally get to focus on it. One decision — and both companies win.\"",
   "\"I won't bore you with architecture — four things matter. Modern, proven tech, no lock-in. Your legal and financial systems of record don't change. Our rule is reliability over speed — we don't ship a flow until the messy edge cases are right. And the system tests its own flows automatically, so we catch a break before a customer ever hits it. Deep detail's in the appendix.\"",
   "\"We don't rip your operation out overnight — that's the thing that makes any owner nervous, rightly. Phases. And before the real build, a quick win: you've got years of lead data from your own website you've literally never seen visualized — we turn that into a dashboard first, so you get value in week one. Then Phase 1 does one practical job: make intake and sync safe before July 31. Then customer self-service, then writers, then communication. Each phase runs next to what you do today until you trust it. You're never standing on one leg.\"",
