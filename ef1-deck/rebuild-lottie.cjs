@@ -1,3 +1,9 @@
+/*
+ * Rebuilds slide1-lottie-data.js from slide1-animation.lottie (the source-of-truth .lottie).
+ * NOTE: Windows-only — shells out to PowerShell's Expand-Archive to unzip the .lottie.
+ * NOTE: Writes the animation UNMODIFIED. Run `node patch-lottie-mail.cjs` AFTER this to
+ *       re-apply the mail-icon flap animation, otherwise those tweaks are lost.
+ */
 const fs = require('fs');
 const path = require('path');
 const { execSync } = require('child_process');
