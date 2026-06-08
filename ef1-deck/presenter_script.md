@@ -3,7 +3,7 @@
 [PAUSE] = beat. [PAUSE 2s] = longer hold. **bold** = emphasis.
 ▶ **CLICK n** = advance the on-screen reveal (click anywhere on the right / Space / →).
 
-**How each slide builds:** the eyebrow, title and intro line are already on screen when you arrive — start talking on those, then click to bring in each layer where the ▶ cues appear. Every slide builds in **2 clicks**, except **Slide 3** (1 click) and the **Title** slide (static). After a slide's last ▶ CLICK, the next click moves you to the next slide.
+**How each slide builds:** the eyebrow, title and intro line are already on screen when you arrive — start talking on those, then click to bring in each layer where the ▶ cues appear. Every slide builds in **2 clicks**, except the **Title** and **Slide 15** (static — everything on arrival) and **Slide 3** (1 click). After a slide's last ▶ CLICK, the next click moves you to the next slide.
 
 ---
 
@@ -479,20 +479,16 @@
 
 ---
 
-## SLIDE 15 — One decision, both companies win · 2 clicks
+## SLIDE 15 — One decision, both companies win · static, no clicks
 
-*(On arrival: title + the headline "One project — both the companies you own.")*
+*(Everything is already on screen — the headline "One project — both the companies you own.", the ring and all four nodes. Just talk; your next click moves to Slide 16.)*
 
 "And here's why this is bigger than eFactory.
    This part is just us — owner to owner." [PAUSE]
 
-▶ **CLICK 1** · *the flywheel ring appears*
-
 "You own **both**.
    So the money for this moves from one of your companies to the other …
    and comes back as an asset on **both** sides." [PAUSE]
-
-▶ **CLICK 2** · *the four nodes appear around the ring — eFactory proven · CalibtOS's flagship reference · a product for other markets · you, freed for strategy*
 
 "CalibtOS needs a flagship reference client.
    And there's no better one than its own co-owner's business —
