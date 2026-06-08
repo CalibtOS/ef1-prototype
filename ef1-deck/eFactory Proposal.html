@@ -478,6 +478,324 @@
   .ask-foot .af-close .accent { color:var(--accent); }
   .ask-foot .af-note { font-size:19px; color:var(--faint); text-align:right; max-width:30ch; line-height:1.4; }
 
+  /* ===== Slide 20 — thank you ===== */
+  /* Active bg toggles: s-thanks--aurora | s-thanks--sparkles | s-thanks--rays | (none = gradient blobs) */
+
+  /* --- rays / background beams (Aceternity port) --- */
+  .s-thanks .thanks-bg--rays {
+    position:absolute;
+    inset:0;
+    overflow:hidden;
+    background:var(--canvas);
+    pointer-events:none;
+  }
+  .s-thanks .beams-svg {
+    position:absolute;
+    inset:0;
+    width:100%;
+    height:100%;
+    pointer-events:none;
+  }
+
+  /* --- sparkles background (Aceternity SparklesPreview port) --- */
+  .s-thanks .thanks-bg--sparkles {
+    position:absolute;
+    inset:0;
+    background:var(--canvas);
+    pointer-events:none;
+  }
+  .s-thanks--rays .thanks-bg--gradient,
+  .s-thanks--rays .thanks-bg--aurora,
+  .s-thanks--rays .thanks-bg--sparkles { display:none !important; }
+  .s-thanks--sparkles .thanks-bg--gradient,
+  .s-thanks--sparkles .thanks-bg--aurora,
+  .s-thanks--sparkles .thanks-bg--rays { display:none !important; }
+  .s-thanks--aurora .thanks-bg--gradient,
+  .s-thanks--aurora .thanks-bg--sparkles,
+  .s-thanks--aurora .thanks-bg--rays { display:none !important; }
+  .s-thanks:not(.s-thanks--rays):not(.s-thanks--aurora):not(.s-thanks--sparkles) .thanks-bg--rays,
+  .s-thanks:not(.s-thanks--rays):not(.s-thanks--aurora):not(.s-thanks--sparkles) .thanks-bg--aurora,
+  .s-thanks:not(.s-thanks--rays):not(.s-thanks--aurora):not(.s-thanks--sparkles) .thanks-bg--sparkles { display:none !important; }
+  .s-thanks .sparkles-band {
+    position:relative;
+    width:min(1640px,94vw);
+    height:320px;
+    margin-top:22px;
+    margin-bottom:-88px;
+  }
+  .s-thanks .sparkles-line {
+    position:absolute;
+    top:0;
+    background:linear-gradient(to right, transparent, var(--sparkle-line), transparent);
+    pointer-events:none;
+  }
+  .s-thanks .sparkles-line--indigo { --sparkle-line:#6366f1; left:12%; width:76%; height:1px; }
+  .s-thanks .sparkles-line--indigo-blur { --sparkle-line:#6366f1; left:12%; width:76%; height:2px; filter:blur(4px); opacity:.85; }
+  .s-thanks .sparkles-line--sky { --sparkle-line:#0ea5e9; left:32%; width:26%; height:1px; }
+  .s-thanks .sparkles-line--sky-blur { --sparkle-line:#0ea5e9; left:32%; width:26%; height:5px; filter:blur(4px); opacity:.85; }
+  .s-thanks .sparkles-host {
+    position:absolute;
+    inset:0;
+    width:100%;
+    height:100%;
+  }
+  .s-thanks .sparkles-vignette {
+    position:absolute;
+    inset:0;
+    background:var(--canvas);
+    -webkit-mask-image:radial-gradient(480px 280px at top, transparent 20%, white);
+    mask-image:radial-gradient(480px 280px at top, transparent 20%, white);
+    pointer-events:none;
+  }
+  .s-thanks--sparkles .thanks-content,
+  .s-thanks--rays .thanks-content,
+  .s-thanks--aurora .thanks-content { padding:0; }
+  .s-thanks--sparkles .thanks-enter {
+    align-items:center;
+    justify-content:center;
+    text-align:center;
+    margin-top:0;
+  }
+  .s-thanks--sparkles .sparkles-stack {
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+  }
+  .s-thanks--sparkles h1 {
+    position:relative;
+    z-index:20;
+    color:#fff;
+    filter:none;
+    font-size:168px;
+    letter-spacing:-.035em;
+  }
+  .s-thanks--rays .thanks-enter--sparkles,
+  .s-thanks--sparkles .thanks-enter--rays,
+  .s-thanks--aurora .thanks-enter--sparkles,
+  .s-thanks:not(.s-thanks--sparkles) .thanks-enter--sparkles { display:none; }
+  .s-thanks--sparkles .thanks-enter--rays { display:none; }
+  .s-thanks--rays h1 {
+    position:relative;
+    z-index:20;
+    color:#fff;
+    filter:none;
+    font-size:168px;
+    letter-spacing:-.035em;
+  }
+
+  /* --- aurora background (Aceternity port) --- */
+  @keyframes aurora {
+    from { background-position: 50% 50%, 50% 50%; }
+    to { background-position: 350% 50%, 350% 50%; }
+  }
+  @keyframes thanksEnter {
+    from { opacity: 0; transform: translateY(32px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  .s-thanks .thanks-bg--aurora {
+    position:absolute;
+    inset:0;
+    overflow:hidden;
+    background:#181C22;
+  }
+  /* radial from top-right + vertical linear (no horizontal left fade) */
+  .s-thanks .aurora-lights {
+    --white-gradient: repeating-linear-gradient(100deg, #fff 0%, #fff 7%, transparent 10%, transparent 12%, #fff 16%);
+    --dark-gradient: repeating-linear-gradient(100deg, #000 0%, #000 7%, transparent 10%, transparent 12%, #000 16%);
+    --aurora: repeating-linear-gradient(100deg, #3b82f6 10%, #a5b4fc 15%, #93c5fd 20%, #ddd6fe 25%, #60a5fa 30%);
+    pointer-events:none;
+    position:absolute;
+    inset:-16px;
+    opacity:0.48;
+    filter:blur(12px);
+    will-change:transform;
+    background-image:var(--dark-gradient), var(--aurora);
+    background-size:300% 200%;
+    background-position:50% 50%, 50% 50%;
+    -webkit-mask-image:
+      linear-gradient(180deg, transparent 0%, #000 10%, #000 90%, transparent 100%),
+      radial-gradient(ellipse at 100% 0%, #000 10%, transparent 70%);
+    -webkit-mask-composite: source-in;
+    mask-image:
+      linear-gradient(180deg, transparent 0%, #000 10%, #000 90%, transparent 100%),
+      radial-gradient(ellipse at 100% 0%, #000 10%, transparent 70%);
+    mask-composite: intersect;
+  }
+  .s-thanks .aurora-lights::after {
+    content:"";
+    position:absolute;
+    inset:0;
+    background-image:var(--dark-gradient), var(--aurora);
+    background-size:200% 100%;
+    background-attachment:fixed;
+    background-position:50% 50%, 50% 50%;
+    mix-blend-mode:difference;
+    animation:aurora 60s linear infinite;
+  }
+  .s-thanks--aurora .thanks-bg--gradient { display:none !important; }
+
+  /* --- gradient animation background (kept for fallback) --- */
+  @keyframes gradMoveVertical {
+    0%, 100% { transform: translateY(-50%); }
+    50% { transform: translateY(50%); }
+  }
+  @keyframes gradMoveHorizontal {
+    0%, 100% { transform: translateX(-50%) translateY(-10%); }
+    50% { transform: translateX(50%) translateY(10%); }
+  }
+  @keyframes gradMoveInCircle {
+    0% { transform: rotate(0deg); }
+    50% { transform: rotate(180deg); }
+    100% { transform: rotate(360deg); }
+  }
+  .s-thanks {
+    padding:0 !important;
+    background:#181C22 !important;
+    overflow:hidden;
+    position:relative;
+    justify-content:center;
+    align-items:center;
+  }
+  .s-thanks .grad-anim {
+    position:absolute;
+    inset:0;
+    overflow:hidden;
+    background:linear-gradient(to bottom, #181C22, #11141A);
+  }
+  .s-thanks .grad-anim__filter {
+    position:absolute;
+    width:0;
+    height:0;
+    overflow:hidden;
+  }
+  .s-thanks .grad-anim__blobs {
+    position:absolute;
+    inset:0;
+    filter:url(#gradBlur) blur(40px) saturate(0.78);
+  }
+  .s-thanks .grad-blob {
+    position:absolute;
+    width:var(--grad-size, 80%);
+    height:var(--grad-size, 80%);
+    top:calc(50% - var(--grad-size, 80%) / 2);
+    left:calc(50% - var(--grad-size, 80%) / 2);
+    mix-blend-mode:hard-light;
+    border-radius:50%;
+    opacity:1;
+  }
+  .s-thanks .grad-blob--1 {
+    background:radial-gradient(circle at center, rgba(62,138,149,0.95) 0, rgba(62,138,149,0) 50%);
+    transform-origin:center center;
+    animation:gradMoveVertical 30s ease infinite;
+  }
+  .s-thanks .grad-blob--2 {
+    background:radial-gradient(circle at center, rgba(48,108,198,0.72) 0, rgba(48,108,198,0) 50%);
+    transform-origin:calc(50% - 400px);
+    animation:gradMoveInCircle 20s reverse infinite;
+  }
+  .s-thanks .grad-blob--3 {
+    background:radial-gradient(circle at center, rgba(88,192,212,0.72) 0, rgba(88,192,212,0) 50%);
+    transform-origin:calc(50% + 400px);
+    animation:gradMoveInCircle 40s linear infinite;
+  }
+  .s-thanks .grad-blob--4 {
+    background:radial-gradient(circle at center, rgba(98,128,182,0.68) 0, rgba(98,128,182,0) 50%);
+    transform-origin:calc(50% - 200px);
+    opacity:0.7;
+    animation:gradMoveHorizontal 40s ease infinite;
+  }
+  .s-thanks .grad-blob--5 {
+    background:radial-gradient(circle at center, rgba(82,148,126,0.72) 0, rgba(82,148,126,0) 50%);
+    transform-origin:calc(50% - 800px) calc(50% + 800px);
+    animation:gradMoveInCircle 20s ease infinite;
+  }
+  .s-thanks .grad-pointer {
+    position:absolute;
+    inset:0;
+    opacity:0.65;
+    mix-blend-mode:hard-light;
+    filter:saturate(0.78);
+    background:radial-gradient(circle at var(--pointer-x, 50%) var(--pointer-y, 50%), rgba(62,138,149,0.72) 0, rgba(62,138,149,0) 50%) no-repeat;
+    pointer-events:none;
+  }
+  .s-thanks .grad-anim__content,
+  .s-thanks .thanks-content {
+    position:absolute;
+    z-index:2;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    inset:0;
+    pointer-events:none;
+    text-align:center;
+    padding:var(--pad-x);
+  }
+  .s-thanks .thanks-enter {
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    gap:0;
+  }
+  @media (prefers-reduced-motion:no-preference) {
+    .s-thanks .thanks-enter {
+      opacity:0;
+      transform:translateY(32px);
+    }
+    /* start on slide entry, not after the 380ms cover transition (data-deck-active) */
+    .s-thanks[data-deck-active] .thanks-enter,
+    .s-thanks[data-deck-in] .thanks-enter {
+      animation:thanksEnter .65s ease-out .6s both;
+    }
+  }
+  .s-thanks h1 {
+    margin:0;
+    font-size:120px;
+    font-weight:700;
+    letter-spacing:-.03em;
+    line-height:1;
+  }
+  .s-thanks--aurora h1 {
+    color:#fff;
+    filter:none;
+    font-size:168px;
+    letter-spacing:-.035em;
+  }
+  .s-thanks:not(.s-thanks--aurora):not(.s-thanks--sparkles):not(.s-thanks--rays) h1 {
+    background:linear-gradient(to bottom, rgba(255,255,255,.85), rgba(255,255,255,.2));
+    -webkit-background-clip:text;
+    background-clip:text;
+    color:transparent;
+    filter:drop-shadow(0 8px 32px rgba(0,0,0,.45));
+  }
+  .s-thanks .grad-sub {
+    margin-top:28px;
+    font-size:var(--t-body);
+    color:rgba(236,239,243,.55);
+    letter-spacing:.08em;
+    text-transform:uppercase;
+  }
+  .s-thanks--aurora .grad-sub {
+    font-weight:200;
+    color:rgba(229,231,235,.82);
+    letter-spacing:.06em;
+  }
+  @media (prefers-reduced-motion:reduce) {
+    .s-thanks .grad-blob { animation:none !important; }
+    .s-thanks .grad-pointer { display:none; }
+    .s-thanks .aurora-lights::after { animation:none !important; }
+    .s-thanks .thanks-sparkles-canvas { display:none !important; }
+    .s-thanks .beams-svg animate { display:none; }
+    .s-thanks .thanks-enter { opacity:1 !important; transform:none !important; animation:none !important; }
+  }
+  @media print {
+    .s-thanks .thanks-bg--aurora,
+    .s-thanks .thanks-bg--sparkles,
+    .s-thanks .thanks-bg--rays,
+    .s-thanks .grad-anim__blobs, .s-thanks .grad-pointer { display:none; }
+    .s-thanks { background:var(--canvas) !important; }
+    .s-thanks h1 { color:var(--text); background:none; filter:none; }
+  }
+
   /* ===== click-to-reveal ===== */
   .reveal[data-reveal-at] { opacity:0; visibility:hidden; transition:opacity .15s ease, visibility .15s ease; }
   section[data-reveal-step="1"] .reveal[data-reveal-at="1"],
@@ -1115,6 +1433,59 @@
     <div class="reveal-hint" aria-hidden="true">Click or press Space</div>
   </section>
 
+  <!-- ============ SLIDE 20 — THANK YOU ============ -->
+  <!-- Active bg: s-thanks--aurora (also: s-thanks--sparkles, s-thanks--rays, or remove all for gradient blobs) -->
+  <section data-label="Thank you" data-screen-label="20" class="s-thanks s-thanks--aurora" data-reveal-max="0" data-reveal-step="0">
+    <!-- gradient animation (fallback — shown when neither sparkles nor aurora class is set) -->
+    <svg class="grad-anim__filter" aria-hidden="true">
+      <defs>
+        <filter id="gradBlur">
+          <feGaussianBlur in="SourceGraphic" stdDeviation="10" result="blur" />
+          <feColorMatrix in="blur" mode="matrix" values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 18 -8" result="goo" />
+          <feBlend in="SourceGraphic" in2="goo" />
+        </filter>
+      </defs>
+    </svg>
+    <div class="grad-anim thanks-bg thanks-bg--gradient" aria-hidden="true">
+      <div class="grad-anim__blobs">
+        <div class="grad-blob grad-blob--1"></div>
+        <div class="grad-blob grad-blob--2"></div>
+        <div class="grad-blob grad-blob--3"></div>
+        <div class="grad-blob grad-blob--4"></div>
+        <div class="grad-blob grad-blob--5"></div>
+      </div>
+      <div class="grad-pointer"></div>
+    </div>
+    <!-- aurora background (active) -->
+    <div class="thanks-bg thanks-bg--aurora" aria-hidden="true">
+      <div class="aurora-lights"></div>
+    </div>
+    <!-- sparkles background (switch: s-thanks--sparkles) -->
+    <div class="thanks-bg thanks-bg--sparkles" aria-hidden="true"></div>
+    <!-- rays / background beams (switch: s-thanks--rays) -->
+    <div class="thanks-bg thanks-bg--rays" aria-hidden="true">
+      <div class="thanks-beams-host" aria-hidden="true"></div>
+    </div>
+    <div class="thanks-content">
+      <div class="thanks-enter thanks-enter--rays">
+        <h1>Thank you</h1>
+      </div>
+      <div class="thanks-enter thanks-enter--sparkles">
+        <div class="sparkles-stack">
+          <h1>Thank you</h1>
+          <div class="sparkles-band">
+            <div class="sparkles-line sparkles-line--indigo-blur" aria-hidden="true"></div>
+            <div class="sparkles-line sparkles-line--indigo" aria-hidden="true"></div>
+            <div class="sparkles-line sparkles-line--sky-blur" aria-hidden="true"></div>
+            <div class="sparkles-line sparkles-line--sky" aria-hidden="true"></div>
+            <div id="thanks-sparkles" class="sparkles-host thanks-sparkles-canvas" aria-hidden="true"></div>
+            <div class="sparkles-vignette" aria-hidden="true"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
 </deck-stage>
 <script type="application/json" id="speaker-notes">
 [
@@ -1136,13 +1507,15 @@
   "\"I won't bore you with architecture — four things matter. Modern, proven tech, no lock-in. Your legal and financial systems of record don't change. Our rule is reliability over speed — we don't ship a flow until the messy edge cases are right. And the system tests its own flows automatically, so we catch a break before a customer ever hits it. Deep detail's in the appendix.\"",
   "\"We don't rip your operation out overnight — that's the thing that makes any owner nervous, rightly. Phases. And before the real build, a quick win: you've got years of lead data from your own website you've literally never seen visualized — we turn that into a dashboard first, so you get value in week one. Then Phase 1 does one practical job: make intake and sync safe before July 31. Then customer self-service, then writers, then communication. Each phase runs next to what you do today until you trust it. You're never standing on one leg.\"",
   "\"Last thing about the product — and it's about you, not the software. Something honest first: we built this prototype from only a few sessions with you, so a lot of it is our best assumption about how you'd want it to work. These are the places where your judgment replaces our guess. I'll walk one: a customer pays the first installment, then adds ten pages — re-price after payment? We'd say yes, with a logged note. But look at the others — a writer goes silent three days before deadline; a refund lands after you've already paid the writer; whether your proven writers get first pick. Those need your read of the business, not ours. There are dozens like this — we've catalogued them — and working through them together is exactly what kickoff is for. We recommend; you decide; the system then enforces whatever you choose. The control stays with you.\"",
-  "\"So here's the ask. Today: your go-ahead to build it for real — that's it. This week we move to contract and kickoff, with the first automation milestone scoped clearly. Once we kick off, the first sessions lock the details and the build begins, with Phase 1 live before the current intake automation becomes a risk. Commercials we put in front of you separately — and we keep them real even though it's your money on both sides, because that's what makes eFactory a legitimate reference client for CalibtOS. Berat — this is the rare decision that wins on both sides of your table. The real question isn't whether Zapier is scary — it isn't. It's whether this is the moment to stop patching the old operating model and build the thing you've already validated. I say it is.\""
+  "\"So here's the ask. Today: your go-ahead to build it for real — that's it. This week we move to contract and kickoff, with the first automation milestone scoped clearly. Once we kick off, the first sessions lock the details and the build begins, with Phase 1 live before the current intake automation becomes a risk. Commercials we put in front of you separately — and we keep them real even though it's your money on both sides, because that's what makes eFactory a legitimate reference client for CalibtOS. Berat — this is the rare decision that wins on both sides of your table. The real question isn't whether Zapier is scary — it isn't. It's whether this is the moment to stop patching the old operating model and build the thing you've already validated. I say it is.\"",
+  "\"Thank you, Berat — for your time and for the trust you've already shown in the direction. We're ready when you are.\""
 ]
 </script>
 <!-- Vanta NET background disabled (Lottie is the active slide-1 background; USE_VANTA=false below).
      To re-enable, restore the three.js + vanta.net CDN scripts here and set USE_VANTA=true. -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/lottie-web/5.12.2/lottie.min.js"></script>
 <script src="slide1-lottie-data.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@tsparticles/slim@3.8.1/tsparticles.slim.bundle.min.js"></script>
 <script src="deck-stage.js"></script>
 <script>
   // ---- slide 1: Lottie or Vanta NET background (flip USE_LOTTIE to switch) ----
@@ -1375,6 +1748,211 @@
     }, true);
 
     window.deckReveal = { advance: function(){ return advance(activeSlide()); }, rewind: function(){ return rewind(activeSlide()); }, reset: function(){ reset(activeSlide()); } };
+  })();
+
+  // ---- slide 20: interactive gradient pointer (gradient mode only) ----
+  (function(){
+    var stage = document.querySelector('deck-stage');
+    var slide = document.querySelector('.s-thanks');
+    if (!stage || !slide || slide.classList.contains('s-thanks--aurora') || slide.classList.contains('s-thanks--sparkles') || slide.classList.contains('s-thanks--rays')) return;
+    var reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (reduced) return;
+    var pointer = slide.querySelector('.grad-pointer');
+    if (!pointer) return;
+
+    function onMove(e) {
+      if (stage.index !== stage.querySelectorAll('section').length - 1) return;
+      var r = slide.getBoundingClientRect();
+      var x = ((e.clientX - r.left) / r.width) * 100;
+      var y = ((e.clientY - r.top) / r.height) * 100;
+      pointer.style.setProperty('--pointer-x', x + '%');
+      pointer.style.setProperty('--pointer-y', y + '%');
+    }
+
+    window.addEventListener('mousemove', onMove, { passive: true });
+  })();
+
+  // ---- slide 20: Background Beams (rays) ----
+  (function(){
+    var slide = document.querySelector('.s-thanks');
+    var host = document.querySelector('.thanks-beams-host');
+    if (!slide || !host || !slide.classList.contains('s-thanks--rays')) return;
+
+    var reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    var paths = [
+      'M-380 -189C-380 -189 -312 216 152 343C616 470 684 875 684 875',
+      'M-373 -197C-373 -197 -305 208 159 335C623 462 691 867 691 867',
+      'M-366 -205C-366 -205 -298 200 166 327C630 454 698 859 698 859',
+      'M-359 -213C-359 -213 -291 192 173 319C637 446 705 851 705 851',
+      'M-352 -221C-352 -221 -284 184 180 311C644 438 712 843 712 843',
+      'M-345 -229C-345 -229 -277 176 187 303C651 430 719 835 719 835',
+      'M-338 -237C-338 -237 -270 168 194 295C658 422 726 827 726 827',
+      'M-331 -245C-331 -245 -263 160 201 287C665 414 733 819 733 819',
+      'M-324 -253C-324 -253 -256 152 208 279C672 406 740 811 740 811',
+      'M-317 -261C-317 -261 -249 144 215 271C679 398 747 803 747 803',
+      'M-310 -269C-310 -269 -242 136 222 263C686 390 754 795 754 795',
+      'M-303 -277C-303 -277 -235 128 229 255C693 382 761 787 761 787',
+      'M-296 -285C-296 -285 -228 120 236 247C700 374 768 779 768 779',
+      'M-289 -293C-289 -293 -221 112 243 239C707 366 775 771 775 771',
+      'M-282 -301C-282 -301 -214 104 250 231C714 358 782 763 782 763',
+      'M-275 -309C-275 -309 -207 96 257 223C721 350 789 755 789 755',
+      'M-268 -317C-268 -317 -200 88 264 215C728 342 796 747 796 747',
+      'M-261 -325C-261 -325 -193 80 271 207C735 334 803 739 803 739',
+      'M-254 -333C-254 -333 -186 72 278 199C742 326 810 731 810 731',
+      'M-247 -341C-247 -341 -179 64 285 191C749 318 817 723 817 723'
+    ];
+    var bgPath = paths.join('');
+
+    var svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    svg.setAttribute('class', 'beams-svg');
+    svg.setAttribute('viewBox', '0 0 696 316');
+    svg.setAttribute('fill', 'none');
+    svg.setAttribute('preserveAspectRatio', 'xMidYMid slice');
+    svg.setAttribute('aria-hidden', 'true');
+
+    var defs = document.createElementNS('http://www.w3.org/2000/svg', 'defs');
+
+    var radial = document.createElementNS('http://www.w3.org/2000/svg', 'radialGradient');
+    radial.setAttribute('id', 'beams-radial');
+    radial.setAttribute('cx', '0');
+    radial.setAttribute('cy', '0');
+    radial.setAttribute('r', '1');
+    radial.setAttribute('gradientUnits', 'userSpaceOnUse');
+    radial.setAttribute('gradientTransform', 'translate(352 34) rotate(90) scale(555 1560.62)');
+    radial.innerHTML = '<stop offset="0.0666667" stop-color="#d4d4d4"/><stop offset="0.243243" stop-color="#d4d4d4"/><stop offset="0.43594" stop-color="white" stop-opacity="0"/>';
+    defs.appendChild(radial);
+
+    paths.forEach(function(path, i) {
+      var grad = document.createElementNS('http://www.w3.org/2000/svg', 'linearGradient');
+      grad.setAttribute('id', 'beam-grad-' + i);
+      grad.setAttribute('gradientUnits', 'userSpaceOnUse');
+      grad.innerHTML =
+        '<stop stop-color="#8eb4c8" stop-opacity="0"/>' +
+        '<stop stop-color="#8eb4c8"/>' +
+        '<stop offset="32.5%" stop-color="#5C82BE"/>' +
+        '<stop offset="100%" stop-color="#2E97A7" stop-opacity="0"/>';
+
+      if (!reduced) {
+        var dur = (10 + (i % 7) * 1.4).toFixed(1) + 's';
+        var begin = (i * 0.55).toFixed(2) + 's';
+        var y2 = (93 + (i % 5)).toString();
+        ['x1', 'x2', 'y1', 'y2'].forEach(function(attr, j) {
+          var anim = document.createElementNS('http://www.w3.org/2000/svg', 'animate');
+          anim.setAttribute('attributeName', attr);
+          if (attr === 'x1') anim.setAttribute('values', '0%;100%;0%');
+          if (attr === 'x2') anim.setAttribute('values', '0%;95%;0%');
+          if (attr === 'y1') anim.setAttribute('values', '0%;100%;0%');
+          if (attr === 'y2') anim.setAttribute('values', '0%;' + y2 + '%;0%');
+          anim.setAttribute('dur', dur);
+          anim.setAttribute('repeatCount', 'indefinite');
+          anim.setAttribute('begin', begin);
+          grad.appendChild(anim);
+        });
+      }
+      defs.appendChild(grad);
+    });
+
+    svg.appendChild(defs);
+
+    var bg = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    bg.setAttribute('d', bgPath);
+    bg.setAttribute('stroke', 'url(#beams-radial)');
+    bg.setAttribute('stroke-opacity', '0.05');
+    bg.setAttribute('stroke-width', '0.5');
+    svg.appendChild(bg);
+
+    paths.forEach(function(path, i) {
+      var p = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+      p.setAttribute('d', path);
+      p.setAttribute('stroke', 'url(#beam-grad-' + i + ')');
+      p.setAttribute('stroke-opacity', '0.35');
+      p.setAttribute('stroke-width', '0.5');
+      svg.appendChild(p);
+    });
+
+    host.appendChild(svg);
+  })();
+
+  // ---- slide 20: SparklesCore (tsparticles) ----
+  (function(){
+    var stage = document.querySelector('deck-stage');
+    var slide = document.querySelector('.s-thanks');
+    var host = document.getElementById('thanks-sparkles');
+    if (!stage || !slide || !host || !slide.classList.contains('s-thanks--sparkles')) return;
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+
+    var container = null;
+    var booted = false;
+
+    function thanksIndex() {
+      return stage.querySelectorAll('section').length - 1;
+    }
+
+    function onThanksSlide() {
+      return stage.index === thanksIndex();
+    }
+
+    function sparklesOptions() {
+      return {
+        background: { color: { value: 'transparent' } },
+        fullScreen: { enable: false, zIndex: 0 },
+        fpsLimit: 120,
+        detectRetina: true,
+        interactivity: {
+          events: {
+            onClick: { enable: false },
+            onHover: { enable: false },
+            resize: { enable: true }
+          }
+        },
+        particles: {
+          color: { value: '#FFFFFF' },
+          number: {
+            value: 1200,
+            density: { enable: true, width: 400, height: 400 }
+          },
+          opacity: {
+            value: { min: 0.1, max: 1 },
+            animation: { enable: true, speed: 4, sync: false }
+          },
+          size: { value: { min: 0.4, max: 1 } },
+          move: {
+            enable: true,
+            speed: { min: 0.1, max: 1 },
+            direction: 'none',
+            random: false,
+            straight: false,
+            outModes: { default: 'out' }
+          }
+        }
+      };
+    }
+
+    function sync() {
+      if (!container) return;
+      if (onThanksSlide()) container.play();
+      else container.pause();
+    }
+
+    function boot() {
+      if (booted || typeof tsParticles === 'undefined' || typeof loadSlim !== 'function') return Promise.resolve();
+      return loadSlim(tsParticles).then(function() {
+        return tsParticles.load({
+          id: 'thanks-sparkles-particles',
+          element: host,
+          options: sparklesOptions()
+        });
+      }).then(function(c) {
+        container = c;
+        booted = true;
+        sync();
+      });
+    }
+
+    boot().catch(function(){});
+    stage.addEventListener('slidechange', sync);
+    window.addEventListener('beforeprint', function(){ if (container) container.pause(); });
+    window.addEventListener('afterprint', sync);
   })();
 </script>
 </body>
