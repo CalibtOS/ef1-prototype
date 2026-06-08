@@ -6,7 +6,9 @@
  * Handles:
  *  (a) speaker notes — reads <script type="application/json" id="speaker-notes">
  *      and posts {slideIndexChanged: N} to the parent window on nav.
- *  (b) keyboard navigation — ←/→, PgUp/PgDn, Space, Home/End, number keys.
+ *  (b) keyboard navigation — ←/→, PgUp/PgDn, Space, Home/End, number keys
+ *      (multi-digit: type 1 then 5 → slide 15; pause ~0.9s or Enter to confirm).
+ *      Slide changes animate horizontally (→ new covers from right; ← current exits right) unless reduced-motion.
  *      On touch devices, tapping the left/right half of the stage goes
  *      prev/next — taps on links, buttons and other interactive slide
  *      content are left alone.
@@ -95,9 +97,12 @@
   const DESIGN_W_DEFAULT = 1920;
   const DESIGN_H_DEFAULT = 1080;
   const OVERLAY_HIDE_MS = 1800;
+  const DIGIT_JUMP_MS = 900;
+  const SLIDE_TRANS_MS = 380;
   const VALIDATE_ATTR = 'no_overflowing_text,no_overlapping_text,slide_sized_text';
   const FINE_POINTER_MQ = matchMedia('(hover: hover) and (pointer: fine)');
   const NARROW_MQ = matchMedia('(max-width: 640px)');
+  const REDUCED_MOTION_MQ = matchMedia('(prefers-reduced-motion: reduce)');
   // Slide-authored controls that should keep a tap instead of it navigating.
   const INTERACTIVE_SEL = 'a[href], button, input, select, textarea, summary, label, video[controls], audio[controls], [role="button"], [onclick], [tabindex]:not([tabindex^="-"]), [contenteditable]:not([contenteditable="false" i])';
 
@@ -150,8 +155,10 @@
       position: relative;
       transform-origin: center center;
       flex-shrink: 0;
-      background: #fff;
+      /* Match slide --canvas so gaps during cover transitions aren't white. */
+      background: #181C22;
       will-change: transform;
+      overflow: hidden;
     }
 
     /* Slides live in light DOM (via <slot>) so authored CSS still applies.
@@ -166,11 +173,21 @@
       opacity: 0;
       pointer-events: none;
       visibility: hidden;
+      translate: 0 0;
+      z-index: 1;
+      transition: visibility 0s linear ${SLIDE_TRANS_MS}ms;
     }
     ::slotted([data-deck-active]) {
       opacity: 1;
       pointer-events: auto;
       visibility: visible;
+      z-index: 2;
+      transition: visibility 0s;
+    }
+    /* Slide cover transitions use inline translate on slotted sections
+       (see _applyIndex) — transform does not apply reliably through ::slotted(). */
+    @media (prefers-reduced-motion: reduce) {
+      ::slotted(*) { transition: none !important; }
     }
 
     .overlay {
@@ -541,6 +558,8 @@
         opacity: 1 !important;
         visibility: visible !important;
         pointer-events: auto;
+        translate: none !important;
+        transition: none !important;
         break-after: page;
         page-break-after: always;
         break-inside: avoid;
@@ -572,6 +591,9 @@
       this._hideTimer = null;
       this._mouseIdleTimer = null;
       this._menuIndex = -1;
+      this._digitBuf = '';
+      this._digitTimer = null;
+      this._transTimer = null;
 
       this._onKey = this._onKey.bind(this);
       this._onResize = this._onResize.bind(this);
@@ -821,6 +843,8 @@
       if (this._freezeStyle) { this._freezeStyle.remove(); this._freezeStyle = null; }
       this.removeEventListener('click', this._onTap);
       if (this._hideTimer) clearTimeout(this._hideTimer);
+      if (this._digitTimer) clearTimeout(this._digitTimer);
+      if (this._transTimer) clearTimeout(this._transTimer);
       if (this._mouseIdleTimer) clearTimeout(this._mouseIdleTimer);
       if (this._liveTimer) clearTimeout(this._liveTimer);
       if (this._tweakTimer) clearTimeout(this._tweakTimer);
@@ -831,12 +855,19 @@
       if (this._onTweakChange) window.removeEventListener('tweakchange', this._onTweakChange);
     }
 
+    _syncDesignVars(canvas = this._canvas) {
+      this.style.setProperty('--deck-design-w', this.designWidth + 'px');
+      this.style.setProperty('--deck-design-h', this.designHeight + 'px');
+      if (!canvas) return;
+      canvas.style.width = this.designWidth + 'px';
+      canvas.style.height = this.designHeight + 'px';
+      canvas.style.setProperty('--deck-design-w', this.designWidth + 'px');
+      canvas.style.setProperty('--deck-design-h', this.designHeight + 'px');
+    }
+
     attributeChangedCallback() {
       if (this._canvas) {
-        this._canvas.style.width = this.designWidth + 'px';
-        this._canvas.style.height = this.designHeight + 'px';
-        this._canvas.style.setProperty('--deck-design-w', this.designWidth + 'px');
-        this._canvas.style.setProperty('--deck-design-h', this.designHeight + 'px');
+        this._syncDesignVars();
         if (this._rail) {
           this._rail.style.setProperty('--deck-aspect', this.designWidth + '/' + this.designHeight);
         }
@@ -855,10 +886,7 @@
 
       const canvas = document.createElement('div');
       canvas.className = 'canvas';
-      canvas.style.width = this.designWidth + 'px';
-      canvas.style.height = this.designHeight + 'px';
-      canvas.style.setProperty('--deck-design-w', this.designWidth + 'px');
-      canvas.style.setProperty('--deck-design-h', this.designHeight + 'px');
+      this._syncDesignVars(canvas);
 
       const slot = document.createElement('slot');
       slot.addEventListener('slotchange', this._onSlotChange);
@@ -883,8 +911,12 @@
         <button class="btn reset" type="button" aria-label="Reset to first slide" title="Reset (R)">Reset<span class="kbd">R</span></button>
       `;
 
-      overlay.querySelector('.prev').addEventListener('click', () => this._advance(-1, 'click'));
-      overlay.querySelector('.next').addEventListener('click', () => this._advance(1, 'click'));
+      overlay.querySelector('.prev').addEventListener('click', () => {
+        if (!this._tryRevealBack()) this._advance(-1, 'click');
+      });
+      overlay.querySelector('.next').addEventListener('click', () => {
+        if (!this._tryRevealForward()) this._advance(1, 'click');
+      });
       overlay.querySelector('.reset').addEventListener('click', () => this._go(0, 'click'));
 
       // Thumbnail rail + context menu. Thumbnails are populated in
@@ -1112,6 +1144,36 @@
       }
     }
 
+    _clearSlideTransAttrs(slide) {
+      if (!slide) return;
+      slide.removeAttribute('data-deck-out');
+      slide.removeAttribute('data-deck-in');
+      slide.removeAttribute('data-deck-transition');
+      ['translate', 'transition', 'z-index', 'opacity', 'visibility', 'pointer-events']
+        .forEach((p) => slide.style.removeProperty(p));
+    }
+
+    _cancelSlideTransition() {
+      if (this._transTimer) clearTimeout(this._transTimer);
+      this._transTimer = null;
+      this._slides.forEach((s) => this._clearSlideTransAttrs(s));
+      const curr = this._slides[this._index];
+      if (curr) {
+        curr.style.setProperty('translate', '0 0', 'important');
+        curr.setAttribute('data-deck-active', '');
+        this._clearSlideTransAttrs(curr);
+      }
+    }
+
+    _finishSlideTransition(outSlide, inSlide) {
+      if (inSlide) {
+        inSlide.style.setProperty('translate', '0 0', 'important');
+        inSlide.setAttribute('data-deck-active', '');
+      }
+      this._clearSlideTransAttrs(outSlide);
+      this._clearSlideTransAttrs(inSlide);
+    }
+
     _applyIndex({ showOverlay = true, broadcast = true, reason = 'init' } = {}) {
       if (!this._slides.length) return;
       const prev = this._prevIndex == null ? -1 : this._prevIndex;
@@ -1120,10 +1182,81 @@
       // (reload banner path in viewer-handle.ts) lands on the current slide,
       // not the stale deep-link hash from initial load.
       try { history.replaceState(null, '', '#' + (curr + 1)); } catch (e) {}
-      this._slides.forEach((s, i) => {
-        if (i === curr) s.setAttribute('data-deck-active', '');
-        else s.removeAttribute('data-deck-active');
-      });
+      this._cancelSlideTransition();
+      const animate = reason !== 'init' && reason !== 'mutation'
+        && prev >= 0 && prev !== curr && !REDUCED_MOTION_MQ.matches;
+
+      if (!animate) {
+        this._slides.forEach((s, i) => {
+          if (i === curr) s.setAttribute('data-deck-active', '');
+          else {
+            s.removeAttribute('data-deck-active');
+            this._clearSlideTransAttrs(s);
+          }
+        });
+      } else {
+        const dir = curr > prev ? 'forward' : 'back';
+        const outSlide = this._slides[prev];
+        const inSlide = this._slides[curr];
+        this._slides.forEach((s, i) => {
+          if (i !== prev && i !== curr) {
+            s.removeAttribute('data-deck-active');
+            this._clearSlideTransAttrs(s);
+          }
+        });
+        const w = this.designWidth + 'px';
+        const ease = `translate ${SLIDE_TRANS_MS}ms cubic-bezier(.4, 0, .2, 1)`;
+
+        outSlide.removeAttribute('data-deck-active');
+        inSlide.removeAttribute('data-deck-active');
+        outSlide.setAttribute('data-deck-out', dir);
+        inSlide.setAttribute('data-deck-in', dir);
+        for (const s of [outSlide, inSlide]) {
+          s.style.setProperty('opacity', '1', 'important');
+          s.style.setProperty('visibility', 'visible', 'important');
+          s.style.setProperty('pointer-events', 'none', 'important');
+        }
+
+        if (dir === 'forward') {
+          // New slide covers from the right; outgoing stays underneath.
+          outSlide.style.setProperty('z-index', '1', 'important');
+          outSlide.style.setProperty('translate', '0 0', 'important');
+          inSlide.style.setProperty('z-index', '3', 'important');
+          inSlide.style.setProperty('transition', 'none', 'important');
+          inSlide.style.setProperty('translate', `${w} 0`, 'important');
+          void inSlide.offsetWidth;
+          inSlide.style.setProperty('transition', ease, 'important');
+          requestAnimationFrame(() => {
+            if (!outSlide.isConnected || !inSlide.isConnected) return;
+            inSlide.setAttribute('data-deck-transition', 'active');
+            inSlide.style.setProperty('translate', '0 0', 'important');
+            inSlide.style.setProperty('pointer-events', 'auto', 'important');
+          });
+        } else {
+          // Current slide (on top) exits right; previous stays underneath.
+          // Paint the under slide first so the canvas never flashes through.
+          inSlide.setAttribute('data-deck-active', '');
+          inSlide.style.setProperty('z-index', '1', 'important');
+          inSlide.style.setProperty('translate', '0 0', 'important');
+          void inSlide.offsetWidth;
+          outSlide.style.setProperty('z-index', '3', 'important');
+          outSlide.style.setProperty('transition', 'none', 'important');
+          outSlide.style.setProperty('translate', '0 0', 'important');
+          void outSlide.offsetWidth;
+          outSlide.style.setProperty('transition', ease, 'important');
+          requestAnimationFrame(() => {
+            requestAnimationFrame(() => {
+              if (!outSlide.isConnected || !inSlide.isConnected) return;
+              outSlide.setAttribute('data-deck-transition', 'active');
+              outSlide.style.setProperty('translate', `${w} 0`, 'important');
+            });
+          });
+        }
+        this._transTimer = setTimeout(() => {
+          this._transTimer = null;
+          this._finishSlideTransition(outSlide, inSlide);
+        }, SLIDE_TRANS_MS);
+      }
       if (this._countEl) this._countEl.textContent = String(curr + 1);
       // Follow-scroll on every navigation (init deep-link, keyboard, click,
       // tap, external goTo) — the only time we *don't* want the rail to
@@ -1312,6 +1445,40 @@
       this._advance(e.clientX < mid ? -1 : 1, 'tap');
     }
 
+    _clearDigitJump() {
+      if (this._digitTimer) clearTimeout(this._digitTimer);
+      this._digitTimer = null;
+      this._digitBuf = '';
+      if (this._countEl) this._countEl.textContent = String(this._index + 1);
+    }
+
+    _flushDigitJump() {
+      const raw = this._digitBuf;
+      this._clearDigitJump();
+      if (!raw) return;
+      const n = raw === '0' ? 9 : parseInt(raw, 10) - 1;
+      if (n >= 0 && n < this._slides.length) this._go(n, 'keyboard');
+      else this._flashOverlay();
+    }
+
+    _handleDigitJump(key) {
+      this._digitBuf += key;
+      if (this._countEl) this._countEl.textContent = this._digitBuf;
+      if (this._overlay) this._overlay.setAttribute('data-visible', '');
+      if (this._hideTimer) clearTimeout(this._hideTimer);
+
+      const num = parseInt(this._digitBuf, 10);
+      const max = this._slides.length;
+      const jumpNow = this._digitBuf.length >= 2 || (num > 0 && num * 10 > max);
+
+      if (this._digitTimer) clearTimeout(this._digitTimer);
+      if (jumpNow) {
+        this._flushDigitJump();
+        return;
+      }
+      this._digitTimer = setTimeout(() => this._flushDigitJump(), DIGIT_JUMP_MS);
+    }
+
     _onKey(e) {
       // Ignore when the user is typing.
       const t = e.target;
@@ -1323,6 +1490,12 @@
         if (e.key === 'Escape') { this._closeConfirm(); e.preventDefault(); }
         return;
       }
+      if (e.key === 'Escape' && this._digitBuf) {
+        this._clearDigitJump();
+        e.preventDefault();
+        this._flashOverlay();
+        return;
+      }
       if (e.key === 'Escape' && this._menu && this._menu.hasAttribute('data-open')) {
         this._closeMenu();
         e.preventDefault();
@@ -1331,22 +1504,36 @@
       if (e.metaKey || e.ctrlKey || e.altKey) return;
 
       const key = e.key;
+      const navKey = key === 'ArrowRight' || key === 'ArrowLeft' || key === 'PageDown'
+        || key === 'PageUp' || key === ' ' || key === 'Spacebar'
+        || key === 'Home' || key === 'End' || key === 'r' || key === 'R';
+      if (this._transTimer && navKey) {
+        e.preventDefault();
+        return;
+      }
+
       let handled = true;
 
-      if (key === 'ArrowRight' || key === 'PageDown' || key === ' ' || key === 'Spacebar') {
-        this._advance(1, 'keyboard');
+      if (key === 'Enter' && this._digitBuf) {
+        this._flushDigitJump();
+      } else if (key === 'ArrowRight' || key === 'PageDown' || key === ' ' || key === 'Spacebar') {
+        this._clearDigitJump();
+        if (!this._tryRevealForward()) this._advance(1, 'keyboard');
       } else if (key === 'ArrowLeft' || key === 'PageUp') {
-        this._advance(-1, 'keyboard');
+        this._clearDigitJump();
+        if (!this._tryRevealBack()) this._advance(-1, 'keyboard');
       } else if (key === 'Home') {
+        this._clearDigitJump();
         this._go(0, 'keyboard');
       } else if (key === 'End') {
+        this._clearDigitJump();
         this._go(this._slides.length - 1, 'keyboard');
       } else if (key === 'r' || key === 'R') {
+        this._clearDigitJump();
         this._go(0, 'keyboard');
       } else if (/^[0-9]$/.test(key)) {
-        // 1..9 jump to that slide; 0 jumps to 10.
-        const n = key === '0' ? 9 : parseInt(key, 10) - 1;
-        if (n < this._slides.length) this._go(n, 'keyboard');
+        // Multi-digit jump: type 1 then 5 quickly → slide 15; lone 1 + pause → slide 1.
+        this._handleDigitJump(key);
       } else {
         handled = false;
       }
@@ -1355,6 +1542,37 @@
         e.preventDefault();
         this._flashOverlay();
       }
+    }
+
+    _activeSlide() {
+      return this._slides[this._index] || null;
+    }
+
+    _revealStepOf(slide) {
+      return parseInt(slide?.getAttribute('data-reveal-step') || '0', 10);
+    }
+
+    _revealMaxOf(slide) {
+      return parseInt(slide?.getAttribute('data-reveal-max') || '0', 10);
+    }
+
+    _tryRevealForward() {
+      const slide = this._activeSlide();
+      if (!slide) return false;
+      const step = this._revealStepOf(slide);
+      const max = this._revealMaxOf(slide);
+      if (step >= max) return false;
+      slide.setAttribute('data-reveal-step', String(step + 1));
+      return true;
+    }
+
+    _tryRevealBack() {
+      const slide = this._activeSlide();
+      if (!slide) return false;
+      const step = this._revealStepOf(slide);
+      if (step <= 0) return false;
+      slide.setAttribute('data-reveal-step', String(step - 1));
+      return true;
     }
 
     _go(i, reason = 'api') {
@@ -1781,6 +1999,8 @@
 
     /** Current slide index (0-based). */
     get index() { return this._index; }
+    /** True while a slide cover transition is in progress. */
+    get transitioning() { return !!this._transTimer; }
     /** Total slide count. */
     get length() { return this._slides.length; }
     /** Programmatically navigate. */

@@ -115,9 +115,82 @@
   .anim { opacity:1; }
 
   /* ===== Slide 1 — title ===== */
-  .s-title { justify-content:center; }
+  .s-title {
+    justify-content:center;
+    position:relative;
+    background:var(--canvas) !important;
+    overflow:visible !important;
+  }
+  .s-title-bg {
+    position:absolute;
+    top:calc(-1 * var(--pad-top));
+    right:calc(-1 * var(--pad-x));
+    bottom:calc(-1 * var(--pad-bottom));
+    left:calc(-1 * var(--pad-x));
+    z-index:0;
+    overflow:visible;
+    pointer-events:none;
+    display:none;
+  }
+  section.s-title[data-deck-active] .s-title-bg { display:block; }
+  .s-title-bg .vanta-host,
+  .s-title-bg .lottie-host {
+    position:absolute;
+    top:8%;
+    right:0;
+    bottom:8%;
+    width:44%;
+    overflow:visible;
+    pointer-events:none;
+  }
+  .s-title-bg .lottie-host .lottie-canvas {
+    display:block;
+    width:100%;
+    height:100%;
+  }
+  .s-title-bg .vanta-host[data-bg-off],
+  .s-title-bg .lottie-host[data-bg-off] { display:none; }
+  .s-title-bg .vanta-host::after,
+  .s-title-bg .lottie-host::after {
+    content:'';
+    position:absolute;
+    left:0;
+    top:0;
+    bottom:0;
+    width:45%;
+    background:linear-gradient(90deg, var(--canvas), transparent);
+    pointer-events:none;
+    z-index:1;
+  }
+  .s-title-bg .vanta-host canvas {
+    position:absolute !important;
+    inset:0 !important;
+    width:100% !important;
+    height:100% !important;
+    display:block;
+    pointer-events:none;
+  }
+  .s-title-content {
+    position:relative;
+    z-index:1;
+    display:flex;
+    flex-direction:column;
+    justify-content:center;
+    flex:1;
+    min-height:0;
+  }
+  .s-title .reveal-hint {
+    position:absolute !important;
+    right:var(--pad-x);
+    bottom:88px;
+    left:auto;
+    z-index:2;
+    width:auto;
+  }
+  section.s-title[data-reveal-step="0"] .motif { display:none; }
+  @media print { .s-title-bg { display:none !important; } }
   .s-title .kicker { font-size:var(--t-label); font-weight:600; letter-spacing:.16em; text-transform:uppercase; color:var(--accent); margin-bottom:34px; }
-  .s-title h1 { font-size:var(--t-display); font-weight:600; line-height:1.02; letter-spacing:-.02em; margin:0; max-width:20ch; }
+  .s-title h1 { font-size:90px; font-weight:600; line-height:1.02; letter-spacing:-.02em; margin:0; max-width:20ch; }
   .s-title h1 .em { color:var(--accent); }
   .s-title .meta { margin-top:42px; font-size:var(--t-body); color:var(--muted); display:flex; gap:18px; align-items:center; }
   .s-title .meta .sep { width:6px; height:6px; border-radius:50%; background:var(--faint); }
@@ -125,17 +198,19 @@
   .motif { display:flex; align-items:center; gap:30px; margin-top:64px; }
   .motif .cluster { position:relative; width:210px; height:120px; }
   .motif .cluster i {
-    position:absolute; width:18px; height:18px; border-radius:5px;
-    background:var(--surface); border:1px solid var(--border);
+    position:absolute; width:20px; height:20px; border-radius:6px;
+    background:var(--accent-soft); border:1.5px solid var(--accent);
+    box-shadow:0 0 10px rgba(46,151,167,.4);
   }
   .motif .flow { display:flex; align-items:center; gap:14px; color:var(--faint); font-size:24px; letter-spacing:.08em; text-transform:uppercase; }
   .motif .arrow { width:64px; height:1.5px; background:linear-gradient(90deg,var(--border),var(--accent)); position:relative; }
   .motif .arrow::after { content:''; position:absolute; right:-1px; top:-4px; border-left:9px solid var(--accent); border-top:4.5px solid transparent; border-bottom:4.5px solid transparent; }
   .motif .slab {
-    width:150px; height:84px; border-radius:14px;
+    flex:none; padding:24px 32px; border-radius:14px;
     background:linear-gradient(180deg,var(--accent-soft),transparent), var(--surface);
     border:1px solid var(--accent-line);
     display:grid; place-items:center; color:var(--accent); font-weight:600; font-size:24px;
+    letter-spacing:.06em; white-space:nowrap; line-height:1;
   }
 
   /* ===== Slide 2 — proposal quadrants ===== */
@@ -337,11 +412,10 @@
   .unode.tr { right:0; top:2%; }  .unode.mr { right:0; top:39%; }  .unode.br { right:0; top:76%; }
 
   /* ===== Slide 15 — flywheel ===== */
-  .fly { flex:1; display:grid; place-items:center; }
-  .fly-ring { width:520px; height:520px; border-radius:50%; border:2px dashed var(--accent-line); position:relative; }
-  .fly-hub { position:absolute; left:50%; top:50%; transform:translate(-50%,-50%); width:280px; height:280px; border-radius:50%; background:radial-gradient(circle at 50% 35%,var(--accent-soft),transparent 70%),var(--surface); border:1.5px solid var(--accent); display:grid; place-items:center; text-align:center; padding:30px; }
-  .fly-hub .fh-t { font-size:28px; font-weight:600; line-height:1.22; }
-  .fly-hub .fh-t .accent { color:var(--accent); }
+  .fly { flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:80px; }
+  .fly-headline { margin:0; font-size:34px; font-weight:600; line-height:1.28; text-align:center; max-width:24ch; z-index:4; position:relative; }
+  .fly-headline .accent { color:var(--accent); }
+  .fly-ring { width:520px; height:520px; border-radius:50%; border:2px dashed var(--accent-line); position:relative; flex:none; }
   .fly-node { position:absolute; width:328px; background:var(--surface); border:1px solid var(--border); border-radius:14px; padding:20px 24px; box-shadow:0 12px 36px rgba(0,0,0,.35); }
   .fly-node .fn-k { font-family:var(--mono); font-size:20px; color:var(--accent); font-weight:600; }
   .fly-node .fn-t { font-size:25px; font-weight:600; margin-top:2px; }
@@ -412,38 +486,75 @@
   .ask-foot .af-close { font-size:28px; font-weight:600; line-height:1.3; max-width:42ch; }
   .ask-foot .af-close .accent { color:var(--accent); }
   .ask-foot .af-note { font-size:19px; color:var(--faint); text-align:right; max-width:30ch; line-height:1.4; }
+
+  /* ===== click-to-reveal ===== */
+  .reveal[data-reveal-at] { opacity:0; visibility:hidden; transition:opacity .15s ease, visibility .15s ease; }
+  section[data-reveal-step="1"] .reveal[data-reveal-at="1"],
+  section[data-reveal-step="2"] .reveal[data-reveal-at="1"],
+  section[data-reveal-step="2"] .reveal[data-reveal-at="2"] { opacity:1; visibility:visible; }
+  .reveal-grid { display:contents; }
+  .fly-ring > .reveal,
+  .unlock > .reveal { display:contents; }
+  /* phase cards are grid items — never display:contents; collapse hidden columns */
+  .phase-track .phase.reveal[data-reveal-at] { transition:opacity .15s ease, visibility .15s ease; }
+  section[data-reveal-step="0"] .phase-track .phase.reveal,
+  section[data-reveal-step="1"] .phase-track .phase.reveal[data-reveal-at="2"] {
+    display:none; opacity:0; visibility:hidden;
+  }
+  section[data-reveal-step="1"] .phase-track .phase.reveal[data-reveal-at="1"],
+  section[data-reveal-step="2"] .phase-track .phase.reveal {
+    display:flex; opacity:1; visibility:visible;
+  }
+  .reveal-hint {
+    position:absolute; right:var(--pad-x); bottom:88px;
+    font-size:18px; color:var(--faint); letter-spacing:.04em;
+    padding:8px 16px; border-radius:999px;
+    border:1px solid var(--border-soft); background:var(--surface-2);
+    pointer-events:none; user-select:none;
+  }
+  section[data-reveal-max="1"][data-reveal-step="1"] .reveal-hint,
+  section[data-reveal-max="2"][data-reveal-step="2"] .reveal-hint { display:none; }
+  @media (prefers-reduced-motion:reduce) { .reveal { transition:none; } }
+  @media print { .reveal[data-reveal-at] { opacity:1 !important; visibility:visible !important; } .reveal-hint { display:none !important; } }
 </style>
 </head>
 <body>
 <deck-stage width="1920" height="1080" no-rail>
 
   <!-- ============ SLIDE 1 — TITLE ============ -->
-  <section data-label="Title" class="s-title">
-    <div class="kicker anim">Business proposal · CalibtOS × eFactory</div>
-    <h1 class="anim d1">eFactory: from manual hustle to a <span class="em">system that scales</span></h1>
-    <div class="meta anim d2">
-      <span>Prepared for Berat Özdemir</span>
-      <span class="sep"></span>
-      <span>Presented by Ferhat &amp; Yasser</span>
-      <span class="sep"></span>
-      <span>June 2026</span>
+  <section id="slide-title" data-label="Title" class="s-title" data-reveal-max="2" data-reveal-step="0">
+    <div class="s-title-bg" aria-hidden="true">
+      <div class="vanta-host" data-bg-off></div>
+      <div class="lottie-host"></div>
     </div>
-    <div class="motif anim d3">
-      <div class="cluster" id="motifCluster"></div>
-      <div class="flow">
-        <span>9 tools + you</span>
-        <span class="arrow"></span>
-        <span class="slab">one system</span>
+    <div class="s-title-content">
+      <div class="kicker anim">Business proposal · CalibtOS × eFactory</div>
+      <h1 class="anim d1">eFactory: from manual hustle to a <span class="em">system that scales</span></h1>
+      <div class="meta anim d2">
+        <span>Prepared for Berat Özdemir</span>
+        <span class="sep"></span>
+        <span>Presented by Ferhat &amp; Yasser</span>
+        <span class="sep"></span>
+        <span>June 2026</span>
+      </div>
+      <div class="motif anim d3">
+        <div class="cluster reveal" data-reveal-at="1" id="motifCluster"></div>
+        <div class="flow reveal" data-reveal-at="2">
+          <span>9 tools + you</span>
+          <span class="arrow"></span>
+          <span class="slab">one system</span>
+        </div>
       </div>
     </div>
+    <div class="reveal-hint" aria-hidden="true">Click or press Space</div>
   </section>
 
   <!-- ============ SLIDE 2 — THE WHOLE PROPOSAL ============ -->
-  <section data-label="The proposal" data-screen-label="02">
+  <section data-label="The proposal" data-screen-label="02" data-reveal-max="2" data-reveal-step="0">
     <div class="eyebrow anim"><span class="num">02</span><span class="dash"></span>The whole proposal, in one decision</div>
     <h2 class="title anim d1">Keep your freedom. Remove the busywork.</h2>
     <p class="lead anim d1" style="max-width:62ch;margin-top:12px">You've built thousands of orders on freedom and grit — but that freedom now runs on nine disconnected tools, with you doing the coordination between them.</p>
-    <div class="quad" style="margin-top:12px">
+    <div class="quad reveal" data-reveal-at="1" style="margin-top:12px">
       <div class="card anim d2">
         <div class="qhead"><span class="qn">01</span></div>
         <div class="qt">Your freedom, preserved</div>
@@ -465,17 +576,18 @@
         <div class="qd">Because CalibtOS builds it, the project compounds across both businesses you own.</div>
       </div>
     </div>
-    <div class="ask-bar anim d6">
+    <div class="ask-bar anim d6 reveal" data-reveal-at="2">
       <div>
         <div class="lbl">The ask, today</div>
         <div class="txt">Your go-ahead to build it for real.</div>
       </div>
       <div class="when"><b>Before 31 July</b>first automation milestone live</div>
     </div>
+    <div class="reveal-hint" aria-hidden="true">Click or press Space</div>
   </section>
 
   <!-- ============ SLIDE 3 — AS-IS MAP ============ -->
-  <section data-label="Today, every order runs through you" data-screen-label="03">
+  <section data-label="Today, every order runs through you" data-screen-label="03" data-reveal-max="2" data-reveal-step="0">
     <div class="head-row">
       <div>
         <div class="eyebrow anim"><span class="num">Act I · 03</span><span class="dash"></span>The situation</div>
@@ -483,7 +595,7 @@
       </div>
       <p class="lead anim d1" style="margin-top:8px;text-align:right;max-width:30ch">Nine tools, none talking to each other. The thing connecting them is you — copying between them, by hand.</p>
     </div>
-    <div class="map" id="connectorMap">
+    <div class="map reveal" data-reveal-at="1" id="connectorMap">
       <svg class="wires" viewBox="0 0 100 100" preserveAspectRatio="none">
         <line x1="50" y1="50" x2="50" y2="10" vector-effect="non-scaling-stroke"></line>
         <line x1="50" y1="50" x2="77" y2="19" vector-effect="non-scaling-stroke"></line>
@@ -506,36 +618,42 @@
       <div class="tool" style="left:9%;top:43%"><div class="node"><div><div>Outlook</div><div class="sub">offers &amp; email</div></div></div></div>
       <div class="tool" style="left:23%;top:19%"><div class="node"><div><div>WhatsApp</div><div class="sub">half the real talk</div></div></div></div>
     </div>
-    <div class="footline">
+    <div class="footline reveal" data-reveal-at="2">
       <span class="brand">CalibtOS × eFactory</span>
       <span>9 tools · one person holding them together</span>
     </div>
+    <div class="reveal-hint" aria-hidden="true">Click or press Space</div>
   </section>
 
   <!-- ============ SLIDE 4 — THE CASE AT A GLANCE ============ -->
-  <section data-label="The case, at a glance" data-screen-label="04">
+  <section data-label="The case, at a glance" data-screen-label="04" data-reveal-max="2" data-reveal-step="0">
     <div class="eyebrow anim"><span class="num">Act I · 04</span><span class="dash"></span>The evidence</div>
     <h2 class="title anim d1">What the mapping turned up</h2>
     <p class="lead anim d1" style="max-width:84ch">Six findings from mapping eFactory end to end — the whole case for change, in one view.</p>
     <div class="grow" style="display:flex;flex-direction:column;justify-content:center;gap:0">
     <div class="evgrid">
+      <div class="reveal-grid reveal" data-reveal-at="1">
       <div class="evtile anim d2"><div class="ev-ic"><svg class="icon" viewBox="0 0 24 24"><path d="m12 2 9 5-9 5-9-5 9-5Z"/><path d="m3 12 9 5 9-5"/><path d="m3 17 9 5 9-5"/></svg></div><div class="ev-h">9 disconnected tools</div><div class="ev-d">WordPress · Zapier · Pipedrive · Sevdesk · Stripe · Sheets · Notion · Outlook · WhatsApp — and you're the integration between them.</div></div>
       <div class="evtile anim d3"><div class="ev-ic"><svg class="icon" viewBox="0 0 24 24"><path d="m17 2 4 4-4 4"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><path d="m7 22-4-4 4-4"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg></div><div class="ev-h">20–30 steps per offer</div><div class="ev-d">Across four systems, by hand — every single time.</div></div>
       <div class="evtile anim d4"><div class="ev-ic"><svg class="icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></div><div class="ev-h">6–10 hrs/week on your desk</div><div class="ev-d">~16 orders × 25–40 min of coordination. A conservative estimate from your own baseline.</div></div>
+      </div>
+      <div class="reveal-grid reveal" data-reveal-at="2">
       <div class="evtile anim d5"><div class="ev-ic"><svg class="icon" viewBox="0 0 24 24"><path d="m10.3 3.9-8 13.9A2 2 0 0 0 4 21h16a2 2 0 0 0 1.7-3.2l-8-13.9a2 2 0 0 0-3.4 0Z"/><path d="M12 9v4M12 17h.01"/></svg></div><div class="ev-h">A forced bill, already dated</div><div class="ev-d">Pipedrive at 4,159 / 5,000, and its old API — your intake — retires 31 July.</div></div>
       <div class="evtile anim d6"><div class="ev-ic"><svg class="icon" viewBox="0 0 24 24"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5v14c0 1.7 4 3 9 3s9-1.3 9-3V5"/><path d="M3 12c0 1.7 4 3 9 3s9-1.3 9-3"/></svg></div><div class="ev-h">Four years of data, left dark</div><div class="ev-d">3,410 deals · 5,262 leads · ~913 Flamingo — unqueryable across 9 tools, so no reporting or AI.</div></div>
       <div class="evtile anim d6"><div class="ev-ic"><svg class="icon" viewBox="0 0 24 24"><path d="M12 2 4 6v6c0 5 3.5 8 8 10 4.5-2 8-5 8-10V6Z"/></svg></div><div class="ev-h">One person holds the moat</div><div class="ev-d">The matchmaker margin is protected only by you, watching — and eFactory stops if you do.</div></div>
+      </div>
     </div>
     </div>
     <div class="footline"><span class="brand">CalibtOS × eFactory</span><span>Every number is yours — real, or a conservative estimate from your baseline</span></div>
+    <div class="reveal-hint" aria-hidden="true">Click or press Space</div>
   </section>
 
   <!-- ============ SLIDE 5 — COST OF NORMAL ============ -->
-  <section data-label="What 'normal' costs you each week" data-screen-label="05">
+  <section data-label="What 'normal' costs you each week" data-screen-label="05" data-reveal-max="2" data-reveal-step="0">
     <div class="eyebrow anim"><span class="num">Act I · 05</span><span class="dash"></span>The cost of normal</div>
     <h2 class="title anim d1">"Normal" already costs you 6–10 hours a week</h2>
     <div class="cost-grid" style="margin-top:30px">
-      <div class="equation">
+      <div class="equation reveal" data-reveal-at="1">
         <div class="bar-row anim d2">
           <div class="bl"><span>Admin touch on one order</span><span class="v">25–40 min</span></div>
           <div class="bar">
@@ -552,7 +670,7 @@
         </div>
         <div class="estimate-tag anim d3" style="margin-top:10px">Pure copy/paste alone is only ~1.3 hrs/wk — the real load is the coordination around the order.</div>
       </div>
-      <div class="cost-side">
+      <div class="cost-side reveal" data-reveal-at="2">
         <div class="meter anim d4">
           <div class="mt">Pipedrive subscriber slots</div>
           <div class="mv">4,159 <span style="font-size:28px;color:var(--muted)">/ 5,000</span></div>
@@ -565,15 +683,16 @@
       </div>
     </div>
     <div class="footline"><span class="brand">CalibtOS × eFactory</span><span>A conservative estimate, grounded in your own order baseline</span></div>
+    <div class="reveal-hint" aria-hidden="true">Click or press Space</div>
   </section>
 
   <!-- ============ SLIDE 6 — COST OF DOING NOTHING ============ -->
-  <section data-label="Doing nothing has a price too" data-screen-label="06">
+  <section data-label="Doing nothing has a price too" data-screen-label="06" data-reveal-max="2" data-reveal-step="0">
     <div class="eyebrow anim"><span class="num">Act I · 06</span><span class="dash"></span>The cost of inaction</div>
     <h2 class="title anim d1">Doing nothing has a price too</h2>
     <p class="lead anim d1" style="max-width:78ch">Staying manual isn't the free option — it's a bill you keep paying, in three currencies.</p>
     <div class="grow" style="display:flex;flex-direction:column;justify-content:center;gap:0">
-    <div class="inaction">
+    <div class="inaction reveal" data-reveal-at="1">
       <div class="icard anim d2">
         <div class="ic-ic"><svg class="icon" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M3 10h18M8 2v4M16 2v4"/></svg></div>
         <div class="ic-t">A forced bill, already dated</div>
@@ -593,19 +712,20 @@
         <div class="ic-tag"><span class="d"></span>Opportunity · permanent</div>
       </div>
     </div>
-    <div class="truth anim d5" style="margin-top:26px">
+    <div class="truth anim d5 reveal" data-reveal-at="2" style="margin-top:26px">
       <div class="tt">The question was never "spend or save." It's keep paying the inaction tax — or invest once and own the asset.</div>
     </div>
     </div>
     <div class="footline"><span class="brand">CalibtOS × eFactory</span><span>Staying manual is a recurring cost — not a saving</span></div>
+    <div class="reveal-hint" aria-hidden="true">Click or press Space</div>
   </section>
 
   <!-- ============ SLIDE 7 — BEFORE / AFTER ============ -->
-  <section data-label="A Monday where the busywork already happened" data-screen-label="07">
+  <section data-label="A Monday where the busywork already happened" data-screen-label="07" data-reveal-max="2" data-reveal-step="0">
     <div class="eyebrow anim"><span class="num">Act II · 07</span><span class="dash"></span>Where eFactory could be</div>
     <h2 class="title anim d1">A Monday where the busywork already happened</h2>
     <div class="ba" style="margin-top:28px">
-      <div class="pane before anim d2">
+      <div class="pane before anim d2 reveal" data-reveal-at="1">
         <h3><svg class="icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>Today · you as the glue</h3>
         <div class="step"><svg class="icon mk" viewBox="0 0 24 24"><path d="M6 6 18 18M18 6 6 18"/></svg>Retype new inquiries from forms into Pipedrive</div>
         <div class="step"><svg class="icon mk" viewBox="0 0 24 24"><path d="M6 6 18 18M18 6 6 18"/></svg>Build the offer in Sevdesk, send it from Outlook</div>
@@ -613,7 +733,7 @@
         <div class="step"><svg class="icon mk" viewBox="0 0 24 24"><path d="M6 6 18 18M18 6 6 18"/></svg>Pick a writer, check availability across channels</div>
         <div class="step"><svg class="icon mk" viewBox="0 0 24 24"><path d="M6 6 18 18M18 6 6 18"/></svg>Reconcile four Google Sheets tabs by hand</div>
       </div>
-      <div class="pane after anim d3">
+      <div class="pane after anim d3 reveal" data-reveal-at="2">
         <h3><svg class="icon" viewBox="0 0 24 24"><path d="m9 12 2 2 4-4"/><circle cx="12" cy="12" r="9"/></svg>The platform · you as the owner who decides</h3>
         <div class="step"><svg class="icon mk" viewBox="0 0 24 24"><path d="m5 13 4 4L19 7"/></svg>New inquiries already in your pipeline, not retyped</div>
         <div class="step"><svg class="icon mk" viewBox="0 0 24 24"><path d="m5 13 4 4L19 7"/></svg>Offers go out in a click; customers accept and pay themselves</div>
@@ -623,18 +743,22 @@
       </div>
     </div>
     <div class="footline"><span class="brand">CalibtOS × eFactory</span><span>From 9 tools + you as glue → one platform + you as the owner who decides</span></div>
+    <div class="reveal-hint" aria-hidden="true">Click or press Space</div>
   </section>
 
   <!-- ============ SLIDE 8 — THREE DOORS ============ -->
-  <section data-label="One platform, three doors" data-screen-label="08">
+  <section data-label="One platform, three doors" data-screen-label="08" data-reveal-max="2" data-reveal-step="0">
     <div class="eyebrow anim"><span class="num">Act II · 08</span><span class="dash"></span>How it works</div>
     <h2 class="title anim d1">One platform, three doors</h2>
     <div class="arch">
+      <div class="reveal" data-reveal-at="1">
       <div class="platform-slab anim d2">
         <div class="pl-t">eFactory platform</div>
         <div class="pl-s">One order lifecycle, in real time · inquiry → offer → payment → writing → delivery</div>
       </div>
       <div class="connectors"><div class="cn"></div><div class="cn"></div><div class="cn"></div></div>
+      </div>
+      <div class="reveal" data-reveal-at="2">
       <div class="doors">
         <div class="door anim d3">
           <div class="dr-ic"><svg class="icon" viewBox="0 0 24 24"><path d="M3 9 12 3l9 6v10a1 1 0 0 1-1 1h-5v-7H9v7H4a1 1 0 0 1-1-1Z"/></svg></div>
@@ -663,16 +787,18 @@
           <span class="syschip">Pipedrive <span>· CRM, unchanged</span></span>
         </div>
       </div>
+      </div>
     </div>
     <div class="footline"><span class="brand">CalibtOS × eFactory</span><span>Your systems of record stay — you stop being the wiring between them</span></div>
+    <div class="reveal-hint" aria-hidden="true">Click or press Space</div>
   </section>
 
   <!-- ============ SLIDE 9 — CONTROL PANEL ============ -->
-  <section data-label="The system suggests — you decide" data-screen-label="09">
+  <section data-label="The system suggests — you decide" data-screen-label="09" data-reveal-max="2" data-reveal-step="0">
     <div class="eyebrow anim"><span class="num">Act II · 09</span><span class="dash"></span>Freedom, preserved</div>
     <h2 class="title anim d1">The system suggests — you decide</h2>
     <p class="ferhat-quote anim d1">Ferhat: <b>"He's lived in total freedom for years. To give it up, we have to give him something actually better."</b> So we built the freedom in.</p>
-    <div class="controls">
+    <div class="controls reveal" data-reveal-at="1">
       <div class="control anim d2">
         <div class="toggle"></div>
         <div class="c-body"><div class="c-t">Override any price</div><div class="c-d">Even after the customer has paid.</div></div>
@@ -694,14 +820,15 @@
         <div class="c-state"><span class="chip designed" style="padding:6px 12px"><span class="dot"></span>Designed</span></div>
       </div>
     </div>
-    <div class="freedom-banner anim d6">
+    <div class="freedom-banner anim d6 reveal" data-reveal-at="2">
       <div class="fb-t">You lose the 20 steps. <span class="accent">Not the control.</span></div>
       <div class="muted small" style="text-align:right;max-width:30ch">Every toggle set, by default, to "you decide."</div>
     </div>
+    <div class="reveal-hint" aria-hidden="true">Click or press Space</div>
   </section>
 
   <!-- ============ SLIDE 10 — MOAT ============ -->
-  <section data-label="Your moat, enforced by architecture" data-screen-label="10">
+  <section data-label="Your moat, enforced by architecture" data-screen-label="10" data-reveal-max="2" data-reveal-step="0">
     <div class="head-row">
       <div>
         <div class="eyebrow anim"><span class="num">Act II · 10</span><span class="dash"></span>The moat</div>
@@ -710,7 +837,7 @@
       <span class="chip built anim d1" style="margin-top:8px"><span class="dot"></span>Working in prototype</span>
     </div>
     <div class="moat">
-      <div class="triangle anim d2" id="moatTriangle">
+      <div class="triangle anim d2 reveal" data-reveal-at="1" id="moatTriangle">
         <svg viewBox="0 0 600 560" id="moatSvg">
           <line x1="84" y1="90" x2="300" y2="492" stroke="#2E97A7" stroke-width="3"/>
           <line x1="516" y1="90" x2="300" y2="492" stroke="#2E97A7" stroke-width="3"/>
@@ -739,43 +866,42 @@
           <div class="lk-l">Dispute locks the chat</div>
         </div>
       </div>
-      <div class="moat-points">
+      <div class="moat-points reveal" data-reveal-at="2">
         <div class="mp anim d3"><div class="mp-ic"><svg class="icon" viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2Z"/></svg></div><div><div class="mp-t">They only meet in the 3-party chat</div><div class="mp-d">Customer and writer share one thread — and you're in every single one, live.</div></div></div>
         <div class="mp anim d4"><div class="mp-ic"><svg class="icon" viewBox="0 0 24 24"><path d="M2 6h20v12H2Z"/><path d="m2 7 10 7 10-7"/></svg></div><div><div class="mp-t">No private line between them</div><div class="mp-d">The writer never sees the customer's email; the only email links back into the platform.</div></div></div>
         <div class="mp anim d5"><div class="mp-ic"><svg class="icon" viewBox="0 0 24 24"><path d="M3 12h18"/><path d="M5 5 19 19"/></svg></div><div><div class="mp-t">No external channel, no back door</div><div class="mp-d">Nothing exists for a side deal to slip through — nothing to leak.</div></div></div>
         <div class="mp anim d6"><div class="mp-ic"><svg class="icon" viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg></div><div><div class="mp-t">A dispute locks the chat</div><div class="mp-d">Neither side can sidestep you — your biggest risk, designed out.</div></div></div>
       </div>
     </div>
+    <div class="reveal-hint" aria-hidden="true">Click or press Space</div>
   </section>
 
   <!-- ============ SLIDE 11 — BUILDING BLOCKS ============ -->
-  <section data-label="Six building blocks, and where each stands" data-screen-label="11">
-    <div class="head-row">
-      <div>
-        <div class="eyebrow anim"><span class="num">Act II · 11</span><span class="dash"></span>What's inside</div>
-        <h2 class="title anim d1">Six building blocks, and where each stands</h2>
-      </div>
-      <div class="legend anim d1" style="margin-top:14px">
-        <span class="chip built"><span class="dot"></span>Working</span>
-        <span class="chip designed"><span class="dot"></span>Designed</span>
-      </div>
-    </div>
+  <section data-label="Six building blocks, and where each stands" data-screen-label="11" data-reveal-max="2" data-reveal-step="0">
+    <div class="eyebrow anim"><span class="num">Act II · 11</span><span class="dash"></span>What's inside</div>
+    <h2 class="title anim d1">Six building blocks, and where each stands</h2>
     <div class="blocks">
+      <div class="reveal" data-reveal-at="1">
       <div class="block-row anim d2"><div class="bn">1</div><div class="bt">Order &amp; Offer Engine</div><div class="bk">20–30 steps → <b>0–3 clicks</b></div><div class="chip-row"><span class="chip built"><span class="dot"></span>Working</span><span class="chip designed"><span class="dot"></span>Designed</span></div></div>
       <div class="block-row anim d2"><div class="bn">2</div><div class="bt">Customer Dashboard &amp; Checkout</div><div class="bk">Kills the second form — customers <b>accept &amp; pay themselves</b></div><div class="chip-row"><span class="chip designed"><span class="dot"></span>Designed</span></div></div>
       <div class="block-row anim d3"><div class="bn">3</div><div class="bt">Unified Inbox</div><div class="bk">Email, WhatsApp &amp; chat scattered → <b>one place</b></div><div class="chip-row"><span class="chip built"><span class="dot"></span>Working</span></div></div>
+      </div>
+      <div class="reveal" data-reveal-at="2">
       <div class="block-row anim d4"><div class="bn">4</div><div class="bt">GW Job Board &amp; Assignment</div><div class="bk">Manual writer-picking → writers apply, <b>you approve</b></div><div class="chip-row"><span class="chip built"><span class="dot"></span>Working</span><span class="chip designed"><span class="dot"></span>Designed</span></div></div>
       <div class="block-row anim d5"><div class="bn">5</div><div class="bt">Quality, Revisions &amp; Disputes</div><div class="bk">Lost context → bounded loops, 5 outcomes, <b>full audit trail</b></div><div class="chip-row"><span class="chip built"><span class="dot"></span>Working</span></div></div>
       <div class="block-row anim d6"><div class="bn">6</div><div class="bt">Payments &amp; GW Payouts</div><div class="bk">Friday spreadsheet math → auto-confirm + a <b>5-gate release</b></div><div class="chip-row"><span class="chip designed"><span class="dot"></span>Designed</span></div></div>
+      </div>
     </div>
     <div class="footline"><span class="brand">CalibtOS × eFactory</span><span>Six modules — one connected system, end to end</span></div>
+    <div class="reveal-hint" aria-hidden="true">Click or press Space</div>
   </section>
 
   <!-- ============ SLIDE 12 — VALUE DASHBOARD ============ -->
-  <section data-label="What the platform is worth" data-screen-label="12">
+  <section data-label="What the platform is worth" data-screen-label="12" data-reveal-max="2" data-reveal-step="0">
     <div class="eyebrow anim"><span class="num">Act III · 12</span><span class="dash"></span>The case</div>
     <h2 class="title anim d1">What the platform is worth</h2>
     <div class="value-grid">
+      <div class="reveal-grid reveal" data-reveal-at="1">
       <div class="vtile feature anim d2">
         <div class="vt-ic"><svg class="icon" viewBox="0 0 24 24"><path d="M3 21V8m6 13V3m6 18v-9m6 9V6"/></svg></div>
         <div class="vt-t">A business that runs without you</div>
@@ -783,37 +909,44 @@
       </div>
       <div class="vtile anim d3"><div class="vt-v">6–10<span style="font-size:24px;color:var(--muted)"> hrs/wk</span></div><div class="vt-t">Admin drag reduced</div><div class="vt-d">Reduced or delegated — conservative estimate.</div></div>
       <div class="vtile anim d4"><div class="vt-ic"><svg class="icon" viewBox="0 0 24 24"><path d="M3 17l6-6 4 4 7-7"/><path d="M14 7h6v6"/></svg></div><div class="vt-t">More orders, same team</div><div class="vt-d">Capacity grows — coordination no longer scales 1:1 with your time.</div></div>
+      </div>
+      <div class="reveal-grid reveal" data-reveal-at="2">
       <div class="vtile anim d5"><div class="vt-ic"><svg class="icon" viewBox="0 0 24 24"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></div><div class="vt-t">Faster cash</div><div class="vt-d">Offer → accept → pay collapses; a professional experience justifies higher prices — and brings customers back.</div></div>
       <div class="vtile anim d6"><div class="vt-ic"><svg class="icon" viewBox="0 0 24 24"><path d="M12 2 4 6v6c0 5 3.5 8 8 10 4.5-2 8-5 8-10V6Z"/></svg></div><div class="vt-t">Risk caught early</div><div class="vt-d">A missed deadline surfaces before the customer does; every dispute on the record.</div></div>
+      </div>
     </div>
     <div class="footline"><span class="brand">CalibtOS × eFactory</span><span>The real return: a business that no longer depends on you</span></div>
+    <div class="reveal-hint" aria-hidden="true">Click or press Space</div>
   </section>
   <!-- ============ SLIDE 13 — DATA ASSET ============ -->
-  <section data-label="Your data becomes an asset" data-screen-label="13">
+  <section data-label="Your data becomes an asset" data-screen-label="13" data-reveal-max="2" data-reveal-step="0">
     <div class="eyebrow anim"><span class="num">Act III · 13</span><span class="dash"></span>The compounding upside</div>
     <h2 class="title anim d1">Your data becomes a compounding asset</h2>
     <p class="lead anim d1" style="max-width:82ch">Four years of orders, customers and writers — structured for the first time. Not a feature; an asset that keeps paying off.</p>
     <div class="grow" style="display:flex;flex-direction:column;justify-content:center;gap:0">
     <div class="ladder">
+      <div class="reveal-grid reveal" data-reveal-at="1">
       <div class="rung anim d2"><div class="r-step">01 · See it</div><div class="r-t">Reporting &amp; dashboards</div><div class="r-d">Your Flamingo &amp; website lead data, finally visualized — value in week one (Phase 0).</div></div>
       <div class="rung anim d3"><div class="r-step">02 · Understand it</div><div class="r-t">Operational intelligence</div><div class="r-d">Which writers, customers &amp; order types make money — and which cause disputes.</div></div>
       <div class="rung anim d4"><div class="r-step">03 · Act on it</div><div class="r-t">Automation</div><div class="r-d">The repetitive decisions start running on rules — not on you.</div></div>
       <div class="rung anim d5"><div class="r-step">04 · Ask it</div><div class="r-t">AI &amp; forecasting</div><div class="r-d">Ask your business in plain language; forecast cash &amp; capacity. <span class="r-dir">Direction, not v1</span></div></div>
+      </div>
     </div>
-    <div class="truth anim d6" style="margin-top:24px">
+    <div class="truth anim d6 reveal" data-reveal-at="2" style="margin-top:24px">
       <div class="tt">Today, 3,410 deals and 5,262 leads sit unqueryable across 9 tools. Structure is the foundation everything else is built on — and it's exactly what CalibtOS does.</div>
     </div>
     </div>
     <div class="footline"><span class="brand">CalibtOS × eFactory</span><span>Beyond hours saved — an asset that compounds</span></div>
+    <div class="reveal-hint" aria-hidden="true">Click or press Space</div>
   </section>
 
   <!-- ============ SLIDE 14 — FUTURE UNLOCKS ============ -->
-  <section data-label="What today's foundation unlocks" data-screen-label="14">
+  <section data-label="What today's foundation unlocks" data-screen-label="14" data-reveal-max="2" data-reveal-step="0">
     <div class="eyebrow anim"><span class="num">Act III · 14</span><span class="dash"></span>The foundation unlocks</div>
     <h2 class="title anim d1">What today's foundation unlocks next</h2>
     <p class="lead anim d1" style="max-width:86ch">We're not building these yet — but structuring eFactory now is the foundation each one is built on. <span class="accent">Direction, not v1.</span></p>
     <div class="unlock anim d2">
-      <svg viewBox="0 0 100 100" preserveAspectRatio="none" class="ulines">
+      <svg viewBox="0 0 100 100" preserveAspectRatio="none" class="ulines reveal" data-reveal-at="2">
         <line x1="50" y1="50" x2="13" y2="17" vector-effect="non-scaling-stroke"/>
         <line x1="50" y1="50" x2="13" y2="51" vector-effect="non-scaling-stroke"/>
         <line x1="50" y1="50" x2="13" y2="85" vector-effect="non-scaling-stroke"/>
@@ -821,26 +954,28 @@
         <line x1="50" y1="50" x2="87" y2="51" vector-effect="non-scaling-stroke"/>
         <line x1="50" y1="50" x2="87" y2="85" vector-effect="non-scaling-stroke"/>
       </svg>
-      <div class="uhub"><div class="uh-t">The foundation we build now</div><div class="uh-s">eFactory, as one structured system</div></div>
+      <div class="uhub reveal" data-reveal-at="1"><div class="uh-t">The foundation we build now</div><div class="uh-s">eFactory, as one structured system</div></div>
+      <div class="reveal" data-reveal-at="2">
       <div class="unode tl"><div class="un-ic"><svg class="icon" viewBox="0 0 24 24"><path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg></div><div class="un-t">Online writing &amp; research</div><div class="un-d">Draft and research the whole thesis in-platform.</div></div>
       <div class="unode ml"><div class="un-ic"><svg class="icon" viewBox="0 0 24 24"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2Z"/></svg></div><div class="un-t">Citation &amp; source management</div><div class="un-d">Structured citations, connected to academic sources.</div></div>
       <div class="unode bl"><div class="un-ic"><svg class="icon" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z"/><path d="M14 2v6h6"/><circle cx="11" cy="14" r="2.5"/><path d="m12.8 15.8 1.7 1.7"/></svg></div><div class="un-t">Deep document analysis</div><div class="un-d">The system reads and analyzes the files themselves.</div></div>
       <div class="unode tr"><div class="un-ic"><svg class="icon" viewBox="0 0 24 24"><path d="M3 3h18l-7 8v6l-4 2v-8Z"/></svg></div><div class="un-t">AI draft → writer upsell</div><div class="un-d">Customer describes the work, gets an AI-built start + check, then an upsell to a writer.</div></div>
       <div class="unode mr"><div class="un-ic"><svg class="icon" viewBox="0 0 24 24"><path d="M12 2 4 6v6c0 5 3.5 8 8 10 4.5-2 8-5 8-10V6Z"/><path d="m9 12 2 2 4-4"/></svg></div><div class="un-t">Originality &amp; quality checks</div><div class="un-d">Plagiarism and AI-detection, built in.</div></div>
       <div class="unode br"><div class="un-ic"><svg class="icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a15 15 0 0 1 0 18M12 3a15 15 0 0 0 0 18"/></svg></div><div class="un-t">A wider market</div><div class="un-d">The same foundation opens adjacent segments.</div></div>
+      </div>
     </div>
     <div class="footline"><span class="brand">CalibtOS × eFactory</span><span>None of it is possible on 9 scattered tools — the structured system is what makes it buildable</span></div>
+    <div class="reveal-hint" aria-hidden="true">Click or press Space</div>
   </section>
 
   <!-- ============ SLIDE 15 — FLYWHEEL ============ -->
-  <section data-label="One decision, both companies win" data-screen-label="15">
+  <section data-label="One decision, both companies win" data-screen-label="15" data-reveal-max="2" data-reveal-step="0">
     <div class="eyebrow anim"><span class="num">Act III · 15</span><span class="dash"></span>The multiplier</div>
     <h2 class="title anim d1">One decision, both companies win</h2>
     <div class="fly">
-      <div class="fly-ring anim d2">
-        <div class="fly-hub">
-          <div class="fh-t">One project &mdash; <span class="accent">both</span> the companies you own.</div>
-        </div>
+      <p class="fly-headline anim d2">One project &mdash; <span class="accent">both</span> the companies you own.</p>
+      <div class="fly-ring anim d2 reveal" data-reveal-at="1">
+        <div class="reveal" data-reveal-at="2">
         <div class="fly-node n"><div class="fn-k">01</div><div class="fn-t">eFactory, proven</div><div class="fn-d">A real business runs on it, live — the hardest proof there is.</div></div>
         <div class="fly-node e"><div class="fn-k">02</div><div class="fn-t">CalibtOS's flagship reference</div><div class="fn-d">4 years of real data, real complexity. No other client can give this.</div></div>
         <div class="fly-node s"><div class="fn-k">03</div><div class="fn-t">A product for other markets</div><div class="fn-d">Adapted for businesses in other industries — never your competitors. You share the upside, not the risk.</div></div>
@@ -849,16 +984,19 @@
         <div class="fly-arrow a2"><svg class="icon" viewBox="0 0 24 24"><path d="M12 5v14m6-6-6 6-6-6"/></svg></div>
         <div class="fly-arrow a3"><svg class="icon" viewBox="0 0 24 24"><path d="M19 12H5m6 6-6-6 6-6"/></svg></div>
         <div class="fly-arrow a4"><svg class="icon" viewBox="0 0 24 24"><path d="M12 19V5M6 11l6-6 6 6"/></svg></div>
+        </div>
       </div>
     </div>
     <div class="footline"><span class="brand">CalibtOS × eFactory</span><span>The spend moves left-hand to right-hand — and returns as an asset on both balance sheets</span></div>
+    <div class="reveal-hint" aria-hidden="true">Click or press Space</div>
   </section>
 
   <!-- ============ SLIDE 16 — RELIABILITY ============ -->
-  <section data-label="Built for reliability, not just speed" data-screen-label="16">
+  <section data-label="Built for reliability, not just speed" data-screen-label="16" data-reveal-max="2" data-reveal-step="0">
     <div class="eyebrow anim"><span class="num">Act III · 16</span><span class="dash"></span>Trust</div>
     <h2 class="title anim d1">Built for reliability, not just speed</h2>
     <div class="rely">
+      <div class="reveal-grid reveal" data-reveal-at="1">
       <div class="rc anim d2">
         <div class="rc-ic"><svg class="icon" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/></svg></div>
         <div class="rc-t">Modern, proven tech</div>
@@ -869,6 +1007,8 @@
         <div class="rc-t">Systems of record unchanged</div>
         <div class="rc-d">Sevdesk stays invoicing, Pipedrive stays CRM — fully compliant.</div>
       </div>
+      </div>
+      <div class="reveal-grid reveal" data-reveal-at="2">
       <div class="rc anim d4">
         <div class="rc-ic"><svg class="icon" viewBox="0 0 24 24"><path d="M12 2 4 6v6c0 5 3.5 8 8 10 4.5-2 8-5 8-10V6Z"/><path d="m9 12 2 2 4-4"/></svg></div>
         <div class="rc-t">Reliability over speed</div>
@@ -879,52 +1019,55 @@
         <div class="rc-t">It tests itself</div>
         <div class="rc-d">Automated monitoring runs every flow end to end — a break is caught before a customer hits it.</div>
       </div>
+      </div>
     </div>
     <div class="footline"><span class="brand">CalibtOS × eFactory</span><span>Full technical detail in the appendix</span></div>
+    <div class="reveal-hint" aria-hidden="true">Click or press Space</div>
   </section>
 
   <!-- ============ SLIDE 17 — ROADMAP ============ -->
-  <section data-label="Phased and parallel — never standing on one leg" data-screen-label="17">
+  <section data-label="Phased and parallel — never standing on one leg" data-screen-label="17" data-reveal-max="2" data-reveal-step="0">
     <div class="eyebrow anim"><span class="num">Act III · 17</span><span class="dash"></span>The plan</div>
     <h2 class="title anim d1">Phased and parallel — never standing on one leg</h2>
     <div class="road-map">
       <div class="phase-track">
-        <div class="phase p0 anim d2">
+        <div class="phase p0 anim d2 reveal" data-reveal-at="1">
           <div class="ph-k"><span class="ph-n">0</span><span class="ph-when">First</span></div>
           <div class="ph-t">Quick win</div>
           <div class="ph-d">Visualize years of Flamingo / website lead data you've never seen — value before the build.</div>
         </div>
-        <div class="phase p1 anim d3">
+        <div class="phase p1 anim d3 reveal" data-reveal-at="1">
           <div class="ph-k"><span class="ph-n">1</span><span class="ph-when">Before 31 Jul</span></div>
           <div class="ph-t">Intake &amp; sync safety</div>
           <div class="ph-d">Replace the fragile intake automation: website → Pipedrive / Sevdesk. Nothing breaks.</div>
         </div>
-        <div class="phase anim d4">
+        <div class="phase anim d4 reveal" data-reveal-at="1">
           <div class="ph-k"><span class="ph-n">2</span><span class="ph-when">Next</span></div>
           <div class="ph-t">Customer self-service</div>
           <div class="ph-d">Dashboard + checkout — kills the 2nd form — plus auto-payment.</div>
         </div>
-        <div class="phase anim d5">
+        <div class="phase anim d5 reveal" data-reveal-at="1">
           <div class="ph-k"><span class="ph-n">3</span><span class="ph-when">Next</span></div>
           <div class="ph-t">Writers</div>
           <div class="ph-d">GW portal, job board, payout gates.</div>
         </div>
-        <div class="phase anim d6">
+        <div class="phase anim d6 reveal" data-reveal-at="1">
           <div class="ph-k"><span class="ph-n">4</span><span class="ph-when">Next</span></div>
           <div class="ph-t">Communication</div>
           <div class="ph-d">Email / WhatsApp into the platform + dispute panel live.</div>
         </div>
       </div>
-      <div class="parallel-lane anim d6">
+      <div class="parallel-lane anim d6 reveal" data-reveal-at="2">
         <div class="pl-ic"><svg class="icon" viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/></svg></div>
         <div class="pl-t">Parallel run</div>
         <div class="pl-d">Each phase runs alongside what you do today, until you trust it — no big-bang switch.</div>
       </div>
     </div>
+    <div class="reveal-hint" aria-hidden="true">Click or press Space</div>
   </section>
 
   <!-- ============ SLIDE 18 — DECISION BOARD ============ -->
-  <section data-label="The judgment calls stay yours" data-screen-label="18">
+  <section data-label="The judgment calls stay yours" data-screen-label="18" data-reveal-max="2" data-reveal-step="0">
     <div class="head-row">
       <div>
         <div class="eyebrow anim"><span class="num">Act III · 18</span><span class="dash"></span>Your call</div>
@@ -933,6 +1076,7 @@
       <span class="chip decision anim d1" style="margin-top:8px"><span class="dot"></span>Your call, not our assumption</span>
     </div>
     <div class="board">
+      <div class="reveal" data-reveal-at="1">
       <div class="dec-row anim d2">
         <div class="dec-q"><div class="dq-t">Post-payment scope change</div><div class="dq-s">Customer pays installment 1, then adds 10 pages — re-price after payment?</div></div>
         <div class="dec-arrow"><svg class="icon" viewBox="0 0 24 24"><path d="M5 12h14m-6-6 6 6-6 6"/></svg></div>
@@ -958,27 +1102,30 @@
         <div class="dec-arrow"><svg class="icon" viewBox="0 0 24 24"><path d="M5 12h14m-6-6 6 6-6 6"/></svg></div>
         <div class="dec-rec"><span class="rec-chip"><span class="dot" style="width:9px;height:9px;border-radius:50%;background:var(--decision)"></span>We recommend</span><div class="rec-t">Manual path <b>+ a gentle nudge.</b></div></div>
       </div>
+      </div>
     </div>
-    <div class="board-foot anim d6">We recommend; <b>you decide</b> — then the system enforces it. A handful of the dozens we've logged.</div>
+    <div class="board-foot anim d6 reveal" data-reveal-at="2">We recommend; <b>you decide</b> — then the system enforces it. A handful of the dozens we've logged.</div>
+    <div class="reveal-hint" aria-hidden="true">Click or press Space</div>
   </section>
 
   <!-- ============ SLIDE 19 — THE ASK ============ -->
-  <section data-label="The ask — your go-ahead to build" data-screen-label="19" class="s-ask">
+  <section data-label="The ask — your go-ahead to build" data-screen-label="19" class="s-ask" data-reveal-max="2" data-reveal-step="0">
     <div class="ask-card anim">
       <div class="ac-lbl">The ask, today</div>
       <div class="ac-h">Your go-ahead to build it for real.</div>
       <div class="ac-sub">That's it. One clean decision — and the first automation milestone is live before the current intake automation becomes a risk.</div>
-      <div class="ask-steps">
+      <div class="ask-steps reveal" data-reveal-at="1">
         <div class="ask-step"><div class="as-dot"></div><div class="as-when">Today</div><div class="as-t">Your go-ahead to build it for real</div></div>
         <div class="ask-step"><div class="as-dot"></div><div class="as-when">This week</div><div class="as-t">Contract &amp; kickoff — first milestone scoped</div></div>
         <div class="ask-step"><div class="as-dot"></div><div class="as-when">At kickoff</div><div class="as-t">Requirements sessions + build begins</div></div>
         <div class="ask-step"><div class="as-dot"></div><div class="as-when">Before 31 Jul</div><div class="as-t">Phase 1 intake / sync safety live</div></div>
       </div>
-      <div class="ask-foot">
+      <div class="ask-foot reveal" data-reveal-at="2">
         <div class="af-close">The rare decision that wins on <span class="accent">both sides of your table.</span></div>
         <div class="af-note">Commercials follow separately — kept real even left-hand-to-right-hand, so eFactory is a legitimate reference client.</div>
       </div>
     </div>
+    <div class="reveal-hint" aria-hidden="true">Click or press Space</div>
   </section>
 
 </deck-stage>
@@ -1005,14 +1152,242 @@
   "\"So here's the ask. Today: your go-ahead to build it for real — that's it. This week we move to contract and kickoff, with the first automation milestone scoped clearly. Once we kick off, the first sessions lock the details and the build begins, with Phase 1 live before the current intake automation becomes a risk. Commercials we put in front of you separately — and we keep them real even though it's your money on both sides, because that's what makes eFactory a legitimate reference client for CalibtOS. Berat — this is the rare decision that wins on both sides of your table. The real question isn't whether Zapier is scary — it isn't. It's whether this is the moment to stop patching the old operating model and build the thing you've already validated. I say it is.\""
 ]
 </script>
+<!-- Vanta NET background disabled (Lottie is the active slide-1 background; USE_VANTA=false below).
+     To re-enable, restore the three.js + vanta.net CDN scripts here and set USE_VANTA=true. -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/lottie-web/5.12.2/lottie.min.js"></script>
+<script src="slide1-lottie-data.js"></script>
 <script src="deck-stage.js"></script>
 <script>
+  // ---- slide 1: Lottie or Vanta NET background (flip USE_LOTTIE to switch) ----
+  (function(){
+    var USE_LOTTIE = true;
+    var USE_VANTA = false;
+
+    var stage = document.querySelector('deck-stage');
+    var slide = document.getElementById('slide-title');
+    if (!stage || !slide) return;
+    var bg = slide.querySelector('.s-title-bg');
+    var vantaEl = slide.querySelector('.vanta-host');
+    var lottieEl = slide.querySelector('.lottie-host');
+    var effect = null;
+    var lottieAnim = null;
+    var reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+    function destroyVanta() {
+      if (!effect) return;
+      effect.destroy();
+      effect = null;
+    }
+
+    function destroyLottie() {
+      if (lottieAnim) {
+        lottieAnim.destroy();
+        lottieAnim = null;
+      }
+      if (lottieEl) lottieEl.innerHTML = '';
+    }
+
+    function resize() {
+      if (effect && effect.resize) effect.resize();
+    }
+
+    function setLayerMode() {
+      if (vantaEl) {
+        if (USE_VANTA) vantaEl.removeAttribute('data-bg-off');
+        else vantaEl.setAttribute('data-bg-off', '');
+      }
+      if (lottieEl) {
+        if (USE_LOTTIE) lottieEl.removeAttribute('data-bg-off');
+        else lottieEl.setAttribute('data-bg-off', '');
+      }
+    }
+
+    function showBg() {
+      if (bg) bg.style.display = 'block';
+      setLayerMode();
+    }
+
+    function hideBg() {
+      if (bg) bg.style.display = 'none';
+      destroyVanta();
+      destroyLottie();
+    }
+
+    function startVanta() {
+      if (!USE_VANTA || reduced || effect || !vantaEl || !window.VANTA || !window.VANTA.NET) return;
+      effect = window.VANTA.NET({
+        el: vantaEl,
+        THREE: window.THREE,
+        mouseControls: true,
+        touchControls: true,
+        gyroControls: false,
+        minHeight: 200,
+        minWidth: 200,
+        scale: 0.78,
+        scaleMobile: 0.74,
+        color: 0x3fddff,
+        backgroundColor: 0x181c22,
+        points: 4.00,
+        maxDistance: 26.00
+      });
+      requestAnimationFrame(function(){ requestAnimationFrame(resize); });
+    }
+
+    function startLottie() {
+      if (!USE_LOTTIE || lottieAnim || !lottieEl || !window.lottie || !window.SLIDE1_LOTTIE_DATA) return;
+      var canvas = document.createElement('div');
+      canvas.className = 'lottie-canvas';
+      lottieEl.appendChild(canvas);
+      lottieAnim = window.lottie.loadAnimation({
+        container: canvas,
+        renderer: 'svg',
+        loop: !reduced,
+        autoplay: !reduced,
+        animationData: window.SLIDE1_LOTTIE_DATA
+      });
+    }
+
+    function sync(active) {
+      if (active) {
+        showBg();
+        startLottie();
+        startVanta();
+      } else {
+        hideBg();
+      }
+    }
+
+    stage.addEventListener('slidechange', function(e) {
+      sync(e.detail && e.detail.index === 0);
+    });
+    window.addEventListener('resize', resize);
+    window.addEventListener('beforeprint', hideBg);
+    window.addEventListener('afterprint', function() {
+      if (stage.index === 0) sync(true);
+    });
+    if (stage.index === 0) {
+      requestAnimationFrame(function(){ requestAnimationFrame(function(){ sync(true); }); });
+    }
+  })();
+
   // ---- title motif: scattered tool dots ----
   (function(){
     var c = document.getElementById('motifCluster');
     if(!c) return;
     var pts = [[8,10],[60,4],[120,22],[170,8],[20,55],[88,48],[150,60],[40,92],[110,90],[176,84]];
     pts.forEach(function(p){ var i=document.createElement('i'); i.style.left=p[0]+'px'; i.style.top=p[1]+'px'; c.appendChild(i); });
+  })();
+
+  // ---- click-to-reveal: Space/→ advances steps, then slides ----
+  (function(){
+    var stage = document.querySelector('deck-stage');
+    if (!stage) return;
+
+    var FORWARD = { ' ':1, 'Spacebar':1, 'ArrowRight':1, 'PageDown':1 };
+    var BACK = { 'ArrowLeft':1, 'PageUp':1 };
+
+    function transitioning() {
+      return stage.transitioning
+        || !!stage.querySelector('section[data-deck-in], section[data-deck-out]');
+    }
+
+    function activeSlide() {
+      var sections = stage.querySelectorAll('section');
+      var idx = stage.index;
+      if (idx >= 0 && idx < sections.length) return sections[idx];
+      return stage.querySelector('section[data-deck-active]');
+    }
+
+    function stepOf(slide) {
+      return slide ? parseInt(slide.getAttribute('data-reveal-step') || '0', 10) : 0;
+    }
+
+    function maxOf(slide) {
+      return slide ? parseInt(slide.getAttribute('data-reveal-max') || '0', 10) : 0;
+    }
+
+    function setStep(slide, n) {
+      if (!slide) return;
+      slide.setAttribute('data-reveal-step', String(Math.max(0, Math.min(maxOf(slide), n))));
+    }
+
+    function reset(slide) {
+      if (slide) setStep(slide, 0);
+    }
+
+    function canAdvance(slide) {
+      return slide && stepOf(slide) < maxOf(slide);
+    }
+
+    function canRewind(slide) {
+      return slide && stepOf(slide) > 0;
+    }
+
+    function advance(slide) {
+      if (!canAdvance(slide)) return false;
+      setStep(slide, stepOf(slide) + 1);
+      return true;
+    }
+
+    function rewind(slide) {
+      if (!canRewind(slide)) return false;
+      setStep(slide, stepOf(slide) - 1);
+      return true;
+    }
+
+    function typingTarget(t) {
+      return t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName));
+    }
+
+    stage.addEventListener('slidechange', function(e) {
+      var d = e.detail || {};
+      var slide = d.slide;
+      var goingBack = typeof d.previousIndex === 'number' && d.previousIndex >= 0
+        && typeof d.index === 'number' && d.index < d.previousIndex;
+      // Forward: start the incoming slide fresh. Backward: keep whatever was
+      // already revealed (Space/click steps) on both slides.
+      if (goingBack) return;
+      if (slide) reset(slide);
+      stage.querySelectorAll('section[data-deck-active]').forEach(function(s) {
+        if (s !== slide) reset(s);
+      });
+    });
+
+    window.addEventListener('keydown', function(e) {
+      if (typingTarget(e.target)) return;
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+      if (transitioning() && (FORWARD[e.key] || BACK[e.key])) {
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        return;
+      }
+      var slide = activeSlide();
+      if (!slide) return;
+      if (FORWARD[e.key] && canAdvance(slide)) {
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        advance(slide);
+        return;
+      }
+      if (BACK[e.key] && canRewind(slide)) {
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        rewind(slide);
+      }
+    }, true);
+
+    stage.addEventListener('click', function(e) {
+      if (transitioning()) return;
+      var slide = activeSlide();
+      if (!slide || !canAdvance(slide)) return;
+      if (e.target.closest && e.target.closest('.reveal-hint')) return;
+      var path = e.composedPath ? e.composedPath() : [];
+      if (path.indexOf(slide) === -1 && !slide.contains(e.target)) return;
+      advance(slide);
+      e.stopPropagation();
+    }, true);
+
+    window.deckReveal = { advance: function(){ return advance(activeSlide()); }, rewind: function(){ return rewind(activeSlide()); }, reset: function(){ reset(activeSlide()); } };
   })();
 </script>
 </body>
