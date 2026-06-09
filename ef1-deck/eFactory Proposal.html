@@ -794,6 +794,7 @@
     .s-thanks .grad-anim__blobs, .s-thanks .grad-pointer { display:none; }
     .s-thanks { background:var(--canvas) !important; }
     .s-thanks h1 { color:var(--text); background:none; filter:none; }
+    .s-thanks .thanks-enter { opacity:1 !important; transform:none !important; animation:none !important; }
   }
 
   /* ===== click-to-reveal ===== */
@@ -1515,7 +1516,7 @@
      To re-enable, restore the three.js + vanta.net CDN scripts here and set USE_VANTA=true. -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/lottie-web/5.12.2/lottie.min.js"></script>
 <script src="slide1-lottie-data.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/@tsparticles/slim@3.8.1/tsparticles.slim.bundle.min.js"></script>
+<!-- tsParticles (slide-20 sparkles bg) is lazy-loaded on demand, only when s-thanks--sparkles is active — see the SparklesCore IIFE below. Keeps it off the critical path for the shipped aurora mode. -->
 <script src="deck-stage.js"></script>
 <script>
   // ---- slide 1: Lottie or Vanta NET background (flip USE_LOTTIE to switch) ----
@@ -1934,18 +1935,35 @@
       else container.pause();
     }
 
+    var TSPARTICLES_SRC = 'https://cdn.jsdelivr.net/npm/@tsparticles/slim@3.8.1/tsparticles.slim.bundle.min.js';
+
+    function loadEngine() {
+      if (typeof tsParticles !== 'undefined' && typeof loadSlim === 'function') return Promise.resolve();
+      return new Promise(function(resolve, reject) {
+        var s = document.createElement('script');
+        s.src = TSPARTICLES_SRC;
+        s.async = true;
+        s.onload = resolve;
+        s.onerror = reject;
+        document.head.appendChild(s);
+      });
+    }
+
     function boot() {
-      if (booted || typeof tsParticles === 'undefined' || typeof loadSlim !== 'function') return Promise.resolve();
-      return loadSlim(tsParticles).then(function() {
-        return tsParticles.load({
-          id: 'thanks-sparkles-particles',
-          element: host,
-          options: sparklesOptions()
+      if (booted) return Promise.resolve();
+      return loadEngine().then(function() {
+        if (typeof tsParticles === 'undefined' || typeof loadSlim !== 'function') return;
+        return loadSlim(tsParticles).then(function() {
+          return tsParticles.load({
+            id: 'thanks-sparkles-particles',
+            element: host,
+            options: sparklesOptions()
+          });
+        }).then(function(c) {
+          container = c;
+          booted = true;
+          sync();
         });
-      }).then(function(c) {
-        container = c;
-        booted = true;
-        sync();
       });
     }
 
