@@ -1,15 +1,10 @@
 # eFactory Proposal — Presenter Script
 
 [PAUSE] = beat. [PAUSE 2s] = longer hold. **bold** = emphasis.
-▶ **CLICK n** = advance the on-screen reveal (click anywhere on the right / Space / →).
-
-**How each slide builds:** the eyebrow, title and intro line are already on screen when you arrive — start talking on those, then click to bring in each layer where the ▶ cues appear. Every slide builds in **2 clicks**, except the **Title** and **Slide 15** (static — everything on arrival) and **Slide 3** (1 click). After a slide's last ▶ CLICK, the next click moves you to the next slide.
 
 ---
 
-## SLIDE 1 — Title · static, no clicks
-
-*(Everything is already on screen. Just talk. Your first click jumps to Slide 2.)*
+## SLIDE 1 — Title
 
 "Berat — thanks for the time." [PAUSE]
 
@@ -30,9 +25,7 @@
 
 ---
 
-## SLIDE 2 — The whole proposal, in one decision · 2 clicks
-
-*(On arrival: title "Keep your freedom. Remove the busywork." + the intro line.)*
+## SLIDE 2 — The whole proposal, in one decision
 
 "If you take **one** thing from today — it's this slide." [PAUSE]
 "The rest is just proof." [PAUSE]
@@ -49,8 +42,6 @@
 "The reason is simpler:
    the whole thing works because **you** absorb the complexity." [PAUSE]
 
-▶ **CLICK 1** · *the four pillar cards appear — freedom preserved · busywork reduced · workflow proven (working prototype) · both companies win*
-
 "We have a working prototype that **proves** the workflow.
    It takes the repetitive coordination off your desk —
    without taking the freedom you run the business with." [PAUSE]
@@ -64,24 +55,18 @@
 "So today isn't 'should we try.'" [PAUSE]
 "It's 'should we build it **for real**.'" [PAUSE 2s]
 
-▶ **CLICK 2** · *the ask bar slides in — "Your go-ahead to build it for real · Before 31 July, first milestone live"*
-
 "That's all I'm asking:
    your go-ahead — so the first milestone is live before that date."
 
 ---
 
-## SLIDE 3 — Today, every order runs through you · 1 click
-
-*(On arrival: title + the intro line. The map is still hidden.)*
+## SLIDE 3 — Today, every order runs through you
 
 "I won't lecture you about your own business —
    you know it better than anyone in this room." [PAUSE]
 
 "I just want to show you what **we** saw, mapping it end to end.
    Because in one picture … it's striking." [PAUSE]
-
-▶ **CLICK 1** · *the connector map appears — 9 tools ringed around "You," wired only through you*
 
 "A customer inquires on **WordPress**.
    Zapier pushes it to **Pipedrive**.
@@ -101,21 +86,15 @@
 
 ---
 
-## SLIDE 4 — The case, at a glance · 2 clicks
-
-*(On arrival: title "What the mapping turned up" + the intro line. Tiles still hidden.)*
+## SLIDE 4 — The case, at a glance
 
 "Before we go deeper —
    let me put the **whole case** on one slide.
    So it's not just a feeling." [PAUSE]
 
-▶ **CLICK 1** · *first three findings appear — 9 disconnected tools · 20–30 steps per offer · 6–10 hrs/week on your desk*
-
 "Nine disconnected tools — with **you** as the integration.
    Twenty to thirty steps … to send **one** offer.
    Six to ten hours a week … of coordination, on your desk." [PAUSE]
-
-▶ **CLICK 2** · *final three findings appear — a forced, dated bill · four years of data left dark · one person holds the moat*
 
 "A forced bill, with a date — Pipedrive nearly full, its old API retiring end of July.
    Four years of data … sitting **dark**.
@@ -129,21 +108,17 @@
 
 ---
 
-## SLIDE 5 — "Normal" already costs you 6–10 hrs/week · 2 clicks
-
-*(On arrival: just the title. Both panels hidden.)*
+## SLIDE 5 — "Normal" already costs you 6–10 hrs/week
 
 "You've done this so long it feels normal.
    So let's be conservative — and put a number on 'normal.'" [PAUSE]
-
-▶ **CLICK 1** · *the equation appears — the 25–40 min per-order bar, then ~16/wk × 25–40 min = 6–10 hrs/wk*
 
 "If the mechanical copy-paste is only five minutes an order —
    that's **not** my argument.
    At sixteen orders a week, that's just over an hour."
 
 "The real time is the **invisible** coordination around each order."
-   "Answering the negotiation question.
+"Answering the negotiation question.
    Deciding if the scope is real.
    Finding the right writer — and checking they can take it.
    Confirming payment.
@@ -153,8 +128,6 @@
 
 "Conservatively, that's **25 to 40 minutes** an order —
    around **6 to 10 hours a week**." [PAUSE]
-
-▶ **CLICK 2** · *the right column appears — Pipedrive meter (4,159 / 5,000) and the "you're the engine" line*
 
 "And look at this number:
    your Pipedrive is at **4,159 of 5,000** contacts.
@@ -175,17 +148,13 @@
 
 ---
 
-## SLIDE 6 — The cost of doing nothing · 2 clicks
-
-*(On arrival: title + the intro line. The three cards hidden.)*
+## SLIDE 6 — The cost of doing nothing
 
 "One honest counter-argument, before we go further:
    'it works — so why spend anything?'" [PAUSE]
 
 "Let me show you that doing nothing **isn't** the free option.
    There are three bills you keep paying."
-
-▶ **CLICK 1** · *the three bills appear — a forced/dated bill · a tax that grows with you · four years of data left dark*
 
 "**First** — a forced one, with a date on it.
    Pipedrive is nearly full,
@@ -201,29 +170,21 @@
    So reporting, automation, AI — **impossible** on that data.
    And that stays true as long as it's scattered." [PAUSE 2s]
 
-▶ **CLICK 2** · *the bottom line appears — "keep paying the tax, or invest once and own the asset"*
-
 "So the choice was never 'spend versus save.'
    It's: keep paying that tax — forever …
    or invest **once**, and turn the spend into an **asset you own**." [PAUSE 2s]
 
 ---
 
-## SLIDE 7 — A Monday where the busywork already happened · 2 clicks
-
-*(On arrival: just the title. Both columns hidden.)*
+## SLIDE 7 — A Monday where the busywork already happened
 
 "Now picture the other side." [PAUSE]
 
 "A Monday where the busywork **already happened** — without you."
 
-▶ **CLICK 1** · *the "Today · you as the glue" column appears (the red ✗ list)*
-
 "Because **today**, you're the glue —
    retyping every inquiry, building each offer in Sevdesk, chasing the Stripe link,
    hunting for an available writer, then reconciling four Sheets tabs by hand." [PAUSE]
-
-▶ **CLICK 2** · *the "platform · you as the owner who decides" column appears (the green ✓ list)*
 
 "On the platform, instead:
    new inquiries already in your pipeline — not retyped.
@@ -240,17 +201,11 @@
 
 ---
 
-## SLIDE 8 — One platform, three doors · 2 clicks
-
-*(On arrival: just the title.)*
+## SLIDE 8 — One platform, three doors
 
 "The whole thing, in one picture." [PAUSE]
 
-▶ **CLICK 1** · *the platform slab appears — one order lifecycle, in real time: inquiry → offer → payment → writing → delivery*
-
 "One platform." [PAUSE]
-
-▶ **CLICK 2** · *the three doors appear (Customer · You/Admin · Ghostwriter) and the "unchanged" chips below (Sevdesk · Stripe · Pipedrive)*
 
 "Three doors —
    customers, you, and the writers —
@@ -270,9 +225,7 @@
 
 ---
 
-## SLIDE 9 — The system suggests — you decide · 2 clicks
-
-*(On arrival: title + the Ferhat quote line. The toggles hidden.)*
+## SLIDE 9 — The system suggests — you decide
 
 "Now — the real question in the back of your mind." [PAUSE]
 
@@ -281,24 +234,18 @@
 
 "We designed against that from **day one**."
 
-▶ **CLICK 1** · *the four control toggles appear — override any price · create an order by hand · stack discounts · approval gates everywhere*
-
 "You can still override **any** price — even after the customer paid.
    Still create an order by hand, when someone WhatsApps you.
    Still stack discounts, however a deal needs." [PAUSE]
 
 "The software **suggests** — you always get the final say." [PAUSE]
 
-▶ **CLICK 2** · *the banner appears — "You lose the 20 steps. Not the control."*
-
 "You lose the twenty manual steps.
    You don't lose **one bit** of control." [PAUSE 2s]
 
 ---
 
-## SLIDE 10 — Your moat, enforced by architecture · 2 clicks
-
-*(On arrival: title + the "Working in prototype" chip.)*
+## SLIDE 10 — Your moat, enforced by architecture
 
 "This one is specific to **your** model." [PAUSE]
 
@@ -306,12 +253,8 @@
    The day a writer and a customer cut you out …
    you've lost the customer **and** the margin." [PAUSE]
 
-▶ **CLICK 1** · *the triangle appears — customer + writer meeting only through you at the base, "no external channel" dashed across the top*
-
 "So we made that middle **structural** —
    not something you have to **police**."
-
-▶ **CLICK 2** · *the four moat points appear — 3-party chat · no private line · no back door · a dispute locks the chat*
 
 "The writer and the customer only ever talk in the order's **group chat** —
    and you're right there in the group with them,
@@ -329,14 +272,10 @@
 
 ---
 
-## SLIDE 11 — Six building blocks · 2 clicks
-
-*(On arrival: just the title.)*
+## SLIDE 11 — Six building blocks
 
 "Six building blocks.
    Here's the headline of what each one **removes**." [PAUSE]
-
-▶ **CLICK 1** · *blocks 1–3 appear — Order & Offer Engine · Customer Dashboard & Checkout · Unified Inbox*
 
 "The **offer engine** turns repeated Sevdesk-email-payment work
    into one controlled review-and-send." [PAUSE]
@@ -344,8 +283,6 @@
 "The **dashboard** lets customers accept and pay themselves." [PAUSE]
 
 "The **inbox** keeps the external messages visible — in one place." [PAUSE]
-
-▶ **CLICK 2** · *blocks 4–6 appear — GW Job Board & Assignment · Quality, Revisions & Disputes · Payments & GW Payouts*
 
 "The **job board** lets writers apply — while you keep approval." [PAUSE]
 
@@ -357,13 +294,9 @@
 
 ---
 
-## SLIDE 12 — What it's worth · 2 clicks
-
-*(On arrival: just the title.)*
+## SLIDE 12 — What it's worth
 
 "So what does it return?" [PAUSE] "I want to be conservative."
-
-▶ **CLICK 1** · *first three value tiles appear — a business that runs without you · 6–10 hrs/wk admin drag reduced · more orders, same team*
 
 "The model says around **6 to 10 hours a week** of admin drag —
    reduced, or delegated."
@@ -385,8 +318,6 @@
 
 "More volume, same team."
 
-▶ **CLICK 2** · *the last two tiles appear — faster cash (a professional experience that earns repeat revenue) · risk caught early*
-
 "Problems caught **before** the customer complains.
    And a professional experience — so more customers come back.
    That's repeat revenue, with no new acquisition cost."
@@ -404,9 +335,7 @@
 
 ---
 
-## SLIDE 13 — Your data becomes a compounding asset · 2 clicks
-
-*(On arrival: title + the intro line. The ladder hidden.)*
+## SLIDE 13 — Your data becomes a compounding asset
 
 "Beyond the hours — there's something that **compounds**." [PAUSE]
 
@@ -416,8 +345,6 @@
    So you can't really **ask** it anything." [PAUSE]
 
 "The moment it's structured in one place … a ladder opens up."
-
-▶ **CLICK 1** · *the four-rung ladder appears — 01 See it · 02 Understand it · 03 Act on it · 04 Ask it*
 
 "First, you can just **see** it.
    We start there — Phase 0 —
@@ -436,30 +363,24 @@
 "That last part is direction — not version one.
    But **none** of it is possible while the data's scattered." [PAUSE]
 
-▶ **CLICK 2** · *the bottom line appears — 3,410 deals + 5,262 leads unqueryable today; structure is the foundation, and it's what CalibtOS does*
-
-"One writer's name, spelled **258 different ways** across 3,500 orders.
-   Around **80,000 euros** in open receivables — with no single place to see who owes what." [PAUSE]
-"Structured, that's a writer registry you can **trust** — and a live view of every euro still out." [PAUSE]
+"Today, you can't even ask a simple question like:
+   'who owes me money — **right now**?'
+   The answer is scattered across four Sheets tabs and two inboxes." [PAUSE]
+"Structured, that's **one screen** — a writer registry you can **trust**,
+   and a live view of every euro still out." [PAUSE]
 
 "Structuring it is the foundation.
    And that … is exactly what CalibtOS is built to do." [PAUSE] "Which is the last piece." [PAUSE 2s]
 
 ---
 
-## SLIDE 14 — What today's foundation unlocks · 2 clicks
-
-*(On arrival: title + the intro line. The hub and spokes hidden.)*
+## SLIDE 14 — What today's foundation unlocks
 
 "One more thing — and this is about where it goes **after** today." [PAUSE]
-
-▶ **CLICK 1** · *the hub appears in the center — "eFactory, as one structured system: the foundation we build now"*
 
 "We're not building these now.
    But I want you to see them —
    because structuring eFactory is the **foundation** every one of them sits on." [PAUSE]
-
-▶ **CLICK 2** · *the six unlocks fan out around the hub — online writing & research · citations · deep document analysis · AI draft → writer upsell · originality & quality checks · a wider market*
 
 "A full online workspace — write and research the whole thesis in-platform.
    Structured citations and sources, connected to academic databases.
@@ -479,9 +400,7 @@
 
 ---
 
-## SLIDE 15 — One decision, both companies win · static, no clicks
-
-*(Everything is already on screen — the headline "One project — both the companies you own.", the ring and all four nodes. Just talk; your next click moves to Slide 16.)*
+## SLIDE 15 — One decision, both companies win
 
 "And here's why this is bigger than eFactory.
    This part is just us — owner to owner." [PAUSE]
@@ -513,18 +432,12 @@
 
 ---
 
-## SLIDE 16 — Built for reliability, not just speed · 2 clicks
-
-*(On arrival: just the title.)*
+## SLIDE 16 — Built for reliability, not just speed
 
 "I won't bore you with architecture — four things matter." [PAUSE]
 
-▶ **CLICK 1** · *first two appear — modern, proven tech (no lock-in) · systems of record unchanged*
-
 "Modern, proven tech — no lock-in.
    Your legal and financial systems of record **don't** change." [PAUSE]
-
-▶ **CLICK 2** · *last two appear — reliability over speed · it tests itself*
 
 "Our rule is reliability over speed — we don't ship a flow until the messy edge cases are right.
    And the system tests its own flows automatically — so we catch a break before a customer ever hits it." [PAUSE]
@@ -533,16 +446,12 @@
 
 ---
 
-## SLIDE 17 — Phased and parallel — never standing on one leg · 2 clicks
-
-*(On arrival: just the title.)*
+## SLIDE 17 — Phased and parallel — never standing on one leg
 
 "We don't rip your operation out overnight —
    that's the thing that makes any owner nervous, and rightly." [PAUSE]
 
 "So — phases."
-
-▶ **CLICK 1** · *the five phases appear — 0 Quick win · 1 Intake & sync safety (before 31 Jul) · 2 Customer self-service · 3 Writers · 4 Communication*
 
 "And before the real build, a quick win:
    you've got **years** of lead data from your own website
@@ -553,16 +462,12 @@
    make intake and sync **safe** — before July 31.
    Then customer self-service … then writers … then communication." [PAUSE]
 
-▶ **CLICK 2** · *the parallel-run lane appears beneath the phases*
-
 "Each phase runs **next to** what you do today — until you trust it.
    You're never standing on one leg." [PAUSE 2s]
 
 ---
 
-## SLIDE 18 — The judgment calls stay yours · 2 clicks
-
-*(On arrival: title + the "Your call, not our assumption" chip.)*
+## SLIDE 18 — The judgment calls stay yours
 
 "Last thing about the product — and it's about **you**, not the software." [PAUSE]
 
@@ -570,8 +475,6 @@
    we built this prototype from only a few sessions with you.
    So a lot of it is our best **assumption** about how you'd want it to work." [PAUSE]
 "These are the places where **your** judgment replaces our guess."
-
-▶ **CLICK 1** · *the five decision rows appear — post-payment scope change · a writer goes silent · refund after payout · proven writers vs newcomers · the WhatsApp-only regular (each with our recommendation)*
 
 "I'll walk one:
    a customer pays the first installment — then adds ten pages.
@@ -584,8 +487,6 @@
    whether your proven writers get first pick."
 "Those need **your** read of the business — not ours." [PAUSE]
 
-▶ **CLICK 2** · *the footer appears — "We recommend; you decide — then the system enforces it. A handful of the dozens we've logged."*
-
 "There are dozens like this. We've catalogued them.
    And working through them together — that's exactly what kickoff is for." [PAUSE]
 
@@ -594,23 +495,17 @@
 
 ---
 
-## SLIDE 19 — The ask: your go-ahead · 2 clicks
-
-*(On arrival: the ask card headline — "Your go-ahead to build it for real.")*
+## SLIDE 19 — The ask: your go-ahead
 
 "So — here's the ask." [PAUSE]
 
 "Today: your go-ahead to build it for real.
    That's it." [PAUSE]
 
-▶ **CLICK 1** · *the timeline appears — Today · This week · At kickoff · Before 31 Jul*
-
 "This week, we move to contract and kickoff —
    with the first automation milestone scoped clearly.
    Once we kick off, the first sessions lock the details, and the build begins —
    Phase 1 live before the current intake becomes a risk." [PAUSE]
-
-▶ **CLICK 2** · *the closing line appears — "the rare decision that wins on both sides of your table" + the commercials note*
 
 "Commercials we put in front of you separately —
    and we keep them **real**, even though it's your money on both sides.

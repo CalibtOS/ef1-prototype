@@ -17,21 +17,21 @@ function GWReportDelay({ orderId, navigate, toast }) {
   const [newDate, setNewDate] = useState('');
   const [customerInformed, setCustomerInformed] = useState(false);
   const [phase, setPhase] = useState('form'); // form | sending | sent
-  const [sentSteps, setSentSteps] = useState({ customer: false, kundenservice: false });
+  const [sentSteps, setSentSteps] = useState({ chat: false, review: false });
 
   const valid = reason.trim().length > 10 && newDate;
 
   const send = () => {
     setPhase('sending');
-    // Simulate dual notification
-    setTimeout(() => setSentSteps({ customer: true, kundenservice: false }), 600);
+    // Simulate the platform filing: chat post first, then the review ticket.
+    setTimeout(() => setSentSteps({ chat: true, review: false }), 600);
     setTimeout(() => {
-      setSentSteps({ customer: true, kundenservice: true });
+      setSentSteps({ chat: true, review: true });
       EFActions.gw.reportDelay(orderId, { reasonKind, reason, newDate, customerInformed });
       toast({
         tone: 'info',
         transition: { entity: `Order #${orderId}`, from: 'Active', to: 'Delay Reported' },
-        text: 'Customer + kundenservice notified · awaiting admin review',
+        text: 'Delay posted to the order chat · awaiting efactory1 review',
       });
       setPhase('sent');
     }, 1400);
@@ -43,7 +43,7 @@ function GWReportDelay({ orderId, navigate, toast }) {
         <div>
           <CrumbBar trail={['Ghostwriter', 'My Assignments', `#${orderId}`, 'Report delay']}/>
           <h1 className="page-title" style={{ marginTop: 6 }}>Report delay · #{orderId}</h1>
-          <div className="page-subtitle">SOP B · dual-channel notification: customer AND kundenservice@efactory1.de — simultaneous</div>
+          <div className="page-subtitle">Filed in the platform · posts to the order chat — efactory1 reviews, the customer approves any new date</div>
         </div>
         <div className="page-actions">
           <button type="button" className="btn" onClick={() => navigate('order-detail', { id: orderId })}><Icon name="chevron-left" size={14}/> Back</button>
@@ -54,7 +54,7 @@ function GWReportDelay({ orderId, navigate, toast }) {
         <div className="card"><div className="card-pad flex-col gap-3">
           <div className="banner warn" style={{ fontSize: 12 }}>
             <Icon name="alert-triangle" size={14}/>
-            <span><strong>Act immediately.</strong> Per SOP B, you must notify both the customer AND efactory1 simultaneously — not sequentially. Acting late further damages trust.</span>
+            <span><strong>Act immediately.</strong> Report a delay the moment you see it coming — the report posts to the order chat, where the customer and efactory1 (Berat) both see it. Acting late further damages trust.</span>
           </div>
           <div className="kv" style={{ fontSize: 12 }}>
             <div className="kv-row"><dt>Customer</dt><dd>{cust?.name}</dd></div>
@@ -69,23 +69,23 @@ function GWReportDelay({ orderId, navigate, toast }) {
               <option value="other">Other</option>
             </select>
           </div>
-          <div className="field"><label>Brief description (sent verbatim)</label>
+          <div className="field"><label>Brief description (posted verbatim to the order chat)</label>
             <textarea value={reason} onChange={e => setReason(e.target.value)} placeholder="Z. B. Akute Erkrankung mit AU bis Freitag — kann den Zwischenstand am Montag liefern." style={{ width: '100%', minHeight: 90, border: '1px solid var(--border)', borderRadius: 8, padding: 10, fontFamily: 'inherit', fontSize: 12, resize: 'vertical', background: 'var(--surface)' }}/>
-            <div className="text-faint fs-11 mt-1">Min. 10 characters · written in German for the customer email.</div>
+            <div className="text-faint fs-11 mt-1">Min. 10 characters · written in German — the customer reads it in the order chat.</div>
           </div>
           <div className="field"><label>Proposed new delivery date</label>
             <input type="date" value={newDate} onChange={e => setNewDate(e.target.value)} min={new Date().toISOString().slice(0, 10)}/>
           </div>
           <label className="flex items-center gap-2" style={{ cursor: 'pointer' }}>
             <input type="checkbox" checked={customerInformed} onChange={e => setCustomerInformed(e.target.checked)}/>
-            <span className="fs-12">I have already informed the customer separately (informational; platform sends both notifications regardless)</span>
+            <span className="fs-12">I&apos;ve already mentioned this in the order chat (informational — the structured report is filed regardless)</span>
           </label>
           <div className="banner info" style={{ fontSize: 11.5 }}>
             <Icon name="zap" size={12}/>
-            <span>On submit, two emails fire simultaneously: <code className="mono">{cust?.email}</code> + <code className="mono">kundenservice@efactory1.de</code>. Order moves to <strong>On hold</strong> with new proposed date.</span>
+            <span>On submit, the report posts to the order chat and goes to efactory1 for review — the customer approves the new date before the deadline moves. Order moves to <strong>On hold</strong> with the proposed date.</span>
           </div>
           <button type="button" className="btn btn-primary" disabled={!valid} onClick={send} style={{ justifyContent: 'center' }}>
-            <Icon name="alert-triangle" size={14}/> Send dual notification
+            <Icon name="send" size={14}/> File delay report
           </button>
         </div></div>
       )}
@@ -94,20 +94,20 @@ function GWReportDelay({ orderId, navigate, toast }) {
         <div className="card"><div className="card-pad flex-col gap-3">
           <div className="banner info" style={{ fontSize: 12 }}>
             <Icon name="zap" size={14}/>
-            <span>Sending dual notification — both recipients in parallel.</span>
+            <span>Filing the delay report — order chat + efactory1 review.</span>
           </div>
           {[
-            { id: 'customer', label: `Email → ${cust?.name} <${cust?.email}>`, body: 'Liebe/r ' + (cust?.name?.split(' ')[0] || 'Kunde') + ', ich muss leider eine Verzögerung melden. Grund: ' + reasonKind + '. Neuer Liefertermin: ' + newDate + '.' },
-            { id: 'kundenservice', label: 'Email → kundenservice@efactory1.de', body: `Customer ${cust?.name} · Order #${orderId} · reason ${reasonKind} · new date ${newDate} · customer informed: ${customerInformed ? 'yes' : 'no'}` },
+            { id: 'chat', icon: 'message-square', label: `Order chat → ${cust?.name?.split(' ')[0] || 'customer'} + efactory1 (Berat)`, body: 'Liebe/r ' + (cust?.name?.split(' ')[0] || 'Kunde') + ', ich muss leider eine Verzögerung melden. Grund: ' + reasonKind + '. Vorgeschlagener neuer Liefertermin: ' + newDate + '.' },
+            { id: 'review', icon: 'shield-check', label: 'Review → efactory1 · proposed new date', body: `Order #${orderId} · reason ${reasonKind} · proposed ${newDate} · flagged in chat: ${customerInformed ? 'yes' : 'no'} · customer approval required before the deadline moves` },
           ].map(e => {
             const sent = sentSteps[e.id];
             return (
               <div key={e.id} style={{ padding: 12, border: '1px solid var(--border)', borderRadius: 8, background: sent ? 'color-mix(in oklab, var(--green) 5%, var(--surface))' : 'var(--surface)' }}>
                 <div className="flex items-center gap-2 mb-1">
-                  <Icon name="mail" size={14}/>
+                  <Icon name={e.icon} size={14}/>
                   <span className="fs-12 strong">{e.label}</span>
                   <span style={{ flex: 1 }}/>
-                  {sent ? <span className="pill pill-green"><Icon name="check" size={10}/> Sent</span> : <span className="pill pill-blue"><Icon name="zap" size={10}/> Sending…</span>}
+                  {sent ? <span className="pill pill-green"><Icon name="check" size={10}/> Done</span> : <span className="pill pill-blue"><Icon name="zap" size={10}/> Filing…</span>}
                 </div>
                 <div className="text-muted fs-11" style={{ lineHeight: 1.5 }}>{e.body}</div>
                 <div style={{ marginTop: 8, height: 3, background: 'var(--surface-2)', borderRadius: 2, overflow: 'hidden' }}>
@@ -120,7 +120,7 @@ function GWReportDelay({ orderId, navigate, toast }) {
             <div className="banner success">
               <Icon name="check-circle" size={14}/>
               <div>
-                <strong>Notification sent.</strong> Order <span className="mono">#{orderId}</span> is now <strong>On hold</strong>. Resume work as soon as you can; tell both parties when you're back on track.
+                <strong>Delay reported.</strong> Order <span className="mono">#{orderId}</span> is now <strong>On hold</strong>. The customer sees your report in the order chat, and efactory1 will confirm the new date with them — keep posting progress updates in the chat.
               </div>
             </div>
           )}
