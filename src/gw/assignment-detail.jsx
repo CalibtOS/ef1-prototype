@@ -172,6 +172,16 @@ function GWAssignmentDetail({ orderId, navigate, toast }) {
   const [disputeOpen, setDisputeOpen] = useState(false);
   const [focusChatComposer, setFocusChatComposer] = useState(false);
   const report = useReportChat(orderId, toast);
+  // ALL hooks must run before the early returns below (missing-order + ownership
+  // guards). If a hook sits after them, React throws "Rendered fewer hooks than
+  // expected" whenever a guard path is taken on one render but not another
+  // (e.g. an async order load, or a persona switch while viewing) — and with no
+  // error boundary that blanks the whole app. Keep this useEffect up here.
+  useEffect(() => {
+    if (!focusChatComposer) return undefined;
+    const t = setTimeout(() => setFocusChatComposer(false), 200);
+    return () => clearTimeout(t);
+  }, [focusChatComposer]);
   if (!order) return <div className="page">Assignment not found.</div>;
   // Ownership guard — a GW may only view assignments where they are the assigned writer
   // OR the order is on the public job board. Otherwise no leakage of customer/order data.
@@ -217,11 +227,6 @@ function GWAssignmentDetail({ orderId, navigate, toast }) {
     setFocusChatComposer(true);
   };
 
-  useEffect(() => {
-    if (!focusChatComposer) return undefined;
-    const t = setTimeout(() => setFocusChatComposer(false), 200);
-    return () => clearTimeout(t);
-  }, [focusChatComposer]);
   // Intro is the first task after approval. Required before any submission per SOP D.
   // We treat it as "done" when the SOP D wizard recorded firstContactDoneAt, or an
   // out-of-band record (firstContactSkippedTemplate) set it.
@@ -274,14 +279,14 @@ function GWAssignmentDetail({ orderId, navigate, toast }) {
         <div className="card mb-3" style={{ borderLeft: '4px solid var(--blue)' }}>
           <div className="card-head">
             <div className="card-title flex items-center gap-2">
-              <Icon name="mail" size={14} style={{ color: 'var(--blue)' }}/>
+              <Icon name="message-square" size={14} style={{ color: 'var(--blue)' }}/>
               Introduce yourself to {cust?.name?.split(' ')[0] || 'the customer'}
             </div>
             <span className="text-faint fs-11">Required before submissions · SOP D</span>
           </div>
           <div className="card-pad flex-col gap-3">
             <div className="fs-12 text-muted" style={{ lineHeight: 1.55 }}>
-              The introduction goes out <strong>two ways at once</strong> — as an email to {cust?.name?.split(' ')[0] || 'the customer'} (CC efactory1) and as the first message in the order chat. It&apos;s the only email you send directly: it onboards the customer into the platform, and every message after it stays in the order chat.
+              Your introduction is posted as the <strong>first message in the order chat</strong> — where {cust?.name?.split(' ')[0] || 'the customer'}, you, and efactory1 (Berat) all talk. {cust?.name?.split(' ')[0] || 'The customer'} gets a short email from the platform with a link to open the chat; you never email them and never see their address. Every message after this stays in the order chat.
             </div>
             <div className="flex items-center gap-3" style={{ flexWrap: 'wrap' }}>
               <button className="btn btn-primary btn-sm" onClick={() => navigate('gw-first-contact', { id: order.id })}>
@@ -458,7 +463,7 @@ function GWAssignmentDetail({ orderId, navigate, toast }) {
               ai_violation_review: 'AI violation flagged — admin review',
               plagiarism_violation_review: 'Plagiarism flagged — admin review',
             };
-            const introBlockReason = 'Send your intro email first — required before submissions (SOP D).';
+            const introBlockReason = 'Post your introduction in the order chat first — required before submissions (SOP D).';
             const disputeBlockReason = 'Dispute under review by efactory1 — work paused until resolved.';
             const stateReason = disputeBlocks
               ? disputeBlockReason
@@ -480,10 +485,10 @@ function GWAssignmentDetail({ orderId, navigate, toast }) {
               <div className="banner warn" style={{ margin: '0 16px', fontSize: 12 }}>
                 <Icon name="lock" size={14}/>
                 <div style={{ flex: 1 }}>
-                  <strong>Submissions locked.</strong> Send the intro email to {cust?.name?.split(' ')[0] || 'the customer'} first — required by SOP D so the customer is told that work goes via the platform.
+                  <strong>Submissions locked.</strong> Post your introduction in the order chat to {cust?.name?.split(' ')[0] || 'the customer'} first — required by SOP D so the customer is told that work goes via the platform.
                 </div>
                 <button className="btn btn-sm btn-primary" onClick={() => navigate('gw-first-contact', { id: order.id })}>
-                  <Icon name="send" size={12}/> Send intro email
+                  <Icon name="send" size={12}/> Post introduction
                 </button>
               </div>
             )}
@@ -609,12 +614,12 @@ function GWAssignmentDetail({ orderId, navigate, toast }) {
                     <Avatar initials={cust?.initials || '··'} size={40}/>
                     <div className="flex-col" style={{ lineHeight: 1.25 }}>
                       <strong className="fs-12">{cust?.name}</strong>
-                      <span className="text-faint fs-11">efactory1 always in CC</span>
+                      <span className="text-faint fs-11">efactory1 (Berat) is in the order chat</span>
                     </div>
                   </div>
-                  {/* Per business_rules §6: after admin approval, GW receives customer email + phone. */}
-                  {cust?.email && <div className="fs-11 mono text-muted">{cust.email}</div>}
-                  {cust?.phone && <div className="fs-11 mono text-muted">{cust.phone}</div>}
+                  {/* D-28/D-29: customer ↔ GW communication is the order chat only. The GW
+                      sees neither the customer's email nor phone — there is no off-platform
+                      channel between them; efactory1 (Berat) is a participant in the group chat. */}
                 </div>
               )}
             </div>
@@ -664,7 +669,7 @@ function GWAssignmentDetail({ orderId, navigate, toast }) {
               <ul style={{ margin: '4px 0 0 16px', padding: 0, listStyle: 'disc' }}>
                 <li>No AI tools — any use = fraud (§5)</li>
                 <li>No direct delivery to customer</li>
-                <li>No money discussion — redirect to kundenservice@efactory1.de</li>
+                <li>No money talk — pricing &amp; payment are efactory1&apos;s job (Berat is in the order chat)</li>
                 <li>Delete customer PII after delivery (GDPR)</li>
               </ul>
             </div>

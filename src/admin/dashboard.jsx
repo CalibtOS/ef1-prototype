@@ -353,7 +353,7 @@ function SlaOperational({ navigate }) {
         const gw = D.gw(o.gwId);
         const labels = {
           paid_no_gw: { title: `Paid ${Math.round(it.hours)}h ago, no GW · #${o.id}`, tone: it.hours >= 48 ? 'red' : 'amber', icon: 'briefcase', cta: 'Assign' },
-          no_intro: { title: `GW assigned, no customer intro · #${o.id}`, tone: 'red', icon: 'mail', cta: 'Ping GW' },
+          no_intro: { title: `GW assigned, no customer intro · #${o.id}`, tone: 'red', icon: 'message-square', cta: 'Ping GW' },
           interim_missed: { title: `Interim missed ${it.daysPast || 0}d · #${o.id}`, tone: 'red', icon: 'clock', cta: 'Contact GW' },
           final_qa: { title: `Final awaiting your QA · #${o.id}`, tone: 'amber', icon: 'shield', cta: 'QA review' },
           folgt_stale: { title: `"folgt" topic ${fmtAge(it.ageDays)} · #${o.id}`, tone: 'amber', icon: 'help-circle', cta: 'Chase' },

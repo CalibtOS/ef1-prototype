@@ -1064,17 +1064,22 @@ function gwAssignedToGw({ orderId, gwId, gwEmail, gwName, customerName, title, f
   });
 }
 
-function firstContactSentToCustomer({ orderId, customerId, customerEmail, customerName, gwEmail, gwName, ccEmail, subject, body, scenarioId }) {
+function firstContactSentToCustomer({ orderId, customerId, customerEmail, customerName, scenarioId }) {
+  // D-29: the introduction itself is an order-chat message. The customer only
+  // gets a content-free CTA ping from the platform — no GW-authored body, no GW
+  // address, no CC. Its whole job is to deep-link them into the order chat, where
+  // the introduction and every message after it live. The financial firewall is
+  // structural (admin is a participant in the 3-party chat), so nothing is CC'd.
   return createEmail({
     to: customerEmail,
     toRole: 'customer',
-    cc: ccEmail || 'kundenservice@efactory1.de',
-    from: gwEmail || 'kundenservice@efactory1.de',
-    subject: subject || `Auftrag #${orderId} · Erstkontakt`,
-    bodyMd: body || '',
-    // CTA lands the customer directly in the order chat — the email's whole
-    // job is to funnel them into the platform, where all further
-    // communication continues.
+    from: 'notifications@efactory1.de',
+    subject: `Neue Nachricht zu Ihrem Auftrag #${orderId}`,
+    bodyMd: [
+      `Hallo ${customerName || ''},`,
+      ``,
+      `Ihr Ghostwriter hat Ihnen im Auftragschat geschrieben. Öffnen Sie den Chat, um die Nachricht zu lesen und zu antworten — Ihr gesamter Austausch läuft dort.`,
+    ].join('\n'),
     cta: { label: 'Im Auftragschat antworten', action: 'open_customer_dashboard', orderId, customerId, tab: 'messages' },
     kind: 'gw_first_contact',
     orderId,

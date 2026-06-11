@@ -287,7 +287,7 @@ function CustOrderCard({ o, onOpen, startCheckout, goTo }) {
         <div className="strong" style={{ fontSize: 15.5, lineHeight: 1.35 }}>{wt} · {o.title}</div>
         <div className="text-muted fs-12 mt-1">
           {gw ? (
-            <>Ihr Ghostwriter: <strong>{gw}</strong> <span className="text-faint">· efactory1 immer in CC</span></>
+            <>Ihr Ghostwriter: <strong>{gw}</strong> <span className="text-faint">· efactory1 ist im Auftragschat dabei</span></>
           ) : (
             <span className="text-faint">Wir suchen den passenden Ghostwriter — typischerweise innerhalb von 24h zugewiesen.</span>
           )}
@@ -1399,7 +1399,7 @@ function CustMessagesList({ openOrder }) {
   return (
     <div>
       <h1 style={{ fontSize: 24, fontWeight: 600, letterSpacing: 0, margin: '24px 0 6px' }}>Nachrichten</h1>
-      <div className="text-muted mb-4">Eine Konversation pro Auftrag · efactory1 immer in CC</div>
+      <div className="text-muted mb-4">Eine Konversation pro Auftrag · efactory1 (Berat) ist immer dabei</div>
 
       <ChatNotice compact>
         Direktnachrichten an Ihren Ghostwriter laufen über die Plattform. Berat (efactory1) ist in jedem Auftragschat dabei.

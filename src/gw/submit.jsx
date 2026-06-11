@@ -324,7 +324,7 @@ function GWSubmit({ orderId, kind, navigate, toast }) {
                 </div>
                 <div className="flex items-center gap-3" style={{ padding: 12, border: '1px solid var(--border)', borderRadius: 8 }}>
                   <Icon name="send" size={20} className={step >= 3 ? 'text-success' : 'text-muted'} />
-                  <div style={{ flex: 1 }}><strong className="fs-12">Auto-forward to customer</strong><div className="fs-11 text-faint">{step >= 3 ? 'Sent immediately to customer · efactory1 remains in CC' : 'Forwarding…'}</div></div>
+                  <div style={{ flex: 1 }}><strong className="fs-12">Shared with the customer</strong><div className="fs-11 text-faint">{step >= 3 ? 'Posted to the order chat · efactory1 (Berat) is a participant and sees everything' : 'Posting…'}</div></div>
                   {step >= 3 && <span className="pill pill-green"><Icon name="check" size={10}/> SENT</span>}
                 </div>
               </div>

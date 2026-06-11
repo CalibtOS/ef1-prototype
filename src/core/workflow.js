@@ -831,19 +831,19 @@ function buildOrderEvents(order, context) {
       title = `Self-assigned to ${gw?.name || 'Berat'}`;
       detail = 'Hidden from GW board; no external GW payout.';
     } else if (hasApprovedApplicationForGw || order.assignmentMode === 'job_board') {
-      title = `${gw?.name || 'GW'} assigned · briefing + customer intro sent`;
-      detail = 'Application approved — GW briefing and customer intro emails dispatched.';
+      title = `${gw?.name || 'GW'} assigned · briefing + customer assignment notice sent`;
+      detail = 'Application approved — GW briefing and customer assignment notice dispatched.';
     } else if (order.claimedAt) {
-      title = `${gw?.name || 'GW'} assigned · briefing + customer intro sent`;
-      detail = 'Claim approved — GW briefing and customer intro emails dispatched.';
+      title = `${gw?.name || 'GW'} assigned · briefing + customer assignment notice sent`;
+      detail = 'Claim approved — GW briefing and customer assignment notice dispatched.';
     } else {
-      title = `${gw?.name || 'GW'} directly assigned · briefing + customer intro sent`;
-      detail = 'Admin assigned without job-board posting — GW briefing and customer intro emails dispatched.';
+      title = `${gw?.name || 'GW'} directly assigned · briefing + customer assignment notice sent`;
+      detail = 'Admin assigned without job-board posting — GW briefing and customer assignment notice dispatched.';
     }
     addEvent(events, event('gw.assigned', dates.assignedAt, title, { icon: 'user', dot: 'green', domain: 'assignment', detail }));
   }
   if (order.firstContactReceiptConfirmedAt) addEvent(events, event('gw.first_contact.receipt', order.firstContactReceiptConfirmedAt, 'GW confirmed assignment receipt to efactory1', { icon: 'check', dot: 'green', domain: 'assignment', detail: gw?.name || null }));
-  if (order.firstContactDoneAt) addEvent(events, event('gw.first_contact.sent', order.firstContactDoneAt, 'First customer contact sent', { icon: 'mail', dot: 'green', domain: 'communications', detail: order.firstContactSubject || 'efactory1 in CC' }));
+  if (order.firstContactDoneAt) addEvent(events, event('gw.first_contact.sent', order.firstContactDoneAt, 'Introduction posted to order chat', { icon: 'message-square', dot: 'green', domain: 'communications', detail: 'Order chat · efactory1 is a participant' }));
 
   submissions.forEach(s => {
     if (isInterimKind(s.kind)) {
