@@ -543,6 +543,62 @@ function seedGwApplications() {
   ];
 }
 
+// ---------------------------------------------------------------------------
+// MEETING SLOTS — weekly admin availability grid.
+// Week of 2026-06-08 (Mon) to 2026-06-12 (Fri).
+// Only specific slots are seeded; un-seeded cells render as inactive in the grid.
+// ---------------------------------------------------------------------------
+function buildMeetingSlots() {
+  const days = [
+    { weekday: 'Mon', date: '2026-06-08' },
+    { weekday: 'Tue', date: '2026-06-09' },
+    { weekday: 'Wed', date: '2026-06-10' },
+    { weekday: 'Thu', date: '2026-06-11' },
+    { weekday: 'Fri', date: '2026-06-12' },
+  ];
+  // Deliberately sparse so the grid has a realistic mix of free/inactive cells.
+  const seedTimes = {
+    Mon: ['09:00', '09:30', '11:00', '14:00', '15:30'],
+    Tue: ['10:00', '10:30', '11:30', '15:00'],
+    Wed: ['09:00', '10:30', '11:00', '14:30', '16:00'],
+    Thu: ['09:30', '10:00', '14:00', '15:00'],
+    Fri: ['09:00', '11:30', '15:30'],
+  };
+  // slot-wed-1030 is booked by c-ab's seeded meeting below.
+  const bookedId = 'slot-wed-1030';
+  const slots = [];
+  days.forEach(({ weekday, date }) => {
+    (seedTimes[weekday] || []).forEach(startTime => {
+      const slug = startTime.replace(':', '');
+      const id = `slot-${weekday.toLowerCase()}-${slug}`;
+      slots.push({ id, weekday, date, startTime, isBooked: id === bookedId, isPending: false, isRemoved: false });
+    });
+  });
+  return slots;
+}
+
+// ---------------------------------------------------------------------------
+// MEETINGS — scheduled Zoom calls.
+// One seeded meeting for the demo spine customer (Antigona Berisha · c-ab).
+// ---------------------------------------------------------------------------
+function buildMeetings() {
+  return [
+    {
+      id: 'meeting-seed-1',
+      customerId: 'c-ab',
+      gwId: null,
+      orderId: 3518,
+      slotId: 'slot-wed-1030',
+      date: '2026-06-10',
+      startTime: '10:30',
+      zoomUrl: 'https://zoom.us/j/98765432101?pwd=efDemoLink',
+      status: 'scheduled',
+      requesterRole: 'customer',
+      duration: 30,
+    },
+  ];
+}
+
 function hydrate() {
   const baseOrders = [
     ...(ORDERS || []),
@@ -569,6 +625,8 @@ function hydrate() {
     checkout_sessions: normalize([]),
     offer_artifacts: normalize([]),
     gw_applications: normalize(seedGwApplications()),
+    meeting_slots: normalize(buildMeetingSlots()),
+    meetings: normalize(buildMeetings()),
   };
 }
 

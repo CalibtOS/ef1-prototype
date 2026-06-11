@@ -62,6 +62,7 @@ import { AIBIDashboard } from './admin/bi.jsx'
 import { Inbox } from './admin/inbox.jsx'
 import { FridayBatch } from './admin/friday-batch.jsx'
 import { AdminCalendar } from './admin/calendar.jsx'
+import { AdminMeetings } from './admin/meetings.jsx'
 
 // Ghostwriter role
 import { GWDashboard } from './gw/dashboard.jsx'
@@ -81,6 +82,7 @@ import { GWReportDelay } from './gw/report-delay.jsx'
 import { GWExtensionRequest } from './gw/extension-request.jsx'
 import { GWCalendar } from './gw/calendar.jsx'
 import { GWTimeline } from './gw/timeline.jsx'
+import { GWMeetings } from './gw/meetings.jsx'
 
 // QA role
 import { QAQueue } from './qa/queue.jsx'
@@ -262,6 +264,7 @@ function App() {
         const section = {
           'cust-orders': 'orders', 'cust-messages': 'messages', 'cust-invoices': 'invoices',
           'cust-downloads': 'downloads', 'cust-profile': 'profile', 'cust-reports': 'reports',
+          'cust-agenda': 'agenda',
           'admin-dashboard': 'orders',
         }[name] || 'orders'
         const goTo = (r, n, p = {}) => harnessGoTo(r, n || EFRoutes.defaultRouteFor(r), p)
@@ -301,6 +304,7 @@ function App() {
       'order-detail':         (p) => <GWAssignmentDetail orderId={p.id} navigate={navigate} toast={toast}/>,
       'gw-calendar':          () => <GWCalendar navigate={navigate}/>,
       'gw-timeline':          () => <GWTimeline navigate={navigate}/>,
+      'gw-meetings':          () => <GWMeetings navigate={navigate}/>,
       _default:               () => <GWDashboard navigate={navigate}/>,
     },
     wp: {
@@ -325,6 +329,7 @@ function App() {
       'ghostwriter-detail': (p) => <GhostwriterDetail gwId={p.id} navigate={navigate} toast={toast}/>,
       'pipeline':           () => <PipelineKanban navigate={navigate}/>,
       'admin-calendar':     () => <AdminCalendar navigate={navigate}/>,
+      'admin-meetings':     () => <AdminMeetings navigate={navigate}/>,
       'customers':          () => <CustomersPage navigate={navigate}/>,
       'customer-detail':    (p) => <CustomerDetail customerId={p.id} navigate={navigate}/>,
       'disputes':           () => <DisputesPage navigate={navigate}/>,

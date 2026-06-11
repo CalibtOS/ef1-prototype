@@ -188,6 +188,74 @@ function useCashFriday() {
   return useStore(S.selectCashFriday, shallowEqual);
 }
 
+// ---- Meeting hooks --------------------------------------------------------
+
+function _selectAllSlots(state) {
+  const t = state.entities.meeting_slots;
+  if (!t) return [];
+  return t.allIds.map(id => t.byId[id]).filter(s => !s.isRemoved);
+}
+
+function _selectAllMeetings(state) {
+  const t = state.entities.meetings;
+  if (!t) return [];
+  return t.allIds.map(id => t.byId[id]);
+}
+
+function _selectAvailableSlots(state) {
+  const t = state.entities.meeting_slots;
+  if (!t) return [];
+  return t.allIds.map(id => t.byId[id]).filter(s => !s.isBooked && !s.isPending && !s.isRemoved);
+}
+
+function _selectPendingMeetings(state) {
+  const t = state.entities.meetings;
+  if (!t) return [];
+  return t.allIds.map(id => t.byId[id]).filter(m => m.status === 'pending_approval');
+}
+
+function useAllSlots() {
+  return useStore(_selectAllSlots, shallowEqual);
+}
+
+function useAllMeetings() {
+  return useStore(_selectAllMeetings, shallowEqual);
+}
+
+function useAvailableSlots() {
+  return useStore(_selectAvailableSlots, shallowEqual);
+}
+
+function usePendingMeetings() {
+  return useStore(_selectPendingMeetings, shallowEqual);
+}
+
+function useMeetingByCustomer(customerId) {
+  const selector = React.useMemo(
+    () => state => {
+      const t = state.entities.meetings;
+      if (!t) return null;
+      return t.allIds.map(id => t.byId[id]).find(m => m.customerId === customerId && m.status === 'scheduled') || null;
+    },
+    [customerId]
+  );
+  return useStore(selector, shallowEqual);
+}
+
+function useMeetingByOrder(orderId) {
+  const selector = React.useMemo(
+    () => state => {
+      const t = state.entities.meetings;
+      if (!t) return null;
+      return t.allIds.map(id => t.byId[id]).find(
+        m => m.orderId === orderId && (m.status === 'scheduled' || m.status === 'pending_approval')
+      ) || null;
+    },
+    [orderId]
+  );
+  return useStore(selector, shallowEqual);
+}
+
 export {
   useStore,
   useOrders,
@@ -219,4 +287,10 @@ export {
   useCashFriday,
   useChatReports,
   useChatReport,
+  useAllSlots,
+  useAllMeetings,
+  useAvailableSlots,
+  usePendingMeetings,
+  useMeetingByCustomer,
+  useMeetingByOrder,
 };

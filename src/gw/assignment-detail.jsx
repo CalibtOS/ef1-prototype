@@ -8,6 +8,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Icon, StatusPill, Avatar, Money, Bi, ScoreBar, NotReady, PlannedTag, EmptyState, Skeleton, ChatNotice } from '../../utils.jsx';
 import { OrderChat } from '../shared/order-chat.jsx';
+import { BookMeetingCard } from '../shared/book-meeting-card.jsx';
 import { useReportChat, ReportChatPanel } from '../components/ReportChatPanel.jsx';
 import * as U from '../../utils.jsx';
 import { CrumbBar } from '../../shell.jsx';
@@ -618,6 +619,14 @@ function GWAssignmentDetail({ orderId, navigate, toast }) {
               )}
             </div>
           </div>
+
+          {/* Meeting with admin */}
+          <BookMeetingCard
+            gwId={order.gwId}
+            orderId={order.id}
+            requesterRole="gw"
+            cardTitle="Meeting with Admin"
+          />
 
           {/* Templates shortcut */}
           <div className="card">

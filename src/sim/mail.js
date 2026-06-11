@@ -1193,6 +1193,85 @@ function chatReportAdminNotify({ reportId, orderId, reporterRole, reportedRole, 
   });
 }
 
+function meetingRequestedAdminNotify({ orderId, customerId, gwId, requesterRole, requesterName, date, startTime, orderLabel }) {
+  const roleLabel = requesterRole === 'gw' ? 'Ghostwriter' : 'Customer';
+  return createEmail({
+    to: 'berat@efactory1.de',
+    toRole: 'admin',
+    from: 'notifications@efactory1.de',
+    subject: `Meeting request · ${date} ${startTime}${orderLabel ? ` · ${orderLabel}` : ''}`,
+    bodyMd: [
+      `**${requesterName || (requesterRole === 'gw' ? gwId : customerId) || roleLabel}** (${roleLabel}) has requested a Zoom meeting.`,
+      ``,
+      `**Date:** ${date}`,
+      `**Time:** ${startTime}`,
+      orderId ? `**Order:** #${orderId}` : null,
+      ``,
+      `Open the Meetings page to approve or reject the request.`,
+    ].filter(v => v !== null).join('\n'),
+    cta: { label: 'Review request', action: 'open_admin_meetings' },
+    kind: 'meeting_requested_admin',
+    orderId: orderId || null,
+    customerId: customerId || null,
+    gwId: gwId || null,
+  });
+}
+
+function meetingApprovedNotify({ orderId, date, startTime, zoomUrl, recipientEmail, recipientName, toRole, customerId, gwId }) {
+  const isGw = toRole === 'gw';
+  const orderLabel = orderId ? ` · Auftrag #${orderId}` : '';
+  return createEmail({
+    to: recipientEmail || '',
+    toRole: toRole || 'customer',
+    from: 'kundenservice@efactory1.de',
+    subject: `Termin bestätigt · ${date} ${startTime}${orderLabel}`,
+    bodyMd: [
+      isGw ? `Hi ${recipientName || ''},` : `Hallo ${recipientName || ''},`,
+      ``,
+      isGw
+        ? `Your meeting request has been approved by efactory1.`
+        : `Ihr Terminwunsch wurde von efactory1 bestätigt.`,
+      ``,
+      `**Datum:** ${date}`,
+      `**Uhrzeit:** ${startTime}`,
+      orderId ? (isGw ? `**Order:** #${orderId}` : `**Auftrag:** #${orderId}`) : null,
+      zoomUrl ? `**Zoom-Link:** ${zoomUrl}` : null,
+    ].filter(v => v !== null).join('\n'),
+    cta: zoomUrl
+      ? { label: isGw ? 'Join Meeting' : 'Meeting beitreten', action: 'open_zoom', url: zoomUrl }
+      : { label: isGw ? 'Open dashboard' : 'Dashboard öffnen', action: isGw ? 'open_gw_assignment' : 'open_customer_dashboard', orderId },
+    kind: 'meeting_approved',
+    orderId: orderId || null,
+    customerId: customerId || null,
+    gwId: gwId || null,
+  });
+}
+
+function meetingRejectedNotify({ orderId, date, startTime, recipientEmail, recipientName, toRole, customerId, gwId }) {
+  const isGw = toRole === 'gw';
+  const orderLabel = orderId ? ` · Auftrag #${orderId}` : '';
+  return createEmail({
+    to: recipientEmail || '',
+    toRole: toRole || 'customer',
+    from: 'kundenservice@efactory1.de',
+    subject: `Terminanfrage abgelehnt · ${date} ${startTime}${orderLabel}`,
+    bodyMd: [
+      isGw ? `Hi ${recipientName || ''},` : `Hallo ${recipientName || ''},`,
+      ``,
+      isGw
+        ? `Your meeting request for **${date} at ${startTime}** could not be confirmed. Please choose a different slot.`
+        : `Ihr Terminwunsch für **${date} um ${startTime} Uhr** konnte leider nicht bestätigt werden. Bitte wählen Sie einen anderen Termin.`,
+      ``,
+      orderId ? (isGw ? `**Order:** #${orderId}` : `**Auftrag:** #${orderId}`) : null,
+    ].filter(v => v !== null).join('\n'),
+    cta: { label: isGw ? 'Choose another slot' : 'Anderen Termin wählen', action: isGw ? 'open_gw_assignment' : 'open_customer_dashboard', orderId },
+    kind: 'meeting_rejected',
+    orderId: orderId || null,
+    customerId: customerId || null,
+    gwId: gwId || null,
+  });
+}
+
 function chatReportReviewedNotify({ reportId, orderId, customerId, gwId, reporterRole, count, reviewNote, reporterEmail, reporterName, scenarioId }) {
   const isCustomer = reporterRole === 'customer';
   return createEmail({
@@ -1266,4 +1345,7 @@ export {
   payoutBatchAdminNotify,
   chatReportAdminNotify,
   chatReportReviewedNotify,
+  meetingRequestedAdminNotify,
+  meetingApprovedNotify,
+  meetingRejectedNotify,
 };
