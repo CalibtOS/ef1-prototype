@@ -188,6 +188,56 @@ function useCashFriday() {
   return useStore(S.selectCashFriday, shallowEqual);
 }
 
+// ---- Meeting hooks --------------------------------------------------------
+
+function _selectAllSlots(state) {
+  const t = state.entities.meeting_slots;
+  if (!t) return [];
+  return t.allIds.map(id => t.byId[id]).filter(s => !s.isRemoved);
+}
+
+function _selectAllMeetings(state) {
+  const t = state.entities.meetings;
+  if (!t) return [];
+  return t.allIds.map(id => t.byId[id]);
+}
+
+function _selectPendingMeetings(state) {
+  const t = state.entities.meetings;
+  if (!t) return [];
+  return t.allIds.map(id => t.byId[id]).filter(m => m.status === 'pending_approval');
+}
+
+function useAllSlots() {
+  return useStore(_selectAllSlots, shallowEqual);
+}
+
+function useAllMeetings() {
+  return useStore(_selectAllMeetings, shallowEqual);
+}
+
+function usePendingMeetings() {
+  return useStore(_selectPendingMeetings, shallowEqual);
+}
+
+// Scoped to one requester side: a customer's meeting on an order must not
+// surface in the GW's booking card for the same order (and vice versa).
+function useMeetingByOrder(orderId, requesterRole) {
+  const selector = React.useMemo(
+    () => state => {
+      const t = state.entities.meetings;
+      if (!t) return null;
+      return t.allIds.map(id => t.byId[id]).find(
+        m => m.orderId === orderId
+          && m.requesterRole === requesterRole
+          && (m.status === 'scheduled' || m.status === 'pending_approval')
+      ) || null;
+    },
+    [orderId, requesterRole]
+  );
+  return useStore(selector, shallowEqual);
+}
+
 export {
   useStore,
   useOrders,
@@ -219,4 +269,8 @@ export {
   useCashFriday,
   useChatReports,
   useChatReport,
+  useAllSlots,
+  useAllMeetings,
+  usePendingMeetings,
+  useMeetingByOrder,
 };

@@ -13,6 +13,7 @@ import * as N from './notifications.js';
 import { orderChats as OC, externalMessages as EM, inboxInternalNotes as IN } from './comms.js';
 import * as DomainEvents from './events.js';
 import { QA_STATUS } from './status.js';
+import { MEETING_WEEK_DATES } from './entities.js';
 
 const nowIso = I.nowIso;
 const updateTable = I.updateTable;
@@ -2166,6 +2167,178 @@ function shadowBan(gwId, payload = {}) {
   return true;
 }
 
+// =============================================================================
+// Meetings — slot management, booking requests, approval, cancellation.
+// =============================================================================
+
+// Admin: add or remove a slot from the availability grid.
+// Removing only works if the slot is free (not booked or pending).
+function toggleSlot(weekday, startTime) {
+  const state = store.getState();
+  const slug = startTime.replace(':', '');
+  const id = `slot-${weekday.toLowerCase()}-${slug}`;
+  const existing = state.entities.meeting_slots?.byId?.[id];
+  if (existing && !existing.isRemoved) {
+    if (existing.isBooked || existing.isPending) return false;
+    patchEntity('meeting_slots', id, { isRemoved: true }, 'slots.remove');
+  } else {
+    const date = MEETING_WEEK_DATES[weekday];
+    if (!date) return false;
+    upsertEntity('meeting_slots', { id, weekday, date, startTime, isBooked: false, isPending: false, isRemoved: false }, 'slots.add');
+  }
+  return true;
+}
+
+// Customer / GW: submit a meeting request. Slot is reserved (isPending) until approved/rejected.
+function requestMeeting(slotId, customerId, orderId, requesterRole, gwId) {
+  const state = store.getState();
+  const slot = state.entities.meeting_slots?.byId?.[slotId];
+  if (!slot || slot.isBooked || slot.isPending || slot.isRemoved) return null;
+  const id = 'meeting-' + Date.now() + '-' + Math.random().toString(36).slice(2, 6);
+  const role = requesterRole || 'customer';
+  const meeting = {
+    id,
+    customerId: customerId || null,
+    gwId: gwId || null,
+    orderId: orderId != null ? Number(orderId) : null,
+    slotId,
+    date: slot.date,
+    startTime: slot.startTime,
+    zoomUrl: null,
+    status: 'pending_approval',
+    requesterRole: role,
+    duration: 30,
+  };
+  upsertEntity('meetings', meeting, 'meetings.request');
+  patchEntity('meeting_slots', slotId, { isPending: true }, 'meeting_slots.reserve');
+  const requesterLabel = role === 'gw' ? `GW ${gwId || ''}` : `Customer ${customerId || ''}`;
+  const orderLabel = orderId ? ` · Order #${orderId}` : '';
+  notify({
+    to: 'admin',
+    kind: 'meeting_requested',
+    title: `Meeting request · ${slot.date} ${slot.startTime}`,
+    body: `${requesterLabel}${orderLabel} requested a Zoom meeting.`,
+    orderId: meeting.orderId,
+    customerId: meeting.customerId,
+    gwId: meeting.gwId,
+    route: 'admin-meetings',
+  });
+  DomainEvents.emit('meeting.requested', { meeting });
+  return meeting;
+}
+
+// Admin: approve a pending meeting request — assigns Zoom link and confirms.
+function approveMeeting(meetingId) {
+  const state = store.getState();
+  const meeting = state.entities.meetings?.byId?.[meetingId];
+  if (!meeting || meeting.status !== 'pending_approval') return false;
+  const zoomUrl = 'https://zoom.us/j/' + String(Math.floor(Math.random() * 9e9 + 1e9)) + '?pwd=efDemo';
+  patchEntity('meetings', meetingId, { status: 'scheduled', zoomUrl }, 'meetings.approve');
+  patchEntity('meeting_slots', meeting.slotId, { isBooked: true, isPending: false }, 'meeting_slots.book');
+  const orderLabel = meeting.orderId ? ` · Order #${meeting.orderId}` : '';
+  const recipientRole = meeting.requesterRole === 'gw' ? 'gw' : 'customer';
+  notify({
+    to: recipientRole,
+    kind: 'meeting_approved',
+    title: `Termin bestätigt · ${meeting.date} ${meeting.startTime}`,
+    body: `Ihr Termin am ${meeting.date} um ${meeting.startTime} Uhr wurde von efactory1 bestätigt.${orderLabel}`,
+    orderId: meeting.orderId,
+    customerId: meeting.customerId,
+    gwId: meeting.gwId,
+  });
+  const approvedMeeting = store.getState().entities.meetings?.byId?.[meetingId];
+  DomainEvents.emit('meeting.approved', { meeting: approvedMeeting || { ...meeting, status: 'scheduled', zoomUrl } });
+  return true;
+}
+
+// Admin: reject a pending meeting request — releases the reserved slot.
+function rejectMeeting(meetingId) {
+  const state = store.getState();
+  const meeting = state.entities.meetings?.byId?.[meetingId];
+  if (!meeting || meeting.status !== 'pending_approval') return false;
+  patchEntity('meetings', meetingId, { status: 'rejected' }, 'meetings.reject');
+  patchEntity('meeting_slots', meeting.slotId, { isPending: false }, 'meeting_slots.release');
+  const orderLabel = meeting.orderId ? ` · Order #${meeting.orderId}` : '';
+  const recipientRole = meeting.requesterRole === 'gw' ? 'gw' : 'customer';
+  notify({
+    to: recipientRole,
+    kind: 'meeting_rejected',
+    title: `Termin abgelehnt · ${meeting.date} ${meeting.startTime}`,
+    body: `Ihr Terminwunsch am ${meeting.date} um ${meeting.startTime} Uhr wurde abgelehnt. Bitte wählen Sie einen anderen Termin.${orderLabel}`,
+    orderId: meeting.orderId,
+    customerId: meeting.customerId,
+    gwId: meeting.gwId,
+  });
+  DomainEvents.emit('meeting.rejected', { meeting });
+  return true;
+}
+
+// actorRole tells us who is cancelling so the *other* side gets notified:
+// admin cancels → requester is informed; requester cancels → admin is informed.
+function cancelMeeting(meetingId, actorRole) {
+  const state = store.getState();
+  const meeting = state.entities.meetings?.byId?.[meetingId];
+  if (!meeting || meeting.status === 'cancelled') return false;
+  patchEntity('meetings', meetingId, { status: 'cancelled' }, 'meetings.cancel');
+  if (meeting.status === 'scheduled') {
+    patchEntity('meeting_slots', meeting.slotId, { isBooked: false }, 'meeting_slots.release');
+  } else if (meeting.status === 'pending_approval') {
+    patchEntity('meeting_slots', meeting.slotId, { isPending: false }, 'meeting_slots.release');
+  }
+  const orderLabel = meeting.orderId ? ` · Order #${meeting.orderId}` : '';
+  const base = { kind: 'meeting_cancelled', orderId: meeting.orderId, customerId: meeting.customerId, gwId: meeting.gwId };
+  if (actorRole === 'admin') {
+    const isGw = meeting.requesterRole === 'gw';
+    notify({
+      ...base,
+      to: isGw ? 'gw' : 'customer',
+      title: isGw
+        ? `Meeting cancelled · ${meeting.date} ${meeting.startTime}`
+        : `Termin storniert · ${meeting.date} ${meeting.startTime}`,
+      body: isGw
+        ? `efactory1 cancelled your meeting on ${meeting.date} at ${meeting.startTime}.${orderLabel}`
+        : `efactory1 hat Ihren Termin am ${meeting.date} um ${meeting.startTime} Uhr storniert.${orderLabel}`,
+    });
+  } else {
+    const requesterLabel = meeting.requesterRole === 'gw' ? `GW ${meeting.gwId || ''}` : `Customer ${meeting.customerId || ''}`;
+    notify({
+      ...base,
+      to: 'admin',
+      title: `Meeting cancelled · ${meeting.date} ${meeting.startTime}`,
+      body: `${requesterLabel}${orderLabel} cancelled the meeting.`,
+      route: 'admin-meetings',
+    });
+  }
+  return true;
+}
+
+// Only confirmed meetings can be rescheduled — a pending request holds its
+// slot via isPending, which this swap does not manage. Instant (no re-approval),
+// so the admin is notified that their agenda changed.
+function rescheduleMeeting(meetingId, newSlotId) {
+  const state = store.getState();
+  const meeting = state.entities.meetings?.byId?.[meetingId];
+  const newSlot = state.entities.meeting_slots?.byId?.[newSlotId];
+  if (!meeting || meeting.status !== 'scheduled') return false;
+  if (!newSlot || newSlot.isBooked || newSlot.isPending || newSlot.isRemoved) return false;
+  patchEntity('meeting_slots', meeting.slotId, { isBooked: false }, 'meeting_slots.release');
+  patchEntity('meeting_slots', newSlotId, { isBooked: true }, 'meeting_slots.book');
+  patchEntity('meetings', meetingId, { slotId: newSlotId, date: newSlot.date, startTime: newSlot.startTime }, 'meetings.reschedule');
+  const requesterLabel = meeting.requesterRole === 'gw' ? `GW ${meeting.gwId || ''}` : `Customer ${meeting.customerId || ''}`;
+  const orderLabel = meeting.orderId ? ` · Order #${meeting.orderId}` : '';
+  notify({
+    to: 'admin',
+    kind: 'meeting_rescheduled',
+    title: `Meeting rescheduled · ${newSlot.date} ${newSlot.startTime}`,
+    body: `${requesterLabel}${orderLabel} moved the meeting from ${meeting.date} ${meeting.startTime} to ${newSlot.date} ${newSlot.startTime}.`,
+    orderId: meeting.orderId,
+    customerId: meeting.customerId,
+    gwId: meeting.gwId,
+    route: 'admin-meetings',
+  });
+  return true;
+}
+
 function setRole(role) {
   store.setState(prev => ({ ...prev, session: { ...prev.session, role } }), 'session.setRole');
 }
@@ -2255,6 +2428,16 @@ const actions = {
     review: reviewChatReport,
     dismiss: dismissChatReport,
     delete: deleteChatReport,
+  },
+  meetings: {
+    request: requestMeeting,
+    approve: approveMeeting,
+    reject: rejectMeeting,
+    cancel: cancelMeeting,
+    reschedule: rescheduleMeeting,
+  },
+  slots: {
+    toggle: toggleSlot,
   },
   payments: { releaseBatch },
   gws: { shadowBan, blockAccount: blockGwAccount, unblockAccount: unblockGwAccount },

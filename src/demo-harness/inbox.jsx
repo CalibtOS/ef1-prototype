@@ -112,6 +112,12 @@ function DemoInbox({ onClose, navigate, switchRole }) {
       return;
     }
 
+    // External Zoom link — opens outside the prototype, no in-app navigation.
+    if (cta.action === 'open_zoom' && cta.url) {
+      window.open(cta.url, '_blank', 'noopener');
+      return;
+    }
+
     const target = targetFromLegacyCta(cta);
 
     // Magic-link / first-login token consumption — must happen before the

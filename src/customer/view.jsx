@@ -22,6 +22,8 @@ import { CheckoutModal } from './checkout-modal.jsx';
 import { OrderChat } from '../shared/order-chat.jsx';
 import { useReportChat, ReportChatPanel } from '../components/ReportChatPanel.jsx';
 import { MyReportsView } from '../components/MyReportsView.jsx';
+import { MeetingAgenda } from '../shared/meeting-agenda.jsx';
+import { BookMeetingCard } from '../shared/book-meeting-card.jsx';
 const D = EF;
 
 const CUST_PERSONA = (EFShell?.ROLES || []).find(r => r.id === 'customer') ||
@@ -156,6 +158,7 @@ function CustHeader({ tab, setTab, role, setRole, selectPersona, onOpenNotificat
     { id: 'downloads', label: 'Downloads', icon: 'download' },
     { id: 'profile', label: 'Profil', icon: 'user' },
     { id: 'reports', label: 'Meine Meldungen', icon: 'flag' },
+    { id: 'agenda', label: 'Agenda', icon: 'calendar' },
   ];
   return (
     <div style={{ background: 'var(--surface)', borderBottom: '1px solid var(--border)' }}>
@@ -437,6 +440,19 @@ function CustOrdersList({ openOrder, startCheckout, goTo }) {
   );
 }
 
+// Orders must be past the offer/payment stage before a customer can book a
+// meeting. Pre-payment orders (qualified → invoice_sent) are excluded because
+// the admin hasn't committed to the work yet. Cancelled and on-hold orders are
+// excluded too — a hold is admin-initiated, so the admin reaches out instead.
+const MEETING_ELIGIBLE_STATUSES = new Set([
+  'available', 'claimed_pending_approval', 'active',
+  'interim_submitted', 'under_customer_review', 'revision_required',
+  'delay_reported', 'extension_requested', 'extension_customer_approval_pending',
+  'qa_review', 'ai_violation_review', 'plagiarism_violation_review',
+  'delivered', 'payment_pending', 'completed',
+]);
+
+
 function CustOrderStatus({ o, startCheckout, toast }) {
   const meta = custStatusMeta(o);
   const displaySubs = EFHooks.useDisplaySubmissions(o.id);
@@ -633,6 +649,9 @@ function CustOrderStatus({ o, startCheckout, toast }) {
             </div>
           </div>
         </div>
+        {MEETING_ELIGIBLE_STATUSES.has(o.status) && (
+          <BookMeetingCard orderId={o.id} customerId={o.customerId} requesterRole="customer" cardTitle="Zoom-Termin"/>
+        )}
       </div>
     </div>
   );
@@ -1702,6 +1721,72 @@ function CustProfile({ toast }) {
   );
 }
 
+function CustAgenda() {
+  const cid = activeCustomer().id;
+  const allMeetings = EFHooks.useAllMeetings();
+  const ordersTable = EFHooks.useStore(s => s.entities.orders);
+
+  const myMeetings = (allMeetings || []).filter(
+    m => m.customerId === cid && (m.status === 'scheduled' || m.status === 'pending_approval')
+  );
+  const scheduledCount = myMeetings.filter(m => m.status === 'scheduled').length;
+  const pendingCount   = myMeetings.filter(m => m.status === 'pending_approval').length;
+
+  function orderTitle(orderId) {
+    if (!orderId || !ordersTable) return null;
+    return ordersTable.byId?.[String(orderId)]?.title || null;
+  }
+
+  return (
+    <div>
+      <h1 style={{ fontSize: 24, fontWeight: 600, letterSpacing: 0, margin: '24px 0 6px' }}>Meine Termine</h1>
+      <div className="text-muted" style={{ marginBottom: 16 }}>Ihre bevorstehenden Zoom-Gespräche mit efactory1</div>
+      <div className="card">
+        <div className="card-head">
+          <div className="card-title">Agenda</div>
+          <div className="flex items-center gap-2">
+            {scheduledCount > 0 && <span className="pill pill-green" style={{ fontSize: 10 }}>{scheduledCount} bestätigt</span>}
+            {pendingCount > 0   && <span className="pill pill-amber" style={{ fontSize: 10 }}>{pendingCount} ausstehend</span>}
+          </div>
+        </div>
+        <MeetingAgenda
+          meetings={myMeetings}
+          emptyText="Keine Termine geplant."
+          joinLabel="Beitreten"
+          renderLabel={(m) => {
+            const title = orderTitle(m.orderId);
+            return (
+              <div className="flex-col" style={{ lineHeight: 1.35 }}>
+                <span style={{ fontSize: 12, fontWeight: 500 }}>Berat Özdemir · efactory1</span>
+                <div className="flex items-center gap-1" style={{ marginTop: 1 }}>
+                  {title && <span className="fs-11 text-faint">{title.length > 38 ? title.slice(0, 38) + '…' : title}</span>}
+                  {m.duration && <span className="mono fs-11 text-faint">{title ? ' · ' : ''}{m.duration} min</span>}
+                </div>
+              </div>
+            );
+          }}
+          renderActions={(m) => (
+            <div className="flex items-center gap-2">
+              {m.status === 'pending_approval' && (
+                <span className="pill pill-amber" style={{ fontSize: 10 }}>Ausstehend</span>
+              )}
+              <button
+                type="button"
+                className="btn btn-sm"
+                style={{ color: 'var(--red)', borderColor: 'color-mix(in oklab, var(--red) 40%, var(--border))' }}
+                onClick={() => { if (window.confirm('Termin stornieren?')) EFActions.meetings.cancel(m.id, 'customer'); }}
+              >
+                <Icon name="x" size={12}/> Stornieren
+              </button>
+            </div>
+          )}
+        />
+      </div>
+      <CustFooterBanner/>
+    </div>
+  );
+}
+
 // CustomerView is rendered by the shell router. The shell passes a `section` prop
 // (orders | messages | invoices | downloads | profile) — that's the source of truth
 // for the active tab. Clicking an internal tab navigates so the URL/sidebar stay in sync.
@@ -1757,7 +1842,7 @@ function CustomerView({ role, setRole, selectPersona, toast, section, navigate, 
 
   // Map internal tab IDs to the shell route names so inner-tab clicks update the URL
   // and the sidebar highlight at the same time (no more divergent navigation state).
-  const ROUTE_FOR_TAB = { orders: 'cust-orders', messages: 'cust-messages', invoices: 'cust-invoices', downloads: 'cust-downloads', profile: 'cust-profile', reports: 'cust-reports' };
+  const ROUTE_FOR_TAB = { orders: 'cust-orders', messages: 'cust-messages', invoices: 'cust-invoices', downloads: 'cust-downloads', profile: 'cust-profile', reports: 'cust-reports', agenda: 'cust-agenda' };
   const switchTab = (t) => {
     if (navigate && ROUTE_FOR_TAB[t]) navigate(ROUTE_FOR_TAB[t]);
   };
@@ -1790,6 +1875,8 @@ function CustomerView({ role, setRole, selectPersona, toast, section, navigate, 
         <MyReportsView lang="de" userId={cid} reporterRole="customer"/>
       </div>
     );
+  } else if (tab === 'agenda') {
+    body = <CustAgenda/>;
   } else {
     body = <CustOrdersList openOrder={openOrder} startCheckout={startCheckout} goTo={goTo}/>;
   }

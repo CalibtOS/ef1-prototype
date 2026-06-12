@@ -51,6 +51,9 @@ const MAIL_TEMPLATES = {
   'payment.confirmed':                ['paymentReceiptCustomer', 'paymentReceivedAdminNotify'],
   'chat.report_submitted':            ['chatReportAdminNotify'],
   'chat.report_reviewed':             ['chatReportReviewedNotify'],
+  'meeting.requested':                ['meetingRequestedAdminNotify'],
+  'meeting.approved':                 ['meetingApprovedNotify'],
+  'meeting.rejected':                 ['meetingRejectedNotify'],
 };
 
 // Startup validation: every builder referenced in MAIL_TEMPLATES must exist
@@ -925,5 +928,62 @@ DomainEvents.on('chat.report_reviewed', (payload) => {
     reporterEmail,
     reporterName,
     scenarioId,
+  });
+});
+
+DomainEvents.on('meeting.requested', (payload) => {
+  const { meeting } = payload;
+  const { orderId, customerId, gwId, requesterRole, date, startTime } = meeting;
+  const isGw = requesterRole === 'gw';
+  const requesterName = isGw ? selectGwName(gwId) : selectCustomerName(customerId);
+  const orderLabel = orderId ? `Order #${orderId}` : null;
+  sendMail('meeting.requested', 'meetingRequestedAdminNotify', {
+    orderId,
+    customerId,
+    gwId,
+    requesterRole,
+    requesterName,
+    date,
+    startTime,
+    orderLabel,
+  });
+});
+
+DomainEvents.on('meeting.approved', (payload) => {
+  const { meeting } = payload;
+  const { orderId, customerId, gwId, requesterRole, date, startTime, zoomUrl } = meeting;
+  const isGw = requesterRole === 'gw';
+  const toRole = isGw ? 'gw' : 'customer';
+  const recipientEmail = isGw ? selectGwEmail(gwId) : selectCustomerEmail(customerId);
+  const recipientName = isGw ? selectGwName(gwId) : selectCustomerName(customerId);
+  sendMail('meeting.approved', 'meetingApprovedNotify', {
+    orderId,
+    customerId,
+    gwId,
+    toRole,
+    recipientEmail,
+    recipientName,
+    date,
+    startTime,
+    zoomUrl,
+  });
+});
+
+DomainEvents.on('meeting.rejected', (payload) => {
+  const { meeting } = payload;
+  const { orderId, customerId, gwId, requesterRole, date, startTime } = meeting;
+  const isGw = requesterRole === 'gw';
+  const toRole = isGw ? 'gw' : 'customer';
+  const recipientEmail = isGw ? selectGwEmail(gwId) : selectCustomerEmail(customerId);
+  const recipientName = isGw ? selectGwName(gwId) : selectCustomerName(customerId);
+  sendMail('meeting.rejected', 'meetingRejectedNotify', {
+    orderId,
+    customerId,
+    gwId,
+    toRole,
+    recipientEmail,
+    recipientName,
+    date,
+    startTime,
   });
 });

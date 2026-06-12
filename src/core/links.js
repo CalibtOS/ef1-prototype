@@ -68,6 +68,10 @@ function buildLink(target) {
     return { role: 'admin', name: 'friday-batch', params: {} };
   }
 
+  if (k === 'admin-meetings') {
+    return { role: 'admin', name: 'admin-meetings', params: {} };
+  }
+
   if (k === 'admin-inbox') {
     const params = {};
     if (target.contact) params.contact = target.contact;
@@ -135,6 +139,8 @@ function targetFromLegacyCta(cta) {
       return { kind: 'gw-payments', orderId: cta.orderId };
     case 'open_admin_friday_batch':
       return { kind: 'admin-friday-batch' };
+    case 'open_admin_meetings':
+      return { kind: 'admin-meetings' };
     case 'open_stripe_checkout':
       return { kind: 'stripe-checkout', sid: cta.sid };
     default:

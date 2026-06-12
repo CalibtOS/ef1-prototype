@@ -39,7 +39,9 @@ const ROUTES = {
   GW_ASSIGNMENT_DETAIL: 'gw-assignment-detail',
   GW_CALENDAR: 'gw-calendar',
   GW_TIMELINE: 'gw-timeline',
+  GW_MEETINGS: 'gw-meetings',
   ADMIN_CALENDAR: 'admin-calendar',
+  ADMIN_MEETINGS: 'admin-meetings',
   QA_QUEUE: 'qa-queue',
   QA_PLAGIARISM: 'qa-plagiarism',
   QA_AI: 'qa-ai',
@@ -49,6 +51,7 @@ const ROUTES = {
   CUSTOMER_INVOICES: 'cust-invoices',
   CUSTOMER_DOWNLOADS: 'cust-downloads',
   CUSTOMER_PROFILE: 'cust-profile',
+  CUSTOMER_AGENDA: 'cust-agenda',
   WP_HAUSARBEIT: 'wp-hausarbeit',
   WP_VIELEN_DANK: 'wp-vielen-dank',
   SIM_STRIPE_CHECKOUT: 'sim-stripe-checkout',
@@ -111,7 +114,9 @@ const NAV_ROUTE_MAP = {
   'gw-profile': ROUTES.GW_PROFILE,
   'gw-calendar': ROUTES.GW_CALENDAR,
   'gw-timeline': ROUTES.GW_TIMELINE,
+  'gw-meetings': ROUTES.GW_MEETINGS,
   'admin-calendar': ROUTES.ADMIN_CALENDAR,
+  'admin-meetings': ROUTES.ADMIN_MEETINGS,
   'qa-queue': ROUTES.QA_QUEUE,
   'qa-plagiarism': ROUTES.QA_PLAGIARISM,
   'qa-ai': ROUTES.QA_AI,
@@ -140,6 +145,7 @@ function navItems(role, state) {
       { id: 'pipeline', label: 'Pipeline', icon: 'git-branch' },
       { id: 'bi', label: 'AI BI', icon: 'sparkles', tag: 'Beta' },
       { id: 'reports', label: 'Reports', icon: 'bar-chart-3' },
+      { id: 'admin-meetings', label: 'Meetings', icon: 'video' },
       { id: 'settings', label: 'Settings', icon: 'settings' },
     ];
   }
@@ -163,6 +169,7 @@ function navItems(role, state) {
       { id: 'gw-templates', label: 'Templates', icon: 'folder' },
       { id: 'gw-payments', label: 'Payments', icon: 'wallet' },
       { id: 'gw-messages', label: 'Messages', icon: 'message-square', badge: msgUnread ? String(msgUnread) : null },
+      { id: 'gw-meetings', label: 'Meetings', icon: 'video' },
       { id: 'gw-reports', label: 'My Reports', icon: 'flag' },
       { id: 'gw-profile', label: 'Profile', icon: 'user' },
     ];
