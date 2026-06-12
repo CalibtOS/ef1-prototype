@@ -548,14 +548,14 @@ function seedGwApplications() {
 // Week of 2026-06-08 (Mon) to 2026-06-12 (Fri).
 // Only specific slots are seeded; un-seeded cells render as inactive in the grid.
 // ---------------------------------------------------------------------------
+// Single source of truth for the demo week — the availability grid, slot
+// actions, and admin header all derive from this map.
+const MEETING_WEEK_DATES = {
+  Mon: '2026-06-08', Tue: '2026-06-09', Wed: '2026-06-10', Thu: '2026-06-11', Fri: '2026-06-12',
+};
+
 function buildMeetingSlots() {
-  const days = [
-    { weekday: 'Mon', date: '2026-06-08' },
-    { weekday: 'Tue', date: '2026-06-09' },
-    { weekday: 'Wed', date: '2026-06-10' },
-    { weekday: 'Thu', date: '2026-06-11' },
-    { weekday: 'Fri', date: '2026-06-12' },
-  ];
+  const days = Object.entries(MEETING_WEEK_DATES).map(([weekday, date]) => ({ weekday, date }));
   // Deliberately sparse so the grid has a realistic mix of free/inactive cells.
   const seedTimes = {
     Mon: ['09:00', '09:30', '11:00', '14:00', '15:30'],
@@ -630,4 +630,4 @@ function hydrate() {
   };
 }
 
-export { hydrate, normalize, clone };
+export { hydrate, normalize, clone, MEETING_WEEK_DATES };

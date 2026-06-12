@@ -8,11 +8,9 @@
 // selectedSlotId highlights the currently chosen slot in selection mode.
 import React from 'react';
 import * as U from '../../utils.jsx';
+import { MEETING_WEEK_DATES } from '../core/entities.js';
 
-const WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'];
-export const WEEK_DATES = {
-  Mon: '2026-06-08', Tue: '2026-06-09', Wed: '2026-06-10', Thu: '2026-06-11', Fri: '2026-06-12',
-};
+const WEEKDAYS = Object.keys(MEETING_WEEK_DATES);
 const GRID_TIMES = (() => {
   const ts = [];
   for (let h = 9; h <= 17; h++) {
@@ -40,7 +38,7 @@ function AvailabilityGrid({ slots, editable, onToggleSlot, onSelectSlot, selecte
             {WEEKDAYS.map(d => (
               <th key={d} style={{ textAlign: 'center', fontWeight: 600 }}>
                 {d}
-                <div style={{ fontSize: 10, fontWeight: 400, color: 'var(--text-3)' }}>{U.fmtDate(WEEK_DATES[d])}</div>
+                <div style={{ fontSize: 10, fontWeight: 400, color: 'var(--text-3)' }}>{U.fmtDate(MEETING_WEEK_DATES[d])}</div>
               </th>
             ))}
           </tr>
@@ -59,7 +57,7 @@ function AvailabilityGrid({ slots, editable, onToggleSlot, onSelectSlot, selecte
                       <span
                         style={{
                           display: 'block', padding: '3px 0', borderRadius: 4,
-                          background: addable ? 'var(--surface-2)' : 'var(--surface-2)',
+                          background: 'var(--surface-2)',
                           color: addable ? 'var(--text-2)' : 'var(--text-3)',
                           fontSize: 11,
                           cursor: addable ? 'pointer' : 'default',
@@ -124,4 +122,4 @@ function AvailabilityGrid({ slots, editable, onToggleSlot, onSelectSlot, selecte
   );
 }
 
-export { AvailabilityGrid, WEEKDAYS, GRID_TIMES };
+export { AvailabilityGrid };

@@ -202,12 +202,6 @@ function _selectAllMeetings(state) {
   return t.allIds.map(id => t.byId[id]);
 }
 
-function _selectAvailableSlots(state) {
-  const t = state.entities.meeting_slots;
-  if (!t) return [];
-  return t.allIds.map(id => t.byId[id]).filter(s => !s.isBooked && !s.isPending && !s.isRemoved);
-}
-
 function _selectPendingMeetings(state) {
   const t = state.entities.meetings;
   if (!t) return [];
@@ -222,36 +216,24 @@ function useAllMeetings() {
   return useStore(_selectAllMeetings, shallowEqual);
 }
 
-function useAvailableSlots() {
-  return useStore(_selectAvailableSlots, shallowEqual);
-}
-
 function usePendingMeetings() {
   return useStore(_selectPendingMeetings, shallowEqual);
 }
 
-function useMeetingByCustomer(customerId) {
-  const selector = React.useMemo(
-    () => state => {
-      const t = state.entities.meetings;
-      if (!t) return null;
-      return t.allIds.map(id => t.byId[id]).find(m => m.customerId === customerId && m.status === 'scheduled') || null;
-    },
-    [customerId]
-  );
-  return useStore(selector, shallowEqual);
-}
-
-function useMeetingByOrder(orderId) {
+// Scoped to one requester side: a customer's meeting on an order must not
+// surface in the GW's booking card for the same order (and vice versa).
+function useMeetingByOrder(orderId, requesterRole) {
   const selector = React.useMemo(
     () => state => {
       const t = state.entities.meetings;
       if (!t) return null;
       return t.allIds.map(id => t.byId[id]).find(
-        m => m.orderId === orderId && (m.status === 'scheduled' || m.status === 'pending_approval')
+        m => m.orderId === orderId
+          && m.requesterRole === requesterRole
+          && (m.status === 'scheduled' || m.status === 'pending_approval')
       ) || null;
     },
-    [orderId]
+    [orderId, requesterRole]
   );
   return useStore(selector, shallowEqual);
 }
@@ -289,8 +271,6 @@ export {
   useChatReport,
   useAllSlots,
   useAllMeetings,
-  useAvailableSlots,
   usePendingMeetings,
-  useMeetingByCustomer,
   useMeetingByOrder,
 };

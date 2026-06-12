@@ -65,7 +65,7 @@ function GWMeetings({ navigate }) {
                 type="button"
                 className="btn btn-sm"
                 style={{ color: 'var(--red)', borderColor: 'color-mix(in oklab, var(--red) 40%, var(--border))' }}
-                onClick={() => { if (window.confirm('Cancel this meeting request?')) EFActions.meetings.cancel(m.id); }}
+                onClick={() => { if (window.confirm('Cancel this meeting request?')) EFActions.meetings.cancel(m.id, 'gw'); }}
               >
                 <Icon name="x" size={12}/> Cancel
               </button>

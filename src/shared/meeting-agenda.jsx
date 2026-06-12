@@ -22,7 +22,7 @@ function groupByDate(meetings) {
   return groups;
 }
 
-function MeetingAgenda({ meetings = [], emptyText = 'No upcoming meetings.', renderActions, renderLabel }) {
+function MeetingAgenda({ meetings = [], emptyText = 'No upcoming meetings.', joinLabel = 'Join', renderActions, renderLabel }) {
   const groups = groupByDate(meetings || []);
 
   if (groups.length === 0) {
@@ -76,7 +76,7 @@ function MeetingAgenda({ meetings = [], emptyText = 'No upcoming meetings.', ren
                     className="btn btn-sm btn-primary"
                     style={{ textDecoration: 'none' }}
                   >
-                    <Icon name="video" size={12}/> Join
+                    <Icon name="video" size={12}/> {joinLabel}
                   </a>
                 )}
                 {renderActions && renderActions(m)}

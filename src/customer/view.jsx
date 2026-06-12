@@ -442,11 +442,12 @@ function CustOrdersList({ openOrder, startCheckout, goTo }) {
 
 // Orders must be past the offer/payment stage before a customer can book a
 // meeting. Pre-payment orders (qualified → invoice_sent) are excluded because
-// the admin hasn't committed to the work yet. Cancelled orders are excluded too.
+// the admin hasn't committed to the work yet. Cancelled and on-hold orders are
+// excluded too — a hold is admin-initiated, so the admin reaches out instead.
 const MEETING_ELIGIBLE_STATUSES = new Set([
   'available', 'claimed_pending_approval', 'active',
   'interim_submitted', 'under_customer_review', 'revision_required',
-  'delay_reported', 'extension_customer_approval_pending',
+  'delay_reported', 'extension_requested', 'extension_customer_approval_pending',
   'qa_review', 'ai_violation_review', 'plagiarism_violation_review',
   'delivered', 'payment_pending', 'completed',
 ]);
@@ -1751,6 +1752,7 @@ function CustAgenda() {
         <MeetingAgenda
           meetings={myMeetings}
           emptyText="Keine Termine geplant."
+          joinLabel="Beitreten"
           renderLabel={(m) => {
             const title = orderTitle(m.orderId);
             return (
@@ -1772,9 +1774,9 @@ function CustAgenda() {
                 type="button"
                 className="btn btn-sm"
                 style={{ color: 'var(--red)', borderColor: 'color-mix(in oklab, var(--red) 40%, var(--border))' }}
-                onClick={() => { if (window.confirm('Termin stornieren?')) EFActions.meetings.cancel(m.id); }}
+                onClick={() => { if (window.confirm('Termin stornieren?')) EFActions.meetings.cancel(m.id, 'customer'); }}
               >
-                <Icon name="x" size={12}/> Cancel
+                <Icon name="x" size={12}/> Stornieren
               </button>
             </div>
           )}

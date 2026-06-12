@@ -7,11 +7,14 @@ import * as EFHooks from '../core/hooks.js';
 import EFActions from '../core/actions.js';
 import { AvailabilityGrid } from '../shared/availability-grid.jsx';
 import { MeetingAgenda } from '../shared/meeting-agenda.jsx';
+import { MEETING_WEEK_DATES } from '../core/entities.js';
 
 function truncate(str, max) {
   if (!str) return '';
   return str.length > max ? str.slice(0, max) + '…' : str;
 }
+
+const weekDates = Object.values(MEETING_WEEK_DATES);
 
 function AdminMeetings({ navigate }) {
   const slots      = EFHooks.useAllSlots();
@@ -57,7 +60,7 @@ function AdminMeetings({ navigate }) {
             </span>
           )}
           {m.duration && (
-            <span className="mono fs-11 text-faint">{!ord ? `Order #${m.orderId} · ` : '· '}{m.duration} min</span>
+            <span className="mono fs-11 text-faint">{ord ? '· ' : m.orderId ? `Order #${m.orderId} · ` : ''}{m.duration} min</span>
           )}
         </div>
       </div>
@@ -70,7 +73,7 @@ function AdminMeetings({ navigate }) {
         <div>
           <CrumbBar trail={['Admin', 'Meetings']}/>
           <h1 className="page-title" style={{ marginTop: 6 }}>Meetings</h1>
-          <div className="page-subtitle">Verfügbarkeit bearbeiten · Anfragen genehmigen · Termine im Überblick</div>
+          <div className="page-subtitle">Edit availability · Approve requests · Agenda overview</div>
         </div>
       </div>
 
@@ -79,7 +82,7 @@ function AdminMeetings({ navigate }) {
         <div className="card-head">
           <div className="card-title">Availability Schedule</div>
           <span className="text-faint fs-12">
-            Week · {U.fmtDate('2026-06-08')} – {U.fmtDate('2026-06-12')} · Click Free to remove · Click + to add
+            Week · {U.fmtDate(weekDates[0])} – {U.fmtDate(weekDates[weekDates.length - 1])} · Click Free to remove · Click + to add
           </span>
         </div>
         <AvailabilityGrid
@@ -179,7 +182,7 @@ function AdminMeetings({ navigate }) {
               type="button"
               className="btn btn-sm"
               style={{ color: 'var(--red)', borderColor: 'color-mix(in oklab, var(--red) 40%, var(--border))' }}
-              onClick={() => EFActions.meetings.cancel(m.id)}
+              onClick={() => EFActions.meetings.cancel(m.id, 'admin')}
             >
               <Icon name="x" size={12}/> Cancel
             </button>

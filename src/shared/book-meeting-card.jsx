@@ -9,6 +9,9 @@
 //
 // Flow: "Book Meeting" button → availability grid → slot selection →
 //       confirm → pending_approval request (admin must approve).
+//
+// Copy follows the role's UI language: customer surfaces are German,
+// GW surfaces are English.
 import React from 'react';
 import { Icon } from '../../utils.jsx';
 import * as U from '../../utils.jsx';
@@ -16,15 +19,55 @@ import * as EFHooks from '../core/hooks.js';
 import EFActions from '../core/actions.js';
 import { AvailabilityGrid } from './availability-grid.jsx';
 
+const STRINGS = {
+  customer: {
+    defaultTitle: 'Zoom-Termin',
+    pending: 'Ausstehend',
+    confirmed: 'Bestätigt',
+    pendingBanner: 'Ihre Anfrage wartet auf die Bestätigung durch efactory1.',
+    date: 'Datum',
+    time: 'Uhrzeit',
+    join: 'Meeting beitreten',
+    reschedule: 'Verschieben',
+    cancel: 'Stornieren',
+    cancelConfirm: 'Termin stornieren?',
+    pickNewSlot: 'Neuen Termin wählen:',
+    back: 'Zurück',
+    book: 'Termin buchen',
+    pickHint: 'Wählen Sie einen freien Termin — die Anfrage wird an efactory1 zur Bestätigung weitergeleitet.',
+    sendRequest: 'Anfrage senden',
+    abort: 'Abbrechen',
+  },
+  gw: {
+    defaultTitle: 'Meeting with Admin',
+    pending: 'Pending',
+    confirmed: 'Confirmed',
+    pendingBanner: 'Your request is waiting for confirmation by efactory1.',
+    date: 'Date',
+    time: 'Time',
+    join: 'Join Meeting',
+    reschedule: 'Reschedule',
+    cancel: 'Cancel',
+    cancelConfirm: 'Cancel this meeting?',
+    pickNewSlot: 'Pick a new slot:',
+    back: 'Back',
+    book: 'Book meeting',
+    pickHint: 'Pick a free slot — the request is sent to efactory1 for confirmation.',
+    sendRequest: 'Send request',
+    abort: 'Cancel',
+  },
+};
+
 function BookMeetingCard({ customerId, gwId, orderId, requesterRole, cardTitle }) {
   const [showGrid, setShowGrid] = React.useState(false);
   const [showReschedulePicker, setShowReschedulePicker] = React.useState(false);
   const [selectedSlotId, setSelectedSlotId] = React.useState(null);
 
-  const meeting = EFHooks.useMeetingByOrder(orderId);
+  const meeting = EFHooks.useMeetingByOrder(orderId, requesterRole);
   const allSlots = EFHooks.useAllSlots();
 
-  const title = cardTitle || (requesterRole === 'gw' ? 'Meeting with Admin' : 'Zoom-Termin');
+  const t = STRINGS[requesterRole] || STRINGS.customer;
+  const title = cardTitle || t.defaultTitle;
 
   function handleSlotSelect(slot) {
     setSelectedSlotId(prev => (prev === slot.id ? null : slot.id));
@@ -44,7 +87,7 @@ function BookMeetingCard({ customerId, gwId, orderId, requesterRole, cardTitle }
   }
 
   function handleCancel() {
-    if (window.confirm('Termin stornieren?')) EFActions.meetings.cancel(meeting.id);
+    if (window.confirm(t.cancelConfirm)) EFActions.meetings.cancel(meeting.id, requesterRole);
   }
 
   // — Existing meeting (scheduled or pending_approval) —
@@ -55,44 +98,44 @@ function BookMeetingCard({ customerId, gwId, orderId, requesterRole, cardTitle }
         <div className="card-head">
           <div className="card-title"><Icon name="video" size={13}/> {title}</div>
           {isPending
-            ? <span className="pill pill-amber" style={{ fontSize: 10 }}>Ausstehend</span>
-            : <span className="pill pill-green" style={{ fontSize: 10 }}><Icon name="check-circle" size={9}/> Bestätigt</span>}
+            ? <span className="pill pill-amber" style={{ fontSize: 10 }}>{t.pending}</span>
+            : <span className="pill pill-green" style={{ fontSize: 10 }}><Icon name="check-circle" size={9}/> {t.confirmed}</span>}
         </div>
         <div className="card-pad">
           {showReschedulePicker ? (
             <div className="flex-col gap-3">
-              <div className="text-muted fs-12">Neuen Termin wählen:</div>
+              <div className="text-muted fs-12">{t.pickNewSlot}</div>
               <AvailabilityGrid slots={allSlots} onSelectSlot={handleReschedule}/>
-              <button type="button" className="btn btn-sm" onClick={() => setShowReschedulePicker(false)}>Zurück</button>
+              <button type="button" className="btn btn-sm" onClick={() => setShowReschedulePicker(false)}>{t.back}</button>
             </div>
           ) : (
             <div className="flex-col gap-2">
               {isPending && (
                 <div className="banner info" style={{ fontSize: 12 }}>
                   <Icon name="clock" size={12}/>
-                  <span>Ihre Anfrage wartet auf die Bestätigung durch efactory1.</span>
+                  <span>{t.pendingBanner}</span>
                 </div>
               )}
               <div className="kv" style={{ fontSize: 12 }}>
-                <div className="kv-row"><dt>Datum</dt><dd className="mono">{U.fmtDate(meeting.date)}</dd></div>
-                <div className="kv-row"><dt>Uhrzeit</dt><dd className="mono">{meeting.startTime}</dd></div>
+                <div className="kv-row"><dt>{t.date}</dt><dd className="mono">{U.fmtDate(meeting.date)}</dd></div>
+                <div className="kv-row"><dt>{t.time}</dt><dd className="mono">{meeting.startTime}</dd></div>
               </div>
               <div className="flex gap-2" style={{ flexWrap: 'wrap', marginTop: 4 }}>
                 {!isPending && meeting.zoomUrl && (
                   <a href={meeting.zoomUrl} target="_blank" rel="noreferrer" className="btn btn-sm btn-primary" style={{ textDecoration: 'none' }}>
-                    <Icon name="video" size={12}/> Join Meeting
+                    <Icon name="video" size={12}/> {t.join}
                   </a>
                 )}
                 {!isPending && (
                   <button type="button" className="btn btn-sm" onClick={() => setShowReschedulePicker(true)}>
-                    <Icon name="rotate-ccw" size={12}/> Reschedule
+                    <Icon name="rotate-ccw" size={12}/> {t.reschedule}
                   </button>
                 )}
                 <button type="button" className="btn btn-sm"
                   style={{ color: 'var(--red)', borderColor: 'color-mix(in oklab, var(--red) 40%, var(--border))' }}
                   onClick={handleCancel}
                 >
-                  <Icon name="x" size={12}/> Cancel
+                  <Icon name="x" size={12}/> {t.cancel}
                 </button>
               </div>
             </div>
@@ -111,12 +154,12 @@ function BookMeetingCard({ customerId, gwId, orderId, requesterRole, cardTitle }
       <div className="card-pad">
         {!showGrid ? (
           <button type="button" className="btn btn-sm btn-primary" onClick={() => setShowGrid(true)}>
-            <Icon name="calendar" size={12}/> Termin buchen
+            <Icon name="calendar" size={12}/> {t.book}
           </button>
         ) : (
           <div className="flex-col gap-3">
             <div className="text-muted fs-12">
-              Wählen Sie einen freien Termin — die Anfrage wird an efactory1 zur Bestätigung weitergeleitet.
+              {t.pickHint}
             </div>
             <AvailabilityGrid
               slots={allSlots}
@@ -130,10 +173,10 @@ function BookMeetingCard({ customerId, gwId, orderId, requesterRole, cardTitle }
                 disabled={!selectedSlotId}
                 onClick={handleConfirm}
               >
-                <Icon name="send" size={12}/> Anfrage senden
+                <Icon name="send" size={12}/> {t.sendRequest}
               </button>
               <button type="button" className="btn btn-sm" onClick={() => { setShowGrid(false); setSelectedSlotId(null); }}>
-                Abbrechen
+                {t.abort}
               </button>
             </div>
           </div>
